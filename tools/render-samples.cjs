@@ -38,10 +38,49 @@ const LOOKS = [
   { id: 'mineral+nature', label: 'Root', note: 'parent', traits: { nature: 20, mineral: 18 } },
   { id: 'prism+spark', label: 'Aurora', note: 'parent', traits: { prism: 20, spark: 18 } },
   { id: 'spark', label: 'Volt', note: 'parent', traits: { spark: 34 } },
+  // breeding-only takes (samples)
+  { id: 'breed:smore:a', label: "S'more · take A", note: 'cracker hat, chocolate heart', traits: { sweet: 20, heat: 16 } },
+  { id: 'breed:smore:b', label: "S'more · take B", note: 'gooey s\'more on a cracker', traits: { sweet: 18, heat: 22 } },
+  { id: 'breed:honeycomb:a', label: 'Honeycomb · take A', note: 'hive buddy, honey dipper', traits: { sweet: 22, nature: 14 } },
+  { id: 'breed:honeycomb:b', label: 'Honeycomb · take B', note: 'wrapped honey-drop candy', traits: { sweet: 20, nature: 14 } },
+  { id: 'breed:campfire:a', label: 'Campfire · take A', note: 'sits in its log fire', traits: { heat: 20, nature: 14 } },
+  { id: 'breed:campfire:b', label: 'Campfire · take B', note: 'little camper, campfire hat', traits: { heat: 14, nature: 20 } },
+  { id: 'breed:storm:a', label: 'Storm · take A', note: 'puffy cloud, rainbow, bolt', traits: { spark: 20, prism: 14 } },
+  { id: 'breed:storm:b', label: 'Storm · take B', note: 'storm in a bottle', traits: { spark: 18, prism: 16 } },
 ];
-const EGGS = [];
+const EGGS = [
+  { id: 'egg:normal', label: 'Normal egg', note: 'as in the game today', kind: null },
+  { id: 'egg:spark:a', label: 'Spark egg · take A', note: 'warm heartbeat glow inside', kind: 'glow' },
+  { id: 'egg:spark:b', label: 'Spark egg · take B', note: 'a twinkle circles it', kind: 'twinkle' },
+];
+const TAKE_IDS = ['breed:smore:a', 'breed:smore:b', 'breed:honeycomb:a', 'breed:honeycomb:b', 'breed:campfire:a', 'breed:campfire:b', 'breed:storm:a', 'breed:storm:b'];
+// ranch check: every take as a resident (cheaper "lite" slimes), seen from the Ranch tab
+const RANCH = [{ id: 'ranch:all', label: 'All 8 takes on the ranch', note: 'lite residents, Ranch tab' }];
 const PARENT_IDS = ['heat+sweet', 'mochi', 'nature+sweet', 'sweet', 'mineral+nature', 'prism+spark', 'spark'];
+// one sheet per breeding form: parents and both takes, day and night, then close-ups of the takes
+const formSheet = (file, title, sub, ids) => ({ file, title, sub, width: 1330, rows: [
+  { header: 'Day', theme: 'day', ids, w: 320, h: 694 },
+  { header: 'Night', theme: 'night', ids, w: 320, h: 694 },
+  { header: 'Close-up (day)', theme: 'day', crop: true, ids: ids.slice(2), w: 650, h: 650 },
+] });
 const SHEETS = [
+  formSheet('01-smore.png', "S'more Slime", 'Hearth × Marshmallow, raised on the right snacks', ['heat+sweet', 'mochi', 'breed:smore:a', 'breed:smore:b']),
+  formSheet('02-honeycomb.png', 'Honeycomb Slime', 'Nectar × Candy, raised on the right snacks', ['nature+sweet', 'sweet', 'breed:honeycomb:a', 'breed:honeycomb:b']),
+  formSheet('03-campfire.png', 'Campfire Slime', 'Hearth × Root, raised on the right snacks', ['heat+sweet', 'mineral+nature', 'breed:campfire:a', 'breed:campfire:b']),
+  formSheet('04-storm.png', 'Storm Slime', 'Aurora × Volt, raised on the right snacks', ['prism+spark', 'spark', 'breed:storm:a', 'breed:storm:b']),
+  { file: '00-overview.png', title: 'Breeding-only forms: all 8 takes', sub: 'Close-ups, day. Each form has a take A and a take B.', width: 1330, rows: [
+    { header: "S'more and Honeycomb", theme: 'day', crop: true, ids: TAKE_IDS.slice(0, 4), w: 320, h: 320 },
+    { header: 'Campfire and Storm', theme: 'day', crop: true, ids: TAKE_IDS.slice(4), w: 320, h: 320 },
+  ] },
+  { file: 'egg-spark.png', title: 'Family spark egg', sub: 'An egg from a spark pair looks a little special', width: 1000, rows: [
+    { header: 'Day', theme: 'day', ids: EGGS.map(e => e.id), w: 320, h: 694 },
+    { header: 'Night', theme: 'night', ids: EGGS.map(e => e.id), w: 320, h: 694 },
+    { header: 'Close-up (day)', theme: 'day', crop: true, ids: EGGS.map(e => e.id), w: 320, h: 320 },
+    { header: 'Close-up (night)', theme: 'night', crop: true, ids: EGGS.map(e => e.id), w: 320, h: 320 },
+  ] },
+  { file: 'ranch-lite.png', title: 'Ranch check: the takes as ranch residents', sub: 'Lite slimes (coarser body). Left to right: day, night', width: 1000, rows: [
+    { header: '', theme: 'day', ids: ['ranch:all'], w: 480, h: 1041, pair: true },
+  ] },
   { file: 'parents.png', title: 'Parent looks (as in the game today)', sub: 'Day and night, for comparison', width: 1330, rows: [
     { header: 'Day', theme: 'day', ids: PARENT_IDS, w: 180, h: 390 },
     { header: 'Night', theme: 'night', ids: PARENT_IDS, w: 180, h: 390 },
@@ -124,7 +163,8 @@ async function render() {
     }
 
     const looks = LOOKS.filter(l => matches(l.id));
-    if (looks.length) {
+    const wantRanch = ONLY ? ONLY.split(',').includes('ranch') : true;
+    if (looks.length || wantRanch) {
       // hatch and grow up (as in the smoke test)
       await ev(() => { const g = window.slimekin; for (let i = 0; i < 5; i++) g.tapEgg(g.egg.group.position.clone()); g.advance(4.5); });
       await page.fill('#slimeName', 'Sample'); await page.click('#nameOk');
@@ -166,6 +206,11 @@ async function render() {
             g.hud.closeModal(); g.debug('needs'); g.requests.timer = 1e9; g.glimmerT = 1e9;
             g.advance(4);
             const calls1 = solo(), objs1 = count();
+            // and with the look's own props hidden, so the difference is what the props cost
+            const props = sl.formProps.flatMap(p => [p.obj, ...(p.extra || [])]), was = props.map(o => o.visible);
+            for (const o of props) o.visible = false;
+            const callsBare = solo();
+            props.forEach((o, i) => { o.visible = was[i]; });
             let propMeshes = 0;
             for (const p of sl.formProps) for (const o of [p.obj, ...(p.extra || [])]) o.traverse(c => { if (c.isMesh || c.isSprite) propMeshes++; });
             // lite (ranch resident) copy: must build and stay finite; inner overlays hide on the ranch unless visiting
@@ -178,19 +223,50 @@ async function render() {
             lite.root.updateMatrixWorld(true);
             lite.root.traverseVisible(o => { if (o.isMesh || o.isSprite) { liteObjs++; const e = o.matrixWorld.elements; if (e.some(v => !Number.isFinite(v))) finite = false; } });
             if (!Array.from(lite.geo.attributes.position.array).every(Number.isFinite)) finite = false;
-            return { calls0, calls1, objs0, objs1, propMeshes, liteObjs, liteFinite: finite };
+            return { callsNoForm: calls0, callsLook: calls1, callsLookNoProps: callsBare, propDrawCalls: calls1 - callsBare, objs0, objs1, propMeshes, liteObjs, liteFinite: finite };
           }, l);
           const file = framePath(l.id, theme);
           await shot(file);
           const clip = await ev(() => {
             const g = window.slimekin, sl = g.slime, V = () => g.v1.clone().set(0, 0, 0);
             const b = g.screenOf(sl.root.getWorldPosition(V())), t = g.screenOf(sl.headTopWorld(V()));
-            const h = b.y - t.y, side = h * 1.8, cy = (b.y + t.y) / 2 - h * 0.12;
+            const h = b.y - t.y, side = h * 2.05, cy = (b.y + t.y) / 2 - h * 0.14;
             return { x: (b.x + t.x) / 2 - side / 2, y: cy - side / 2, w: side, h: side };
           });
           fs.writeFileSync(framePath(l.id, theme, 'json'), JSON.stringify({ id: l.id, theme, clip, dpr: DPR, stats }, null, 1));
           console.log('look', l.id, theme, JSON.stringify(stats));
         }
+      }
+    }
+
+    // ----- ranch residents (lite) -----
+    if (wantRanch) {
+      const list = LOOKS.filter(l => TAKE_IDS.includes(l.id)).map((l, i) => ({ id: 'sample' + i, name: l.label, traits: l.traits, form: { id: l.id } }));
+      await setTheme(false);
+      await ev(list => {
+        const g = window.slimekin;
+        const keys = Object.keys(g.state.slime.traits);
+        g.ranch.sync(list.map(d => ({ ...d, traits: Object.fromEntries(keys.map(k => [k, d.traits[k] || 0])) })));
+      }, list);
+      await page.click('#tab-ranch');
+      await ev(() => window.slimekin.advance(5));
+      for (const dark of [false, true]) {
+        await setTheme(dark);
+        await ev(() => window.slimekin.advance(2));
+        const theme = dark ? 'night' : 'day';
+        const file = framePath('ranch:all', theme);
+        await shot(file);
+        const info = await ev(() => {
+          const g = window.slimekin, out = [];
+          for (const r of g.ranch.residents.values()) {
+            let n = 0, finite = true;
+            r.av.root.traverseVisible(o => { if (o.isMesh || o.isSprite) { n++; if (o.matrixWorld.elements.some(v => !Number.isFinite(v))) finite = false; } });
+            out.push({ form: r.av.formId, lite: r.av.lite, visibleObjs: n, finite });
+          }
+          return out;
+        });
+        fs.writeFileSync(framePath('ranch:all', theme, 'json'), JSON.stringify({ id: 'ranch:all', theme, residents: info }, null, 1));
+        console.log('ranch', theme, JSON.stringify(info));
       }
     }
   } catch (e) {
@@ -256,7 +332,7 @@ function buildSheet(file, title, sub, rows, width) {
 }
 
 function buildSheets() {
-  const byId = Object.fromEntries([...LOOKS, ...EGGS].map(l => [l.id, l]));
+  const byId = Object.fromEntries([...LOOKS, ...EGGS, ...RANCH].map(l => [l.id, l]));
   const have = (id, th) => fs.existsSync(framePath(id, th));
   for (const s of SHEETS) {
     const ids = s.rows.flatMap(r => r.ids);
@@ -264,7 +340,9 @@ function buildSheets() {
     if (missing.length) { console.log('skip sheet', s.file, '(missing frames:', missing.join(', ') + ')'); continue; }
     const rows = s.rows.map(r => ({
       header: r.header, w: r.w, h: r.h,
-      tiles: r.ids.map(id => ({ img: framePath(id, r.theme), label: byId[id].label, note: byId[id].note, crop: !!r.crop })),
+      tiles: r.pair
+        ? ['day', 'night'].map(th => ({ img: framePath(r.ids[0], th), label: byId[r.ids[0]].label.replace(/^/, th === 'day' ? 'Day: ' : 'Night: '), note: byId[r.ids[0]].note }))
+        : r.ids.map(id => ({ img: framePath(id, r.theme), label: byId[id].label, note: byId[id].note, crop: !!r.crop })),
     }));
     buildSheet(s.file, s.title, s.sub, rows, s.width);
   }

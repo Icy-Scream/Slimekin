@@ -2,6 +2,7 @@
 // diet-based color: a body shape, a surface pattern, something inside it, small props and effects.
 // Following the design doc, each form leans on 2-3 strong motifs instead of every trait at once.
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const TAU = Math.PI * 2;
 
@@ -966,5 +967,529 @@ export const PROP_MAKERS = {
     };
   },
 };
+
+// ---------- breeding-only looks (SAMPLES) ----------
+// Forms that come only from a parent pair raised on the right snacks (a "family spark", per the design
+// doc). Not reachable in gameplay yet: the form resolver never picks a 'breed:' id, so these render only
+// through setForm() (see tools/render-samples.cjs). Two takes (a, b) per form so the owner can pick one.
+
+// Small tiling stripes (straight or diagonal) for wrappers and handles.
+function stripeTex(a, b, n = 8, diagonal = false) {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const x = c.getContext('2d');
+  x.fillStyle = a; x.fillRect(0, 0, 64, 64);
+  x.fillStyle = b;
+  const s = 64 / n;
+  for (let i = -n; i < n * 2; i += 2) {
+    x.beginPath();
+    if (diagonal) { x.moveTo(i * s, 64); x.lineTo((i + 1) * s, 64); x.lineTo((i + 1) * s + 64, 0); x.lineTo(i * s + 64, 0); }
+    else x.rect(i * s, 0, s, 64);
+    x.fill();
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  return t;
+}
+
+function roundRect(w, h, r) {
+  const s = new THREE.Shape(), x = -w / 2, y = -h / 2;
+  s.moveTo(x + r, y); s.lineTo(x + w - r, y); s.quadraticCurveTo(x + w, y, x + w, y + r);
+  s.lineTo(x + w, y + h - r); s.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  s.lineTo(x + r, y + h); s.quadraticCurveTo(x, y + h, x, y + h - r);
+  s.lineTo(x, y + r); s.quadraticCurveTo(x, y, x + r, y);
+  return s;
+}
+
+// A flat rounded slab lying in the XZ plane (top face up). uvs on the top/bottom map 0..1 over its width.
+function slab(w, d, r = w * 0.07) {
+  const bevel = Math.min(d * 0.25, 0.02);
+  const geo = new THREE.ExtrudeGeometry(roundRect(w, w, r), { depth: d, bevelEnabled: true, bevelThickness: bevel, bevelSize: bevel, bevelSegments: 2, curveSegments: 3 });
+  const uv = geo.attributes.uv;
+  for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) / w + 0.5, uv.getY(i) / w + 0.5);
+  geo.translate(0, 0, -d / 2);
+  geo.rotateX(-Math.PI / 2);
+  return geo;
+}
+
+// Graham cracker face: toasty tan, a pressed border, the snap line and docking holes.
+const grahamTex = (() => {
+  let t = null;
+  return () => {
+    if (t) return t;
+    const c = document.createElement('canvas'); c.width = c.height = 256;
+    const x = c.getContext('2d');
+    x.fillStyle = '#d89a52'; x.fillRect(0, 0, 256, 256);
+    let seed = 9; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    for (let i = 0; i < 520; i++) {
+      x.fillStyle = rnd() < 0.5 ? 'rgba(150, 86, 34, 0.25)' : 'rgba(255, 222, 165, 0.3)';
+      x.beginPath(); x.arc(rnd() * 256, rnd() * 256, 1 + rnd() * 2.5, 0, TAU); x.fill();
+    }
+    x.strokeStyle = 'rgba(140, 78, 30, 0.5)'; x.lineWidth = 6;
+    x.strokeRect(20, 20, 216, 216);
+    x.setLineDash([12, 10]); x.beginPath(); x.moveTo(128, 26); x.lineTo(128, 230); x.stroke(); x.setLineDash([]);
+    x.fillStyle = 'rgba(115, 60, 22, 0.75)';
+    for (const cx of [56, 96, 160, 200]) for (const cy of [60, 106, 152, 198]) { x.beginPath(); x.arc(cx, cy, 7, 0, TAU); x.fill(); }
+    t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  };
+})();
+function makeCracker(w, d) {
+  return new THREE.Mesh(slab(w, d), [
+    new THREE.MeshStandardMaterial({ map: grahamTex(), roughness: 0.85 }),
+    new THREE.MeshStandardMaterial({ color: '#c98a46', roughness: 0.9 }),
+  ]);
+}
+const chocMat = () => new THREE.MeshStandardMaterial({ color: '#5e321f', roughness: 0.28, metalness: 0.05 });
+
+// A little piece of honeycomb: seven hexagonal wax cells merged into one mesh.
+function combGeo(r = 0.07, d = 0.05) {
+  const hex = rad => Array.from({ length: 6 }, (_, i) => { const a = i / 6 * TAU + Math.PI / 6; return new THREE.Vector2(Math.cos(a) * rad, Math.sin(a) * rad); });
+  const cell = new THREE.Shape(hex(r));
+  cell.holes.push(new THREE.Path(hex(r * 0.66)));
+  const base = new THREE.ExtrudeGeometry(cell, { depth: d, bevelEnabled: false });
+  const parts = [[0, 0], ...Array.from({ length: 6 }, (_, i) => { const a = i / 6 * TAU; return [Math.cos(a) * r * Math.sqrt(3), Math.sin(a) * r * Math.sqrt(3)]; })]
+    .map(([x, y]) => base.clone().translate(x, y, -d / 2));
+  return mergeGeometries(parts);
+}
+
+Object.assign(PATTERNS, {
+  // Soft marshmallow toasted on top, with melted chocolate dripping over the crown (full color).
+  smoreToast: () => canvasTex((x, w, h) => {
+    x.fillStyle = '#fff4e4'; x.fillRect(0, 0, w, h);
+    const g = x.createLinearGradient(0, 0, 0, h * 0.46);
+    g.addColorStop(0, '#c27a3e'); g.addColorStop(0.35, '#dc9d5c'); g.addColorStop(0.7, '#f3cf9c'); g.addColorStop(1, 'rgba(255,244,228,0)');
+    x.fillStyle = g; x.fillRect(0, 0, w, h * 0.46);
+    x.fillStyle = '#6a3a22';
+    x.fillRect(0, 0, w, h * 0.14);
+    for (let i = 0; i < 10; i++) {
+      const cx = (i + 0.5) / 10 * w, len = h * (0.07 + ((i * 5) % 4) * 0.045), r = w / 10 * 0.2;
+      x.beginPath(); x.moveTo(cx - r * 1.9, h * 0.135); x.lineTo(cx - r, h * 0.14 + len - r);
+      x.arc(cx, h * 0.14 + len - r, r, Math.PI, 0, true); x.lineTo(cx + r * 1.9, h * 0.135); x.fill();
+    }
+    x.strokeStyle = 'rgba(255, 220, 190, 0.35)'; x.lineWidth = 3;
+    x.beginPath(); x.moveTo(0, h * 0.07); x.lineTo(w, h * 0.07); x.stroke();
+  }),
+  // Toasted golden-brown all over, darkest on top, with toasty blisters (full color).
+  toastGold: () => canvasTex((x, w, h) => {
+    const g = x.createLinearGradient(0, 0, 0, h * 0.7);
+    g.addColorStop(0, '#a85e22'); g.addColorStop(0.25, '#cf8436'); g.addColorStop(0.55, '#eba24a'); g.addColorStop(0.85, '#f7c983'); g.addColorStop(1, '#ffe9c8');
+    x.fillStyle = g; x.fillRect(0, 0, w, h);
+    let seed = 4; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    for (let i = 0; i < 70; i++) {
+      const cx = rnd() * w, cy = h * (0.05 + rnd() * 0.42), r = 3 + rnd() * 7;
+      const gg = x.createRadialGradient(cx, cy, 0, cx, cy, r);
+      gg.addColorStop(0, 'rgba(110, 55, 20, 0.45)'); gg.addColorStop(1, 'rgba(110, 55, 20, 0)');
+      x.fillStyle = gg; x.beginPath(); x.arc(cx, cy, r, 0, TAU); x.fill();
+    }
+  }),
+  // Firelight from below: glows at the bottom, fading out above the eyes (emissive map), with ember specks.
+  emberRise: () => canvasTex((x, w, h) => {
+    const g = x.createLinearGradient(0, h * 0.34, 0, h * 0.66);
+    g.addColorStop(0, '#000000'); g.addColorStop(1, '#ffffff');
+    x.fillStyle = g; x.fillRect(0, 0, w, h);
+    let seed = 13; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    for (let i = 0; i < 70; i++) { x.fillStyle = `rgba(255, 255, 255, ${0.4 + rnd() * 0.5})`; x.beginPath(); x.arc(rnd() * w, h * (0.22 + rnd() * 0.3), 1.5 + rnd() * 2.5, 0, TAU); x.fill(); }
+  }),
+  // Honeycomb cells (multiplies the body color). 16 cells around, so it tiles.
+  honeycomb: () => canvasTex((x, w, h) => {
+    x.fillStyle = '#ffffff'; x.fillRect(0, 0, w, h);
+    const dx = w / 16, r = dx / Math.sqrt(3), dy = r * 1.5;
+    for (let row = -1; row * dy < h + r; row++) {
+      for (let col = -1; col <= 16; col++) {
+        const cx = col * dx + (row % 2 ? dx / 2 : 0), cy = row * dy;
+        const g = x.createRadialGradient(cx, cy, 0, cx, cy, r);
+        g.addColorStop(0, 'rgba(255, 255, 255, 1)'); g.addColorStop(0.75, 'rgba(255, 226, 160, 1)'); g.addColorStop(1, 'rgba(240, 180, 90, 1)');
+        x.fillStyle = g;
+        x.beginPath();
+        for (let k = 0; k < 6; k++) { const a = k / 6 * TAU + Math.PI / 6; x.lineTo(cx + Math.cos(a) * r * 0.97, cy + Math.sin(a) * r * 0.97); }
+        x.closePath(); x.fill();
+        x.strokeStyle = 'rgba(170, 92, 8, 0.65)'; x.lineWidth = 3.5; x.stroke();
+      }
+    }
+  }),
+});
+
+Object.assign(PROP_MAKERS, {
+  // Hearth's beating heart, in milk chocolate with a warm glow.
+  chocoHeart(av) {
+    const p = PROP_MAKERS.heartCore(av);
+    const [ember, glow, heart] = p.obj.children;   // order as built in heartCore
+    heart.material.color.set('#6e3a1e'); heart.material.emissive.set('#7a3510'); heart.material.emissiveIntensity = 0.35;
+    glow.visible = ember.visible = false;   // no glow: the chocolate (and the drips on top) stay brown
+    return p;
+  },
+
+  // A graham cracker worn like a beret, a chocolate square melting under it.
+  grahamHat(av) {
+    const g = new THREE.Group(), tilt = new THREE.Group();
+    const cracker = makeCracker(0.95, 0.09);
+    cracker.position.y = 0.1;
+    const choc = new THREE.Mesh(slab(0.86, 0.065), chocMat());
+    choc.rotation.y = 0.42; choc.position.set(0.02, 0.03, 0.02);
+    const tip = new THREE.Object3D(); tip.position.y = 0.2;
+    tilt.add(choc, cracker, tip);
+    tilt.rotation.set(0.42, 0.25, 0.15);
+    g.add(tilt);
+    av.body.add(g);
+    const o = { x: 0, y: 0, z: 0 };
+    return {
+      obj: g, head: true, anchor: tip,
+      update(t) { av.shape(0.04, 1, -0.12, 0, o); g.position.set(o.x, o.y - 0.05, o.z); tilt.rotation.z = 0.15 + Math.sin(t * 1.2) * 0.025; },
+    };
+  },
+
+  // Sitting on a big graham cracker in a puddle of melted chocolate that drips over the front edge.
+  grahamBase(av) {
+    const g = new THREE.Group();
+    const W = 2.9, D = 0.07, bottom = 0.05;
+    const cracker = makeCracker(W, D);
+    const bevel = Math.min(D * 0.25, 0.02);
+    cracker.position.y = bottom + D / 2 + bevel;
+    const top = bottom + D + bevel * 2;
+    const edge = W / 2 + bevel;
+    // puddle outline: a wobbly ring with three tongues reaching the front edge
+    const lobes = [Math.PI / 2 - 0.55, Math.PI / 2 + 0.1, Math.PI / 2 + 0.6].map(a => ({ a, r: (edge + 0.02) / Math.sin(a) }));
+    const base = 1.3;
+    const pts = [];
+    for (let i = 0; i < 72; i++) {
+      const a = i / 72 * TAU;
+      let r = base + 0.06 * Math.sin(a * 5 + 1) + 0.03 * Math.sin(a * 11);
+      for (const l of lobes) { let da = Math.abs(a - l.a); da = Math.min(da, TAU - da); r = Math.max(r, base + (l.r - base) * Math.exp(-((da / 0.11) ** 2))); }
+      pts.push(new THREE.Vector2(Math.cos(a) * r, -Math.sin(a) * r));
+    }
+    const pgeo = new THREE.ExtrudeGeometry(new THREE.Shape(pts), { depth: 0.012, bevelEnabled: true, bevelThickness: 0.012, bevelSize: 0.025, bevelSegments: 3 });
+    pgeo.rotateX(-Math.PI / 2);
+    const mat = chocMat();
+    const puddle = new THREE.Mesh(pgeo, mat);
+    puddle.position.y = top + 0.002;
+    // drips hanging over the front edge
+    const drips = lobes.map((l, i) => {
+      const len = 0.08 + i % 2 * 0.07;
+      const c = new THREE.CapsuleGeometry(0.05, len, 4, 10);
+      c.scale(1, 1, 0.6);
+      c.translate(Math.cos(l.a) * l.r, top - len / 2 + 0.01, edge + 0.012);
+      return c;
+    });
+    const drip = new THREE.Mesh(mergeGeometries(drips), mat);
+    g.add(cracker, puddle, drip);
+    av.body.add(g);
+    return { obj: g, update() {} };
+  },
+
+  // A candy-striped honey dipper stuck in its head, slowly dripping honey.
+  honeyDipper(av) {
+    const g = new THREE.Group(), stick = new THREE.Group();
+    const tex = stripeTex('#ffffff', '#ff6fa3', 8, true); tex.repeat.set(1, 3);
+    const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.038, 0.62, 12), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.3 }));
+    handle.position.y = 0.2;
+    const parts = [new THREE.CylinderGeometry(0.05, 0.05, 0.24, 12)];
+    for (let i = 0; i < 4; i++) {
+      const r = new THREE.TorusGeometry(0.072 + (i === 1 || i === 2 ? 0.014 : 0), 0.03, 8, 20);
+      r.rotateX(Math.PI / 2); r.translate(0, -0.09 + i * 0.06, 0);
+      parts.push(r);
+    }
+    const knob = new THREE.SphereGeometry(0.055, 12, 8); knob.translate(0, 0.14, 0); parts.push(knob);
+    const honey = new THREE.MeshStandardMaterial({ color: '#f2a516', emissive: '#b85f00', emissiveIntensity: 0.2, roughness: 0.12, metalness: 0.05 });
+    const head = new THREE.Mesh(mergeGeometries(parts), honey);
+    head.position.y = 0.62;
+    stick.add(handle, head);
+    stick.scale.setScalar(1.3);
+    const drop = new THREE.Mesh(new THREE.SphereGeometry(0.045, 12, 10), honey);
+    g.add(stick, drop);
+    av.body.add(g);
+    const place = surfacePlacer(av);
+    const dir = new THREE.Vector3(0.4, 0.9, -0.1).normalize();
+    const v = new THREE.Vector3();
+    return {
+      obj: g, head: true,
+      update(t) {
+        place(stick, dir, 0.2, 0.55);
+        v.set(0, 0.65, 0).applyQuaternion(stick.quaternion).add(stick.position);
+        const k = (t * 0.4) % 1;
+        if (k < 0.65) { const s = 0.35 + k / 0.65 * 0.65; drop.position.set(v.x, v.y - 0.02 - s * 0.03, v.z); drop.scale.set(s, s * (1 + k * 0.5), s); }
+        else { const f = (k - 0.65) / 0.35; drop.position.set(v.x, v.y - 0.05 - f * f * 0.45, v.z); drop.scale.setScalar(1 - f * 0.6); }
+      },
+    };
+  },
+
+  // Pieces of honeycomb floating in the clear amber body, with a warm honey light.
+  combChunks(av) {
+    const g = new THREE.Group();
+    const geo = combGeo();
+    const mat = overlay(new THREE.MeshStandardMaterial({ color: '#ffd04a', emissive: '#ff9a00', emissiveIntensity: 0.35, roughness: 0.3 }), 0.92);
+    const items = [];
+    for (const [x, y, z, s, ph] of [[-0.5, 0.92, -0.12, 1.15, 0], [0.52, 0.76, -0.08, 0.95, 2], [0.06, 1.16, -0.35, 0.85, 4]]) {
+      const m = new THREE.Mesh(geo, mat);
+      m.renderOrder = 1.46; m.scale.setScalar(s);
+      m.userData = { x, y, z, ph };
+      g.add(m); items.push(m);
+    }
+    const glow = new THREE.Sprite(overlay(new THREE.SpriteMaterial({ map: softTex(), color: '#ffc04a', blending: THREE.AdditiveBlending }), 0.3));
+    glow.renderOrder = 1.44; glow.scale.set(2.2, 1.5, 1); glow.position.set(0, 0.7, -0.1);
+    g.add(glow);
+    av.inner.add(g);
+    return {
+      obj: g,
+      update(t) {
+        for (const m of items) { const u = m.userData; m.position.set(u.x, u.y + Math.sin(t * 0.7 + u.ph) * 0.035, u.z); m.rotation.set(0.7 + Math.sin(t * 0.5 + u.ph) * 0.2, t * 0.3 + u.ph, 0.2); }
+        glow.material.opacity = 0.24 + 0.06 * Math.sin(t * 1.2);
+      },
+    };
+  },
+
+  // Twisted candy-wrapper ends on both sides, like a wrapped sweet.
+  wrapperTwists(av) {
+    const g = new THREE.Group();
+    const prof = [];
+    for (let i = 0; i <= 16; i++) {
+      const t = i / 16;
+      const r = t < 0.25 ? 0.16 - (t / 0.25) * 0.12 : 0.04 + Math.pow((t - 0.25) / 0.75, 0.8) * 0.25;
+      prof.push(new THREE.Vector2(r, t * 0.5));
+    }
+    const geo = new THREE.LatheGeometry(prof, 32);
+    const p = geo.attributes.position;
+    for (let i = 0; i < p.count; i++) {
+      const x = p.getX(i), y = p.getY(i), z = p.getZ(i), a = Math.atan2(z, x), k = Math.max(0, (y - 0.15) / 0.35);
+      const s = 1 + 0.16 * k * Math.sin(a * 9);
+      p.setXYZ(i, x * s, y + k * 0.03 * Math.cos(a * 9), z * s);
+    }
+    geo.computeVertexNormals();
+    const tex = stripeTex('#fff7fb', '#ff7fb0', 8); tex.repeat.set(3, 1);
+    const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.28, side: THREE.DoubleSide });
+    const ends = [];
+    for (const side of [-1, 1]) {
+      const m = new THREE.Mesh(geo, mat);
+      g.add(m);
+      ends.push({ m, side, dir: new THREE.Vector3(side, 0.2, -0.08).normalize() });
+    }
+    av.body.add(g);
+    const place = surfacePlacer(av);
+    return { obj: g, update(t) { for (const e of ends) { place(e.m, e.dir, 0.1); e.m.rotateY(e.side * 0.4 + Math.sin(t * 1.4 + e.side) * 0.15); } } };
+  },
+
+  // Campfire logs lying around the base (tree rings on the ends), moss growing on them.
+  logRing(av) {
+    const g = new THREE.Group();
+    const sides = [], caps = [], moss = [];
+    const ringTex = (() => {
+      const c = document.createElement('canvas'); c.width = c.height = 64;
+      const x = c.getContext('2d');
+      x.fillStyle = '#e8c58f'; x.fillRect(0, 0, 64, 64);
+      x.strokeStyle = 'rgba(150, 96, 50, 0.7)'; x.lineWidth = 2.5;
+      for (const r of [8, 15, 22]) { x.beginPath(); x.arc(32, 32, r, 0, TAU); x.stroke(); }
+      x.strokeStyle = '#7a4a2a'; x.lineWidth = 6; x.beginPath(); x.arc(32, 32, 29, 0, TAU); x.stroke();
+      const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+    })();
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), d = new THREE.Vector3();
+    // angles around the base (0 = toward the viewer); the front stays clear for the face
+    [0.6, 2.25, 3.14, -2.25, -0.6].forEach((a, i) => {
+      const L = 0.62 + (i % 3) * 0.06, r = 0.13 + (i % 2) * 0.015;
+      d.set(Math.sin(a), 0.12, Math.cos(a)).normalize();
+      q.setFromUnitVectors(up, d);
+      const mid = new THREE.Vector3(Math.sin(a) * 1.12, r + 0.06, Math.cos(a) * 1.12);   // lifted clear of the floor
+      m4.compose(mid, q, new THREE.Vector3(1, 1, 1));
+      sides.push(new THREE.CylinderGeometry(r, r * 1.05, L, 10, 1, true).applyMatrix4(m4));
+      const cap = new THREE.CircleGeometry(r * 0.98, 12);
+      cap.rotateX(-Math.PI / 2); cap.translate(0, L / 2 + 0.001, 0);
+      caps.push(cap.applyMatrix4(m4));
+      if (i % 2 === 0) {
+        for (let k = 0; k < 6; k++) {
+          const b = new THREE.SphereGeometry(0.045 + (k % 3) * 0.012, 7, 5);
+          b.scale(1, 0.6, 1);
+          b.translate((k - 2.5) * 0.06, r * 0.95, Math.sin(k * 2.1) * 0.035);
+          // lie the tuft along the top of the log
+          b.applyMatrix4(new THREE.Matrix4().makeRotationY(a - Math.PI / 2));
+          b.translate(mid.x, mid.y, mid.z);
+          moss.push(b);
+        }
+      }
+    });
+    const bark = new THREE.Mesh(mergeGeometries(sides), new THREE.MeshStandardMaterial({ color: '#7a4e2e', roughness: 0.9 }));
+    const ends = new THREE.Mesh(mergeGeometries(caps), new THREE.MeshStandardMaterial({ map: ringTex, roughness: 0.8 }));
+    const tufts = new THREE.Mesh(mergeGeometries(moss), new THREE.MeshStandardMaterial({ color: '#6aa84a', roughness: 1 }));
+    g.add(bark, ends, tufts);
+    av.body.add(g);
+    return { obj: g, update() {} };
+  },
+
+  // A tiny campfire on its head: crossed sticks, a ring of pebbles and a heart-shaped flame.
+  campHat(av) {
+    const g = new THREE.Group(), fire = new THREE.Group();
+    const sticks = [];
+    for (let i = 0; i < 4; i++) {
+      const a = i / 4 * TAU + 0.4;
+      const s = new THREE.CylinderGeometry(0.022, 0.03, 0.34, 7);
+      s.translate(0, 0.17, 0);
+      s.rotateX(0.62);
+      s.rotateY(a);
+      s.translate(-Math.sin(a) * 0.16, 0, -Math.cos(a) * 0.16);
+      sticks.push(s);
+    }
+    const logs = new THREE.Mesh(mergeGeometries(sticks), new THREE.MeshStandardMaterial({ color: '#7a4e2e', roughness: 0.9 }));
+    const pebbles = [];
+    for (let i = 0; i < 8; i++) {
+      const a = i / 8 * TAU, p = new THREE.IcosahedronGeometry(0.05 + (i % 3) * 0.008, 0);
+      p.scale(1.2, 0.65, 1);
+      p.translate(Math.cos(a) * 0.27, 0.02, Math.sin(a) * 0.27);
+      pebbles.push(p);
+    }
+    const stones = new THREE.Mesh(mergeGeometries(pebbles), new THREE.MeshStandardMaterial({ color: '#9a9aa4', roughness: 0.8, flatShading: true }));
+    const heart = new THREE.ExtrudeGeometry(heartShape(), { depth: 0.12, bevelEnabled: true, bevelThickness: 0.05, bevelSize: 0.05, bevelSegments: 3, curveSegments: 14 });
+    heart.center();
+    const outer = new THREE.Mesh(heart, new THREE.MeshStandardMaterial({ color: '#ff7a2e', emissive: '#ff5a1f', emissiveIntensity: 1, roughness: 0.4 }));
+    const inner = new THREE.Mesh(heart, new THREE.MeshStandardMaterial({ color: '#ffe066', emissive: '#ffcf3f', emissiveIntensity: 1.1, roughness: 0.4 }));
+    inner.scale.setScalar(0.55); inner.position.set(0, -0.03, 0.06);
+    const tongue = new THREE.Mesh(new THREE.LatheGeometry([[0, 0], [0.24, 0.12], [0.34, 0.42], [0.26, 0.8], [0.12, 1.15], [0, 1.45]].map(([x, y]) => new THREE.Vector2(x, y)), 16),
+      new THREE.MeshStandardMaterial({ color: '#ff9a3a', emissive: '#ff6a1a', emissiveIntensity: 0.9, roughness: 0.4, transparent: true, opacity: 0.85 }));
+    tongue.position.set(0, -0.5, -0.12);
+    fire.add(tongue, outer, inner);
+    fire.position.y = 0.3;
+    const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: softTex(), color: '#ffb050', blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, opacity: 0.55 }));
+    glow.scale.setScalar(0.9); glow.position.y = 0.26;
+    const tip = new THREE.Object3D(); tip.position.y = 0.48;
+    g.add(stones, logs, fire, glow, tip);
+    g.scale.setScalar(1.15);
+    av.body.add(g);
+    const o = { x: 0, y: 0, z: 0 };
+    return {
+      obj: g, head: true, anchor: tip,
+      update(t) {
+        av.shape(0, 1, -0.04, 0, o); g.position.set(o.x, o.y - 0.05, o.z);
+        const k = 1 + Math.sin(t * 15) * 0.06 + Math.sin(t * 27) * 0.04;
+        fire.scale.set(0.34 / k, 0.34 * k, 0.34);
+        fire.rotation.z = Math.sin(t * 4) * 0.08;
+        glow.material.opacity = 0.45 + 0.12 * Math.sin(t * 9);
+      },
+    };
+  },
+
+  // Puffy cloud bumps around the top, so the body reads as a little cumulus cloud.
+  cloudPuffs(av) {
+    const g = new THREE.Group();
+    const mat = new THREE.MeshStandardMaterial({ color: '#f4f6ff', roughness: 0.75 });
+    const geo = new THREE.SphereGeometry(1, 18, 12);
+    const spots = [];
+    for (const [x, y, z, s] of [[0, 1, -0.15, 0.42], [-0.5, 0.82, -0.1, 0.36], [0.52, 0.8, -0.12, 0.38], [-0.86, 0.42, -0.1, 0.32], [0.88, 0.38, -0.08, 0.3], [-0.3, 0.75, -0.6, 0.36], [0.35, 0.72, -0.62, 0.34]]) {
+      const m = new THREE.Mesh(geo, mat);
+      m.scale.setScalar(s);
+      g.add(m);
+      spots.push({ m, s, dir: new THREE.Vector3(x, y, z).normalize() });
+    }
+    av.body.add(g);
+    const place = surfacePlacer(av);
+    return { obj: g, update(t) { for (const sp of spots) { place(sp.m, sp.dir, sp.s * 0.55); sp.m.scale.setScalar(sp.s * (1 + 0.03 * Math.sin(t * 1.3 + sp.s * 20))); } } };
+  },
+
+  // A small rainbow arching behind the head.
+  rainbowArc(av) {
+    const c = document.createElement('canvas'); c.width = 256; c.height = 128;
+    const x = c.getContext('2d');
+    const cols = ['#ff8fb8', '#ffb36b', '#ffe27a', '#8fe8a8', '#86c8ff', '#c3a2ff'];
+    cols.forEach((col, i) => { x.strokeStyle = col; x.lineWidth = 11; x.beginPath(); x.arc(128, 124, 110 - i * 11, Math.PI, 0); x.stroke(); });
+    const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, opacity: 0.95 }));
+    sp.center.set(0.5, 0.02);
+    sp.scale.set(2.3, 1.15, 1);
+    const g = new THREE.Group(); g.add(sp);
+    av.body.add(g);
+    const o = { x: 0, y: 0, z: 0 };
+    return { obj: g, head: true, update(t) { av.shape(0, 0.35, -1, -Math.PI / 2, o); g.position.set(0, o.y + 0.05, o.z - 0.05); sp.material.opacity = 0.85 + 0.1 * Math.sin(t * 1.5); } };
+  },
+
+  // One cheeky lightning bolt poking out of the cloud.
+  stormBolt(av) {
+    const g = new THREE.Group();
+    const mat = new THREE.MeshStandardMaterial({ color: '#ffd92e', emissive: '#ffb000', emissiveIntensity: 0.8, roughness: 0.35 });
+    const geo = new THREE.ExtrudeGeometry(boltShape(), { depth: 0.12, bevelEnabled: true, bevelThickness: 0.03, bevelSize: 0.03, bevelSegments: 2 });
+    geo.translate(-0.1, 0.2, -0.06);
+    const b = new THREE.Mesh(geo, mat);
+    b.scale.setScalar(0.42);
+    g.add(b);
+    av.body.add(g);
+    const place = surfacePlacer(av);
+    const dir = new THREE.Vector3(0.55, 0.85, 0.05).normalize();
+    return { obj: g, head: true, update(t) { place(g, dir, 0.02, 0.6); b.rotation.z = -0.45 + Math.sin(t * 7) * 0.05; mat.emissiveIntensity = 0.6 + 0.4 * Math.abs(Math.sin(t * 5)); } };
+  },
+
+  // A little storm cloud living inside the clear body: flickering lightning and rain falling into the belly.
+  innerStorm(av) {
+    const g = new THREE.Group();
+    const puffs = [];
+    for (const [x, y, z, s] of [[0, 0, 0, 0.16], [-0.17, -0.03, 0, 0.12], [0.17, -0.02, 0.01, 0.13], [-0.07, 0.09, -0.02, 0.12], [0.09, 0.08, 0, 0.11]]) {
+      const p = new THREE.SphereGeometry(s, 14, 10); p.scale(1, 0.8, 0.8); p.translate(x, y, z); puffs.push(p);
+    }
+    const cloud = new THREE.Mesh(mergeGeometries(puffs), overlay(new THREE.MeshStandardMaterial({ color: '#d9d6f2', emissive: '#8c86c8', emissiveIntensity: 0.25, roughness: 0.8 }), 0.95));
+    cloud.renderOrder = 1.46;
+    const boltMat = overlay(new THREE.MeshStandardMaterial({ color: '#ffd92e', emissive: '#ffb000', emissiveIntensity: 1.2, roughness: 0.3 }), 0.95);
+    const bgeo = new THREE.ExtrudeGeometry(boltShape(), { depth: 0.06, bevelEnabled: false });
+    const bolt = new THREE.Mesh(bgeo, boltMat);
+    bolt.renderOrder = 1.47;
+    bolt.scale.setScalar(0.32); bolt.rotation.z = Math.PI; bolt.position.set(0.08, -0.06, 0.02);
+    const flash = new THREE.Sprite(overlay(new THREE.SpriteMaterial({ map: softTex(), color: '#fff2a8', blending: THREE.AdditiveBlending }), 0.3));
+    flash.renderOrder = 1.44; flash.scale.setScalar(1.3); flash.position.y = -0.1;
+    const dropMat = overlay(new THREE.SpriteMaterial({ map: softTex(), color: '#4fb0ff' }), 0.95);
+    const drops = [];
+    for (let i = 0; i < 6; i++) {
+      const d = new THREE.Sprite(dropMat);
+      d.renderOrder = 1.45; d.scale.set(0.07, 0.14, 1);
+      d.userData = { x: -0.16 + i * 0.065, ph: i * 0.37 };
+      drops.push(d);
+    }
+    g.add(flash, cloud, bolt, ...drops);
+    g.position.set(0, 1.08, -0.1);
+    g.scale.setScalar(1.35);
+    av.inner.add(g);
+    return {
+      obj: g,
+      update(t) {
+        cloud.position.x = Math.sin(t * 0.6) * 0.05;
+        const f = t % 2.6, strike = f < 0.09 || (f > 0.16 && f < 0.27);
+        boltMat.emissiveIntensity = strike ? 2 : 0.9;
+        flash.material.opacity = strike ? 0.6 : 0.18;
+        for (const d of drops) { const u = d.userData, k = (t * 0.9 + u.ph) % 1; d.position.set(u.x + cloud.position.x, -0.1 - k * 0.6, 0.02); d.material.opacity = 0.9; }
+      },
+    };
+  },
+});
+
+Object.assign(FORM_LOOKS, {
+  // S'more (Hearth x Marshmallow)
+  'breed:smore:a': {
+    title: "S'more Slime", tint: '#fff2e0', tintAmt: 0.9, pattern: 'smoreToast', mapWhite: 1, glow: 0.04, shape: { square: 0.55, tall: 0.96 },
+    mat: { transmission: 0.12, roughness: 0.6, sheen: 0.3, clearcoat: 0.1 }, keep: [], props: ['grahamHat', 'chocoHeart'], fx: { kind: 'steam', every: 2.6 },
+  },
+  'breed:smore:b': {
+    title: "S'more Slime", tint: '#f3a24a', tintAmt: 0.65, pattern: 'toastGold', mapWhite: 1, glow: 0.08, shape: { square: 0.45, tall: 0.86, wide: 1.1 },
+    mat: { transmission: 0.08, roughness: 0.35, sheen: 0.4, clearcoat: 0.7 }, keep: ['heat'], props: ['grahamBase'], fx: { kind: 'steam', every: 2.2 },
+  },
+  // Honeycomb (Nectar x Candy)
+  'breed:honeycomb:a': {
+    title: 'Honeycomb Slime', tint: '#ffbf2e', tintAmt: 0.85, pattern: 'honeycomb', mapWhite: 0, shape: { tall: 0.98, wide: 1.03 },
+    mat: { roughness: 0.08, transmission: 0.45 }, keep: [], props: ['honeyDipper', 'bee'], fx: { kind: 'glints', every: 0.9, color: '#ffe08a' },
+  },
+  'breed:honeycomb:b': {
+    title: 'Honeycomb Slime', tint: '#ffad1f', tintAmt: 0.75, shape: { square: 0.15, wide: 1.02 }, mat: { transmission: 0.92, roughness: 0.03, thickness: 0.9 },
+    keep: [], props: ['combChunks', 'wrapperTwists', 'blossom'], fx: { kind: 'glints', every: 0.7, color: '#ffe7a0' },
+  },
+  // Campfire (Hearth x Root)
+  'breed:campfire:a': {
+    title: 'Campfire Slime', tint: '#ffb43c', tintAmt: 0.75, glowPattern: 'emberRise', glowColor: '#ff6a1a', glowMode: 'pulse', glowSpeed: 1.3,
+    shape: { wide: 1.04, tall: 0.94 }, mat: { roughness: 0.2 }, keep: [], props: ['logRing', 'heartCore'], fx: { kind: 'embers', every: 0.55 },
+  },
+  'breed:campfire:b': {
+    title: 'Campfire Slime', tint: '#3f8f5a', tintAmt: 0.75, shape: { wide: 1.07, tall: 0.88 }, mat: { roughness: 0.32 },
+    keep: [], props: ['roots', 'campHat'], fx: { kind: 'embers', every: 0.5 },
+  },
+  // Storm (Aurora x Volt): a happy little storm cloud
+  'breed:storm:a': {
+    title: 'Storm Slime', tint: '#eef0ff', tintAmt: 0.85, shape: { tall: 0.95, wide: 1.04 }, mat: { transmission: 0.25, roughness: 0.55, sheen: 1, iridescence: 0.35 },
+    keep: [], props: ['cloudPuffs', 'rainbowArc', 'stormBolt'], fx: { kind: 'glints', every: 0.6, color: '#fff6b0' },
+  },
+  'breed:storm:b': {
+    title: 'Storm Slime', tint: '#8fc8ff', tintAmt: 0.68, shape: { tall: 1.02 }, mat: { transmission: 0.92, roughness: 0.03, iridescence: 1, thickness: 0.8 },
+    keep: [], props: ['innerStorm'], fx: { kind: 'sparks', every: 1.0, color: '#fff3a8' },
+  },
+});
 
 export function makePattern(name) { return PATTERNS[name] ? PATTERNS[name]() : null; }
