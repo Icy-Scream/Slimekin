@@ -292,6 +292,8 @@ export class Game {
 
   hatch() {
     this.hatching = true;
+    this.hud.setSheet('closed', false);
+    this.hud.updateEggRanch();   // the Ranch tab goes away until the baby has a name
     this.egg.wobV += 14;
     this.after(0.25, () => { this.egg.wobV -= 18; this.sfx.crack(); });
     this.after(0.55, () => { this.egg.wobV += 18; this.sfx.crack(); });
@@ -724,10 +726,10 @@ export class Game {
     const sw = this.sim.cushionSwap(id);
     const names = `${esc(e.parents[0].name)} and ${esc(e.parents[1].name)}`;
     const left = rr.eggSecondsLeft(e, this.nowMs());
-    const now = sw.old ? `${esc(sw.old.parents[0].name)} and ${esc(sw.old.parents[1].name)}'s egg (on the cushion now)` : 'The egg there now';
+    const there = sw.old ? `${esc(sw.old.parents[0].name)} and ${esc(sw.old.parents[1].name)}'s egg (on the cushion now)` : 'The egg there now';
     const goes = sw.oldTo === 'nursery' ? 'will go back to the Nursery' : 'will go to a neighbor family who will love the baby';
     this.hud.openModal(`<h2>Put ${names}'s egg on the cushion?</h2>
-      <p>${now} ${goes}.${left > 0 ? ` ${names}'s egg is still warming: ready in ${fmtDuration(left)}. It can finish warming on the cushion.` : ''}</p>
+      <p>${there} ${goes}.${left > 0 ? ` ${names}'s egg is still warming: ready in ${fmtDuration(left)}. It can finish warming on the cushion.` : ''}</p>
       <div class="actions"><button class="btn" id="cuNo">Not now</button><button class="btn primary" id="cuYes">Put it on the cushion</button></div>`, {
       onOpen: card => {
         card.querySelector('#cuNo').addEventListener('click', () => this.hud.closeModal());
@@ -1157,7 +1159,7 @@ export class Game {
   onKey(e) {
     const tag = (e.target && e.target.tagName) || '';
     if (tag === 'INPUT' || tag === 'TEXTAREA' || this.hud.modalOpen) return;
-    if (this.state.phase === 'egg' && (e.key === ' ' || e.key === 'Enter') && this.egg && e.target === this.canvas) {
+    if (this.state.phase === 'egg' && this.view !== 'ranch' && (e.key === ' ' || e.key === 'Enter') && this.egg && e.target === this.canvas) {
       e.preventDefault();
       this.sfx.unlock();
       this.tapEgg(this.egg.group.position.clone().add(new THREE.Vector3(0, 0.8, 0.5)));

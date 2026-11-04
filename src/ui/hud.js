@@ -92,7 +92,7 @@ export class Hud {
   // the menu shows just the Ranch tab.
   updateEggRanch() {
     const st = this.g.state, R = st.ranch;
-    const on = st.phase === 'egg' && (R.residents.length > 0 || R.nursery.eggs.length > 0);
+    const on = st.phase === 'egg' && !this.g.hatching && (R.residents.length > 0 || R.nursery.eggs.length > 0);
     if (this.$('ui').classList.contains('has-ranch') !== on) { this.$('ui').classList.toggle('has-ranch', on); this.g.layoutChanged(); }
   }
   // the per-frame part that still runs while an egg waits (the ranch keeps going)
