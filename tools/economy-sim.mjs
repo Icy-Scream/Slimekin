@@ -5,6 +5,7 @@
 //   quiet:             only print the milestones
 //   spam:              taps as fast as possible (about 11 a second) the whole time, and wakes the slime right away
 //   gen2=<jelly>:      start as generation 2, after a slime that made <jelly> moved to the ranch (e.g. gen2=1e9)
+//   bred:              with gen2: two slimes live on the ranch and the new baby comes from their egg (Nursery)
 import url from 'node:url';
 import path from 'node:path';
 const SRC = url.pathToFileURL(path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), '../src')).href;
@@ -13,6 +14,7 @@ const DAYS = +(args.find(a => /^\d+$/.test(a)) || 10);
 const CASUAL = args.includes('casual');
 const QUIET = args.includes('quiet');
 const SPAM = args.includes('spam');
+const BRED = args.includes('bred');
 const { Sim, createState } = await import(SRC + '/core/sim.js');
 const C = await import(SRC + '/data/content.js');
 const fmt = n => n < 1e3 ? n.toFixed(0) : n < 1e6 ? (n / 1e3).toFixed(1) + 'K' : n < 1e9 ? (n / 1e6).toFixed(2) + 'M' : n < 1e12 ? (n / 1e9).toFixed(2) + 'B' : (n / 1e12).toFixed(2) + 'T';
@@ -28,7 +30,23 @@ if (GEN2) {
   st.ranch.family.generation = 2;
   st.ranch.residents.push({ id: 'r1', name: 'Gen1', traits: {}, jps: residentJpsFor(total), happiness: 80, bondLevel: 4, runTotal: total, generation: 1 });
   console.log(`generation 2: Family Bonus +${st.ranch.family.bonus.toFixed(1)}%, ranch slime makes ${residentJpsFor(total)} jelly/s`);
+  if (BRED) {
+    // two grown Candy Slimes (what this player model raises) made an egg in the Nursery; the baby hatches from it.
+    // The second parent makes no jelly here, so the only difference from plain gen2 is what the baby inherited.
+    // pfav=<food>,<food> sets the parents' favorite snacks (default iron,moss: not the snack this player feeds).
+    const B = await import(SRC + '/core/breeding.js');
+    const pf = (args.find(a => a.startsWith('pfav=')) || 'pfav=iron,moss').slice(5).split(',');
+    const candy = (id, fav) => ({ id, name: id, form: { id: 'sweet', name: 'Candy Slime' }, traits: { sweet: 259 }, personality: { curious: 60, patient: 55, playful: 65, cuddly: 60, bold: 45 }, favorite: fav });
+    st.ranch.residents[0] = { ...st.ranch.residents[0], ...candy('r1', pf[0]) };
+    st.ranch.residents.push({ ...st.ranch.residents[0], ...candy('r0', pf[1] || pf[0]), jps: 0 });
+    const egg = B.makeEgg(st.ranch.residents[0], st.ranch.residents[1], { now: 1e12, id: 'e1' });
+    B.applyEgg(st.slime, egg);
+    console.log(`bred: the baby starts with ${JSON.stringify(egg.bias)}, favorite ${st.slime.favorite}, from ${egg.parents.map(p => p.name).join(' x ')} (2 residents)`);
+  }
 }
+// fav=<food>: force the baby's favorite snack (to compare runs fairly)
+const FAV = args.find(a => a.startsWith('fav='));
+if (FAV) { st.slime.favorite = FAV.slice(4); if (st.slime.dislike === st.slime.favorite) st.slime.dislike = C.FOODS.find(f => f.id !== st.slime.favorite).id; console.log(`favorite snack set to ${st.slime.favorite}`); }
 const sim = new Sim(st);
 const DT = 0.25;
 // daily schedule (seconds): play/away pairs. ~80 min of play per day.
