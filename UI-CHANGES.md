@@ -101,6 +101,10 @@ Already on `main` too: on a 393 px wide phone the tab label "Upgrades" is cut of
 - After the reload: the card "{name} has a new home!" (shared `showSimple` modal).
 - Ranch tab, "Living elsewhere": a baby's row says "{family} · growing up there".
 
+### Ranch resident page
+- The "Pearls" stat reads "+3.7/hour" (was "~3.7/hour": in the rounded font the "~" read as a minus sign). The rate
+  is never below zero.
+
 ### Toasts
 - "Not yet! This egg is still warming. Ready in 12 min.", "The egg is ready! Tap it to keep it warm.",
   "{X and Y}'s egg is on the cushion" (after a swap), a baby's postcard (no "pearls tucked inside" line).

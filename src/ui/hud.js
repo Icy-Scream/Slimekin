@@ -672,7 +672,7 @@ export class Hud {
         ${x.lineage?.parents?.length ? `<span class="sub">Child of ${esc(x.lineage.parents[0].name)} (${esc(x.lineage.parents[0].form.name)}) and ${esc(x.lineage.parents[1].name)} (${esc(x.lineage.parents[1].form.name)}).</span>` : ''}</div>`;
       html += `<div class="stat-grid">
         <div class="stat"><div class="k">Jelly</div><div class="v">${fmtRate(x.jps * fm)}/s</div></div>
-        <div class="stat"><div class="k">Pearls</div><div class="v">~${(rr.pearlRate(x) * 3600).toFixed(1)}/hour</div></div>
+        <div class="stat"><div class="k">Pearls</div><div class="v">+${(rr.pearlRate(x) * 3600).toFixed(1)}/hour</div></div>
         <div class="stat"><div class="k">Made of</div><div class="v">${esc(traits || 'A bit of everything')}</div></div>
         <div class="stat"><div class="k">Favorite snack</div><div class="v">${esc(FOOD_BY_ID[x.favorite]?.name || '?')}</div></div></div>`;
       if (lean) html += `<p class="sub">Personality: ${esc(lean)}. Bond: ${esc(BOND[x.bondLevel || 0].title)}.</p>`;
