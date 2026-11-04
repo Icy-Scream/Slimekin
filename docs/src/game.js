@@ -979,6 +979,13 @@ export class Game {
 
   wakeUp(kind) {
     if (!this.sim.asleep) return;
+    if (kind === 'poked' && !this.sim.canWake()) {
+      // too sleepy: it rolls over and keeps napping (no spamming a worn-out slime)
+      this.slime.squish(0.4);
+      this.sfx.grumble();
+      this.hud.say(['Zzz... five more minutes...', 'mmmnope... zzz', '*snore*'][Math.floor(Math.random() * 3)], 1500);
+      return;
+    }
     this.sim.asleep = false;
     this.slime.cap.on = false;
     this.lastInteract = this.time;
@@ -1610,6 +1617,7 @@ export class Game {
       <div class="setting"><span>Motion</span>${seg('reducedMotion', [[false, 'Full'], [true, 'Reduced']])}</div>
       <div class="setting"><span>Graphics</span>${seg('quality', [['auto', 'Auto'], ['high', 'High'], ['low', 'Low']])}</div>
       <div class="setting"><span>Speed meter</span>${seg('showFps', [[false, 'Off'], [true, 'On']])}</div>
+      <div class="setting"><span>Notifications<br><span class="sub">Drag one up or down to move them. Tap or swipe sideways to dismiss.</span></span>${typeof st.toastY === 'number' ? '<button class="btn small" id="toastReset">Reset spot</button>' : ''}</div>
       <p class="sub">Progress saves on this device${this.store.cloudOk ? ' and to your Claude account' : ''}. Nothing bad happens to ${esc(this.Name)} while you are away.</p>
       <div class="sec-title">Move to another device</div>
       <p class="sub">Copy a save code here, then load it on your other device (for example the home-screen app on your phone).</p>
@@ -1635,6 +1643,7 @@ export class Game {
           const el = card.querySelector('#audioStatus');
           for (const ms of [150, 800, 1600]) setTimeout(() => { el.textContent = this.sfx.status(); }, ms);
         });
+        card.querySelector('#toastReset')?.addEventListener('click', () => { delete st.toastY; this.hud.applyToastPos(); this.markDirty(true); this.openSettings(); });
         card.querySelector('#copySave').addEventListener('click', () => this.copySaveCode());
         card.querySelector('#loadSave').addEventListener('click', () => this.loadSaveCode());
         for (const b of card.querySelectorAll('[data-dbg]')) b.addEventListener('click', () => this.debug(b.dataset.dbg));

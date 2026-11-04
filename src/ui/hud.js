@@ -52,6 +52,8 @@ export class Hud {
     this.pending = 0; this.pendingRate = 0;
     this.outfitKey = '';
     this.buildEmotes();
+    this.setupSheetSwipe();
+    this.setupToastDrag();
     this.$('nameBtn').addEventListener('click', () => { if (this.g.state.phase === 'play') this.g.behave.answerName(); });
     this.$('modal').addEventListener('pointerdown', e => {
       if (e.target === this.$('modal') && this.modalDismiss) this.closeModal();
@@ -775,7 +777,111 @@ export class Hud {
     el.className = 'toast ' + cls;
     el.innerHTML = html;
     box.appendChild(el);
-    setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 420); }, ms);
+    el.hideAt = performance.now() + ms;
+    const tick = () => {
+      if (!el.isConnected) return;
+      if (el.held || performance.now() < el.hideAt) { setTimeout(tick, 250); return; }
+      el.classList.add('out'); setTimeout(() => el.remove(), 420);
+    };
+    setTimeout(tick, ms);
+  }
+
+  // Notifications: tap or swipe sideways to dismiss, drag up or down to move them (remembered).
+  setupToastDrag() {
+    const box = this.$('toasts');
+    const applyPos = () => {
+      const y = this.g.state.settings.toastY;
+      if (typeof y === 'number') { box.style.setProperty('--toast-top', Math.round(Math.max(0.04, Math.min(0.85, y)) * innerHeight) + 'px'); box.classList.add('moved'); }
+      else box.classList.remove('moved');
+    };
+    this.applyToastPos = applyPos;
+    applyPos();
+    window.addEventListener('resize', applyPos);
+    let d = null;
+    box.addEventListener('pointerdown', e => {
+      const el = e.target.closest('.toast');
+      if (!el) return;
+      e.stopPropagation();
+      el.held = true;
+      try { el.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+      d = { el, id: e.pointerId, x0: e.clientX, y0: e.clientY, top0: box.getBoundingClientRect().top, mode: null };
+      el.classList.add('dragging');
+    });
+    box.addEventListener('pointermove', e => {
+      if (!d || e.pointerId !== d.id) return;
+      const dx = e.clientX - d.x0, dy = e.clientY - d.y0;
+      if (!d.mode && Math.hypot(dx, dy) > 8) d.mode = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+      if (d.mode === 'x') { d.el.style.transform = `translateX(${dx}px)`; d.el.style.opacity = String(Math.max(0.2, 1 - Math.abs(dx) / 220)); }
+      if (d.mode === 'y') {
+        const top = Math.max(8, Math.min(innerHeight - 90, d.top0 + dy));
+        box.style.setProperty('--toast-top', top + 'px');
+        box.classList.add('moved');
+      }
+    });
+    const end = e => {
+      if (!d || e.pointerId !== d.id) return;
+      const { el, mode } = d;
+      const dx = e.clientX - d.x0;
+      d = null;
+      el.held = false;
+      el.classList.remove('dragging');
+      if (!mode || (mode === 'x' && Math.abs(dx) > 70)) {
+        // tap or swipe: dismiss
+        el.classList.add('fling');
+        el.style.transform = `translateX(${mode ? Math.sign(dx) * 420 : 0}px) scale(${mode ? 1 : 0.9})`;
+        setTimeout(() => el.remove(), 260);
+        return;
+      }
+      el.style.transform = ''; el.style.opacity = '';
+      if (mode === 'y') {
+        this.g.state.settings.toastY = box.getBoundingClientRect().top / innerHeight;
+        this.g.markDirty(false);
+      }
+      el.hideAt = Math.max(el.hideAt, performance.now() + 1500);
+    };
+    box.addEventListener('pointerup', end);
+    box.addEventListener('pointercancel', end);
+  }
+
+  // Phones: swipe the open menu down (from its grip, or from the top of the list) to close it.
+  setupSheetSwipe() {
+    const panel = this.$('panel');
+    const mobile = () => window.matchMedia('(max-width: 860px)').matches;
+    let d = null;
+    panel.addEventListener('touchstart', e => {
+      if (!mobile() || !panel.classList.contains('open') || e.touches.length !== 1 || e.target.closest('.tabs')) return;
+      const t = e.touches[0];
+      const body = e.target.closest('.tab-body');
+      d = { y0: t.clientY, x0: t.clientX, body, active: false, h0: panel.getBoundingClientRect().height, t0: performance.now(), dy: 0 };
+    }, { passive: true });
+    panel.addEventListener('touchmove', e => {
+      if (!d) return;
+      const t = e.touches[0];
+      const dy = t.clientY - d.y0, dx = t.clientX - d.x0;
+      if (!d.active) {
+        if (Math.hypot(dx, dy) < 8) return;
+        if (dy > 0 && Math.abs(dy) > Math.abs(dx) && (!d.body || d.body.scrollTop <= 0)) {
+          d.active = true; d.y0 = t.clientY; d.t0 = performance.now();
+          panel.classList.add('dragging');
+        } else { d = null; return; }
+      }
+      e.preventDefault();
+      d.dy = Math.max(0, t.clientY - d.y0);
+      panel.style.height = Math.max(60, d.h0 - d.dy) + 'px';
+    }, { passive: false });
+    const end = () => {
+      if (!d) return;
+      const k = d; d = null;
+      if (!k.active) return;
+      const fast = k.dy / Math.max(1, performance.now() - k.t0) > 0.5;
+      panel.classList.remove('dragging');
+      panel.style.height = '';
+      if (k.dy > 90 || (fast && k.dy > 30)) { panel.classList.remove('open'); this.g.layoutChanged(); }
+    };
+    panel.addEventListener('touchend', end);
+    panel.addEventListener('touchcancel', end);
+    // tapping the grip also closes it
+    this.$('sheetGrip').addEventListener('click', () => { panel.classList.remove('open'); this.g.layoutChanged(); });
   }
 
   // ---------- modals ----------

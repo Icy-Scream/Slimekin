@@ -191,7 +191,7 @@ export class Sim {
     return TUNING.dizzyAt + this.fx.feverWindow + (this.slime.personality.patient - 50) * 0.3;
   }
   feverThreshold() { return TUNING.feverAt - this.fx.feverWindow * 0.5; }
-  noDizzy() { return this.hasBuffFlag('noDizzy') || this.bondLevel() >= 8; }
+  noDizzy() { return this.hasBuffFlag('noDizzy'); }
 
   helperCost(id, owned = this.s.helpers[id]) { return Math.ceil(HELPER_BY_ID[id].cost * Math.pow(HELPER_GROWTH, owned)); }
   foodPrice(id) { return Math.ceil(FOOD_BY_ID[id].price * this.stage().foodCost); }
@@ -248,7 +248,7 @@ export class Sim {
   }
   addBond(n) {
     const before = this.bondLevel();
-    this.slime.bondXp += n;
+    this.slime.bondXp += n * TUNING.bondGain * (TUNING.bondCurve[before] ?? 0.1);
     const after = this.bondLevel();
     return after > before ? after : 0;
   }
@@ -284,7 +284,10 @@ export class Sim {
     const wasFever = this.fever;
     this.fever = this.dizzy <= 0 && this.giggle >= this.feverThreshold();
     let feverStarted = false;
-    if (this.fever && !wasFever) { this.s.stats.fevers++; feverStarted = true; this.addBond(1.5); }
+    if (this.fever && !wasFever) {
+      this.s.stats.fevers++; feverStarted = true;
+      if (this.time - (this.feverBondAt ?? -1e9) >= TUNING.feverBondEvery) { this.feverBondAt = this.time; this.addBond(1.5); }
+    }
 
     for (const b of this.s.buffs) b.t -= dt;
     this.s.buffs = this.s.buffs.filter(b => b.t > 0);
@@ -307,7 +310,7 @@ export class Sim {
       if (this.noDizzy()) {
         this.giggle = this.dizzyThreshold() - 1;
       } else {
-        this.dizzy = TUNING.dizzySeconds;
+        this.dizzy = TUNING.dizzySeconds * (this.bondLevel() >= 8 ? 0.5 : 1);
         this.giggle = 30;
         this.fever = false;
         this.s.stats.dizzies++;
@@ -316,15 +319,18 @@ export class Sim {
         return { gain: 0, becameDizzy: true, firstDizzy: this.s.stats.dizzies === 1 };
       }
     }
-    const gain = this.boopValue();
+    const tired = s.energy < 8;
+    const gain = this.boopValue() * (tired ? TUNING.tiredBoop : 1);
     this.addJelly(gain);
     if (!this.hasBuffFlag('noEnergyDrain')) s.energy = clamp(s.energy - TUNING.boopEnergyCost, 0, 100);
     s.joy = clamp(s.joy + 0.5, 0, 100);
-    const bondUp = this.addBond(0.04);
+    const bondUp = this.addBond(0.012);
     this.s.stats.boops++;
     this.nudge('playful', 0.03);
-    return { gain, fever: this.fever, exhausted: s.energy <= 0, bondUp };
+    return { gain, fever: this.fever, exhausted: s.energy <= 0, bondUp, tired };
   }
+  // A napping slime only lets itself be poked awake once it has rested a little.
+  canWake() { return this.slime.energy >= TUNING.wakeEnergy; }
 
   pet(dt) {
     const s = this.slime;

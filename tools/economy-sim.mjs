@@ -3,6 +3,7 @@
 //   engaged (default): ~80 min of play a day, booping in bursts, buys the best-value helper
 //   casual:            ~40 min of play a day, boops less, buys helpers at random
 //   quiet:             only print the milestones
+//   spam:              taps as fast as possible (about 11 a second) the whole time, and wakes the slime right away
 //   gen2=<jelly>:      start as generation 2, after a slime that made <jelly> moved to the ranch (e.g. gen2=1e9)
 import url from 'node:url';
 import path from 'node:path';
@@ -11,6 +12,7 @@ const args = process.argv.slice(2);
 const DAYS = +(args.find(a => /^\d+$/.test(a)) || 10);
 const CASUAL = args.includes('casual');
 const QUIET = args.includes('quiet');
+const SPAM = args.includes('spam');
 const { Sim, createState } = await import(SRC + '/core/sim.js');
 const C = await import(SRC + '/data/content.js');
 const fmt = n => n < 1e3 ? n.toFixed(0) : n < 1e6 ? (n / 1e3).toFixed(1) + 'K' : n < 1e9 ? (n / 1e6).toFixed(2) + 'M' : n < 1e12 ? (n / 1e9).toFixed(2) + 'B' : (n / 1e12).toFixed(2) + 'T';
@@ -37,7 +39,7 @@ const log = [];
 const mark = (what) => log.push(`${(active / 60).toFixed(0).padStart(5)} min played | day ${(real / 86400 + 1).toFixed(1).padStart(4)} | ${what.padEnd(34)} | jps ${fmt(sim.jps()).padStart(8)} | bank ${fmt(st.jelly).padStart(8)}`);
 let lastStage = 0;
 const firstHelper = {};
-let burst = 0, offlineTotal = 0, boopTotal = 0;
+let burst = 0, offlineTotal = 0, boopTotal = 0, lastBond = 0, reqT = 75;
 
 function bestHelper() {
   let best = null, bestScore = Infinity;
@@ -56,12 +58,19 @@ function playStep() {
   // fall asleep when exhausted, nap until rested
   if (!sim.asleep && s.energy <= 0.5) sim.asleep = true;
   if (sim.asleep && s.energy >= 99) sim.asleep = false;
+  if (SPAM && sim.asleep && sim.canWake?.() !== false) sim.asleep = false;   // a spammer pokes it awake at once
+  const bl = sim.bondLevel();
+  if (bl > lastBond) { lastBond = bl; if (bl >= 3) mark('bond ' + C.BOND[bl].title); }
   // boops: 20s bursts at 4.5/s, then 20s of petting/feeding/looking around
   burst = (burst + DT) % (CASUAL ? 60 : 40);
   if (!sim.asleep) {
-    if (burst < (CASUAL ? 10 : 20)) { const n = Math.random() < 4.5 * DT % 1 ? Math.ceil(4.5 * DT) : Math.floor(4.5 * DT); for (let i = 0; i < n; i++) { const r = sim.boop(); boopTotal += r.gain || 0; } }
-    else if (burst < 26) sim.pet(DT);
+    if (SPAM) { sim.time += 0; const n = Math.floor(11 * DT) + (Math.random() < (11 * DT) % 1 ? 1 : 0); for (let i = 0; i < n; i++) { const r = sim.boop(); boopTotal += r.gain || 0; } }
+    else if (burst < (CASUAL ? 10 : 20)) { const n = Math.random() < 4.5 * DT % 1 ? Math.ceil(4.5 * DT) : Math.floor(4.5 * DT); for (let i = 0; i < n; i++) { const r = sim.boop(); boopTotal += r.gain || 0; } }
+    else if (burst < 26) { sim.pet(DT); sim.addBond(0.15 * DT); }
   }
+  // answer a request now and then (the real game asks every 45-100 s)
+  reqT -= DT;
+  if (reqT <= 0) { reqT = 75; if (!sim.asleep) sim.addBond(4); }
   // feed when there's room in the tummy: the unlocked food with the best growth per jelly
   if (!sim.asleep && s.tummy < 72) {
     const foods = C.FOODS.filter(f => sim.foodUnlocked(f.id)).sort((a, b) => (b.nutrition / sim.foodPrice(b.id)) - (a.nutrition / sim.foodPrice(a.id)));
@@ -90,6 +99,7 @@ for (let d = 0; d < DAYS; d++) {
   for (const [kind, sec] of DAY) {
     if (kind === 'play') { for (let t = 0; t < sec; t += DT) playStep(); }
     else {
+      if (sec > 600) sim.addBond(2);
       const r = sim.fillJar(sec);
       const got = sim.collectJar();
       offlineTotal += got;
@@ -99,7 +109,7 @@ for (let d = 0; d < DAYS; d++) {
   }
   mark(`end of day ${d + 1}`);
 }
-if (!QUIET) console.log(log.join('\n')); else console.log(log.filter(l => /reached|end of day|first (Goo|Dream|Slime Spa|Rainbow)|Crown|Party/.test(l)).join('\n'));
+if (!QUIET) console.log(log.join('\n')); else console.log(log.filter(l => /reached|end of day|first (Goo|Dream|Slime Spa|Rainbow)|Crown|Party|bond/.test(l)).join('\n'));
 console.log('\nhelpers:', JSON.stringify(st.helpers));
 console.log('upgrades owned:', st.upgrades.length, 'of', C.UPGRADES.length, '| jar level', st.jar.level + 1, '| outfits', st.outfits.owned.length);
 console.log('total from jar:', fmt(offlineTotal), '| from boops:', fmt(boopTotal), '| total made:', fmt(st.totalJelly));

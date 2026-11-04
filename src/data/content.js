@@ -15,6 +15,11 @@ export const TUNING = {
   glimmerEvery: [80, 210],      // seconds between Lucky Glimmers
   requestEvery: [45, 100],      // seconds between slime requests
   autoSleepIdle: 75,            // seconds without interaction before a tired slime dozes off
+  bondGain: 0.3,                // scales every bond gain: bond is a slow, long-term relationship (weeks, not hours)
+  bondCurve: [1, 1, 1, 0.6, 0.42, 0.3, 0.22, 0.17, 0.13, 0.1], // deeper bonds grow slower (by current level)
+  feverBondEvery: 120,          // Giggle Fever only adds bond once every 2 minutes (so spamming can't farm it)
+  tiredBoop: 0.3,               // boops on an exhausted slime (energy under 8) give only 30%
+  wakeEnergy: 35,               // a napping slime can't be poked awake before it has this much energy
 };
 
 export const STAGES = [
@@ -148,7 +153,7 @@ export const BOND = [
   { xp: 450,  title: 'Best Friend',    unlock: 'Blows you kisses' },
   { xp: 750,  title: 'Inseparable',    unlock: 'Hums a little tune when happy' },
   { xp: 1150, title: 'Kindred Spirit', unlock: 'Glows softly when you pet them' },
-  { xp: 1700, title: 'Soulbound',      unlock: 'Never gets dizzy from your boops' },
+  { xp: 1700, title: 'Soulbound',      unlock: 'Shakes off dizziness twice as fast' },
   { xp: 2500, title: 'Forever Family', unlock: 'Remembers everything' },
 ];
 

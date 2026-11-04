@@ -311,11 +311,15 @@ button { font: inherit; color: inherit; }
 
 /* ---------- toasts + modal ---------- */
 .toasts { position: fixed; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 116px); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 8px; z-index: 20; pointer-events: none; width: min(420px, calc(100vw - 32px)); }
-.toast { pointer-events: none; padding: 10px 16px; border-radius: 18px; background: var(--panel-strong); border: 1.5px solid var(--edge); box-shadow: 0 14px 30px -14px var(--shade); font-weight: 700; font-size: 13.5px; line-height: 1.4; text-align: center; animation: toast-in .35s cubic-bezier(.3, 1.5, .6, 1); }
+.toasts.moved { top: var(--toast-top) !important; }
+.toast { pointer-events: auto; touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; padding: 10px 16px; border-radius: 18px; background: var(--panel-strong); border: 1.5px solid var(--edge); box-shadow: 0 14px 30px -14px var(--shade); font-weight: 700; font-size: 13.5px; line-height: 1.4; text-align: center; animation: toast-in .35s cubic-bezier(.3, 1.5, .6, 1); }
 .toast b { font-family: var(--display); font-weight: 600; font-size: 15px; display: block; }
 .toast.combo { background: linear-gradient(120deg, #ffe7f1, #e4fbf2 60%, #fff4d6); color: #2c2142; border-color: transparent; }
 .toast.love b { color: var(--berry); }
 .toast.out { animation: toast-out .4s forwards; }
+.toast.dragging { transition: none; }
+.toast.fling { transition: transform .25s ease-in, opacity .25s ease-in; opacity: 0 !important; }
+.sheet-grip { display: none; }
 @keyframes toast-in { from { opacity: 0; transform: translateY(-12px) scale(.9); } }
 @keyframes toast-out { to { opacity: 0; transform: translateY(-10px); } }
 .modal { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 20px max(16px, env(safe-area-inset-right, 0px)) 20px max(16px, env(safe-area-inset-left, 0px)); background: color-mix(in srgb, var(--bg) 45%, transparent); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
@@ -399,6 +403,9 @@ body.at-ranch .tray, body.at-ranch .tray-top, body.at-ranch #giggle, body.at-ran
   .name { font-size: 19px; }
   .panel { position: fixed; left: 0; right: 0; bottom: 0; grid-column: auto; grid-row: auto; border-radius: 26px 26px 0 0; box-sizing: border-box; height: calc(var(--tabbar) + var(--tab-pad)); transition: height .35s cubic-bezier(.3, 1.1, .5, 1); z-index: 8; padding-left: max(8px, env(safe-area-inset-left, 0px)); padding-right: max(8px, env(safe-area-inset-right, 0px)); flex-direction: column-reverse; padding-bottom: var(--tab-pad); }
   .panel.open { height: min(64%, 560px); }
+  .panel.dragging { transition: none; }
+  .panel.open .sheet-grip { display: flex; justify-content: center; align-items: center; flex: none; height: 18px; margin-bottom: -6px; touch-action: none; cursor: grab; }
+  .sheet-grip i { width: 40px; height: 5px; border-radius: 99px; background: var(--ink-2); opacity: .35; }
   body.at-ranch .panel.open { height: min(44%, 400px); }
   .ranch-bar { width: 100%; box-sizing: border-box; }
   .tabs { border-bottom: 0; border-top: 1.5px solid var(--edge); box-sizing: border-box; height: var(--tabbar); align-content: center; }
@@ -514,6 +521,7 @@ body.at-ranch .tray, body.at-ranch .tray-top, body.at-ranch #giggle, body.at-ran
     <div class="tab-body" id="body-journal" hidden></div>
     <div class="tab-body" id="body-slime" hidden></div>
     <div class="tab-body" id="body-ranch" hidden></div>
+    <div class="sheet-grip" id="sheetGrip" aria-label="Swipe down to close"><i></i></div>
   </aside>
 </div>
 

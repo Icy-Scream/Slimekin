@@ -360,26 +360,42 @@ export class Sfx {
   }
 
   // Low rumble while being petted.
+  // A soft purr: a low hum (pitched high enough for phone speakers) with a gentle "rrrr" ripple
+  // and a slow breathing swell. It keeps running and only fades in and out, so pauses while
+  // stroking don't make it crackle.
   purr(on) {
     if (!this.ctx) return;
     const c = this.ctx;
-    if (on && !this.purrNodes && this.ok) {
-      const osc = c.createOscillator(); osc.type = 'sawtooth'; osc.frequency.value = 46;
-      const f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 240;
-      const g = c.createGain(); g.gain.value = 0;
-      const trem = c.createOscillator(); trem.frequency.value = 23;
-      const tg = c.createGain(); tg.gain.value = 0.025;
-      trem.connect(tg).connect(g.gain);
-      osc.connect(f).connect(g).connect(this.master);
-      osc.start(); trem.start();
-      g.gain.setTargetAtTime(0.035, c.currentTime, 0.15);
-      this.purrNodes = { osc, trem, g };
-    } else if (!on && this.purrNodes) {
-      const { osc, trem, g } = this.purrNodes;
-      g.gain.cancelScheduledValues(c.currentTime);
-      g.gain.setTargetAtTime(0, c.currentTime, 0.1);
-      osc.stop(c.currentTime + 0.5); trem.stop(c.currentTime + 0.5);
-      this.purrNodes = null;
+    if (!this.purrNodes) {
+      if (!on || !this.ok) return;
+      const osc = c.createOscillator(); osc.type = 'triangle'; osc.frequency.value = 140;
+      const osc2 = c.createOscillator(); osc2.type = 'sine'; osc2.frequency.value = 280;
+      const o2g = c.createGain(); o2g.gain.value = 0.3;
+      const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 620; lp.Q.value = 0.5;
+      const am = c.createGain(); am.gain.value = 0.55;
+      const rr = c.createOscillator(); rr.type = 'sine'; rr.frequency.value = 23;
+      const rrg = c.createGain(); rrg.gain.value = 0.38;
+      rr.connect(rrg).connect(am.gain);
+      const breath = c.createGain(); breath.gain.value = 0.8;
+      const br = c.createOscillator(); br.type = 'sine'; br.frequency.value = 0.65;
+      const brg = c.createGain(); brg.gain.value = 0.22;
+      br.connect(brg).connect(breath.gain);
+      const out = c.createGain(); out.gain.value = 0;
+      osc.connect(lp); osc2.connect(o2g).connect(lp);
+      lp.connect(am).connect(breath).connect(out).connect(this.master);
+      for (const o of [osc, osc2, rr, br]) o.start();
+      this.purrNodes = { osc, osc2, out, on: false };
+    }
+    const n = this.purrNodes, t = c.currentTime;
+    if (on) {
+      const v = this.voice || 1;
+      n.osc.frequency.setTargetAtTime(140 * v, t, 0.1);
+      n.osc2.frequency.setTargetAtTime(280 * v, t, 0.1);
+    }
+    if (on !== n.on) {
+      n.on = on;
+      n.out.gain.cancelScheduledValues(t);
+      n.out.gain.setTargetAtTime(on && this.sound ? 0.026 : 0, t, on ? 0.12 : 0.25);
     }
   }
 

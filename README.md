@@ -31,7 +31,7 @@ The game is published at **https://icy-scream.github.io/Slimekin/** (GitHub Page
 2. Tap the Share button, then **Add to Home Screen**. It gets its own icon, opens full screen, and works offline after the first visit.
 3. To bring a slime over from another device (for example the claude.ai version): on the old device open Settings, **Copy save code**; on the phone open Settings, **Load a save code**, paste, Load.
 
-Phone notes: the game is portrait-only (turning sideways shows a reminder), runs at 60 fps and drops to 30 fps when nothing is happening to save battery, and lowers graphics quality on its own if a device struggles. Settings has a **Speed meter** to see frame rate on your phone. The two keyboard secrets have touch versions: tap the slime's name to call it, and swipe the cheat code on the background.
+Phone notes: swipe the menu down (or its grip bar) to close it; drag a notification up or down to move them, tap or swipe one sideways to dismiss it. The game is portrait-only (turning sideways shows a reminder), runs at 60 fps and drops to 30 fps when nothing is happening to save battery, and lowers graphics quality on its own if a device struggles. Settings has a **Speed meter** to see frame rate on your phone. The two keyboard secrets have touch versions: tap the slime's name to call it, and swipe the cheat code on the background.
 
 ## What's in the prototype
 
@@ -39,7 +39,7 @@ Phone notes: the game is portrait-only (turning sideways shows a reminder), runs
 |---|---|
 | Egg and hatching | Tap the egg to warm it, cracks spread, it hatches, looks around, then you name it. |
 | Boop (the clicker) | Click or tap the slime. It squishes where you poke it and drops jelly. |
-| Giggle Fever | Boop in a steady rhythm to fill the giggle meter: inside the pink zone boops pay x2 (x3 with an upgrade). Spam past the top and the slime gets dizzy for a few seconds. |
+| Giggle Fever | Boop in a steady rhythm to fill the giggle meter: inside the pink zone boops pay x2 (x3 with an upgrade). Spam past the top and the slime gets dizzy for a few seconds, so a steady rhythm earns more than tapping as fast as you can. A worn-out slime gives little jelly, naps, and can't be poked awake until it has rested a bit. |
 | Petting | Hold and stroke the slime. It closes its eyes, purrs, leans into your hand, floats hearts. Less jelly than booping, much more joy and bond. |
 | Feeding | Drag a snack onto the slime or tap it to toss. It opens wide, chomps, gulps (a bulge travels down), and the snack stays visible inside its jelly body while it digests. |
 | Traits | Six channels (Sweet, Warm, Sturdy, Leafy, Zippy, Prismatic). The body color shifts toward what it eats, and at thresholds it grows sprinkles, a flame, iron studs, a leaf sprout, an antenna or crystals. Repeating the same snack shapes it less each time. |
@@ -48,7 +48,7 @@ Phone notes: the game is portrait-only (turning sideways shows a reminder), runs
 | Needs | Tummy, Joy, Energy. Joy multiplies all jelly. When energy runs out it naps (helpers earn extra "dream jelly"). Needs freeze while the game is closed. |
 | Requests | The slime asks for a snack, pets, play or a nap. Each answer is valid and nudges personality differently (e.g. "Ask to wait" builds patience). |
 | Personality | Curious, Patient, Playful, Cuddly, Bold. Shown as tendencies, never as a good/bad score. It changes idle behavior and request frequency. |
-| Bond | Ten levels from Curious Stranger to Forever Family. Each level adds +3% jelly and unlocks a behavior (watches you, leans toward you, greets you with a dance, blows kisses, hums). |
+| Bond | Ten levels from Curious Stranger to Forever Family. Each level adds +3% jelly and unlocks a behavior (watches you, leans toward you, greets you with a dance, blows kisses, hums). It grows from caring (petting, favorite snacks, requests, combos, coming back), barely from booping, and deeper levels take longer: the first few come in the first session, Soulbound takes about two weeks. |
 | Helpers | Eight idle producers you can see in the world: orbiting tickle feathers (they really tickle it), bubbles you can pop, planters, hopping slimeling pals, a music box lullaby, moon lamps, a fountain, a telescope. |
 | Lucky Glimmers | A golden spark drifts by every few minutes; the slime points it out. Catch it for a Jelly Rush, Sugar Rush or a lump sum. |
 | Settled form | At the last stage the two strongest traits lock in a form (Hearth, Furnace, Nectar, Geode, Aurora... 22 in total, including a healthy generalist). |
@@ -138,8 +138,12 @@ node tools/economy-sim.mjs 4 casual quiet gen2=1e9
 ```
 
 Current targets: a casual player (about 40 minutes a day) has a grown-up slime on day 2 and is still saving
-for the Slime Spa after 12 days; an engaged player (about 80 minutes a day) gets the Party Hat around day 5,
-the Crown around day 8 and the Rainbow Arch around day 10.
+for the Slime Spa after 12 days; an engaged player (about 80 minutes a day) gets the Party Hat around day 6,
+the Crown around day 10 and the Rainbow Arch around day 12. Tapping as fast as possible (`spam`) should never beat a normal player:
+
+```bash
+node tools/economy-sim.mjs 2 quiet spam
+```
 
 
 Everything lives in `src/data/content.js`: `TUNING` (needs decay, giggle window, offline cap,
