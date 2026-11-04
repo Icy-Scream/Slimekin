@@ -160,10 +160,11 @@ export class Ranch {
   }
   eggReady(egg, now = Date.now()) { return !!egg && now >= egg.readyAt; }
   eggSecondsLeft(egg, now = Date.now()) { return Math.max(0, (egg.readyAt - now) / 1000); }
-  // A ready egg leaves the Nursery to start the next generation.
-  takeEgg(id, now = Date.now()) {
+  // A ready egg leaves the Nursery to start the next generation (early: one still warming may leave too; it
+  // finishes warming on the cushion).
+  takeEgg(id, now = Date.now(), { early = false } = {}) {
     const e = this.egg(id);
-    if (!e || !this.eggReady(e, now)) return null;
+    if (!e || (!early && !this.eggReady(e, now))) return null;
     this.r.nursery.eggs = this.r.nursery.eggs.filter(x => x !== e);
     return e;
   }

@@ -1,5 +1,6 @@
 // Breeding rules check (plain node, no browser): inheritance caps, seeded eggs, family sparks and their
 // recipes, near misses, Pure lines, the Nursery's cost / cooldown / egg slots, no farming, and old saves.
+// Playtest fixes 1: a warming Nursery egg on the cushion, swapping the cushion egg, finding a baby a new home.
 //   node tools/breeding-test.mjs            (add "verbose" to print every egg it checks)
 import url from 'node:url';
 import path from 'node:path';
@@ -209,11 +210,18 @@ console.log('\n# 7. Cost, cooldown and egg slots are enforced');
   ok(rr.canBreed('h', 'c', tomorrow).reason === 'pearls', `needs ${BREEDING.cost} pearls`, `pearls ${R.pearls}`);
   R.pearls = 100;
   ok(rr.canBreed('h', 'c', tomorrow).ok, 'the next day, with pearls, the first parent can breed again');
-  // moving out with an egg that is not ready changes nothing
   raise(sim, ['cookie']);
+  // (playtest fixes 1: this replaces "moving out with an egg that is not ready yet is refused") an egg still warming
+  // can be chosen too: it goes on the cushion and finishes warming there. Tried on a copy, so the ready path below
+  // runs on the original state.
+  {
+    const st2 = JSON.parse(JSON.stringify(st)), sim2 = new Sim(st2);
+    const early = sim2.moveToRanch(NOW + 0.5 * HOUR, { eggId: r1.egg.id });
+    ok(!!early && st2.phase === 'egg' && st2.egg.readyAt === r1.egg.readyAt && st2.egg.bred?.id === r1.egg.id && st2.slime.lineage.spark === 'smore' && sim2.ranch.eggs().length === 0,
+      'moving out with an egg that is not ready yet puts it on the cushion, still warming (its readyAt is kept)', `ready in ${Math.round(sim2.eggSecondsLeft(NOW + 0.5 * HOUR) / 60)} min`);
+  }
   const before = JSON.stringify(st);
-  const early = sim.moveToRanch(NOW + 0.5 * HOUR, { eggId: r1.egg.id });
-  ok(early === null && JSON.stringify(st) === before, 'moving out with an egg that is not ready yet is refused and changes nothing');
+  ok(sim.moveToRanch(NOW + 2 * HOUR, { eggId: 'no-such-egg' }) === null && JSON.stringify(st) === before, 'moving out with an egg that is not in the Nursery is refused and changes nothing');
   const moved = sim.moveToRanch(NOW + 2 * HOUR, { eggId: r1.egg.id });
   ok(!!moved && st.phase === 'egg' && st.slime.lineage.spark === 'smore' && st.slime.lineage.parents.map(p => p.name).join(' & ') === 'Juniper & Pebble' && rr.eggs().length === 0,
     'moving out with a ready egg starts the next generation from it', `new baby: line ${st.slime.lineage.line}, parents ${st.slime.lineage.parents.map(p => p.name + ' (' + p.form.name + ')').join(' x ')}, head start ${fmtT(st.slime.traits)}`);
@@ -246,6 +254,8 @@ for (const f of ['main-egg', 'main-settled', 'main-gen2', 'main-gen3']) {
   const fx = JSON.parse(fs.readFileSync(path.join(HERE, 'fixtures', f + '.json'), 'utf8'));
   const raw = JSON.parse(JSON.stringify(fx.save));
   const st = migrate(raw);
+  const filled = st.egg.bred === null && st.egg.readyAt === null && st.egg.warmth === (fx.save.egg?.warmth ?? 0);
+  ok(filled, `${f}: the cushion egg gets the new fields (bred: null, readyAt: null), warmth kept`, JSON.stringify(st.egg));
   const keep = ['phase', 'jelly', 'totalJelly'].every(k => JSON.stringify(st[k]) === JSON.stringify(fx.save[k])) &&
     JSON.stringify(st.slime.traits) === JSON.stringify(fx.save.slime.traits) && st.slime.name === fx.save.slime.name &&
     st.ranch.residents.length === fx.save.ranch.residents.length && st.ranch.pearls === fx.save.ranch.pearls &&
@@ -263,12 +273,56 @@ for (const f of ['main-egg', 'main-settled', 'main-gen2', 'main-gen3']) {
     st.slime.name = 'Hazel';
     raise(sim, ['cookie']);
     const m = sim.moveToRanch(now + 2 * HOUR, { eggId: r.egg.id });
+    // a save from the breeding-core build before this change: a bred egg on the cushion, but no egg.bred yet
+    const pre = JSON.parse(JSON.stringify(st)); delete pre.egg.bred; delete pre.egg.readyAt;
+    const mig = migrate(pre);
+    ok(mig.egg.bred && mig.egg.bred.spark === 'smore' && mig.egg.bred.parents.map(p => p.name).join(' & ') === st.slime.lineage.parents.map(p => p.name).join(' & ') &&
+      JSON.stringify(mig.egg.bred.bias) === JSON.stringify(st.slime.lineage.bias) && mig.egg.readyAt === null && JSON.stringify(mig.slime) === JSON.stringify(pre.slime),
+      'a bred egg put on the cushion before the cushion remembered its egg is rebuilt from the baby\'s lineage (the baby itself is unchanged)', `egg ${mig.egg.bred.id}, ${mig.egg.bred.parents.map(p => p.name).join(' x ')}`);
     const baby = new Sim(st);
     raise(baby, RECIPE.smore);
     ok(!!m && st.slime.form.id === 'spark:smore', 'and their baby, raised on the recipe, becomes a S\'more Slime', `generation ${st.ranch.family.generation}, ${st.slime.form.name}`);
     const again = migrate(JSON.parse(JSON.stringify(st)));
     ok(JSON.stringify(again.slime.lineage) === JSON.stringify(st.slime.lineage) && again.ranch.residents.length === 3, 'a save with breeding data loads again unchanged');
   }
+}
+
+// ---------- 10. playtest fixes 1: a warming Nursery egg on the cushion ----------
+console.log('\n# 10. A Nursery egg still warming, chosen at move-out: taps wait until it is ready, then it hatches');
+const candyP = parentOf('sweet', 'Candy', 'c'), ironP = parentOf('mineral', 'Iron', 'i');
+// a slime at home called Mochi, four residents (Juniper the Hearth, Pebble the Marshmallow, a Candy and an Iron)
+// and up to two Nursery eggs laid at `at` (Juniper + Pebble's spark egg, then Candy + Iron's)
+function family(n = 2, at = NOW) {
+  const st = createState(); const sim = new Sim(st); const R = st.ranch, rr = sim.ranch;
+  R.slots = 8;
+  R.residents.push({ ...hearth, id: 'h' }, { ...marsh, id: 'm' }, { ...candyP, id: 'c' }, { ...ironP, id: 'i' });
+  R.pearls = 100;
+  const eggs = [];
+  if (n > 0) eggs.push(rr.breed('h', 'm', at).egg);
+  if (n > 1) eggs.push(rr.breed('c', 'i', at).egg);
+  st.slime.name = 'Mochi';
+  return { st, sim, rr, R, eggs };
+}
+{
+  const { st, sim, rr, eggs } = family(1);
+  raise(sim, ['cookie']);
+  const e = eggs[0], t = NOW + 20 * 60 * 1000;   // 20 minutes after it was laid: 40 to go
+  const m = sim.moveToRanch(t, { eggId: e.id });
+  ok(!!m && st.phase === 'egg' && st.egg.readyAt === e.readyAt && st.egg.bred?.id === e.id && st.slime.lineage.egg === e.id && rr.eggs().length === 0,
+    'a warming egg chosen at move-out goes on the cushion with its readyAt; the cushion remembers the Nursery egg (state.egg.bred)', `ready in ${Math.round(sim.eggSecondsLeft(t) / 60)} min`);
+  ok(st.slime.lineage.spark === 'smore' && st.slime.traits.sweet === Math.max(0, e.bias.sweet), 'its head start was applied at move-out, as before (applyEgg)', `head start ${fmtT(st.slime.traits)}`);
+  const r1 = sim.warmEgg(t + 60000);
+  ok(r1 && r1.ok === false && st.egg.warmth === 0 && Math.round(r1.left / 60) === 39, 'a tap before it is ready adds no warmth and says how long to wait', `${Math.round(r1.left / 60)} min left`);
+  for (let i = 0; i < 10; i++) sim.warmEgg(t + 120000 + i * 1000);
+  ok(st.egg.warmth === 0 && st.phase === 'egg', 'ten more early taps: still no warmth, no hatching');
+  ok(!sim.eggReady(e.readyAt - 1) && sim.eggReady(e.readyAt), 'ready exactly at its readyAt (wall clock, like the Nursery)');
+  let n = 0, hatch = null;
+  for (let i = 0; i < 9 && !hatch; i++) { const r = sim.warmEgg(e.readyAt + i * 1000); n++; if (r.hatch) hatch = r; }
+  ok(!!hatch && st.egg.warmth === 1 && n === 5, 'once ready, five taps hatch it, as with any egg', `${n} taps`);
+  const again = migrate(JSON.parse(JSON.stringify(st)));
+  ok(again.egg.readyAt === st.egg.readyAt && again.egg.bred?.id === e.id, 'the cushion egg (readyAt, bred) survives a save and reload');
+  const plain = createState(), ps = new Sim(plain);
+  ok(ps.eggReady(NOW) && ps.warmEgg(NOW).ok === true, 'a plain egg is ready at once (no readyAt), as before');
 }
 
 console.log(`\n${passes} passed, ${fails} failed`);

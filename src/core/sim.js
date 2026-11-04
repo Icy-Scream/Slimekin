@@ -6,7 +6,7 @@ import {
   UPGRADE_RENAMES, JAR_LEVELS, OUTFITS, OUTFIT_BY_ID, TRICK_LEARNED, RANCH,
 } from '../data/content.js';
 import { createRanch, migrateRanch, Ranch, familyBonusFor, residentJpsFor } from './ranch.js';
-import { emptyLineage, applyEgg, resolveForm } from './breeding.js';
+import { emptyLineage, applyEgg, resolveForm, eggFromLineage } from './breeding.js';
 
 export const SAVE_VERSION = 1;
 
@@ -24,7 +24,9 @@ export function createState() {
     createdAt: Date.now(),
     savedAt: Date.now(),
     phase: 'egg', // egg -> naming -> play
-    egg: { warmth: 0 },
+    // the egg on the cushion: warmth from taps; bred = the Nursery egg it is (null for a plain egg), so it can go
+    // back to the Nursery; readyAt = when a bred egg is done warming (it can finish warming on the cushion)
+    egg: { warmth: 0, bred: null, readyAt: null },
     slime: {
       name: '',
       bornAt: null,
@@ -88,6 +90,8 @@ export function migrate(save) {
   out.slime.tricks = { ...(save.slime?.tricks || {}) };
   out.slime.lineage = { ...emptyLineage(), ...(save.slime?.lineage || {}) };
   if (!Array.isArray(out.slime.lineage.parents)) out.slime.lineage.parents = [];
+  // a bred egg put on the cushion before the cushion remembered its egg: rebuild that egg from the baby's lineage
+  if (out.phase === 'egg' && !out.egg.bred && out.slime.lineage.parents.length === 2) out.egg.bred = eggFromLineage(out.slime.lineage);
   out.ranch = migrateRanch(save.ranch);
   out.v = SAVE_VERSION;
   return out;
@@ -493,19 +497,61 @@ export class Sim {
     return { cost, level: this.s.jar.level };
   }
 
+  // ---------- The egg on the cushion ----------
+  // A bred egg can still be warming (readyAt); a plain egg is ready at once. Wall clock, like the Nursery.
+  eggReady(now = Date.now()) { return !this.s.egg.readyAt || now >= this.s.egg.readyAt; }
+  eggSecondsLeft(now = Date.now()) { return this.s.egg.readyAt ? Math.max(0, (this.s.egg.readyAt - now) / 1000) : 0; }
+  // A tap on the egg: warms it once it is ready (5 taps hatch it); before that, nothing changes.
+  warmEgg(now = Date.now()) {
+    if (this.s.phase !== 'egg') return null;
+    if (!this.eggReady(now)) return { ok: false, left: this.eggSecondsLeft(now) };
+    const e = this.s.egg;
+    e.warmth = Math.min(1, e.warmth + 0.2);
+    return { ok: true, warmth: e.warmth, hatch: e.warmth >= 1 };
+  }
+  // A Nursery egg goes on the cushion: the baby takes after its parents a little (see core/breeding.js).
+  placeEgg(egg) {
+    this.s.egg = { warmth: 0, bred: egg, readyAt: egg.readyAt ?? null };
+    applyEgg(this.s.slime, egg);
+  }
+  // Everything bought with jelly starts over and an egg goes on the cushion: a plain egg, or (eggId) one from the
+  // Nursery, ready or still warming (it finishes warming on the cushion). Outfits, combos, secrets, pearls and the
+  // ranch stay. Used by moving to the ranch and by finding a baby a new home.
+  startNextEgg(now, eggId = null) {
+    const s = this.s;
+    const fresh = createState();
+    s.phase = 'egg';
+    s.egg = fresh.egg;
+    s.slime = fresh.slime;
+    const egg = eggId ? this.ranch.takeEgg(eggId, now, { early: true }) : null;
+    if (egg) this.placeEgg(egg);
+    s.jelly = 0;
+    s.totalJelly = 0;
+    s.jar = fresh.jar;
+    s.helpers = fresh.helpers;
+    s.upgrades = [];
+    s.buffs = [];
+    s.outfits.worn = { ...fresh.outfits.worn };
+    s.outfits.favorite = fresh.outfits.favorite;
+    s.outfits.knownFavorite = false;
+    s.memKeys = s.memKeys.filter(k => k.startsWith('combo-') || k.startsWith('secret'));
+    this.giggle = 0; this.dizzy = 0; this.fever = false; this.asleep = false; this.recentFoods = []; this.lastFed = null;
+    this.recompute();
+    return egg;
+  }
+
   // ---------- Moving to the ranch (a new generation) ----------
   canMoveOut() { return this.s.phase === 'play' && this.stageIndex() === STAGES.length - 1; }
   moveOutPreview() {
     const total = this.s.totalJelly;
     return { bonus: familyBonusFor(total), jps: residentJpsFor(total), room: this.ranch.free() > 0, generation: this.s.ranch.family.generation };
   }
-  // The grown slime moves to the ranch and a new egg arrives: a plain egg, or (eggId) a ready egg from the
-  // Nursery. Everything bought with jelly resets (jelly, helpers, upgrades, the Jelly Jar); outfits, combos,
-  // secrets, pearls and the ranch stay.
+  // The grown slime moves to the ranch and a new egg arrives: a plain egg, or (eggId) an egg from the Nursery
+  // (ready or still warming). See startNextEgg for what starts over.
   moveToRanch(now = Date.now(), { eggId = null } = {}) {
     const s = this.s, sl = s.slime, ranch = s.ranch;
     if (!this.canMoveOut() || this.ranch.free() <= 0) return null;
-    if (eggId && !this.ranch.eggReady(this.ranch.egg(eggId), now)) return null;
+    if (eggId && !this.ranch.egg(eggId)) return null;
     const total = s.totalJelly;
     const bonus = familyBonusFor(total);
     const resident = {
@@ -524,27 +570,9 @@ export class Sim {
     let gift = 0;
     if (!ranch.gift) { ranch.gift = true; gift = RANCH.welcomeGift; this.ranch.addPearls(gift); }
 
-    const fresh = createState();
-    s.phase = 'egg';
-    s.egg = fresh.egg;
-    s.slime = fresh.slime;
-    // a bred egg: the baby takes after its parents a little (see core/breeding.js)
-    const egg = eggId ? this.ranch.takeEgg(eggId, now) : null;
-    if (egg) applyEgg(s.slime, egg);
-    s.jelly = 0;
-    s.totalJelly = 0;
-    s.jar = fresh.jar;
-    s.helpers = fresh.helpers;
-    s.upgrades = [];
-    s.buffs = [];
-    s.outfits.worn = { ...fresh.outfits.worn };
-    s.outfits.favorite = fresh.outfits.favorite;
-    s.outfits.knownFavorite = false;
-    s.memKeys = s.memKeys.filter(k => k.startsWith('combo-') || k.startsWith('secret'));
+    const egg = this.startNextEgg(now, eggId);
     const arrived = egg ? `${egg.parents[0].name} and ${egg.parents[1].name}'s egg is waiting on the cushion.` : 'A new egg arrived on the cushion.';
     s.memories = [{ t: now, icon: '🏡', text: `${resident.name} moved to the ranch. ${arrived}` }];
-    this.giggle = 0; this.dizzy = 0; this.fever = false; this.asleep = false; this.recentFoods = []; this.lastFed = null;
-    this.recompute();
     return { resident, bonus, gift, egg };
   }
 

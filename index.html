@@ -353,6 +353,8 @@ button { font: inherit; color: inherit; }
 .egg-hint p { margin: 0; font-weight: 800; font-size: 15px; color: var(--ink-2); text-shadow: 0 1px 0 var(--panel-strong); }
 .egg-hint .warm { width: 180px; height: 10px; border-radius: 99px; background: var(--chip); border: 1.5px solid var(--edge); overflow: hidden; }
 .egg-hint .warm i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--honey), var(--berry)); transition: width .25s; }
+/* a Nursery egg finishing warming on the cushion: the bar shows the time, in calm colors */
+.egg-hint.warming .warm i { background: linear-gradient(90deg, #b9d4f2, #efd9f5); }
 .egg-hint[hidden] { display: none !important; }
 
 /* ---------- mid-size screens ---------- */
@@ -578,7 +580,7 @@ body.at-ranch .tray, body.at-ranch .tray-top, body.at-ranch #giggle, body.at-ran
 </div>
 
 <div class="egg-hint" id="eggHint" hidden>
-  <h1>Something's wiggling</h1>
+  <h1 id="eggTitle">Something's wiggling</h1>
   <p id="eggText">Tap the egg to keep it warm</p>
   <div class="warm"><i id="eggWarm"></i></div>
 </div>

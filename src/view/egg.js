@@ -76,6 +76,11 @@ export class Egg {
     this.wobV += (Math.random() < 0.5 ? -1 : 1) * 4;
     this.squash = 0.12;
   }
+  // "not yet": a small shake while the egg is still warming
+  notYet() {
+    this.wobV += (Math.random() < 0.5 ? -1 : 1) * 2.2;
+    this.squash = 0.03;
+  }
 
   hit(raycaster) {
     if (this.hatched) return null;

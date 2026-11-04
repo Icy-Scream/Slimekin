@@ -169,6 +169,87 @@ const FIXTURE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'mai
       s = await sheet(); expect(s.state === 'normal' || s.state === 'closed', `back home from the ranch: not tall (${s.state} ${s.h}px)`);
       await ev(() => { const g = window.slimekin; g.hud.setSheet('closed'); g.hud.selectTab('helpers'); g.advance(1); });
     }
+    // shared by the egg, swap and rehome parts
+    let skip = 0;
+    const keepClock = () => ev(() => window.slimekin.timeSkip).then(v => { skip = v; });
+    const reloadInto = async click => {
+      // armed before the goodbye plays; it only waits for the new page to start, boot() then waits for the game
+      const nav = page.waitForNavigation({ waitUntil: 'commit', timeout: 90000 });
+      await click();
+      await ev(() => window.slimekin.advance(6));               // goodbye, fade, save, reload
+      await nav;
+      await boot();
+      await ev(s => { window.slimekin.timeSkip = s; }, skip);  // keep the test clock (the reload starts a new game object)
+    };
+    const growUp = () => ev(() => {
+      const g = window.slimekin;
+      g.state.tutorial = 5; g.requests.timer = 1e9;
+      Object.assign(g.state.slime.traits, { sweet: 22, heat: 16 });
+      for (let i = 0; i < 3; i++) { g.debug('grow'); g.advance(3); g.hud.closeModal(); }   // to Settled
+      g.state.totalJelly = 3e9;
+      g.advance(1); g.hud.closeModal();
+    });
+    const breedInNursery = async (a, b) => {
+      await ev(() => { const g = window.slimekin; if (g.view !== 'ranch') g.hud.openTab('ranch'); g.advance(2); g.openNursery(); g.advance(2); });
+      await page.click(`.parent-pick:has-text("${a}")`); await page.click(`.parent-pick:has-text("${b}")`);
+      await page.click('#breedBtn');
+      await ev(() => window.slimekin.advance(2));
+    };
+    const eggState = () => ev(() => { const g = window.slimekin, s = g.state; return { phase: s.phase, warmth: s.egg.warmth, bred: s.egg.bred && s.egg.bred.id,
+      readyIn: Math.round(g.sim.eggSecondsLeft(g.nowMs()) / 60), parents: (s.slime.lineage.parents || []).map(p => p.name).join(' & '), title: document.getElementById('eggTitle').textContent,
+      hint: document.getElementById('eggText').textContent, nursery: g.sim.ranch.eggs().map(e => e.parents.map(p => p.name).join(' & ')), given: s.ranch.nursery.given }; });
+
+    // ---------- 2. move out with a Nursery egg that is still warming ----------
+    if (ONLY.includes('egg')) {
+      kit.mark('2. a warming Nursery egg at move-out');
+      await ev(() => { const g = window.slimekin; g.debug('pearls'); g.advance(1); });
+      await breedInNursery('Juniper', 'Pebble');
+      const e0 = await ev(() => { const g = window.slimekin, e = g.sim.ranch.eggs()[0]; return { n: g.sim.ranch.eggs().length, readyIn: Math.round(g.sim.ranch.eggSecondsLeft(e, g.nowMs()) / 60) }; });
+      expect(e0.n === 1 && e0.readyIn >= 59, 'Juniper and Pebble made an egg in the Nursery (still warming)', JSON.stringify(e0));
+      await ev(() => window.slimekin.leaveRanch());
+      await growUp();
+      await page.click('#tab-ranch'); await ev(() => window.slimekin.advance(3));
+      await page.click('#moveOutBtn');
+      await page.waitForSelector('.egg-choice');
+      const choice = await ev(() => [...document.querySelectorAll('.egg-choice .choice')].map(b => ({ egg: b.dataset.egg, disabled: b.disabled, text: b.innerText.replace(/\s+/g, ' ') })));
+      note('egg choice:', JSON.stringify(choice));
+      const warm = choice.find(c => c.egg);
+      expect(warm && !warm.disabled && /Still warming: ready in \d+ min, it can finish on the cushion/.test(warm.text), 'the warming egg can be chosen and says it can finish on the cushion', warm && warm.text);
+      await page.click('.choice[data-egg]:not([data-egg=""])');
+      await shot('05-moveout-warming-choice');
+      await keepClock();
+      await reloadInto(() => page.click('#mvYes'));
+      let es = await eggState();
+      note('after moving out:', JSON.stringify(es));
+      expect(es.phase === 'egg' && es.bred && es.readyIn >= 55 && es.parents === 'Juniper & Pebble', 'Juniper and Pebble\'s egg is on the cushion, still warming', `ready in ${es.readyIn} min`);
+      await ev(() => window.slimekin.advance(2));
+      const moved = await ev(() => document.getElementById('modalCard').innerText.replace(/\s+/g, ' '));
+      expect(/still warming: ready in \d+ min/i.test(moved), 'the moved-in card says the egg is still warming', moved.slice(0, 260));
+      await shot('06-moved-in-warming');
+      await ev(() => { window.slimekin.hud.closeModal(); window.slimekin.advance(1.5); });
+      // a real tap on the egg (through the canvas), then a few more: no warmth while it warms
+      const at = await ev(() => { const g = window.slimekin, p = g.screenOf(g.egg.group.position.clone().add(new (g.v1.constructor)(0, 0.7, 0))); return { x: Math.round(p.x), y: Math.round(p.y) }; });
+      await tap(at.x, at.y);
+      await ev(() => { const g = window.slimekin; for (let i = 0; i < 4; i++) g.tapEgg(g.egg.group.position.clone()); g.advance(0.5); });
+      es = await eggState();
+      const toast = await ev(() => document.getElementById('toasts').innerText.replace(/\s+/g, ' '));
+      expect(es.phase === 'egg' && es.warmth === 0 && /Still warming/.test(es.title) && /Ready in \d+ min/.test(es.hint) && /Not yet/.test(toast), 'taps before it is ready: a "not yet" shake and toast, no warmth, the hint counts down', `${es.title}: ${es.hint} | toast: ${toast}`);
+      await shot('07-egg-still-warming');
+      // an hour passes (wall clock: works while the game is closed; here g.advance moves the test clock)
+      const t0 = Date.now();
+      await ev(() => window.slimekin.advance(3605, 1 / 10), null, 300000);
+      await ev(() => window.slimekin.advance(1.5));
+      note(`advanced one hour of game time in ${((Date.now() - t0) / 1000).toFixed(0)} s`);
+      es = await eggState();
+      expect(es.readyIn === 0 && /Tap the egg/.test(es.hint), 'after the hour the egg is ready: taps work again', `${es.title}: ${es.hint}`);
+      await ev(() => { const g = window.slimekin; for (let i = 0; i < 5; i++) g.tapEgg(g.egg.group.position.clone()); g.advance(4.5); });
+      await page.waitForSelector('#slimeName');
+      const title = await ev(() => document.querySelector('#modalCard h2').textContent);
+      expect(/Juniper and Pebble's baby hatched/.test(title), 'it hatches', title);
+      await page.fill('#slimeName', 'Pip'); await page.click('#nameOk');
+      await calm();
+    }
+
     const fin = await ev(() => ({ phase: window.slimekin.state.phase }));
     note('end:', JSON.stringify(fin));
   } catch (e) {

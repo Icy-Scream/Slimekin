@@ -95,6 +95,14 @@ export function makeEgg(a, b, { now, id, seed }) {
   };
 }
 
+// The Nursery egg a cushion baby came from, rebuilt from its lineage (for eggs put on the cushion before the cushion
+// remembered its egg). Its small temperament nudge and favorite-snack pick were not recorded, so they are not kept.
+export function eggFromLineage(L) {
+  return { id: L.egg || 'e-cushion', seed: null, laidAt: 0, readyAt: 0,
+    parents: L.parents.map(p => ({ ...p, form: { ...p.form } })), spark: L.spark || null, pure: L.pure || null,
+    line: L.line || 2, bias: { ...(L.bias || {}) }, personality: {}, favorite: null, rebuilt: true };
+}
+
 // Give a freshly created baby (createState().slime) what it inherited from its egg.
 export function applyEgg(slime, egg) {
   for (const k of TRAIT_IDS) slime.traits[k] = Math.max(0, egg.bias?.[k] || 0);

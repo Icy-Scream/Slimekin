@@ -129,6 +129,7 @@ export class Game {
 
     this.applySettings();
     this.setupPhase();
+    this.instantEggs();
     this.after(2.5, () => this.checkPostcards());
     if (this.state.ranch.justMoved) { const j = this.state.ranch.justMoved; delete this.state.ranch.justMoved; this.after(1.4, () => this.showMovedIn(j)); }
     this.bindInput();
@@ -207,6 +208,7 @@ export class Game {
       this.slime.root.visible = false;
       this.slime.visible = false;
       document.getElementById('eggHint').hidden = false;
+      this.eggWarming = !this.sim.eggReady(this.nowMs());
       this.updateEggHint();
       this.hud.setPhase('egg');
     } else {
@@ -216,24 +218,63 @@ export class Game {
     }
   }
 
+  // The hint under the egg. A Nursery egg chosen while still warming finishes on the cushion: the hint counts down
+  // and the bar shows the time; taps wait until it is ready.
   updateEggHint() {
-    const w = this.state.egg.warmth;
-    document.getElementById('eggWarm').style.width = Math.round(w * 100) + '%';
-    const t = w <= 0 ? 'Tap the egg to keep it warm' : w < 0.4 ? 'It likes that. Keep going' : w < 0.8 ? 'It is getting warmer...' : 'Almost there!';
-    document.getElementById('eggText').textContent = t;
+    const w = this.state.egg.warmth, now = this.nowMs();
+    const warming = !this.sim.eggReady(now);
+    const set = (id, text) => { const el = document.getElementById(id); if (el.textContent !== text) el.textContent = text; };
+    document.getElementById('eggHint').classList.toggle('warming', warming);
+    if (warming) {
+      const left = this.sim.eggSecondsLeft(now);
+      document.getElementById('eggWarm').style.width = Math.round(100 * (1 - Math.min(1, left / (BREEDING.readyHours * 3600)))) + '%';
+      set('eggTitle', 'Still warming');
+      set('eggText', `Ready in ${fmtDuration(left)}. It can finish warming right here.`);
+    } else {
+      document.getElementById('eggWarm').style.width = Math.round(w * 100) + '%';
+      set('eggTitle', "Something's wiggling");
+      set('eggText', w <= 0 ? 'Tap the egg to keep it warm' : w < 0.4 ? 'It likes that. Keep going' : w < 0.8 ? 'It is getting warmer...' : 'Almost there!');
+    }
+  }
+  // once a second while the egg waits: the countdown, and a little sparkle the moment a warming egg is ready
+  updateEggWait(dt) {
+    this.eggWaitT = (this.eggWaitT ?? 0) - dt;
+    if (this.eggWaitT > 0) return;
+    this.eggWaitT = 1;
+    const warming = !this.sim.eggReady(this.nowMs());
+    if (this.eggWarming && !warming && this.egg && !this.hatching) {
+      this.egg.tap();
+      this.fx.emit('sparkles', this.egg.group.position.clone().add(new THREE.Vector3(0, 0.9, 0)), { count: 12, color: '#ffe7a8' });
+      this.sfx.sparkle();
+      if (this.view !== 'ranch') this.hud.toast('<b>The egg is ready!</b>Tap it to keep it warm.', 'love', 3200);
+    }
+    this.eggWarming = warming;
+    this.updateEggHint();
   }
 
   tapEgg(point) {
     if (this.hatching) return;
     const st = this.state;
-    st.egg.warmth = Math.min(1, st.egg.warmth + 0.2);
+    const r = this.sim.warmEgg(this.nowMs());
+    if (!r) return;
+    if (!r.ok) {
+      // still warming: a small "not yet" shake, no warmth
+      this.egg.notYet();
+      this.sfx.bounce();
+      if (this.time - (this.notYetT ?? -99) > 2.5) {
+        this.notYetT = this.time;
+        this.hud.toast(`<b>Not yet!</b>This egg is still warming. Ready in ${fmtDuration(r.left)}.`, '', 2600);
+      }
+      this.updateEggHint();
+      return;
+    }
     this.egg.tap();
     this.egg.setWarmth(st.egg.warmth);
     if (st.egg.warmth > 0.3) this.sfx.crack(); else this.sfx.bounce();
     this.fx.emit('sparkles', point, { count: 5, color: '#ffe7a8' });
     this.updateEggHint();
     this.saveNow();
-    if (st.egg.warmth >= 1) this.hatch();
+    if (r.hatch) this.hatch();
   }
 
   hatch() {
@@ -670,19 +711,8 @@ export class Game {
       this.hud.showSimple('The ranch is full', `<p>There's room for ${R.slots} slimes. Buy more room with pearls, or find one of your ranch slimes a new home first.</p>`, 'OK');
       return;
     }
-    // which egg starts the next generation: a plain egg, or one waiting in the Nursery
-    const rr = sim.ranch, now = this.nowMs(), eggs = rr.eggs();
-    let choice = '';
-    if (eggs.length) {
-      choice = `<div class="sec-title">Which egg comes next?</div><div class="egg-choice" role="radiogroup" aria-label="Which egg comes next">
-        <button class="card choice" role="radio" aria-checked="true" data-egg=""><span class="egg-ic" aria-hidden="true"></span><span><b>A new egg</b><span class="sub">A brand-new slime, all its own.</span></span></button>` +
-        eggs.map(e => {
-          const ready = rr.eggReady(e, now), [p, q] = e.parents;
-          const cols = this.eggColors(e.bias) || [];
-          const note = !ready ? `Ready in ${fmtDuration(rr.eggSecondsLeft(e, now))}` : e.spark ? 'It twinkles: a family spark!' : e.pure ? `Both parents are ${esc(FORM_BY_ID[e.pure]?.name || 'the same')}s.` : 'Takes after its parents a little.';
-          return `<button class="card choice${e.spark ? ' spark' : ''}" role="radio" aria-checked="false" data-egg="${e.id}" ${ready ? '' : 'disabled'}><span class="egg-ic${e.spark ? ' spark' : ''}" style="--a:${cols[0] || '#9eefd3'};--b:${cols[1] || '#ffc2dc'}" aria-hidden="true"></span><span><b>${esc(p.name)} and ${esc(q.name)}'s egg</b><span class="sub">${note}</span></span></button>`;
-        }).join('') + '</div>';
-    }
+    const eggs = sim.ranch.eggs();
+    const choice = this.eggChoiceHtml();
     this.hud.openModal(`<h2>Move ${name} to the ranch?</h2>
       <p>${name} will live on the hill behind the cushion, making jelly and pearls, and you can visit any time. ${eggs.length ? 'Then an egg goes on the cushion' : 'A new egg arrives'} and you raise a new baby.</p>
       ${choice}
@@ -690,17 +720,37 @@ export class Game {
       <div class="card"><b>You keep</b><span class="sub">Pearls, the ranch, outfits, combos you found and secrets. ${name}'s journal goes with them.</span><b>Starts over</b><span class="sub">Jelly, helpers, upgrades and the Jelly Jar.</span></div>
       <div class="actions"><button class="btn" id="mvNo">Not yet</button><button class="btn primary" id="mvYes">Move to the ranch</button></div>`, {
       onOpen: card => {
-        let eggId = '';
-        for (const b of card.querySelectorAll('.choice')) b.addEventListener('click', () => {
-          if (b.disabled) return;
-          eggId = b.dataset.egg;
-          for (const o of card.querySelectorAll('.choice')) o.setAttribute('aria-checked', String(o === b));
-          this.sfx.plip();
-        });
+        const pick = this.bindEggChoice(card);
         card.querySelector('#mvNo').addEventListener('click', () => this.hud.closeModal());
-        card.querySelector('#mvYes').addEventListener('click', () => { this.hud.closeModal(); this.moveOut(eggId || null); });
+        card.querySelector('#mvYes').addEventListener('click', () => { this.hud.closeModal(); this.moveOut(pick() || null); });
       },
     });
+  }
+
+  // "Which egg comes next?": a plain egg, or any egg waiting in the Nursery. One still warming can be chosen too:
+  // it goes on the cushion and finishes warming there.
+  eggChoiceHtml() {
+    const rr = this.sim.ranch, now = this.nowMs(), eggs = rr.eggs();
+    if (!eggs.length) return '';
+    return `<div class="sec-title">Which egg comes next?</div><div class="egg-choice" role="radiogroup" aria-label="Which egg comes next">
+      <button class="card choice" role="radio" aria-checked="true" data-egg=""><span class="egg-ic" aria-hidden="true"></span><span><b>A new egg</b><span class="sub">A brand-new slime, all its own.</span></span></button>` +
+      eggs.map(e => {
+        const ready = rr.eggReady(e, now), [p, q] = e.parents;
+        const cols = this.eggColors(e.bias) || [];
+        const kind = e.spark ? 'It twinkles: a family spark!' : e.pure ? `Both parents are ${esc(FORM_BY_ID[e.pure]?.name || 'the same')}s.` : 'Takes after its parents a little.';
+        const note = ready ? kind : `Still warming: ready in ${fmtDuration(rr.eggSecondsLeft(e, now))}, it can finish on the cushion.${e.spark ? ' It twinkles!' : ''}`;
+        return `<button class="card choice${e.spark ? ' spark' : ''}${ready ? '' : ' warming'}" role="radio" aria-checked="false" data-egg="${e.id}"><span class="egg-ic${e.spark ? ' spark' : ''}" style="--a:${cols[0] || '#9eefd3'};--b:${cols[1] || '#ffc2dc'}" aria-hidden="true"></span><span><b>${esc(p.name)} and ${esc(q.name)}'s egg</b><span class="sub">${note}</span></span></button>`;
+      }).join('') + '</div>';
+  }
+  // returns a function that reads the chosen egg id ('' = a plain egg)
+  bindEggChoice(card) {
+    let eggId = '';
+    for (const b of card.querySelectorAll('.choice')) b.addEventListener('click', () => {
+      eggId = b.dataset.egg;
+      for (const o of card.querySelectorAll('.choice')) o.setAttribute('aria-checked', String(o === b));
+      this.sfx.plip();
+    });
+    return () => eggId;
   }
 
   moveOut(eggId = null) {
@@ -752,7 +802,9 @@ export class Game {
     let body = `<p>${esc(j.name)} is settling in on the hill behind the cushion${others > 0 ? `, with ${others} other slime${others === 1 ? '' : 's'}` : ''}. Open the Ranch tab to visit.</p>`;
     body += `<div class="card"><b>Family Bonus +${j.bonus.toFixed(1)}%</b><span class="sub">Now +${R.family.bonus.toFixed(1)}% to all jelly, forever. This is generation ${R.family.generation}.</span></div>`;
     if (j.gift) body += `<div class="card"><b><i class="pearl"></i> ${j.gift} pearls</b><span class="sub">${esc(j.name)} found these on the way. Ranch slimes make pearls over time: spend them on more room and a bigger Pearl Basket.</span></div>`;
-    body += j.egg ? `<p>And look: ${esc(j.egg.parents[0])} and ${esc(j.egg.parents[1])}'s egg is on the cushion${j.egg.spark ? ', twinkling' : ''}. Tap it to keep it warm.</p>` : '<p>And look: a new egg arrived. Tap it to keep it warm.</p>';
+    const left = this.sim.eggSecondsLeft(this.nowMs());
+    const warmIt = left > 0 ? `It is still warming: ready in ${fmtDuration(left)}. It can finish warming right there.` : 'Tap it to keep it warm.';
+    body += j.egg ? `<p>And look: ${esc(j.egg.parents[0])} and ${esc(j.egg.parents[1])}'s egg is on the cushion${j.egg.spark ? ', twinkling' : ''}. ${warmIt}</p>` : '<p>And look: a new egg arrived. Tap it to keep it warm.</p>';
     this.hud.showSimple(`${esc(j.name)} moved to the ranch!`, body, 'Hello, little egg!');
     this.saveNow(true);
   }
@@ -1886,11 +1938,13 @@ export class Game {
       this.openSettings();
     }
   }
-  // Debug "Instant eggs": every waiting egg is ready now and no parent is resting for the day.
+  // Debug "Instant eggs": every waiting egg (and the egg on the cushion) is ready now and no parent is resting.
   instantEggs() {
     if (!DEBUG || !this.debugInstant) return;
-    const rr = this.sim.ranch, now = this.nowMs();
+    const rr = this.sim.ranch, now = this.nowMs(), ce = this.state.egg;
     for (const e of rr.eggs()) e.readyAt = Math.min(e.readyAt, now);
+    if (ce.readyAt) { ce.readyAt = Math.min(ce.readyAt, now); if (ce.bred) ce.bred.readyAt = Math.min(ce.bred.readyAt, now); }
+    if (this.state.phase === 'egg') this.updateEggHint();
     for (const x of this.state.ranch.residents) x.bredDay = null;
     this.syncNursery();
     this.hud.renderRanch(true);
@@ -2230,6 +2284,8 @@ export class Game {
       }
       this.sfx.setMusicWanted(st.helpers.musicbox > 0);
       this.updateSave(dt);
+    } else if (st.phase === 'egg') {
+      this.updateEggWait(dt);
     }
     if (this.egg) {
       this.egg.update(dt, this.scene);
