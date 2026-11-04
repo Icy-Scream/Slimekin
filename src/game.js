@@ -48,6 +48,8 @@ export class Game {
     if (this.state.slime.form) this.slime.setForm(this.state.slime.form.id, { pure: this.state.slime.form.pure });
     this.formFxT = 1;
     this.timeSkip = 0;   // test clock: advance() moves the Nursery's egg timers along with game time
+    // debug only (#debug): Nursery eggs are ready at once and parents don't rest; remembered on this device, not in the save
+    this.debugInstant = DEBUG && (() => { try { return localStorage.getItem('slimekin.debug.instantEggs') === '1'; } catch { return false; } })();
     this.ranch = new RanchView(this.scene, { quality: this.resolvedQuality() });
     this.ranch.setTheme(this.stage.dark, this.stage.palette.floor);
     this.stage.onTheme = (dark, p) => { this.ranch.setTheme(dark, p.floor); this.eggSpark && this.eggSpark.setNight(dark); };
@@ -615,6 +617,7 @@ export class Game {
     const rr = this.sim.ranch;
     const r = rr.breed(aId, bId, this.nowMs());
     if (!r) { this.sfx.error(); this.hud.renderRanch(true); return null; }
+    this.instantEggs();
     const [p, q] = r.egg.parents;
     this.sfx.buy(); this.after(0.3, () => this.sfx.sparkle());
     for (const id of [aId, bId]) { const v = this.ranch.resident(id); if (v) { v.av.hop(5); v.happyT = 2.4; } }
@@ -627,7 +630,7 @@ export class Game {
       this.hud.toast(`<b>A twinkly egg!</b>${esc(p.name)} and ${esc(q.name)} share a family spark. Something special could hatch, if the baby is raised just right.`, 'love', 5200);
     } else {
       this.remember('🥚', `${p.name} and ${q.name} made an egg together in the Nursery.`);
-      this.hud.toast(`<b>A new egg in the Nursery</b>${esc(p.name)} and ${esc(q.name)}'s egg is ready in ${fmtDuration(BREEDING.readyHours * 3600)}. Choose it when ${esc(this.Name)} moves to the ranch.`, 'love', 4600);
+      this.hud.toast(`<b>A new egg in the Nursery</b>${esc(p.name)} and ${esc(q.name)}'s egg is ${this.debugInstant ? 'ready now (debug: instant eggs)' : `ready in ${fmtDuration(BREEDING.readyHours * 3600)}`}. Choose it when ${esc(this.Name)} moves to the ranch.`, 'love', 4600);
     }
     this.hud.nurseryPick = [];
     this.hud.renderRanch(true);
@@ -1735,7 +1738,9 @@ export class Game {
     const debug = DEBUG ? `<div class="sec-title">Debug</div><div class="actions">
       <button class="btn" data-dbg="jelly">+10K jelly</button><button class="btn" data-dbg="mega">+10M jelly</button>
       <button class="btn" data-dbg="grow">+Growth</button><button class="btn" data-dbg="needs">Fill needs</button>
-      <button class="btn" data-dbg="glim">Glimmer</button><button class="btn" data-dbg="req">Request</button><button class="btn" data-dbg="bond">+Bond</button></div>` : '';
+      <button class="btn" data-dbg="glim">Glimmer</button><button class="btn" data-dbg="req">Request</button><button class="btn" data-dbg="bond">+Bond</button>
+      <button class="btn" data-dbg="tera">+1T jelly</button><button class="btn" data-dbg="pearls">+100 pearls</button>
+      <button class="btn" data-dbg="instant" aria-pressed="${this.debugInstant}">Instant eggs: ${this.debugInstant ? 'On' : 'Off'}</button></div>` : '';
     this.hud.openModal(`<h2>Settings</h2>
       <div class="setting"><span>Sound</span>${seg('sound', [[true, 'On'], [false, 'Off']])}</div>
       <div class="setting"><span>Music box lullaby</span>${seg('music', [[true, 'On'], [false, 'Off']])}</div>
@@ -1872,6 +1877,23 @@ export class Game {
     if (k === 'req') { this.hud.closeModal(); this.state.tutorial = Math.max(3, this.state.tutorial); this.requests.timer = 0; }
     if (k === 'bond') { const b = this.sim.addBond(60); if (b) this.onBondUp(b); }
     if (k === 'pearls') { this.sim.ranch.addPearls(100); this.hud.renderRanch(true); }
+    if (k === 'tera') this.sim.addJelly(1e12);
+    if (k === 'instant') {
+      this.debugInstant = !this.debugInstant;
+      try { localStorage.setItem('slimekin.debug.instantEggs', this.debugInstant ? '1' : '0'); } catch { /* private mode */ }
+      this.instantEggs();
+      this.openSettings();
+    }
+  }
+  // Debug "Instant eggs": every waiting egg is ready now and no parent is resting for the day.
+  instantEggs() {
+    if (!DEBUG || !this.debugInstant) return;
+    const rr = this.sim.ranch, now = this.nowMs();
+    for (const e of rr.eggs()) e.readyAt = Math.min(e.readyAt, now);
+    for (const x of this.state.ranch.residents) x.bredDay = null;
+    this.syncNursery();
+    this.hud.renderRanch(true);
+    this.markDirty(true);
   }
 
   // ---------- theme / layout ----------
