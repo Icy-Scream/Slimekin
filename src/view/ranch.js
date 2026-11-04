@@ -308,8 +308,23 @@ export class RanchView {
       basket.add(m);
       this.basketPearls.push(m);
     }
-    basket.position.set(2.3, RANCH_TOP, 5.0);
+    // it sits on a little wooden crate so it doesn't sink into the grass
+    const crate = new THREE.Group();
+    const plank = new THREE.MeshStandardMaterial({ color: '#d9a46b', roughness: 0.85 });
+    const crateBox = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.16, 0.86), plank);
+    crateBox.position.y = 0.08;
+    crate.add(crateBox);
+    const slat = new THREE.MeshStandardMaterial({ color: '#b98350', roughness: 0.85 });
+    for (const z of [-0.3, 0, 0.3]) { const sl = new THREE.Mesh(new THREE.BoxGeometry(0.88, 0.03, 0.08), slat); sl.position.set(0, 0.165, z); crate.add(sl); }
+    crate.position.set(2.3, RANCH_TOP, 5.0);
+    crate.rotation.y = -0.4;
+    g.add(crate);
+    const bsh = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 1.5), shMat);
+    bsh.rotation.x = -Math.PI / 2; bsh.position.set(2.3, RANCH_TOP + 0.016, 5.0);
+    g.add(bsh);
+    basket.position.set(2.3, RANCH_TOP + 0.18, 5.0);
     basket.rotation.y = -0.4;
+    basket.scale.setScalar(1.15);
     g.add(basket);
     this.basket = basket;
     this.basketHit = new THREE.Mesh(new THREE.SphereGeometry(0.6, 10, 8), new THREE.MeshBasicMaterial({ visible: false }));
@@ -488,7 +503,7 @@ export class RanchView {
     for (const r of this.residents.values()) this.think(r, step, camera);
     this.updatePearls(dt);
     const pulse = this.basketFull ? 0.5 + 0.5 * Math.sin(t * 4) : 0;
-    this.basket.scale.setScalar(1 + pulse * 0.05);
+    this.basket.scale.setScalar(1.15 * (1 + pulse * 0.05));
   }
 
   think(r, dt, camera) {

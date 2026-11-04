@@ -631,7 +631,7 @@ export class Game {
   showMovedIn(j) {
     const R = this.state.ranch;
     const others = R.residents.length - 1;
-    let body = `<p>${esc(j.name)} is settling in on the hill behind the cushion${others > 0 ? `, with ${others} other slime${others === 1 ? '' : 's'}` : ''}. Tap the hill (or the Ranch tab) to visit.</p>`;
+    let body = `<p>${esc(j.name)} is settling in on the hill behind the cushion${others > 0 ? `, with ${others} other slime${others === 1 ? '' : 's'}` : ''}. Open the Ranch tab to visit.</p>`;
     body += `<div class="card"><b>Family Bonus +${j.bonus.toFixed(1)}%</b><span class="sub">Now +${R.family.bonus.toFixed(1)}% to all jelly, forever. This is generation ${R.family.generation}.</span></div>`;
     if (j.gift) body += `<div class="card"><b><i class="pearl"></i> ${j.gift} pearls</b><span class="sub">${esc(j.name)} found these on the way. Ranch slimes make pearls over time: spend them on more room and a bigger Pearl Basket.</span></div>`;
     body += '<p>And look: a new egg arrived. Tap it to keep it warm.</p>';
@@ -795,7 +795,6 @@ export class Game {
     const b = this.helpers3d.hitBubble(this.raycaster);
     if (b) { this.popBubble(b); return; }
     const hit = this.slime.hit(this.raycaster);
-    if (!hit && this.ranch.pick(this.raycaster)) { this.hud.openTab('ranch'); return; }
     if (!hit) this.swipe = { id: e.pointerId, x: e.clientX, y: e.clientY, t: this.time };
     if (hit) {
       const region = this.slime.faceRegion(this.raycaster);

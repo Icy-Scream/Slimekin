@@ -6,6 +6,20 @@ const FEATHER_COLORS = ['#a98bff', '#ff8fbd', '#6fc4ff', '#ffbf47', '#7fd88f'];
 const SLIMELING_COLORS = ['#ffb3d1', '#ffd98a', '#a8d8ff', '#c9b3ff', '#a8f0c8', '#ffc4a3', '#e0b3ff', '#b3f0ec'];
 const rand = (a, b) => a + Math.random() * (b - a);
 
+// Height of whatever is under a point: the cushion (matches its profile in stage.js) or the rug.
+const CUSHION_TOP_PROFILE = [[0, 0.27], [0.5, 0.285], [1.2, 0.305], [1.7, 0.285], [1.95, 0.22], [2.06, 0.12], [2.14, 0.006]];
+function groundY(x, z) {
+  const r = Math.hypot(x, z);
+  const P = CUSHION_TOP_PROFILE;
+  if (r >= P[P.length - 1][0]) return 0.006;
+  for (let i = 1; i < P.length; i++) {
+    if (r <= P[i][0]) { const [r0, y0] = P[i - 1], [r1, y1] = P[i]; return y0 + (y1 - y0) * (r - r0) / (r1 - r0); }
+  }
+  return 0.006;
+}
+// a slimeling's body is centered on its origin, so lift it until its bottom touches the ground
+const PAL_LIFT = 0.125;
+
 export class HelperWorld {
   constructor(scene, fx) {
     this.scene = scene;
@@ -61,12 +75,13 @@ export class HelperWorld {
       this.popIn(obj, 1.6);
       this.planters.push({ obj, phase: rand(0, 6) });
     }
-    // slimeling pals
+    // slimeling pals (they sit on the floor around the cushion, never inside it)
     while (this.slimelings.length < want('slimeling', 8)) {
       const i = this.slimelings.length;
       const obj = slimeling(SLIMELING_COLORS[i % SLIMELING_COLORS.length]);
       const a = rand(0, Math.PI * 2), R = rand(2.5, 3.4);
       obj.position.set(Math.sin(a) * R, 0, Math.cos(a) * R);
+      obj.position.y = groundY(obj.position.x, obj.position.z) + PAL_LIFT;
       this.group.add(obj);
       this.popIn(obj, 1.5);
       this.slimelings.push({ obj, target: obj.position.clone(), hopT: rand(0, 1), hopping: false, from: new THREE.Vector3(), rest: rand(0.5, 2), cheer: 0 });
@@ -248,22 +263,23 @@ export class HelperWorld {
             if (d > 1.3) s.target.lerpVectors(o.position, s.visit.target, 1.3 / d);
           } else {
             if (s.visit && s.visit.arrived && s.visit.left === undefined) s.visit = null;
-            const a = rand(0, Math.PI * 2), R = rand(2.5, 3.6);
+            // wander around the ring next to where it is, so it never hops through the cushion
+            const a = Math.atan2(o.position.x, o.position.z) + rand(-0.6, 0.6), R = rand(2.5, 3.5);
             s.target.set(Math.sin(a) * R, 0, Math.cos(a) * R);
-            if (s.target.distanceTo(o.position) > 1.5) s.target.lerp(o.position, 0.5);
           }
         }
       } else {
         s.hopT += dt / 0.55;
         const k = Math.min(1, s.hopT);
         o.position.lerpVectors(s.from, s.target, k);
-        o.position.y = Math.sin(k * Math.PI) * 0.45;
+        const g0 = groundY(s.from.x, s.from.z), g1 = groundY(s.target.x, s.target.z), gm = groundY(o.position.x, o.position.z);
+        o.position.y = Math.max(gm, g0 + (g1 - g0) * k) + PAL_LIFT + Math.sin(k * Math.PI) * 0.45;
         o.rotation.y += (Math.atan2(s.target.x - s.from.x, s.target.z - s.from.z + 0.0001) - o.rotation.y) * 0.2;
         const body = o.children[0];
         const st = 1 + Math.sin(k * Math.PI) * 0.15;
         body.scale.set(1.05 / st, 0.82 * st, 1.05 / st);
         if (k >= 1) {
-          s.hopping = false; s.rest = rand(0.8, 3.2); o.position.y = 0;
+          s.hopping = false; s.rest = rand(0.8, 3.2); o.position.y = groundY(o.position.x, o.position.z) + PAL_LIFT;
           if (s.visit && !s.visit.arrived && o.position.distanceTo(s.visit.target) < 0.15) {
             s.visit.arrived = true;
             s.rest = 1.8;
