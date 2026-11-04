@@ -350,7 +350,7 @@ export class SlimeAvatar {
     for (const p of this.formProps) for (const o of [p.obj, ...(p.extra || [])]) o.parent && o.parent.remove(o);
     this.formProps = [];
     const m = this.mat;
-    Object.assign(m, { roughness: 0.13, clearcoat: 1, sheen: 0.6, metalness: 0, iridescence: 0 });
+    Object.assign(m, { roughness: 0.13, clearcoat: 1, sheen: 0.6, metalness: 0, iridescence: Math.min(1, (this.traits.prism || 0) / 25), thickness: 1.1 });
     m.transmission = this.quality === 'low' ? 0 : 0.66;
     if (m.map) { m.map.dispose(); m.map = null; }
     if (m.emissiveMap) { m.emissiveMap.dispose(); m.emissiveMap = null; }
@@ -368,6 +368,7 @@ export class SlimeAvatar {
       if (look.glowPattern) m.emissiveMap = makePattern(look.glowPattern);
       for (const name of look.props || []) if (PROP_MAKERS[name]) this.formProps.push(PROP_MAKERS[name](this));
     }
+    this.formAnchor = (this.formProps.find(p => p.anchor) || {}).anchor || null;
     m.needsUpdate = true;
   }
 
@@ -462,6 +463,7 @@ export class SlimeAvatar {
       }
       if (F.wide !== 1) { x *= F.wide; z *= F.wide; }
       if (F.tall !== 1 && py > 0) y *= F.tall;
+      if (F.peak && py > 0) { const k = py * py * py; x *= 1 - F.peak * k * 0.8; z *= 1 - F.peak * k * 0.8; y *= 1 + F.peak * k * 0.32; }
     }
     y += BOTTOM;
     const h = y / HEIGHT;
@@ -735,7 +737,7 @@ export class SlimeAvatar {
     this.targetColor.copy(c);
     this.stiffness = 1 + Math.min(1.2, traits.mineral / 40);
     this.sq.k = 170 * this.stiffness;
-    this.mat.iridescence = Math.min(1, traits.prism / 25);
+    this.mat.iridescence = Math.max(Math.min(1, traits.prism / 25), (this.form && this.form.mat && this.form.mat.iridescence) || 0);
     const iris = c.clone().lerp(new THREE.Color('#ffffff'), 0.35);
     this.expr.iris = `rgba(${Math.round(iris.r * 255)}, ${Math.round(iris.g * 255)}, ${Math.round(iris.b * 255)}, 0.95)`;
   }
@@ -846,7 +848,10 @@ export class SlimeAvatar {
     if (look && look.mapScroll && this.mat.map) this.mat.map.offset.x = (t * look.mapScroll) % 1;
     this.glow *= Math.exp(-dt * 1.5);
     const heatGlow = Math.min(0.28, this.traits.heat / 90) * (0.8 + 0.2 * Math.sin(t * 3));
-    if (look && look.glowPattern) this.mat.emissive.set(look.glowColor || '#ffffff').multiplyScalar(0.55 + 0.35 * Math.random() + this.glow);
+    if (look && look.glowPattern) {
+      const k = look.glowMode === 'pulse' ? 0.5 + 0.45 * (0.5 + 0.5 * Math.sin(t * (look.glowSpeed || 2))) : 0.55 + 0.35 * Math.random();
+      this.mat.emissive.set(look.glowColor || '#ffffff').multiplyScalar(k + this.glow);
+    }
     else this.mat.emissive.copy(shown).multiplyScalar(0.1 + heatGlow + this.glow * 0.7 + this.emissiveBoost + (look && look.glow || 0));
     this.mat.sheenColor.copy(shown).lerp(this._c2.setRGB(1, 1, 1), 0.6);
 
@@ -924,7 +929,9 @@ export class SlimeAvatar {
     this.inner.scale.set(1 - this.sq.x * 0.45, 1 + this.sq.x, 1 - this.sq.x * 0.45);
     this.updateInner(dt);
     this.placeOutfits(dt);
+    const hatOn = !!this.outfit.head || this.cap.grow > 0.3;
     for (const p of this.formProps) {
+      if (p.head) { p.obj.visible = !hatOn; if (hatOn) continue; }
       if (p.ring !== undefined) {
         this.shape(0, p.ring, 0, 0, o);
         const cx = o.x, cy = o.y, cz = o.z;

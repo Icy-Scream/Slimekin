@@ -54,9 +54,109 @@ const PATTERNS = {
     v.addColorStop(0, 'rgba(255,255,255,0.35)'); v.addColorStop(0.5, 'rgba(255,255,255,0)'); v.addColorStop(1, 'rgba(255,255,255,0.3)');
     x.fillStyle = v; x.fillRect(0, 0, w, h);
   }),
+  // Rising flame tongues over a red-orange body (full color, mapWhite 1).
+  flames: () => canvasTex((x, w, h) => {
+    const g = x.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, '#e8262e'); g.addColorStop(0.55, '#ff5a2a'); g.addColorStop(1, '#ff8a2a');
+    x.fillStyle = g; x.fillRect(0, 0, w, h);
+    for (const [col, top, n] of [['#ff9a1f', 0.22, 8], ['#ffe14d', 0.48, 11]]) {
+      x.fillStyle = col;
+      x.beginPath(); x.moveTo(0, h);
+      for (let i = 0; i <= n; i++) {
+        const cx = i / n * w, tip = h * (top + 0.12 * Math.sin(i * 2.7));
+        x.quadraticCurveTo(cx - w / n * 0.5, h * 0.9, cx, tip);
+        x.quadraticCurveTo(cx + w / n * 0.1, h * 0.85, cx + w / n * 0.5, h * 0.95);
+      }
+      x.lineTo(w, h); x.closePath(); x.fill();
+    }
+  }),
+  // Riveted metal plates (multiplies the body color).
+  plates: () => canvasTex((x, w, h) => {
+    x.fillStyle = '#ffffff'; x.fillRect(0, 0, w, h);
+    x.strokeStyle = 'rgba(70, 82, 105, 0.55)'; x.lineWidth = 3;
+    for (const y of [0.3, 0.62]) { x.beginPath(); x.moveTo(0, h * y); x.lineTo(w, h * y); x.stroke(); }
+    for (let i = 0; i < 8; i++) { const cx = (i + 0.5) * w / 8; x.beginPath(); x.moveTo(cx, h * 0.3); x.lineTo(cx, h * 0.62); x.stroke(); }
+    for (const y of [0.33, 0.59]) for (let i = 0; i < 32; i++) {
+      const cx = (i + 0.5) * w / 32;
+      x.fillStyle = 'rgba(60, 70, 92, 0.6)'; x.beginPath(); x.arc(cx, h * y, 3.4, 0, TAU); x.fill();
+      x.fillStyle = 'rgba(255,255,255,0.9)'; x.beginPath(); x.arc(cx - 1, h * y - 1, 1.3, 0, TAU); x.fill();
+    }
+  }),
+  // Soft mossy speckles (multiplies the body color).
+  speckle: () => canvasTex((x, w, h) => {
+    x.fillStyle = '#ffffff'; x.fillRect(0, 0, w, h);
+    for (let i = 0; i < 900; i++) {
+      x.fillStyle = Math.random() < 0.5 ? 'rgba(40, 90, 30, 0.18)' : 'rgba(255, 255, 210, 0.35)';
+      x.beginPath(); x.arc(Math.random() * w, Math.random() * h, 1 + Math.random() * 4, 0, TAU); x.fill();
+    }
+  }),
+  // Gold and white stars on cherry red (full color).
+  stars: () => canvasTex((x, w, h) => {
+    x.fillStyle = '#e8435f'; x.fillRect(0, 0, w, h);
+    const star = (cx, cy, r, col) => {
+      x.fillStyle = col; x.beginPath();
+      for (let k = 0; k < 10; k++) { const a = -Math.PI / 2 + k * Math.PI / 5, rr = k % 2 ? r * 0.45 : r; x.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); }
+      x.closePath(); x.fill();
+    };
+    let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    for (let i = 0; i < 46; i++) star(rnd() * w, h * (0.08 + rnd() * 0.84), 6 + rnd() * 9, i % 3 ? '#ffd75a' : '#ffffff');
+  }),
+  // Caramel drizzle over the top (multiplies the body color).
+  drizzle: () => canvasTex((x, w, h) => {
+    x.fillStyle = '#ffffff'; x.fillRect(0, 0, w, h);
+    x.fillStyle = 'rgba(110, 56, 20, 0.8)';
+    x.fillRect(0, 0, w, h * 0.12);
+    x.beginPath(); x.moveTo(0, h * 0.12);
+    for (let i = 0; i <= 16; i++) {
+      const cx = i / 16 * w, len = h * (0.04 + ((i * 7) % 5) * 0.03);
+      x.lineTo(cx - w / 64, h * 0.12); x.quadraticCurveTo(cx - w / 64, h * 0.12 + len, cx, h * 0.12 + len); x.quadraticCurveTo(cx + w / 64, h * 0.12 + len, cx + w / 64, h * 0.12);
+    }
+    x.lineTo(w, h * 0.12); x.lineTo(w, 0); x.lineTo(0, 0); x.fill();
+    x.strokeStyle = 'rgba(110, 56, 20, 0.55)'; x.lineWidth = 5; x.lineCap = 'round';
+    x.beginPath();
+    for (let i = 0; i <= 64; i++) x.lineTo(i / 64 * w, h * 0.3 + Math.sin(i * 0.6) * 9);
+    x.stroke();
+  }),
+  // Glowing cracks (emissive map: white on black).
+  cracks: () => canvasTex((x, w, h) => {
+    x.fillStyle = '#000'; x.fillRect(0, 0, w, h);
+    x.strokeStyle = '#fff'; x.lineCap = 'round'; x.lineJoin = 'round';
+    let seed = 3; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    for (let k = 0; k < 16; k++) {
+      let px = (k + rnd()) * w / 16, py = h * (0.15 + rnd() * 0.6);
+      x.lineWidth = 5;
+      x.beginPath(); x.moveTo(px, py);
+      for (let s = 0; s < 7; s++) { px += (rnd() - 0.5) * 50; py += (rnd() - 0.4) * 30; x.lineTo(px, py); if (s === 3) x.lineWidth = 2.5; }
+      x.stroke();
+    }
+  }),
+  // Soft glowing spots (emissive map).
+  spots: () => canvasTex((x, w, h) => {
+    x.fillStyle = '#000'; x.fillRect(0, 0, w, h);
+    let seed = 11; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    for (let i = 0; i < 34; i++) {
+      const cx = rnd() * w, cy = h * (0.3 + rnd() * 0.6), r = 9 + rnd() * 12;
+      const g = x.createRadialGradient(cx, cy, 0, cx, cy, r);
+      g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+      x.fillStyle = g; x.beginPath(); x.arc(cx, cy, r, 0, TAU); x.fill();
+    }
+  }),
+  // Circuit-board lines (emissive map).
+  circuit: () => canvasTex((x, w, h) => {
+    x.fillStyle = '#000'; x.fillRect(0, 0, w, h);
+    x.strokeStyle = '#fff'; x.fillStyle = '#fff'; x.lineWidth = 3;
+    let seed = 5; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    for (let k = 0; k < 22; k++) {
+      let px = Math.round(rnd() * 32) * w / 32, py = Math.round((0.2 + rnd() * 0.65) * 16) * h / 16;
+      x.beginPath(); x.moveTo(px, py);
+      for (let s = 0; s < 3; s++) { if (s % 2) py += (rnd() < 0.5 ? -1 : 1) * h / 16 * (1 + Math.floor(rnd() * 2)); else px += w / 32 * (1 + Math.floor(rnd() * 3)); x.lineTo(px, py); }
+      x.stroke();
+      x.beginPath(); x.arc(px, py, 4.5, 0, TAU); x.fill();
+    }
+  }),
 };
 
-// ---------- the eight sample forms (more to follow once the style is approved) ----------
+// ---------- all 22 grown-up forms ----------
 export const FORM_LOOKS = {
   'heat+sweet': {
     title: 'Hearth Slime', tint: '#ff9a62', tintAmt: 0.6, shape: { tall: 0.96, wide: 1.04 }, glow: 0.05,
@@ -87,6 +187,63 @@ export const FORM_LOOKS = {
   mochi: {
     title: 'Marshmallow Slime', tint: '#fff5ea', tintAmt: 0.9, pattern: 'toast', mapWhite: 1, shape: { square: 0.85, tall: 0.95, wide: 1.0 },
     mat: { transmission: 0.1, roughness: 0.6, sheen: 1, clearcoat: 0.25 }, keep: [],
+  },
+  heat: {
+    title: 'Blaze Slime', tint: '#ff6a3d', tintAmt: 0.6, pattern: 'flames', mapWhite: 1, glow: 0.1, shape: { tall: 1.04 },
+    keep: [], props: ['flameCrown'], fx: { kind: 'embers', every: 0.5 },
+  },
+  mineral: {
+    title: 'Iron Slime', tint: '#8f9db4', tintAmt: 0.75, pattern: 'plates', mapWhite: 0, shape: { square: 0.45, tall: 0.9 },
+    mat: { metalness: 0.5, roughness: 0.3, transmission: 0.15 }, keep: ['mineral'], fx: { kind: 'glints', every: 1.6, color: '#e6eeff' },
+  },
+  nature: {
+    title: 'Moss Slime', tint: '#62b04f', tintAmt: 0.6, pattern: 'speckle', mapWhite: 0, shape: { lumpy: 0.022, wide: 1.03 },
+    mat: { roughness: 0.5, sheen: 1 }, keep: ['nature'], props: ['moss', 'ladybug'], fx: { kind: 'pollen', every: 1.2, color: '#d8f5a0' },
+  },
+  prism: {
+    title: 'Crystal Slime', tint: '#a9dcff', tintAmt: 0.62, mat: { transmission: 0.95, roughness: 0.02, iridescence: 1, thickness: 0.7 },
+    keep: ['prism'], props: ['crystalCrown', 'prismCore'], fx: { kind: 'prism', every: 0.9 },
+  },
+  'heat+mineral': {
+    title: 'Furnace Slime', tint: '#5d4c4a', tintAmt: 0.8, glowPattern: 'cracks', glowColor: '#ff7a2a', glowMode: 'pulse', glowSpeed: 1.6,
+    shape: { square: 0.3, tall: 0.92 }, mat: { roughness: 0.5, metalness: 0.25, transmission: 0.1 }, keep: [], props: ['chimney'],
+    fx: { kind: 'smoke', every: 0.9 },
+  },
+  'heat+spark': {
+    title: 'Firework Slime', tint: '#e8435f', tintAmt: 0.6, pattern: 'stars', mapWhite: 1, keep: [], props: ['fuse'],
+    fx: { kind: 'firework', every: 0.22 },
+  },
+  'spark+sweet': {
+    title: 'Fizzy Slime', tint: '#ff8fc4', tintAmt: 0.6, mat: { transmission: 0.85, roughness: 0.05 }, keep: [], props: ['innerBubbles', 'straw'],
+    fx: { kind: 'fizz', every: 0.35 },
+  },
+  'nature+spark': {
+    title: 'Firefly Slime', tint: '#24685e', tintAmt: 0.85, glowPattern: 'spots', glowColor: '#d8ff6a', glowMode: 'pulse', glowSpeed: 1.1,
+    keep: ['nature'], props: ['fireflies'],
+  },
+  'heat+nature': {
+    title: 'Sunbloom Slime', tint: '#ffc93c', tintAmt: 0.62, keep: [], props: ['sunflower', 'leafSkirt'], fx: { kind: 'pollen', every: 0.9 },
+  },
+  'mineral+spark': {
+    title: 'Dynamo Slime', tint: '#7f8fa8', tintAmt: 0.7, glowPattern: 'circuit', glowColor: '#7af3ff', glowMode: 'pulse', glowSpeed: 2.4,
+    shape: { square: 0.25 }, mat: { metalness: 0.35, roughness: 0.25, transmission: 0.2 }, keep: [], props: ['windupKey'],
+    fx: { kind: 'sparks', every: 1.4, color: '#9ff6ff' },
+  },
+  'prism+sweet': {
+    title: 'Sugarglass Slime', tint: '#ff9fd2', tintAmt: 0.55, mat: { transmission: 0.92, roughness: 0.03, iridescence: 0.7 },
+    keep: ['sweet'], props: ['gumdrops'], fx: { kind: 'glints', every: 0.8, color: '#ffd1ec' },
+  },
+  'heat+prism': {
+    title: 'Sunstone Slime', tint: '#ffb03a', tintAmt: 0.66, glow: 0.12, mat: { iridescence: 0.5, roughness: 0.08 },
+    keep: [], props: ['sunHalo', 'sunCore'], fx: { kind: 'glints', every: 0.7, color: '#ffe08a' },
+  },
+  'nature+prism': {
+    title: 'Dewdrop Slime', tint: '#8fe3e6', tintAmt: 0.6, shape: { peak: 0.55, tall: 1.06 }, mat: { transmission: 0.92, roughness: 0.02 },
+    keep: [], props: ['dewLeaf', 'droplets'], fx: { kind: 'glints', every: 1.0, color: '#e8ffff' },
+  },
+  'mineral+sweet': {
+    title: 'Toffee Guardian', tint: '#d68f48', tintAmt: 0.82, pattern: 'drizzle', mapWhite: 0, mat: { roughness: 0.1, transmission: 0.3 },
+    keep: ['mineral'], props: ['helmet'],
   },
 };
 
@@ -243,7 +400,7 @@ export const PROP_MAKERS = {
     const place = surfacePlacer(av);
     const dir = new THREE.Vector3(0.42, 0.9, 0.12).normalize();
     return {
-      obj: g,
+      obj: g, head: true,
       update(t) {
         place(g, dir, 0.02, 0.6);
         flower.rotation.y = Math.sin(t * 0.7) * 0.15;
@@ -366,7 +523,7 @@ export const PROP_MAKERS = {
     av.body.add(g);
     const place = surfacePlacer(av);
     const dir = new THREE.Vector3(-0.62, 0.75, 0.15).normalize();
-    return { obj: g, update(t) { place(g, dir, 0.02, 0.5); g.rotation.z += Math.sin(t * 1.4) * 0.03; } };
+    return { obj: g, head: true, update(t) { place(g, dir, 0.02, 0.5); g.rotation.z += Math.sin(t * 1.4) * 0.03; } };
   },
 
   // Crackling lightning-bolt hair.
@@ -386,12 +543,425 @@ export const PROP_MAKERS = {
     av.body.add(g);
     const o = { x: 0, y: 0, z: 0 };
     return {
-      obj: g,
+      obj: g, head: true,
       update(t) {
         av.shape(0, 1, 0.05, 0, o);
         g.position.set(o.x, o.y - 0.08, o.z);
         for (const b of bolts) { b.position.x = b.userData.dx; b.rotation.z = -b.userData.lean + Math.sin(t * 9 + b.userData.dx * 10) * 0.05; }
         mat.emissiveIntensity = 0.7 + Math.random() * 0.5;
+      },
+    };
+  },
+
+  // A faceted rainbow gem turning slowly inside.
+  prismCore(av) {
+    const g = new THREE.Group();
+    const geo = new THREE.OctahedronGeometry(0.2, 0);
+    const cols = ['#ff9ad5', '#ffe17a', '#8ff0c0', '#8cc8ff', '#c7a6ff'];
+    const pos = geo.attributes.position, colors = [];
+    for (let i = 0; i < pos.count; i++) { const c = new THREE.Color(cols[Math.floor(i / 3) % cols.length]); colors.push(c.r, c.g, c.b); }
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    const gem = new THREE.Mesh(geo, overlay(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.1, metalness: 0.2, emissive: '#ffffff', emissiveIntensity: 0.15, flatShading: true }), 0.75));
+    gem.scale.set(1, 1.5, 1);
+    gem.renderOrder = 1.46;
+    const glow = new THREE.Sprite(overlay(new THREE.SpriteMaterial({ map: softTex(), color: '#dff2ff', blending: THREE.AdditiveBlending }), 0.35));
+    glow.scale.setScalar(1.2); glow.renderOrder = 1.44;
+    g.add(glow, gem);
+    g.position.set(0, 0.95, -0.15);
+    av.inner.add(g);
+    return { obj: g, update(t) { gem.rotation.y = t * 0.6; gem.position.y = Math.sin(t * 1.2) * 0.03; } };
+  },
+
+  // A warm golden glow deep inside.
+  sunCore(av) {
+    const g = new THREE.Group();
+    const glow = new THREE.Sprite(overlay(new THREE.SpriteMaterial({ map: softTex(), color: '#ffcf5a', blending: THREE.AdditiveBlending }), 0.45));
+    glow.scale.setScalar(1.3); glow.renderOrder = 1.44;
+    const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.13, 0), overlay(new THREE.MeshStandardMaterial({ color: '#ffd76a', emissive: '#ffb000', emissiveIntensity: 0.8, flatShading: true }), 0.8));
+    core.renderOrder = 1.46;
+    g.add(glow, core);
+    g.position.set(0, 0.98, -0.15);
+    av.inner.add(g);
+    return { obj: g, update(t) { core.rotation.y = t * 0.5; core.rotation.x = t * 0.3; glow.material.opacity = 0.35 + 0.12 * Math.sin(t * 2); } };
+  },
+
+  // Three dancing flames on top.
+  flameCrown(av) {
+    const g = new THREE.Group();
+    const prof = [];
+    for (let i = 0; i <= 12; i++) { const t = i / 12; prof.push(new THREE.Vector2(Math.sin(t * Math.PI) ** 0.8 * 0.5 * (1 - t * 0.55), t * 1.6 - 0.2)); }
+    const geo = new THREE.LatheGeometry(prof, 16);
+    const outer = new THREE.MeshStandardMaterial({ color: '#ff7a2e', emissive: '#ff5a1f', emissiveIntensity: 0.9, roughness: 0.4, transparent: true, opacity: 0.92 });
+    const inner = new THREE.MeshStandardMaterial({ color: '#ffe066', emissive: '#ffd23f', emissiveIntensity: 1, roughness: 0.4 });
+    const flames = [];
+    for (const [dx, lean, sc] of [[-0.26, -0.4, 0.24], [0, 0, 0.33], [0.26, 0.4, 0.22]]) {
+      const f = new THREE.Group();
+      const o = new THREE.Mesh(geo, outer); const i = new THREE.Mesh(geo, inner);
+      i.scale.setScalar(0.55); i.position.y = -0.02;
+      f.add(o, i);
+      f.scale.setScalar(sc); f.userData = { dx, lean, sc };
+      g.add(f); flames.push(f);
+    }
+    av.body.add(g);
+    const o = { x: 0, y: 0, z: 0 };
+    return {
+      obj: g, head: true, anchor: flames[1],
+      update(t) {
+        av.shape(0, 1, 0.05, 0, o);
+        g.position.set(o.x, o.y - 0.06, o.z);
+        for (const f of flames) {
+          const { dx, lean, sc } = f.userData, k = 1 + Math.sin(t * 17 + dx * 30) * 0.08 + Math.sin(t * 29 + dx * 9) * 0.05;
+          f.position.x = dx; f.rotation.z = -lean + Math.sin(t * 5 + dx * 7) * 0.08;
+          f.scale.set(sc / k, sc * k, sc / k);
+        }
+      },
+    };
+  },
+
+  // Clear crystal points ringed around the top.
+  crystalCrown(av) {
+    const g = new THREE.Group();
+    const mat = new THREE.MeshStandardMaterial({ color: '#e8f6ff', emissive: '#9fd8ff', emissiveIntensity: 0.25, roughness: 0.05, metalness: 0.1, transparent: true, opacity: 0.8, flatShading: true });
+    for (let i = 0; i < 5; i++) {
+      const a = i / 5 * TAU + 0.3, big = i % 2 === 0;
+      const pt = crystalPoint(big ? 0.06 : 0.045, big ? 0.22 : 0.14, mat);
+      pt.position.set(Math.sin(a) * 0.16, 0, Math.cos(a) * 0.16);
+      pt.rotation.set(Math.cos(a) * 0.45, 0, -Math.sin(a) * 0.45);
+      g.add(pt);
+    }
+    const mid = crystalPoint(0.07, 0.3, mat);
+    g.add(mid);
+    g.scale.setScalar(1.45);
+    av.body.add(g);
+    const o = { x: 0, y: 0, z: 0 };
+    return { obj: g, head: true, update(t) { av.shape(0, 1, 0.02, 0, o); g.position.set(o.x, o.y - 0.1, o.z); g.rotation.y = t * 0.2; } };
+  },
+
+  // A little chimney that puffs smoke.
+  chimney(av) {
+    const g = new THREE.Group();
+    const brick = new THREE.MeshStandardMaterial({ color: '#8c5a4a', roughness: 0.8 });
+    const dark = new THREE.MeshStandardMaterial({ color: '#3d3333', roughness: 0.7 });
+    const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.1, 0.32, 14), brick);
+    pipe.position.y = 0.12;
+    const rim = new THREE.Mesh(new THREE.CylinderGeometry(0.115, 0.115, 0.06, 14), dark);
+    rim.position.y = 0.29;
+    const tip = new THREE.Object3D(); tip.position.y = 0.36;
+    g.add(pipe, rim, tip);
+    av.body.add(g);
+    const place = surfacePlacer(av);
+    const dir = new THREE.Vector3(0.45, 0.85, -0.3).normalize();
+    return { obj: g, head: true, anchor: tip, update() { place(g, dir, 0.04, 0.35); } };
+  },
+
+  // A firework fuse with a fizzing spark at the tip.
+  fuse(av) {
+    const g = new THREE.Group();
+    const curve = new THREE.CatmullRomCurve3([new THREE.Vector3(0, -0.05, 0), new THREE.Vector3(0.02, 0.12, 0), new THREE.Vector3(0.1, 0.24, 0), new THREE.Vector3(0.2, 0.28, 0)]);
+    const cord = new THREE.Mesh(new THREE.TubeGeometry(curve, 16, 0.025, 8, false), new THREE.MeshStandardMaterial({ color: '#6b4a32', roughness: 0.9 }));
+    const spark = new THREE.Sprite(new THREE.SpriteMaterial({ map: softTex(), color: '#ffd75a', blending: THREE.AdditiveBlending, transparent: true, depthWrite: false }));
+    spark.position.set(0.2, 0.28, 0);
+    g.add(cord, spark);
+    av.body.add(g);
+    const o = { x: 0, y: 0, z: 0 };
+    return {
+      obj: g, head: true, anchor: spark,
+      update() { av.shape(0, 1, 0.05, 0, o); g.position.set(o.x, o.y - 0.02, o.z); spark.scale.setScalar(0.16 + Math.random() * 0.14); },
+    };
+  },
+
+  // A bendy striped straw.
+  straw(av) {
+    const g = new THREE.Group();
+    const c = document.createElement('canvas'); c.width = 64; c.height = 8;
+    const x = c.getContext('2d');
+    for (let i = 0; i < 8; i++) { x.fillStyle = i % 2 ? '#ffffff' : '#ff5a8a'; x.fillRect(i * 8, 0, 8, 8); }
+    const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.wrapS = THREE.RepeatWrapping; tex.repeat.set(3, 1);
+    const curve = new THREE.CatmullRomCurve3([new THREE.Vector3(0, -0.2, 0), new THREE.Vector3(0, 0.3, 0), new THREE.Vector3(0.04, 0.42, 0), new THREE.Vector3(0.16, 0.48, 0), new THREE.Vector3(0.3, 0.46, 0)]);
+    const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 30, 0.04, 10, false), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.35 }));
+    g.add(tube);
+    av.body.add(g);
+    const place = surfacePlacer(av);
+    const dir = new THREE.Vector3(-0.35, 0.92, -0.15).normalize();
+    return { obj: g, head: true, update(t) { place(g, dir, 0.06, 0.4); g.rotation.y += 0.5; } };
+  },
+
+  // Soda bubbles rising inside.
+  innerBubbles(av) {
+    const g = new THREE.Group();
+    const mat = overlay(new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.1, emissive: '#ffffff', emissiveIntensity: 0.4 }), 0.7);
+    const geo = new THREE.SphereGeometry(0.055, 10, 8);
+    const bubbles = [];
+    for (let i = 0; i < 16; i++) {
+      const m = new THREE.Mesh(geo, mat); m.renderOrder = 1.45;
+      const a = i * 2.39, r = 0.15 + (i % 4) * 0.13;
+      m.userData = { x: Math.cos(a) * r, z: Math.sin(a) * r * 0.6, ph: i / 16, sp: 0.18 + (i % 3) * 0.06, s: 0.6 + (i % 3) * 0.35 };
+      g.add(m); bubbles.push(m);
+    }
+    av.inner.add(g);
+    return {
+      obj: g,
+      update(t) {
+        for (const b of bubbles) {
+          const u = b.userData, k = (t * u.sp + u.ph) % 1;
+          b.position.set(u.x + Math.sin(t * 3 + u.ph * 9) * 0.03, 0.08 + k * 1.05, u.z);
+          b.scale.setScalar(u.s * (0.6 + k * 0.6));
+        }
+      },
+    };
+  },
+
+  // Glowing fireflies drifting around.
+  fireflies(av) {
+    const g = new THREE.Group();
+    const flies = [];
+    for (let i = 0; i < 6; i++) {
+      const f = new THREE.Sprite(new THREE.SpriteMaterial({ map: softTex(), color: '#d4ff3a', blending: THREE.AdditiveBlending, transparent: true, depthWrite: false }));
+      f.scale.setScalar(0.3);
+      f.userData = { a: i * 1.05, r: 1.15 + (i % 3) * 0.2, h: 0.5 + (i % 4) * 0.35, sp: 0.25 + (i % 3) * 0.08, ph: i * 1.7 };
+      g.add(f); flies.push(f);
+    }
+    av.body.add(g);
+    return {
+      obj: g,
+      update(t) {
+        for (const f of flies) {
+          const u = f.userData, a = u.a + t * u.sp;
+          f.position.set(Math.cos(a) * u.r, u.h + Math.sin(t * 0.9 + u.ph) * 0.18, Math.sin(a) * u.r * 0.8);
+          f.material.opacity = 0.35 + 0.65 * Math.max(0, Math.sin(t * 1.6 + u.ph)) ** 2;
+        }
+      },
+    };
+  },
+
+  // A big sunflower on top.
+  sunflower(av) {
+    const g = new THREE.Group();
+    const flower = new THREE.Group();
+    const yellow = new THREE.MeshStandardMaterial({ color: '#ffd23a', roughness: 0.5 });
+    const gold = new THREE.MeshStandardMaterial({ color: '#ffb81f', roughness: 0.5 });
+    for (let ring = 0; ring < 2; ring++) {
+      for (let i = 0; i < 12; i++) {
+        const a = (i + ring * 0.5) / 12 * TAU;
+        const p = new THREE.Mesh(new THREE.SphereGeometry(0.1, 12, 8), ring ? gold : yellow);
+        p.scale.set(0.45, 0.14, 1);
+        p.position.set(Math.sin(a) * (0.17 - ring * 0.02), 0.01 - ring * 0.01, Math.cos(a) * (0.17 - ring * 0.02));
+        p.rotation.y = a; p.rotation.x = -0.2;
+        flower.add(p);
+      }
+    }
+    const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.05, 20), new THREE.MeshStandardMaterial({ color: '#6b3f1d', roughness: 0.95 }));
+    disc.position.y = 0.03;
+    flower.add(disc);
+    flower.scale.setScalar(2);
+    flower.rotation.x = 0.95;
+    g.add(flower);
+    av.body.add(g);
+    const place = surfacePlacer(av);
+    const dir = new THREE.Vector3(-0.15, 0.95, 0.05).normalize();
+    return { obj: g, head: true, update(t) { place(g, dir, 0.0, 0.3); flower.rotation.y = Math.sin(t * 0.5) * 0.12; } };
+  },
+
+  // Big leaves around the base.
+  leafSkirt(av) {
+    const g = new THREE.Group();
+    const shape = new THREE.Shape();
+    shape.moveTo(0, 0); shape.bezierCurveTo(0.16, 0.1, 0.16, 0.36, 0, 0.5); shape.bezierCurveTo(-0.16, 0.36, -0.16, 0.1, 0, 0);
+    const geo = new THREE.ShapeGeometry(shape, 10);
+    const mats = [new THREE.MeshStandardMaterial({ color: '#5fb04a', roughness: 0.6, side: THREE.DoubleSide }), new THREE.MeshStandardMaterial({ color: '#4c9a3b', roughness: 0.6, side: THREE.DoubleSide })];
+    const leaves = [];
+    for (let i = 0; i < 7; i++) {
+      const a = i / 7 * TAU + 0.45;
+      const holder = new THREE.Group();
+      const leaf = new THREE.Mesh(geo, mats[i % 2]);
+      leaf.rotation.x = Math.PI / 2 - 0.3;
+      leaf.scale.setScalar(1.3);
+      holder.add(leaf);
+      holder.rotation.y = a;
+      g.add(holder);
+      leaves.push({ holder, a });
+    }
+    av.body.add(g);
+    const o = { x: 0, y: 0, z: 0 };
+    return {
+      obj: g,
+      update(t) {
+        for (const l of leaves) {
+          const dx = Math.sin(l.a), dz = Math.cos(l.a);
+          av.shape(dx * 0.94, -0.33, dz * 0.94, Math.atan2(dz, dx), o);
+          l.holder.position.set(o.x * 0.92, Math.max(0.02, o.y - 0.02), o.z * 0.92);
+          l.holder.scale.setScalar(1 + Math.sin(t * 0.8 + l.a) * 0.03);
+        }
+      },
+    };
+  },
+
+  // A wind-up key turning slowly on its back.
+  windupKey(av) {
+    const g = new THREE.Group();
+    const brass = new THREE.MeshStandardMaterial({ color: '#e0b04a', metalness: 0.8, roughness: 0.25 });
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.22, 10), brass);
+    shaft.position.y = 0.08;
+    const spin = new THREE.Group(); spin.position.y = 0.2;
+    for (const side of [-1, 1]) {
+      const loop = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.035, 10, 24), brass);
+      loop.position.x = side * 0.11;
+      spin.add(loop);
+    }
+    const hub = new THREE.Mesh(new THREE.SphereGeometry(0.05, 12, 10), brass);
+    spin.add(hub);
+    g.add(shaft, spin);
+    av.body.add(g);
+    const place = surfacePlacer(av);
+    const dir = new THREE.Vector3(0.75, 0.35, -0.6).normalize();
+    return { obj: g, update(t) { place(g, dir, 0.03); spin.rotation.y = t * 1.2; } };
+  },
+
+  // Candy gems floating inside the clear body.
+  gumdrops(av) {
+    const g = new THREE.Group();
+    const cols = ['#ff5a8a', '#ffd23f', '#5ad1ff', '#9b6bff', '#6be38a', '#ff8a3d'];
+    const items = [];
+    const heart = new THREE.ExtrudeGeometry(heartShape(), { depth: 0.12, bevelEnabled: true, bevelThickness: 0.05, bevelSize: 0.05, bevelSegments: 3, curveSegments: 14 });
+    heart.center();
+    for (let i = 0; i < 7; i++) {
+      const mat = overlay(new THREE.MeshStandardMaterial({ color: cols[i % 6], roughness: 0.2, emissive: cols[i % 6], emissiveIntensity: 0.25 }), 0.85);
+      const m = i % 2 ? new THREE.Mesh(heart, mat) : new THREE.Mesh(new THREE.SphereGeometry(0.08, 14, 10, 0, TAU, 0, Math.PI * 0.6), mat);
+      m.scale.setScalar(i % 2 ? 0.16 : 1);
+      m.renderOrder = 1.46;
+      const spots = [[-0.32, 1.02, -0.1], [0.05, 1.12, -0.2], [0.36, 0.98, -0.1], [-0.68, 0.42, 0.05], [0.7, 0.45, 0.0], [-0.58, 0.2, 0.25], [0.6, 0.22, 0.25]];
+      const [sx, sy, sz] = spots[i];
+      m.userData = { x: sx, y: sy, z: sz, ph: i };
+      g.add(m); items.push(m);
+    }
+    av.inner.add(g);
+    return {
+      obj: g,
+      update(t) {
+        for (const m of items) { const u = m.userData; m.position.set(u.x, u.y + Math.sin(t * 0.8 + u.ph) * 0.04, u.z); m.rotation.y = t * 0.4 + u.ph; }
+      },
+    };
+  },
+
+  // A ring of golden sun rays floating above the head.
+  sunHalo(av) {
+    const g = new THREE.Group();
+    const ring = new THREE.Group();
+    const gold = new THREE.MeshStandardMaterial({ color: '#ffc93c', emissive: '#ffae00', emissiveIntensity: 0.6, roughness: 0.3, metalness: 0.3 });
+    for (let i = 0; i < 12; i++) {
+      const a = i / 12 * TAU;
+      const ray = new THREE.Mesh(new THREE.ConeGeometry(0.035, i % 2 ? 0.1 : 0.15, 6), gold);
+      ray.position.set(Math.cos(a) * 0.36, 0, Math.sin(a) * 0.36);
+      ray.rotation.z = -Math.PI / 2; ray.rotation.y = -a;
+      ring.add(ray);
+    }
+    const band = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.018, 8, 40), gold);
+    band.rotation.x = Math.PI / 2;
+    ring.add(band);
+    ring.rotation.x = 0.35;
+    g.add(ring);
+    av.body.add(g);
+    const o = { x: 0, y: 0, z: 0 };
+    return { obj: g, head: true, update(t) { av.shape(0, 1, 0, 0, o); g.position.set(o.x, o.y + 0.22 + Math.sin(t * 1.4) * 0.03, o.z); ring.rotation.y = t * 0.35; } };
+  },
+
+  // A leaf resting on top like a little hat.
+  dewLeaf(av) {
+    const g = new THREE.Group();
+    const shape = new THREE.Shape();
+    shape.moveTo(0, 0); shape.bezierCurveTo(0.22, 0.12, 0.2, 0.45, 0, 0.62); shape.bezierCurveTo(-0.2, 0.45, -0.22, 0.12, 0, 0);
+    const geo = new THREE.ShapeGeometry(shape, 12);
+    const pos = geo.attributes.position;
+    for (let i = 0; i < pos.count; i++) { const x = pos.getX(i), y = pos.getY(i); pos.setZ(i, -x * x * 1.6 - (y - 0.3) ** 2 * 0.5); }
+    geo.computeVertexNormals();
+    const leaf = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: '#5cc56a', roughness: 0.4, side: THREE.DoubleSide }));
+    leaf.rotation.x = -Math.PI / 2 + 0.25;
+    leaf.position.set(0, 0.02, 0.18);
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.016, 0.12, 6), new THREE.MeshStandardMaterial({ color: '#3f8f45' }));
+    stem.position.set(0, 0.05, 0.2); stem.rotation.x = 0.5;
+    g.add(leaf, stem);
+    av.body.add(g);
+    const o = { x: 0, y: 0, z: 0 };
+    return { obj: g, head: true, update(t) { av.shape(0, 1, 0, 0, o); g.position.set(o.x, o.y - 0.03, o.z); g.rotation.set(0, 2.6 + Math.sin(t * 0.7) * 0.1, Math.sin(t * 1.1) * 0.05); } };
+  },
+
+  // Tiny water droplets clinging to the surface.
+  droplets(av) {
+    const g = new THREE.Group();
+    const mat = new THREE.MeshPhysicalMaterial({ color: '#ffffff', roughness: 0, metalness: 0, transparent: true, opacity: 0.55, clearcoat: 1 });
+    const spots = [];
+    const dirs = [[0.85, 0.35, 0.3], [-0.8, 0.5, 0.25], [0.6, 0.7, -0.4], [-0.5, 0.2, -0.85], [0.9, -0.1, -0.35], [-0.92, 0.05, 0.3], [0.2, 0.8, -0.6]];
+    for (let i = 0; i < dirs.length; i++) {
+      const d = new THREE.Mesh(new THREE.SphereGeometry(0.045 + (i % 3) * 0.015, 14, 10), mat);
+      d.scale.y = 0.8;
+      g.add(d);
+      spots.push({ d, dir: new THREE.Vector3(...dirs[i]).normalize() });
+    }
+    av.body.add(g);
+    const place = surfacePlacer(av);
+    return { obj: g, update() { for (const sp of spots) place(sp.d, sp.dir, -0.015); } };
+  },
+
+  // A little knight helmet with a red plume.
+  helmet(av) {
+    const g = new THREE.Group();
+    const steel = new THREE.MeshStandardMaterial({ color: '#d7dde8', metalness: 0.85, roughness: 0.22 });
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(0.3, 24, 14, 0, TAU, 0, Math.PI / 2), steel);
+    dome.scale.y = 0.8;
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.035, 10, 32), steel);
+    rim.rotation.x = Math.PI / 2;
+    const crest = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.06, 0.5), steel);
+    crest.position.y = 0.23;
+    const plumeMat = new THREE.MeshStandardMaterial({ color: '#ff4f5e', roughness: 0.8 });
+    const plume = new THREE.Group();
+    for (let i = 0; i < 6; i++) {
+      const f = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), plumeMat);
+      const a = -0.4 + i * 0.28;
+      f.position.set(0, 0.3 + Math.cos(a) * 0.14, -Math.sin(a) * 0.2 - 0.05);
+      f.scale.set(0.8, 1, 1.4);
+      plume.add(f);
+    }
+    g.add(dome, rim, crest, plume);
+    g.scale.setScalar(1.25);
+    av.body.add(g);
+    const o = { x: 0, y: 0, z: 0 };
+    return { obj: g, head: true, update(t) { av.shape(0, 1, -0.05, 0, o); g.position.set(o.x, o.y - 0.13, o.z - 0.04); g.rotation.set(-0.12, 0, 0.12); plume.rotation.x = Math.sin(t * 2) * 0.05; } };
+  },
+
+  // A ladybug strolling over its back.
+  ladybug(av) {
+    const g = new THREE.Group();
+    const bug = new THREE.Group();
+    const shell = new THREE.Mesh(new THREE.SphereGeometry(0.07, 16, 10, 0, TAU, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: '#e8312f', roughness: 0.3 }));
+    shell.scale.set(0.9, 0.7, 1.1);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.035, 10, 8), new THREE.MeshStandardMaterial({ color: '#1e1a1a', roughness: 0.6 }));
+    head.position.set(0, 0.01, 0.075);
+    bug.add(shell, head);
+    const dotMat = new THREE.MeshStandardMaterial({ color: '#1e1a1a', roughness: 0.6 });
+    for (const [x, z] of [[0.03, 0.02], [-0.03, 0.02], [0.035, -0.035], [-0.035, -0.035], [0, -0.06]]) {
+      const d = new THREE.Mesh(new THREE.SphereGeometry(0.013, 8, 6), dotMat);
+      d.position.set(x, 0.04, z); d.scale.y = 0.4; bug.add(d);
+    }
+    g.add(bug);
+    av.body.add(g);
+    const o = { x: 0, y: 0, z: 0 };
+    const pos = new THREE.Vector3(), next = new THREE.Vector3(), n = new THREE.Vector3(), fwd = new THREE.Vector3(), side = new THREE.Vector3(), m = new THREE.Matrix4();
+    const at = (t, out) => {
+      const a = Math.PI + 2.0 * Math.sin(t * 0.22), el = 0.55 + 0.22 * Math.sin(t * 0.37);
+      const dx = Math.sin(a) * Math.cos(el), dy = Math.sin(el), dz = Math.cos(a) * Math.cos(el);
+      av.shape(dx, dy, dz, Math.atan2(dz, dx), o);
+      return out.set(o.x, o.y, o.z);
+    };
+    return {
+      obj: g,
+      update(t) {
+        at(t, pos); at(t + 0.15, next);
+        n.set(pos.x, pos.y - 0.55, pos.z).normalize();
+        fwd.subVectors(next, pos); fwd.addScaledVector(n, -fwd.dot(n)).normalize();
+        side.crossVectors(n, fwd).normalize();
+        m.makeBasis(side, n, fwd);
+        bug.quaternion.setFromRotationMatrix(m);
+        bug.position.copy(pos).addScaledVector(n, -0.01);
       },
     };
   },

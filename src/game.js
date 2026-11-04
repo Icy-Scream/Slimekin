@@ -1600,20 +1600,40 @@ export class Game {
     }
   }
 
-  // Small signature effects of a grown-up form (steam, glints, sparks, pollen).
+  // Small signature effects of a grown-up form (steam, glints, sparks, pollen, smoke...).
   updateFormFx(dt) {
     const fx = this.slime.form?.fx;
     if (!fx || this.reduced) return;
     this.formFxT -= dt;
     if (this.formFxT > 0) return;
     this.formFxT = fx.every * (0.6 + Math.random() * 0.8);
-    const head = this.slime.headTopWorld(this.v1);
-    const r = 0.9 * this.slime.size;
+    const sl = this.slime;
+    const head = sl.headTopWorld(this.v1);
+    const at = sl.formAnchor && sl.formAnchor.visible !== false && sl.formAnchor.parent?.visible !== false
+      ? sl.formAnchor.getWorldPosition(new THREE.Vector3()) : head.clone();
+    const r = 0.9 * sl.size;
     const side = new THREE.Vector3((Math.random() - 0.5) * 2 * r, -Math.random() * r, (Math.random() - 0.2) * r).add(head);
-    if (fx.kind === 'steam') this.fx.emit('steam', head, { count: 2, size: 0.2 });
-    else if (fx.kind === 'glints') this.fx.emit('glints', side, { size: 0.2, life: 0.9 });
-    else if (fx.kind === 'sparks') this.fx.emit('sparks', head, { count: 3, speed: 1.6 });
-    else if (fx.kind === 'pollen') this.fx.emit('dream', side, { color: '#ffe27a', size: 0.09, life: 2.6 });
+    const col = fx.color ? { color: fx.color } : {};
+    switch (fx.kind) {
+      case 'steam': this.fx.emit('steam', at, { count: 2, size: 0.2 }); break;
+      case 'smoke': this.fx.emit('steam', at, { count: 1, size: 0.16, color: '#c9c2c2', speed: 0.15 }); break;
+      case 'glints': this.fx.emit('glints', side, { size: 0.2, life: 0.9, ...col }); break;
+      case 'sparks': this.fx.emit('sparks', at, { count: 3, speed: 1.6, ...col }); break;
+      case 'embers': this.fx.emit('sparks', at, { count: 2, speed: 0.8, gravity: -1.5, life: 0.9, color: '#ff9a3d' }); break;
+      case 'pollen': this.fx.emit('dream', side, { color: fx.color || '#ffe27a', size: 0.09, life: 2.6 }); break;
+      case 'prism': this.fx.emit('prism', side, { count: 2, speed: 0.6, size: 0.14 }); break;
+      case 'fizz': this.fx.emit('dream', head.clone().add(new THREE.Vector3((Math.random() - 0.5) * r, -0.1, (Math.random() - 0.3) * r)), { color: '#ffffff', size: 0.07, life: 0.8, speed: 0.4 }); break;
+      case 'firework':
+        this.fx.emit('sparks', at, { count: 2, speed: 0.9, life: 0.4, color: '#ffd75a' });
+        this.fireworkT = (this.fireworkT || 0) + 1;
+        if (this.fireworkT % 24 === 0) {
+          const p = head.clone(); p.y += 1.6 * sl.size; p.x += (Math.random() - 0.5) * 1.2;
+          this.fx.emit('prism', p, { count: 18, speed: 2.6 });
+          this.fx.emit('sparks', p, { count: 10, speed: 2.4, color: '#fff3b0' });
+          this.sfx.plip && this.sfx.plip();
+        }
+        break;
+    }
   }
 
   update(dt) {
