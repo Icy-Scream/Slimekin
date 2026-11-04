@@ -43,7 +43,7 @@ const LOOKS = [
   { id: 'breed:smore:b', label: "S'more · take B", note: 'gooey s\'more on a cracker', traits: { sweet: 18, heat: 22 } },
   { id: 'breed:honeycomb:a', label: 'Honeycomb · take A', note: 'hive buddy, honey dipper', traits: { sweet: 22, nature: 14 } },
   { id: 'breed:honeycomb:b', label: 'Honeycomb · take B', note: 'wrapped honey-drop candy', traits: { sweet: 20, nature: 14 } },
-  { id: 'breed:campfire:a', label: 'Campfire · take A', note: 'sits in its log fire', traits: { heat: 20, nature: 14 } },
+  { id: 'breed:campfire:a', label: 'Campfire · take A', note: 'warm heart of a log fire', traits: { heat: 20, nature: 14 } },
   { id: 'breed:campfire:b', label: 'Campfire · take B', note: 'little camper, campfire hat', traits: { heat: 14, nature: 20 } },
   { id: 'breed:storm:a', label: 'Storm · take A', note: 'puffy cloud, rainbow, bolt', traits: { spark: 20, prism: 14 } },
   { id: 'breed:storm:b', label: 'Storm · take B', note: 'storm in a bottle', traits: { spark: 18, prism: 16 } },
@@ -119,7 +119,14 @@ async function render() {
     await page.route('https://fonts.googleapis.com/**', r => r.fulfill({ body: '', contentType: 'text/css' }));
     const ev = (fn, a) => page.evaluate(fn, a);
     // Software WebGL draws only a few frames a second; screenshot twice so transitions settle.
-    const shot = async file => { for (let i = 0; i < 2; i++) { await page.waitForTimeout(250); await page.screenshot({ path: file, timeout: 120000 }); } };
+    // (no blinking mid-shot: eyes stay open for the samples)
+    const shot = async file => {
+      for (let i = 0; i < 2; i++) {
+        await page.evaluate(() => { const s = window.slimekin.slime; s.blinkT = 99; s.blinkPhase = -1; s.blink = 0; });
+        await page.waitForTimeout(250);
+        await page.screenshot({ path: file, timeout: 120000 });
+      }
+    };
     const setTheme = async dark => { await ev(d => document.documentElement.setAttribute('data-theme', d ? 'dark' : 'light'), dark); await page.waitForTimeout(300); };
 
     await page.goto(`http://127.0.0.1:${port}/#debug`);
@@ -151,7 +158,7 @@ async function render() {
             const g = window.slimekin, V = () => g.v1.clone().set(0, 0, 0);
             const base = g.egg.group.getWorldPosition(V());
             const b = g.screenOf(base), t = g.screenOf(base.clone().add(V().set(0, 1.35, 0)));
-            const h = b.y - t.y, side = h * 1.9, cy = (b.y + t.y) / 2 - h * 0.05;
+            const h = b.y - t.y, side = Math.min(h * 2.0, innerWidth), cy = (b.y + t.y) / 2 - h * 0.05;
             return { x: (b.x + t.x) / 2 - side / 2, y: cy - side / 2, w: side, h: side };
           });
           fs.writeFileSync(framePath(e.id, dark ? 'night' : 'day', 'json'), JSON.stringify({ id: e.id, clip, dpr: DPR }, null, 1));
@@ -230,7 +237,7 @@ async function render() {
           const clip = await ev(() => {
             const g = window.slimekin, sl = g.slime, V = () => g.v1.clone().set(0, 0, 0);
             const b = g.screenOf(sl.root.getWorldPosition(V())), t = g.screenOf(sl.headTopWorld(V()));
-            const h = b.y - t.y, side = h * 2.05, cy = (b.y + t.y) / 2 - h * 0.14;
+            const h = b.y - t.y, side = Math.min(h * 2.05, innerWidth), cy = (b.y + t.y) / 2 - h * 0.14;
             return { x: (b.x + t.x) / 2 - side / 2, y: cy - side / 2, w: side, h: side };
           });
           fs.writeFileSync(framePath(l.id, theme, 'json'), JSON.stringify({ id: l.id, theme, clip, dpr: DPR, stats }, null, 1));
@@ -306,10 +313,12 @@ function buildSheet(file, title, sub, rows, width) {
       const tw = row.w, th = row.h;
       let f = `[${idx}:v]`;
       if (meta) {
-        const c = meta.clip, k = meta.dpr;
-        const x = Math.max(0, Math.round(c.x * k)), y = Math.max(0, Math.round(c.y * k));
-        const w = Math.min(Math.round(c.w * k), VIEW.width * k - x), h = Math.min(Math.round(c.h * k), VIEW.height * k - y);
-        f += `crop=${w}:${h}:${x}:${y},`;
+        // keep the crop square: shrink it to fit the frame, then slide it inside
+        const c = meta.clip, k = meta.dpr, W = VIEW.width * k, H = VIEW.height * k;
+        const side = Math.round(Math.min(c.w * k, c.h * k, W, H));
+        const x = Math.round(Math.max(0, Math.min(W - side, c.x * k + (c.w * k - side) / 2)));
+        const y = Math.round(Math.max(0, Math.min(H - side, c.y * k + (c.h * k - side) / 2)));
+        f += `crop=${side}:${side}:${x}:${y},`;
       }
       f += `scale=${tw}:${th}:flags=lanczos,pad=${tw}:${th + labelH}:0:0:color=${BG}`;
       f += ',' + draw(t.label, fit(t.label, tw - 8, 30), th + 8);

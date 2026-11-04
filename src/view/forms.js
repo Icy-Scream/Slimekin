@@ -1083,6 +1083,12 @@ Object.assign(PATTERNS, {
       x.fillStyle = gg; x.beginPath(); x.arc(cx, cy, r, 0, TAU); x.fill();
     }
   }),
+  // Firelight colors: deep orange at the bottom warming up to gold on top (full color).
+  firelight: () => canvasTex((x, w, h) => {
+    const g = x.createLinearGradient(0, 0, 0, h * 0.68);
+    g.addColorStop(0, '#ffdf86'); g.addColorStop(0.45, '#ffc35a'); g.addColorStop(0.72, '#ff9a3c'); g.addColorStop(1, '#ff6a2a');
+    x.fillStyle = g; x.fillRect(0, 0, w, h);
+  }),
   // Firelight from below: glows at the bottom, fading out above the eyes (emissive map), with ember specks.
   emberRise: () => canvasTex((x, w, h) => {
     const g = x.createLinearGradient(0, h * 0.34, 0, h * 0.66);
@@ -1474,8 +1480,8 @@ Object.assign(FORM_LOOKS, {
   },
   // Campfire (Hearth x Root)
   'breed:campfire:a': {
-    title: 'Campfire Slime', tint: '#ffb43c', tintAmt: 0.75, glowPattern: 'emberRise', glowColor: '#ff6a1a', glowMode: 'pulse', glowSpeed: 1.3,
-    shape: { wide: 1.04, tall: 0.94 }, mat: { roughness: 0.2 }, keep: [], props: ['logRing', 'heartCore'], fx: { kind: 'embers', every: 0.55 },
+    title: 'Campfire Slime', tint: '#ffb04a', tintAmt: 0.7, pattern: 'firelight', mapWhite: 1, glowPattern: 'emberRise', glowColor: '#ff4a10', glowMode: 'pulse', glowSpeed: 1.3,
+    shape: { wide: 1.04, tall: 0.94 }, mat: { roughness: 0.2 }, keep: [], props: ['logRing', 'heartCore'], fx: { kind: 'embers', every: 0.4 },
   },
   'breed:campfire:b': {
     title: 'Campfire Slime', tint: '#3f8f5a', tintAmt: 0.75, shape: { wide: 1.07, tall: 0.88 }, mat: { roughness: 0.32 },
