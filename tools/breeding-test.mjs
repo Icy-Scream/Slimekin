@@ -369,5 +369,55 @@ console.log('\n# 11. Before it hatches, a Nursery egg can take the cushion egg\'
     'if the nest has no room even after the swap (over full), the old bred egg goes to a neighbor family (counted)');
 }
 
+// ---------- 12. playtest fixes 1: finding a baby a new home ----------
+console.log('\n# 12. A baby (not grown yet) can find a new home: no pearls, no Family Bonus');
+{
+  const { st, sim, rr, R, eggs } = family(1);
+  st.phase = 'play'; st.slime.name = 'Bean';
+  st.ranch.placed = [];
+  for (let guard = 0; guard < 4000 && sim.stageIndex() < 1; guard++) { st.slime.tummy = 30; sim.feed('berry', { free: true }); }
+  sim.addJelly(54321);
+  st.helpers.bubbles = 3; st.upgrades.push('x'); st.outfits.owned.push('bow'); st.outfits.worn.head = 'bow'; st.combos.push('combo-a'); st.secrets.push('s1');
+  const was = { pearls: R.pearls, total: R.totalPearls, bonus: R.family.bonus, gen: R.family.generation, life: R.family.lifetime, residents: R.residents.length, slots: R.slots, jelly: st.totalJelly };
+  ok(sim.stageIndex() === 1 && sim.canRehome(), 'a Sprout can find a new home', C.STAGES[sim.stageIndex()].name);
+  const buyer = sim.rehomeBuyer();
+  const t = NOW + 30 * 60 * 1000;   // its Nursery egg still has half an hour to go
+  const r = sim.rehomeBaby(t, { eggId: eggs[0].id });
+  ok(!!r && r.buyer.id === buyer.id && R.pearls === was.pearls && R.totalPearls === was.total, 'no pearls', `went to ${r?.buyer.name}`);
+  ok(R.family.bonus === was.bonus && R.family.generation === was.gen && R.residents.length === was.residents && R.slots === was.slots, 'no Family Bonus, the generation stays, no ranch slot used');
+  ok(R.family.lifetime === was.life + was.jelly, 'its jelly counts toward the family lifetime total', `lifetime ${was.life} -> ${R.family.lifetime}`);
+  const p = R.placed[R.placed.length - 1];
+  ok(p && p.baby === true && p.name === 'Bean' && p.buyer === buyer.id && p.form === null && p.stage === 'sprout', 'it lives with that family now (ranch.placed, baby: true)', JSON.stringify(p));
+  ok(st.phase === 'egg' && st.egg.bred?.id === eggs[0].id && st.egg.readyAt === eggs[0].readyAt && !sim.eggReady(t) && rr.eggs().length === 0,
+    'the chosen Nursery egg (still warming) is on the cushion');
+  ok(st.jelly === 0 && st.totalJelly === 0 && Object.values(st.helpers).every(v => v === 0) && st.upgrades.length === 0 && st.outfits.worn.head === null,
+    'jelly, helpers, upgrades and worn outfits start over (as at move-out)');
+  ok(st.outfits.owned.includes('bow') && st.combos.includes('combo-a') && st.secrets.includes('s1'), 'outfits owned, combos and secrets are kept (as at move-out)');
+  ok(st.memories.length === 1 && /Bean went to live at/.test(st.memories[0].text), 'a Journal line', st.memories[0].text);
+  // a week of postcards: written by a baby, and no pearls in them
+  const pearls0 = R.pearls;
+  const cards = [];
+  for (let d = 0; d <= 8; d++) cards.push(...rr.postcards(t + d * 24 * HOUR));
+  ok(cards.length > 0 && cards.every(c => c.baby && c.pearls === 0 && c.text === C.BUYER_BY_ID[buyer.id].babyCard) && R.pearls === pearls0,
+    'its postcards are written by a baby and carry no pearls', `${cards.length} card(s): "${cards[0]?.text}"`);
+}
+{
+  const st = createState(); const sim = new Sim(st);
+  ok(!sim.canRehome() && sim.rehomeBaby(NOW) === null && st.phase === 'egg', 'refused in the egg phase');
+  st.slime.name = 'Big';
+  raise(sim, ['cookie']);
+  const before = JSON.stringify(st);
+  ok(sim.stageIndex() === 3 && !sim.canRehome() && sim.rehomeBaby(NOW) === null && JSON.stringify(st) === before, 'refused once grown (Settled): grown slimes move to the ranch as before');
+}
+{
+  const st = createState(); st.phase = 'play'; const sim = new Sim(st);
+  ok(sim.rehomeBuyer().id === 'school', 'a baby with no leaning yet goes to a family that wants nothing in particular (Little Sprouts School)');
+  st.slime.traits.sweet = 30;
+  const b = sim.rehomeBuyer();
+  ok(b.want.includes('sweet'), 'a baby leaning sweet goes to a family that loves sweet slimes', b.name);
+  const placedBefore = JSON.stringify(st.ranch.placed);
+  ok(sim.rehomeBaby(NOW, { eggId: 'no-such-egg' }) === null && st.phase === 'play' && JSON.stringify(st.ranch.placed) === placedBefore, 'an egg that is not in the Nursery is refused and changes nothing');
+}
+
 console.log(`\n${passes} passed, ${fails} failed`);
 process.exit(fails ? 1 : 0);

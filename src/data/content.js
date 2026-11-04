@@ -283,16 +283,16 @@ export const RANCH = {
 // Buyers for placement and auctions. "want" lists traits that make a slime a good fit;
 // an empty list prefers well-rounded slimes.
 export const BUYERS = [
-  { id: 'bakery',    name: 'Sugarvale Bakery',       want: ['sweet', 'heat'],    line: 'needs a warm helper to keep the ovens cozy.', card: 'They let me nap next to the oven. Everything smells like cookies!' },
-  { id: 'garden',    name: 'Willowbend Gardens',     want: ['nature'],           line: 'is looking for a friend for the greenhouse.', card: 'I sat in the tomato patch all day. The bees say hi.' },
-  { id: 'mine',      name: 'Pebblepeak Mine',        want: ['mineral'],          line: 'wants a sturdy partner who loves rocks.',     card: 'I found a shiny rock! I am keeping it forever.' },
-  { id: 'observe',   name: 'Starlight Observatory',  want: ['prism', 'spark'],   line: 'needs someone to light up the telescope dome.', card: 'We counted 300 stars last night. I counted 4, then fell asleep.' },
-  { id: 'windmill',  name: 'Breezy Windmill',        want: ['spark'],            line: 'needs a zippy friend to keep the lights on.',  card: 'I spin with the windmill blades sometimes. Wheee!' },
-  { id: 'cafe',      name: 'Puddle Café',            want: ['sweet'],            line: 'wants a greeter that makes guests smile.',     card: 'A little kid gave me a sprinkle today. Best day.' },
-  { id: 'school',    name: 'Little Sprouts School',  want: [],                   line: 'would love a gentle class pet.',               card: 'The kids drew me! I look like a potato. I love it.' },
-  { id: 'springs',   name: 'Mistwater Hot Springs',  want: ['heat', 'nature'],   line: 'wants a cozy companion for the warm pools.',  card: 'I soaked so long I got extra squishy.' },
-  { id: 'museum',    name: 'Glimmer Museum',         want: ['prism', 'mineral'], line: 'wants a sparkly star for the gem hall.',       card: 'People stare at me like I am a famous painting.' },
-  { id: 'festival',  name: 'Summer Festival Crew',   want: ['heat', 'spark'],    line: 'needs help with the fireworks show.',          card: 'BOOM! Pop! Sparkle! (I was very brave.)' },
+  { id: 'bakery',    name: 'Sugarvale Bakery',       want: ['sweet', 'heat'],    line: 'needs a warm helper to keep the ovens cozy.', card: 'They let me nap next to the oven. Everything smells like cookies!', babyCard: 'I helped stir the cookie dough! Mostly I sat in the flour.' },
+  { id: 'garden',    name: 'Willowbend Gardens',     want: ['nature'],           line: 'is looking for a friend for the greenhouse.', card: 'I sat in the tomato patch all day. The bees say hi.', babyCard: 'The snails and I had a slow race. We both won.' },
+  { id: 'mine',      name: 'Pebblepeak Mine',        want: ['mineral'],          line: 'wants a sturdy partner who loves rocks.',     card: 'I found a shiny rock! I am keeping it forever.', babyCard: 'I found a tiny pebble. It is my pet now.' },
+  { id: 'observe',   name: 'Starlight Observatory',  want: ['prism', 'spark'],   line: 'needs someone to light up the telescope dome.', card: 'We counted 300 stars last night. I counted 4, then fell asleep.', babyCard: 'I saw a shooting star and made a wish for you.' },
+  { id: 'windmill',  name: 'Breezy Windmill',        want: ['spark'],            line: 'needs a zippy friend to keep the lights on.',  card: 'I spin with the windmill blades sometimes. Wheee!', babyCard: 'I can spin around three times without falling over!' },
+  { id: 'cafe',      name: 'Puddle Café',            want: ['sweet'],            line: 'wants a greeter that makes guests smile.',     card: 'A little kid gave me a sprinkle today. Best day.', babyCard: 'I wiggle hello at the door. Everyone waves back!' },
+  { id: 'school',    name: 'Little Sprouts School',  want: [],                   line: 'would love a gentle class pet.',               card: 'The kids drew me! I look like a potato. I love it.', babyCard: 'I learned to hop on one side! The kids clap every time.' },
+  { id: 'springs',   name: 'Mistwater Hot Springs',  want: ['heat', 'nature'],   line: 'wants a cozy companion for the warm pools.',  card: 'I soaked so long I got extra squishy.', babyCard: 'I had my first warm bath and fell asleep in it.' },
+  { id: 'museum',    name: 'Glimmer Museum',         want: ['prism', 'mineral'], line: 'wants a sparkly star for the gem hall.',       card: 'People stare at me like I am a famous painting.', babyCard: 'I sat very still on a velvet pillow. People think I am art.' },
+  { id: 'festival',  name: 'Summer Festival Crew',   want: ['heat', 'spark'],    line: 'needs help with the fireworks show.',          card: 'BOOM! Pop! Sparkle! (I was very brave.)', babyCard: 'I watched the fireworks from a cozy blanket. So sparkly!' },
 ];
 export const BUYER_BY_ID = Object.fromEntries(BUYERS.map(b => [b.id, b]));
 

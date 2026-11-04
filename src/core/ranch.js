@@ -279,7 +279,8 @@ export class Ranch {
     return { resident: x, price: a.price, buyer: a.winner };
   }
 
-  // Slimes placed in a new home send a postcard on some days during their first week.
+  // Slimes placed in a new home send a postcard on some days during their first week. A baby's postcard is
+  // written by a baby and has no pearls in it (babies are not a way to make pearls).
   postcards(now = Date.now()) {
     const today = dayNumber(now);
     const out = [];
@@ -288,6 +289,11 @@ export class Ranch {
       p.lastCard = today;
       const rand = rng(`${p.name}:${p.at}:${today}`);
       if (rand() > 0.6) continue;
+      if (p.baby) {
+        p.cards++;
+        out.push({ name: p.name, buyer: BUYER_BY_ID[p.buyer]?.name || 'their new home', text: BUYER_BY_ID[p.buyer]?.babyCard || 'I learned to hop on one side!', pearls: 0, baby: true });
+        continue;
+      }
       const pearls = 2 + Math.floor(rand() * 3);
       p.cards++;
       this.addPearls(pearls);

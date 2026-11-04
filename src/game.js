@@ -814,15 +814,30 @@ export class Game {
 
   moveOut(eggId = null) {
     if (this.departing || !this.sim.canMoveOut()) return;
+    this.depart({ eggId, say: "I'll be on the hill! ♥" });
+  }
+
+  // The goodbye: hearts, a hop away (to the hill, or for a baby a wave and hops off to the side, toward its new
+  // family), a white fade, then the rule runs and the page reloads into the egg on the cushion.
+  depart({ eggId = null, buyerId = null, say }) {
     this.leaveRanch();
-    this.departing = { t: 0, z: 0, hopT: 0.4 };
+    // the goodbye happens in view: a menu still open (the Slime tab) closes first
+    if (window.matchMedia('(max-width: 860px)').matches && this.hud.sheetState() !== 'closed') this.hud.setSheet('closed');
+    const baby = !!buyerId;
+    this.departing = { t: 0, z: 0, x: 0, hopT: 0.4, side: baby };
     const name = this.Name;
     this.press = null;
     this.flash({ eyes: 'happy', mouth: 'grin', blush: 1 }, 3);
     this.sfx.mii();
-    this.hud.say("I'll be on the hill! ♥", 2200);
+    this.hud.say(say, 2200);
     this.fx.emit('hearts', this.slime.headTopWorld(this.v1), { count: 10 });
-    this.after(1.2, () => { this.slime.spin(); this.slime.hop(6); this.sfx.whee ? this.sfx.whee() : this.sfx.sparkle(); });
+    if (baby) {
+      // a goodbye wave, looking toward where its new family waits
+      this.slime.nub('wave', new THREE.Vector3(0.9, 0.32, 0.3), 0.46, { wave: 0.45, snap: 3 });
+      this.after(1.7, () => this.slime.nubIn('wave'));
+      this.lookOverride = { target: new THREE.Vector3(6, 1.2, 2), until: this.time + 6 };
+    }
+    this.after(1.2, () => { if (!baby) this.slime.spin(); this.slime.hop(6); this.sfx.whee ? this.sfx.whee() : this.sfx.sparkle(); });
     this.after(2.2, () => { this.departing.go = true; });
     this.after(4.2, () => {
       const fade = document.createElement('div');
@@ -831,10 +846,16 @@ export class Game {
       requestAnimationFrame(() => fade.classList.add('on'));
     });
     this.after(5.3, async () => {
-      const r = this.sim.moveToRanch(this.nowMs(), { eggId });
-      if (!r) { location.reload(); return; }
-      this.state.ranch.justMoved = { name, form: r.resident.form?.name || '', bonus: r.bonus, gift: r.gift,
-        egg: r.egg ? { parents: r.egg.parents.map(p => p.name), spark: !!r.egg.spark } : null };
+      const eggOf = egg => egg ? { parents: egg.parents.map(p => p.name), spark: !!egg.spark } : null;
+      if (baby) {
+        const r = this.sim.rehomeBaby(this.nowMs(), { eggId, buyerId });
+        if (!r) { location.reload(); return; }
+        this.state.ranch.justMoved = { baby: true, name, buyer: r.buyer.name, egg: eggOf(r.egg) };
+      } else {
+        const r = this.sim.moveToRanch(this.nowMs(), { eggId });
+        if (!r) { location.reload(); return; }
+        this.state.ranch.justMoved = { name, form: r.resident.form?.name || '', bonus: r.bonus, gift: r.gift, egg: eggOf(r.egg) };
+      }
       this.saveNow(false);
       try { await Promise.race([this.store.saveCloud(this.serialize()), new Promise(res => setTimeout(res, 2500))]); } catch { /* ignore */ }
       this.resetting = true;
@@ -849,6 +870,12 @@ export class Game {
     if (!d.go) return;
     d.hopT -= dt;
     if (d.hopT <= 0 && this.slime.hopY <= 0) { this.slime.hop(5); d.hopT = 0.35; this.sfx.boing ? this.sfx.boing() : null; }
+    if (d.side) {
+      // a baby hops off to the side, toward its new family (off the cushion just as the fade starts)
+      d.x += dt * 1.5;
+      this.slime.root.position.x = d.x;
+      return;
+    }
     d.z -= dt * 2.6;
     this.slime.root.position.z = d.z;
     this.slime.root.position.x = Math.sin(d.t * 2) * 0.2;
@@ -857,15 +884,48 @@ export class Game {
 
   showMovedIn(j) {
     const R = this.state.ranch;
+    const left = this.sim.eggSecondsLeft(this.nowMs());
+    const warmIt = left > 0 ? `It is still warming: ready in ${fmtDuration(left)}. It can finish warming right there.` : 'Tap it to keep it warm.';
+    const eggLine = j.egg ? `<p>And look: ${esc(j.egg.parents[0])} and ${esc(j.egg.parents[1])}'s egg is on the cushion${j.egg.spark ? ', twinkling' : ''}. ${warmIt}</p>` : '<p>And look: a new egg arrived. Tap it to keep it warm.</p>';
+    if (j.baby) {
+      this.hud.showSimple(`${esc(j.name)} has a new home!`, `<p>${esc(j.name)} went to live at ${esc(j.buyer)}, where they will be loved and looked after. Watch for postcards!</p>${eggLine}`, 'Hello, little egg!');
+      this.saveNow(true);
+      return;
+    }
     const others = R.residents.length - 1;
     let body = `<p>${esc(j.name)} is settling in on the hill behind the cushion${others > 0 ? `, with ${others} other slime${others === 1 ? '' : 's'}` : ''}. Open the Ranch tab to visit.</p>`;
     body += `<div class="card"><b>Family Bonus +${j.bonus.toFixed(1)}%</b><span class="sub">Now +${R.family.bonus.toFixed(1)}% to all jelly, forever. This is generation ${R.family.generation}.</span></div>`;
     if (j.gift) body += `<div class="card"><b><i class="pearl"></i> ${j.gift} pearls</b><span class="sub">${esc(j.name)} found these on the way. Ranch slimes make pearls over time: spend them on more room and a bigger Pearl Basket.</span></div>`;
-    const left = this.sim.eggSecondsLeft(this.nowMs());
-    const warmIt = left > 0 ? `It is still warming: ready in ${fmtDuration(left)}. It can finish warming right there.` : 'Tap it to keep it warm.';
-    body += j.egg ? `<p>And look: ${esc(j.egg.parents[0])} and ${esc(j.egg.parents[1])}'s egg is on the cushion${j.egg.spark ? ', twinkling' : ''}. ${warmIt}</p>` : '<p>And look: a new egg arrived. Tap it to keep it warm.</p>';
+    body += eggLine;
     this.hud.showSimple(`${esc(j.name)} moved to the ranch!`, body, 'Hello, little egg!');
     this.saveNow(true);
+  }
+
+  // ---------- finding a baby a new home ----------
+  // Not grown yet (Hatchling, Sprout, Rascal): a kind family raises them. No pearls, no Family Bonus, no ranch slot;
+  // the same egg choice as moving out comes next.
+  askRehome() {
+    const sim = this.sim;
+    if (!sim.canRehome() || this.departing) return;
+    const buyer = sim.rehomeBuyer();
+    const name = esc(this.Name);
+    const choice = this.eggChoiceHtml();
+    this.hud.openModal(`<h2>A new home for ${name}?</h2>
+      <p><b>${esc(buyer.name)}</b> would love to raise ${name}. ${name} will be loved and looked after there, and will send you postcards about growing up.</p>
+      ${choice || '<p>Then a new egg arrives on the cushion, and you raise a new baby.</p>'}
+      <div class="card"><b>No pearls for a baby</b><span class="sub">Only grown-up slimes bring pearls and a Family Bonus. ${name} won't live on the ranch.</span></div>
+      <div class="card"><b>You keep</b><span class="sub">Pearls, the ranch, outfits, combos you found and secrets.</span><b>Starts over</b><span class="sub">Jelly, helpers, upgrades and the Jelly Jar.</span></div>
+      <div class="actions"><button class="btn" id="rhNo">Keep ${name}</button><button class="btn primary" id="rhYes">Find a new home</button></div>`, {
+      onOpen: card => {
+        const pick = this.bindEggChoice(card);
+        card.querySelector('#rhNo').addEventListener('click', () => this.hud.closeModal());
+        card.querySelector('#rhYes').addEventListener('click', () => { this.hud.closeModal(); this.rehome(pick() || null, buyer.id); });
+      },
+    });
+  }
+  rehome(eggId, buyerId) {
+    if (this.departing || !this.sim.canRehome()) return;
+    this.depart({ eggId, buyerId, say: "Bye-bye! I'll write to you! ♥" });
   }
 
   // ---------- new homes and auctions ----------
@@ -976,7 +1036,7 @@ export class Game {
     const cards = this.sim.ranch.postcards();
     cards.forEach((c, i) => this.after(i * 3.5, () => {
       this.remember('💌', `A postcard from ${c.name} at ${c.buyer}: "${c.text}"`);
-      this.hud.toast(`<b>Postcard from ${esc(c.name)}</b>"${esc(c.text)}" (+${c.pearls} pearls tucked inside)`, 'love', 5200);
+      this.hud.toast(`<b>Postcard from ${esc(c.name)}</b>"${esc(c.text)}"${c.pearls > 0 ? ` (+${c.pearls} pearls tucked inside)` : ''}`, 'love', 5200);
       this.sfx.sparkle();
     }));
     if (cards.length) this.markDirty(true);

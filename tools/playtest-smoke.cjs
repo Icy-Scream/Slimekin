@@ -324,6 +324,95 @@ const FIXTURE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'mai
       expect(after.phase === 'play' && !/has-ranch|egg/.test(after.ui) && after.tabs === 6, 'after hatching the menu is back to all six tabs', JSON.stringify(after));
     }
 
+    // ---------- 4. find a baby a new home, and pick a Nursery egg ----------
+    if (ONLY.includes('rehome')) {
+      kit.mark('4. find a baby a new home');
+      await ev(() => { const g = window.slimekin; for (const x of g.state.ranch.residents) x.bredDay = null; g.debug('pearls'); g.advance(1); });
+      await breedInNursery('Juniper', 'Pebble');
+      await ev(() => { const g = window.slimekin; g.leaveRanch(); g.sim.addJelly(54321); g.advance(1); });
+      const before = await ev(() => { const g = window.slimekin, s = g.state, R = s.ranch; return { name: s.slime.name, stage: g.sim.stage().name, jelly: s.totalJelly, pearls: R.pearls, bonus: R.family.bonus, gen: R.family.generation,
+        life: R.family.lifetime, residents: R.residents.length, placed: R.placed.length, eggs: g.sim.ranch.eggs().length, buyer: g.sim.rehomeBuyer().name, jps: g.sim.jps() }; });
+      note('before:', JSON.stringify(before));
+      await page.click('#tab-slime');
+      await ev(() => { const g = window.slimekin; g.advance(1.2); document.getElementById('slimeRehome').scrollIntoView({ block: 'center' }); });
+      const card = await ev(() => document.querySelector('.rehome-card').innerText.replace(/\s+/g, ' '));
+      expect(new RegExp(`Find ${before.name} a new home`).test(card), `the Slime tab of a ${before.stage} shows "Find ${before.name} a new home"`, card);
+      await shot('13-slime-tab-rehome');
+      await page.click('#slimeRehome');
+      await page.waitForSelector('#rhYes');
+      const ask = await ev(() => document.getElementById('modalCard').innerText.replace(/\s+/g, ' '));
+      expect(ask.includes(`${before.buyer} would love to raise ${before.name}`) && /No pearls for a baby/.test(ask) && /Still warming: ready in \d+ min/.test(ask),
+        'one confirm step: the family that suits the baby, no pearls, and the same egg choice (warming eggs allowed)', ask.slice(0, 400));
+      await page.click('.choice[data-egg]:not([data-egg=""])');
+      await shot('14-rehome-confirm');
+      // the goodbye: a wave, then hops off to the side toward the new family
+      await keepClock();
+      const nav = page.waitForNavigation({ waitUntil: 'commit', timeout: 90000 });
+      await ev(() => { document.getElementById('panel').style.transition = 'none'; });   // (the menu closes at once, for the first frame)
+      await page.click('#rhYes');
+      const bye = await ev(() => { const s = document.querySelector('#bubbleLayer .say'); return { say: s ? s.textContent : '', sheet: window.slimekin.hud.sheetState() }; });
+      expect(/Bye-bye! I'll write to you/.test(bye.say) && bye.sheet === 'closed', 'the goodbye: the menu closes and the baby says "Bye-bye! I\'ll write to you!"', JSON.stringify(bye));
+      // two frames of the goodbye at exact moments: the game loop is held still for each screenshot (software WebGL
+      // draws slowly, and every real frame would move the goodbye along)
+      const frameAt = (t, say) => ev(({ t, say }) => {
+        const g = window.slimekin;
+        if (say) g.hud.say(say, 60000);
+        g.advance(Math.max(0, t - g.departing.t)); g.stage.render(); g.last = Infinity;
+        return { t: +g.departing.t.toFixed(2), x: +g.slime.root.position.x.toFixed(2) };
+      }, { t, say });
+      const still = async name => { await page.waitForTimeout(300); await page.screenshot({ path: path.join(OUT, name + '-day.png'), timeout: 120000 }); note('screenshot', name); };
+      const f1 = await frameAt(1.0, bye.say);
+      await still('15-rehome-goodbye-wave');
+      const f2 = await frameAt(3.3);
+      await still('15-rehome-goodbye-hop');
+      expect(f2.x > f1.x + 1, 'it hops off to the side, toward its new family', `x ${f1.x} at ${f1.t} s -> ${f2.x} at ${f2.t} s`);
+      await ev(() => { const g = window.slimekin; document.getElementById('panel').style.transition = ''; g.last = performance.now(); g.hud.say('', 1); g.advance(3); });
+      await nav;
+      await boot();
+      await ev(s => { window.slimekin.timeSkip = s; }, skip);
+      await ev(() => window.slimekin.advance(2));
+      const moved = await ev(() => document.getElementById('modalCard').innerText.replace(/\s+/g, ' '));
+      expect(moved.includes(`${before.name} has a new home!`) && moved.includes(before.buyer) && /still warming/i.test(moved), 'the next card: the baby has a new home, and the chosen egg is on the cushion, still warming', moved.slice(0, 300));
+      await shot('16-baby-new-home-card');
+      await ev(() => { window.slimekin.hud.closeModal(); window.slimekin.advance(1); });
+      const after = await ev(() => { const g = window.slimekin, s = g.state, R = s.ranch; const p = R.placed[R.placed.length - 1]; return { phase: s.phase, bred: !!s.egg.bred, pearls: R.pearls, bonus: R.family.bonus, gen: R.family.generation,
+        life: R.family.lifetime, residents: R.residents.length, placed: R.placed.length, last: p, eggs: g.sim.ranch.eggs().length, jelly: s.jelly, helpers: Object.values(s.helpers).reduce((a, b) => a + b, 0) }; });
+      note('after:', JSON.stringify(after));
+      expect(after.pearls === before.pearls && after.bonus === before.bonus && after.gen === before.gen && after.residents === before.residents,
+        'no pearls, no Family Bonus, the same generation, no ranch slot', `pearls ${before.pearls} -> ${after.pearls}, bonus ${before.bonus.toFixed(1)} -> ${after.bonus.toFixed(1)}, generation ${after.gen}`);
+      // (the game keeps running until the goodbye ends, so the baby made a little more jelly after "before" was read)
+      const added = after.life - before.life;
+      expect(added >= before.jelly && added <= before.jelly + before.jps * 30, 'its jelly counts toward the family lifetime total',
+        `lifetime +${Math.round(added)} (it had ${Math.round(before.jelly)} when the goodbye started, then about ${Math.round(before.jps)} a second until it left)`);
+      expect(after.phase === 'egg' && after.bred && after.eggs === before.eggs - 1 && after.jelly === 0 && after.helpers === 0 && after.last.baby === true && after.last.name === before.name,
+        'the Nursery egg is on the cushion, jelly and helpers start over, and the baby is listed with its family (baby: true)', JSON.stringify(after.last));
+      // a postcard written by the baby, with no pearls in it (the postcard days are on the wall clock: try the next days)
+      const pc = await ev(name => {
+        const g = window.slimekin, rr = g.sim.ranch, real = Date.now, orig = rr.postcards;
+        let got = null, cards = [];
+        rr.postcards = function (...a) { cards = orig.apply(this, a); return cards; };
+        for (let d = 1; d <= 7 && !got; d++) {
+          Date.now = () => real() + d * 86400000;
+          try {
+            const p0 = g.state.ranch.pearls; cards = [];
+            g.checkPostcards();
+            if (cards.some(c => c.name === name)) got = { day: d, pearls: g.state.ranch.pearls - p0, cards: cards.map(c => ({ name: c.name, text: c.text, pearls: c.pearls, baby: !!c.baby })) };
+          } finally { Date.now = real; }
+        }
+        delete rr.postcards;
+        g.advance(0.3);
+        return { ...got, toast: document.getElementById('toasts').innerText.replace(/\s+/g, ' ') };
+      }, before.name);
+      expect(pc.day && pc.pearls === 0 && pc.cards.every(c => c.baby && c.pearls === 0) && pc.toast.includes(`Postcard from ${before.name}`) && !/pearls tucked inside/.test(pc.toast),
+        'a postcard from the baby, written by a baby, with no pearls in it', JSON.stringify(pc));
+      await shot('17-baby-postcard', { night: false });
+      await page.click('#tab-ranch');
+      await ev(() => { const g = window.slimekin; g.advance(2); const b = document.getElementById('body-ranch'); b.scrollTop = b.scrollHeight; g.advance(0.5); });
+      const elsewhere = await ev(() => document.getElementById('body-ranch').innerText.replace(/\s+/g, ' '));
+      expect(elsewhere.includes(`${before.name}`) && /growing up there/.test(elsewhere), 'the ranch lists the baby under "Living elsewhere" (growing up there)', elsewhere.slice(-200));
+      await shot('18-living-elsewhere');
+    }
+
     const fin = await ev(() => ({ phase: window.slimekin.state.phase }));
     note('end:', JSON.stringify(fin));
   } catch (e) {

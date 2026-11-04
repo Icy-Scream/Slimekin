@@ -3,9 +3,9 @@
 import {
   TUNING, STAGES, TRAIT_IDS, FOODS, FOOD_BY_ID, HELPERS, HELPER_BY_ID, HELPER_GROWTH,
   UPGRADES, UPGRADE_BY_ID, COMBOS, BOND, PERSONALITY_IDS, PURE_FORMS, PAIR_FORMS, GENERALIST_FORM,
-  UPGRADE_RENAMES, JAR_LEVELS, OUTFITS, OUTFIT_BY_ID, TRICK_LEARNED, RANCH, BREEDING,
+  UPGRADE_RENAMES, JAR_LEVELS, OUTFITS, OUTFIT_BY_ID, TRICK_LEARNED, RANCH, BREEDING, BUYERS, BUYER_BY_ID,
 } from '../data/content.js';
-import { createRanch, migrateRanch, Ranch, familyBonusFor, residentJpsFor } from './ranch.js';
+import { createRanch, migrateRanch, Ranch, familyBonusFor, residentJpsFor, dayNumber } from './ranch.js';
 import { emptyLineage, applyEgg, resolveForm, eggFromLineage } from './breeding.js';
 
 export const SAVE_VERSION = 1;
@@ -593,6 +593,37 @@ export class Sim {
     const arrived = egg ? `${egg.parents[0].name} and ${egg.parents[1].name}'s egg is waiting on the cushion.` : 'A new egg arrived on the cushion.';
     s.memories = [{ t: now, icon: '🏡', text: `${resident.name} moved to the ranch. ${arrived}` }];
     return { resident, bonus, gift, egg };
+  }
+
+  // ---------- Finding a baby a new home ----------
+  // A slime that is not grown yet (Hatchling, Sprout, Rascal) can go to a family that will raise it. No pearls
+  // (so hatching and giving away can't be farmed), no Family Bonus and no ranch slot (it never lived on the ranch),
+  // the generation stays. Its jelly still counts toward the family's lifetime total. It sends postcards.
+  canRehome() { return this.s.phase === 'play' && this.stageIndex() < STAGES.length - 1; }
+  // The family that suits this baby best; a balanced baby goes to one that wants nothing in particular.
+  rehomeBuyer() {
+    const x = { traits: this.slime.traits };
+    let best = null, bestFit = -Infinity;
+    for (const b of BUYERS) {
+      const f = this.ranch.fit(x, b) + (b.want.length ? 0 : 1e-9);
+      if (f > bestFit) { bestFit = f; best = b; }
+    }
+    return best;
+  }
+  rehomeBaby(now = Date.now(), { eggId = null, buyerId = null } = {}) {
+    const s = this.s, sl = s.slime, R = s.ranch;
+    if (!this.canRehome()) return null;
+    if (eggId && !this.ranch.egg(eggId)) return null;
+    const buyer = buyerId ? BUYER_BY_ID[buyerId] : this.rehomeBuyer();
+    if (!buyer) return null;
+    const name = sl.name || 'Your slime', stage = this.stage(), jelly = s.totalJelly;
+    R.family.lifetime += jelly;   // all jelly ever made counts
+    R.placed.push({ name, form: null, buyer: buyer.id, at: now, cards: 0, lastCard: dayNumber(now), baby: true, stage: stage.id });
+    if (R.placed.length > 60) R.placed.shift();
+    const egg = this.startNextEgg(now, eggId);
+    const arrived = egg ? `${egg.parents[0].name} and ${egg.parents[1].name}'s egg is waiting on the cushion.` : 'A new egg arrived on the cushion.';
+    s.memories = [{ t: now, icon: '💌', text: `${name} went to live at ${buyer.name}, where they will be loved and looked after. ${arrived}` }];
+    return { buyer, name, stage, egg, jelly };
   }
 
   // ---------- Outfits ----------

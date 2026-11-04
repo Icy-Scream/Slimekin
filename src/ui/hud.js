@@ -554,6 +554,11 @@ export class Hud {
     } else {
       html += `<div class="card"><span class="sub">Becoming</span><span class="form-name">Too young to tell</span><span class="sub">What ${name} eats now shapes the slime they grow into.</span></div>`;
     }
+    // not grown yet: a kind family can raise them (no pearls and no Family Bonus for a baby)
+    if (sim.canRehome()) {
+      html += `<div class="card rehome-card"><b>Raising a different egg?</b><span class="sub">A kind family would love to raise ${name}, and ${name} will send you postcards. Babies don't bring pearls or a Family Bonus.</span>
+        <button class="btn" id="slimeRehome">Find ${name} a new home</button></div>`;
+    }
 
     const lin = s.lineage || {};
     if (lin.parents?.length === 2) {
@@ -636,6 +641,8 @@ export class Hud {
     if (rb) rb.addEventListener('click', () => this.showRename());
     const mo = this.$('slimeMoveOut');
     if (mo) mo.addEventListener('click', () => this.g.askMoveOut());
+    const rh = this.$('slimeRehome');
+    if (rh) rh.addEventListener('click', () => this.g.askRehome());
   }
 
   // ---------- ranch tab ----------
@@ -712,7 +719,7 @@ export class Hud {
         if (sc !== null) html += `<button class="upgrade${R.pearls < sc ? ' poor' : ''}" id="slotUp"><span class="un">More room</span><span class="ub">Space for one more slime (${R.slots + 1} in total).</span>${pearlCost(sc)}</button>`;
       }
       if (R.placed.length) {
-        html += `<div class="sec-title">Living elsewhere</div><div class="card">` + R.placed.slice(-8).reverse().map(p => `<div class="row-between"><span>${esc(p.name)}</span><span class="sub">${esc(BUYER_BY_ID[p.buyer]?.name || '')}</span></div>`).join('') + '</div>';
+        html += `<div class="sec-title">Living elsewhere</div><div class="card">` + R.placed.slice(-8).reverse().map(p => `<div class="row-between"><span>${esc(p.name)}</span><span class="sub">${esc(BUYER_BY_ID[p.buyer]?.name || '')}${p.baby ? ' · growing up there' : ''}</span></div>`).join('') + '</div>';
       }
     }
     this.$('body-ranch').innerHTML = html;
