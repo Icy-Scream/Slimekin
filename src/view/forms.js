@@ -968,10 +968,11 @@ export const PROP_MAKERS = {
   },
 };
 
-// ---------- breeding-only looks (SAMPLES) ----------
-// Forms that come only from a parent pair raised on the right snacks (a "family spark", per the design
-// doc). Not reachable in gameplay yet: the form resolver never picks a 'breed:' id, so these render only
-// through setForm() (see tools/render-samples.cjs). Two takes (a, b) per form so the owner can pick one.
+// ---------- spark forms (breeding only) ----------
+// Forms that come only from a parent pair with a family spark, raised on the right snacks (per the design
+// doc; the pairs and recipes are SPARK_FORMS in data/content.js, each pointing at a look id here).
+// headKeep: the signature head pieces stay visible under hats and the nightcap, which sit on top of them
+// (hatLift raises the hat or nightcap, e.g. above Storm's cloud puffs).
 
 // Small tiling stripes (straight or diagonal) for wrappers and handles.
 function stripeTex(a, b, n = 8, diagonal = false) {
@@ -1042,34 +1043,7 @@ function makeCracker(w, d) {
 }
 const chocMat = () => new THREE.MeshStandardMaterial({ color: '#5e321f', roughness: 0.28, metalness: 0.05 });
 
-// A little piece of honeycomb: seven hexagonal wax cells merged into one mesh.
-function combGeo(r = 0.07, d = 0.05) {
-  const hex = rad => Array.from({ length: 6 }, (_, i) => { const a = i / 6 * TAU + Math.PI / 6; return new THREE.Vector2(Math.cos(a) * rad, Math.sin(a) * rad); });
-  const cell = new THREE.Shape(hex(r));
-  cell.holes.push(new THREE.Path(hex(r * 0.66)));
-  const base = new THREE.ExtrudeGeometry(cell, { depth: d, bevelEnabled: false });
-  const parts = [[0, 0], ...Array.from({ length: 6 }, (_, i) => { const a = i / 6 * TAU; return [Math.cos(a) * r * Math.sqrt(3), Math.sin(a) * r * Math.sqrt(3)]; })]
-    .map(([x, y]) => base.clone().translate(x, y, -d / 2));
-  return mergeGeometries(parts);
-}
-
 Object.assign(PATTERNS, {
-  // Soft marshmallow toasted on top, with melted chocolate dripping over the crown (full color).
-  smoreToast: () => canvasTex((x, w, h) => {
-    x.fillStyle = '#fff4e4'; x.fillRect(0, 0, w, h);
-    const g = x.createLinearGradient(0, 0, 0, h * 0.46);
-    g.addColorStop(0, '#c27a3e'); g.addColorStop(0.35, '#dc9d5c'); g.addColorStop(0.7, '#f3cf9c'); g.addColorStop(1, 'rgba(255,244,228,0)');
-    x.fillStyle = g; x.fillRect(0, 0, w, h * 0.46);
-    x.fillStyle = '#6a3a22';
-    x.fillRect(0, 0, w, h * 0.14);
-    for (let i = 0; i < 10; i++) {
-      const cx = (i + 0.5) / 10 * w, len = h * (0.07 + ((i * 5) % 4) * 0.045), r = w / 10 * 0.2;
-      x.beginPath(); x.moveTo(cx - r * 1.9, h * 0.135); x.lineTo(cx - r, h * 0.14 + len - r);
-      x.arc(cx, h * 0.14 + len - r, r, Math.PI, 0, true); x.lineTo(cx + r * 1.9, h * 0.135); x.fill();
-    }
-    x.strokeStyle = 'rgba(255, 220, 190, 0.35)'; x.lineWidth = 3;
-    x.beginPath(); x.moveTo(0, h * 0.07); x.lineTo(w, h * 0.07); x.stroke();
-  }),
   // Toasted golden-brown all over, darkest on top, with toasty blisters (full color).
   toastGold: () => canvasTex((x, w, h) => {
     const g = x.createLinearGradient(0, 0, 0, h * 0.7);
@@ -1117,34 +1091,6 @@ Object.assign(PATTERNS, {
 });
 
 Object.assign(PROP_MAKERS, {
-  // Hearth's beating heart, in milk chocolate with a warm glow.
-  chocoHeart(av) {
-    const p = PROP_MAKERS.heartCore(av);
-    const [ember, glow, heart] = p.obj.children;   // order as built in heartCore
-    heart.material.color.set('#6e3a1e'); heart.material.emissive.set('#7a3510'); heart.material.emissiveIntensity = 0.35;
-    glow.visible = ember.visible = false;   // no glow: the chocolate (and the drips on top) stay brown
-    return p;
-  },
-
-  // A graham cracker worn like a beret, a chocolate square melting under it.
-  grahamHat(av) {
-    const g = new THREE.Group(), tilt = new THREE.Group();
-    const cracker = makeCracker(0.95, 0.09);
-    cracker.position.y = 0.1;
-    const choc = new THREE.Mesh(slab(0.86, 0.065), chocMat());
-    choc.rotation.y = 0.42; choc.position.set(0.02, 0.03, 0.02);
-    const tip = new THREE.Object3D(); tip.position.y = 0.2;
-    tilt.add(choc, cracker, tip);
-    tilt.rotation.set(0.42, 0.25, 0.15);
-    g.add(tilt);
-    av.body.add(g);
-    const o = { x: 0, y: 0, z: 0 };
-    return {
-      obj: g, head: true, anchor: tip,
-      update(t) { av.shape(0.04, 1, -0.12, 0, o); g.position.set(o.x, o.y - 0.05, o.z); tilt.rotation.z = 0.15 + Math.sin(t * 1.2) * 0.025; },
-    };
-  },
-
   // Sitting on a big graham cracker in a puddle of melted chocolate that drips over the front edge.
   grahamBase(av) {
     const g = new THREE.Group();
@@ -1219,61 +1165,6 @@ Object.assign(PROP_MAKERS, {
     };
   },
 
-  // Pieces of honeycomb floating in the clear amber body, with a warm honey light.
-  combChunks(av) {
-    const g = new THREE.Group();
-    const geo = combGeo();
-    const mat = overlay(new THREE.MeshStandardMaterial({ color: '#ffd04a', emissive: '#ff9a00', emissiveIntensity: 0.35, roughness: 0.3 }), 0.92);
-    const items = [];
-    for (const [x, y, z, s, ph] of [[-0.5, 0.92, -0.12, 1.15, 0], [0.52, 0.76, -0.08, 0.95, 2], [0.06, 1.16, -0.35, 0.85, 4]]) {
-      const m = new THREE.Mesh(geo, mat);
-      m.renderOrder = 1.46; m.scale.setScalar(s);
-      m.userData = { x, y, z, ph };
-      g.add(m); items.push(m);
-    }
-    const glow = new THREE.Sprite(overlay(new THREE.SpriteMaterial({ map: softTex(), color: '#ffc04a', blending: THREE.AdditiveBlending }), 0.3));
-    glow.renderOrder = 1.44; glow.scale.set(2.2, 1.5, 1); glow.position.set(0, 0.7, -0.1);
-    g.add(glow);
-    av.inner.add(g);
-    return {
-      obj: g,
-      update(t) {
-        for (const m of items) { const u = m.userData; m.position.set(u.x, u.y + Math.sin(t * 0.7 + u.ph) * 0.035, u.z); m.rotation.set(0.7 + Math.sin(t * 0.5 + u.ph) * 0.2, t * 0.3 + u.ph, 0.2); }
-        glow.material.opacity = 0.24 + 0.06 * Math.sin(t * 1.2);
-      },
-    };
-  },
-
-  // Twisted candy-wrapper ends on both sides, like a wrapped sweet.
-  wrapperTwists(av) {
-    const g = new THREE.Group();
-    const prof = [];
-    for (let i = 0; i <= 16; i++) {
-      const t = i / 16;
-      const r = t < 0.25 ? 0.16 - (t / 0.25) * 0.12 : 0.04 + Math.pow((t - 0.25) / 0.75, 0.8) * 0.25;
-      prof.push(new THREE.Vector2(r, t * 0.5));
-    }
-    const geo = new THREE.LatheGeometry(prof, 32);
-    const p = geo.attributes.position;
-    for (let i = 0; i < p.count; i++) {
-      const x = p.getX(i), y = p.getY(i), z = p.getZ(i), a = Math.atan2(z, x), k = Math.max(0, (y - 0.15) / 0.35);
-      const s = 1 + 0.16 * k * Math.sin(a * 9);
-      p.setXYZ(i, x * s, y + k * 0.03 * Math.cos(a * 9), z * s);
-    }
-    geo.computeVertexNormals();
-    const tex = stripeTex('#fff7fb', '#ff7fb0', 8); tex.repeat.set(3, 1);
-    const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.28, side: THREE.DoubleSide });
-    const ends = [];
-    for (const side of [-1, 1]) {
-      const m = new THREE.Mesh(geo, mat);
-      g.add(m);
-      ends.push({ m, side, dir: new THREE.Vector3(side, 0.2, -0.08).normalize() });
-    }
-    av.body.add(g);
-    const place = surfacePlacer(av);
-    return { obj: g, update(t) { for (const e of ends) { place(e.m, e.dir, 0.1); e.m.rotateY(e.side * 0.4 + Math.sin(t * 1.4 + e.side) * 0.15); } } };
-  },
-
   // Campfire logs lying around the base (tree rings on the ends), moss growing on them.
   logRing(av) {
     const g = new THREE.Group();
@@ -1317,57 +1208,6 @@ Object.assign(PROP_MAKERS, {
     g.add(bark, ends, tufts);
     av.body.add(g);
     return { obj: g, update() {} };
-  },
-
-  // A tiny campfire on its head: crossed sticks, a ring of pebbles and a heart-shaped flame.
-  campHat(av) {
-    const g = new THREE.Group(), fire = new THREE.Group();
-    const sticks = [];
-    for (let i = 0; i < 4; i++) {
-      const a = i / 4 * TAU + 0.4;
-      const s = new THREE.CylinderGeometry(0.022, 0.03, 0.34, 7);
-      s.translate(0, 0.17, 0);
-      s.rotateX(0.62);
-      s.rotateY(a);
-      s.translate(-Math.sin(a) * 0.16, 0, -Math.cos(a) * 0.16);
-      sticks.push(s);
-    }
-    const logs = new THREE.Mesh(mergeGeometries(sticks), new THREE.MeshStandardMaterial({ color: '#7a4e2e', roughness: 0.9 }));
-    const pebbles = [];
-    for (let i = 0; i < 8; i++) {
-      const a = i / 8 * TAU, p = new THREE.IcosahedronGeometry(0.05 + (i % 3) * 0.008, 0);
-      p.scale(1.2, 0.65, 1);
-      p.translate(Math.cos(a) * 0.27, 0.02, Math.sin(a) * 0.27);
-      pebbles.push(p);
-    }
-    const stones = new THREE.Mesh(mergeGeometries(pebbles), new THREE.MeshStandardMaterial({ color: '#9a9aa4', roughness: 0.8, flatShading: true }));
-    const heart = new THREE.ExtrudeGeometry(heartShape(), { depth: 0.12, bevelEnabled: true, bevelThickness: 0.05, bevelSize: 0.05, bevelSegments: 3, curveSegments: 14 });
-    heart.center();
-    const outer = new THREE.Mesh(heart, new THREE.MeshStandardMaterial({ color: '#ff7a2e', emissive: '#ff5a1f', emissiveIntensity: 1, roughness: 0.4 }));
-    const inner = new THREE.Mesh(heart, new THREE.MeshStandardMaterial({ color: '#ffe066', emissive: '#ffcf3f', emissiveIntensity: 1.1, roughness: 0.4 }));
-    inner.scale.setScalar(0.55); inner.position.set(0, -0.03, 0.06);
-    const tongue = new THREE.Mesh(new THREE.LatheGeometry([[0, 0], [0.24, 0.12], [0.34, 0.42], [0.26, 0.8], [0.12, 1.15], [0, 1.45]].map(([x, y]) => new THREE.Vector2(x, y)), 16),
-      new THREE.MeshStandardMaterial({ color: '#ff9a3a', emissive: '#ff6a1a', emissiveIntensity: 0.9, roughness: 0.4, transparent: true, opacity: 0.85 }));
-    tongue.position.set(0, -0.5, -0.12);
-    fire.add(tongue, outer, inner);
-    fire.position.y = 0.3;
-    const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: softTex(), color: '#ffb050', blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, opacity: 0.55 }));
-    glow.scale.setScalar(0.9); glow.position.y = 0.26;
-    const tip = new THREE.Object3D(); tip.position.y = 0.48;
-    g.add(stones, logs, fire, glow, tip);
-    g.scale.setScalar(1.15);
-    av.body.add(g);
-    const o = { x: 0, y: 0, z: 0 };
-    return {
-      obj: g, head: true, anchor: tip,
-      update(t) {
-        av.shape(0, 1, -0.04, 0, o); g.position.set(o.x, o.y - 0.05, o.z);
-        const k = 1 + Math.sin(t * 15) * 0.06 + Math.sin(t * 27) * 0.04;
-        fire.scale.set(0.34 / k, 0.34 * k, 0.34);
-        fire.rotation.z = Math.sin(t * 4) * 0.08;
-        glow.material.opacity = 0.45 + 0.12 * Math.sin(t * 9);
-      },
-    };
   },
 
   // Puffy cloud bumps around the top, so the body reads as a little cumulus cloud.
@@ -1418,83 +1258,30 @@ Object.assign(PROP_MAKERS, {
     return { obj: g, head: true, update(t) { place(g, dir, 0.02, 0.6); b.rotation.z = -0.45 + Math.sin(t * 7) * 0.05; mat.emissiveIntensity = 0.6 + 0.4 * Math.abs(Math.sin(t * 5)); } };
   },
 
-  // A little storm cloud living inside the clear body: flickering lightning and rain falling into the belly.
-  innerStorm(av) {
-    const g = new THREE.Group();
-    const puffs = [];
-    for (const [x, y, z, s] of [[0, 0, 0, 0.16], [-0.17, -0.03, 0, 0.12], [0.17, -0.02, 0.01, 0.13], [-0.07, 0.09, -0.02, 0.12], [0.09, 0.08, 0, 0.11]]) {
-      const p = new THREE.SphereGeometry(s, 14, 10); p.scale(1, 0.8, 0.8); p.translate(x, y, z); puffs.push(p);
-    }
-    const cloud = new THREE.Mesh(mergeGeometries(puffs), overlay(new THREE.MeshStandardMaterial({ color: '#d9d6f2', emissive: '#8c86c8', emissiveIntensity: 0.25, roughness: 0.8 }), 0.95));
-    cloud.renderOrder = 1.46;
-    const boltMat = overlay(new THREE.MeshStandardMaterial({ color: '#ffd92e', emissive: '#ffb000', emissiveIntensity: 1.2, roughness: 0.3 }), 0.95);
-    const bgeo = new THREE.ExtrudeGeometry(boltShape(), { depth: 0.06, bevelEnabled: false });
-    const bolt = new THREE.Mesh(bgeo, boltMat);
-    bolt.renderOrder = 1.47;
-    bolt.scale.setScalar(0.32); bolt.rotation.z = Math.PI; bolt.position.set(0.08, -0.06, 0.02);
-    const flash = new THREE.Sprite(overlay(new THREE.SpriteMaterial({ map: softTex(), color: '#fff2a8', blending: THREE.AdditiveBlending }), 0.3));
-    flash.renderOrder = 1.44; flash.scale.setScalar(1.3); flash.position.y = -0.1;
-    const dropMat = overlay(new THREE.SpriteMaterial({ map: softTex(), color: '#4fb0ff' }), 0.95);
-    const drops = [];
-    for (let i = 0; i < 6; i++) {
-      const d = new THREE.Sprite(dropMat);
-      d.renderOrder = 1.45; d.scale.set(0.07, 0.14, 1);
-      d.userData = { x: -0.16 + i * 0.065, ph: i * 0.37 };
-      drops.push(d);
-    }
-    g.add(flash, cloud, bolt, ...drops);
-    g.position.set(0, 1.08, -0.1);
-    g.scale.setScalar(1.35);
-    av.inner.add(g);
-    return {
-      obj: g,
-      update(t) {
-        cloud.position.x = Math.sin(t * 0.6) * 0.05;
-        const f = t % 2.6, strike = f < 0.09 || (f > 0.16 && f < 0.27);
-        boltMat.emissiveIntensity = strike ? 2 : 0.9;
-        flash.material.opacity = strike ? 0.6 : 0.18;
-        for (const d of drops) { const u = d.userData, k = (t * 0.9 + u.ph) % 1; d.position.set(u.x + cloud.position.x, -0.1 - k * 0.6, 0.02); d.material.opacity = 0.9; }
-      },
-    };
-  },
 });
 
 Object.assign(FORM_LOOKS, {
-  // S'more (Hearth x Marshmallow)
-  'breed:smore:a': {
-    title: "S'more Slime", tint: '#fff2e0', tintAmt: 0.9, pattern: 'smoreToast', mapWhite: 1, glow: 0.04, shape: { square: 0.55, tall: 0.96 },
-    mat: { transmission: 0.12, roughness: 0.6, sheen: 0.3, clearcoat: 0.1 }, keep: [], props: ['grahamHat', 'chocoHeart'], fx: { kind: 'steam', every: 2.6 },
-  },
-  'breed:smore:b': {
+  // S'more (Hearth x Marshmallow): a toasted marshmallow squished onto a graham cracker in melted chocolate
+  'spark:smore': {
     title: "S'more Slime", tint: '#f3a24a', tintAmt: 0.65, pattern: 'toastGold', mapWhite: 1, glow: 0.08, shape: { square: 0.45, tall: 0.86, wide: 1.1 },
     mat: { transmission: 0.08, roughness: 0.35, sheen: 0.4, clearcoat: 0.7 }, keep: ['heat'], props: ['grahamBase'], fx: { kind: 'steam', every: 2.2 },
   },
-  // Honeycomb (Nectar x Candy)
-  'breed:honeycomb:a': {
+  // Honeycomb (Nectar x Candy): a golden hive buddy with a candy-striped honey dipper and a bee friend
+  'spark:honeycomb': {
     title: 'Honeycomb Slime', tint: '#ffbf2e', tintAmt: 0.85, pattern: 'honeycomb', mapWhite: 0, shape: { tall: 0.98, wide: 1.03 },
     mat: { roughness: 0.08, transmission: 0.45 }, keep: [], props: ['honeyDipper', 'bee'], fx: { kind: 'glints', every: 0.9, color: '#ffe08a' },
+    headKeep: true,
   },
-  'breed:honeycomb:b': {
-    title: 'Honeycomb Slime', tint: '#ffad1f', tintAmt: 0.75, shape: { square: 0.15, wide: 1.02 }, mat: { transmission: 0.92, roughness: 0.03, thickness: 0.9 },
-    keep: [], props: ['combChunks', 'wrapperTwists', 'blossom'], fx: { kind: 'glints', every: 0.7, color: '#ffe7a0' },
-  },
-  // Campfire (Hearth x Root)
-  'breed:campfire:a': {
+  // Campfire (Hearth x Root): the warm heart of a log fire
+  'spark:campfire': {
     title: 'Campfire Slime', tint: '#ffb04a', tintAmt: 0.7, pattern: 'firelight', mapWhite: 1, glowPattern: 'emberRise', glowColor: '#ff4a10', glowMode: 'pulse', glowSpeed: 1.3,
     shape: { wide: 1.04, tall: 0.94 }, mat: { roughness: 0.2 }, keep: [], props: ['logRing', 'heartCore'], fx: { kind: 'embers', every: 0.4 },
   },
-  'breed:campfire:b': {
-    title: 'Campfire Slime', tint: '#3f8f5a', tintAmt: 0.75, shape: { wide: 1.07, tall: 0.88 }, mat: { roughness: 0.32 },
-    keep: [], props: ['roots', 'campHat'], fx: { kind: 'embers', every: 0.5 },
-  },
-  // Storm (Aurora x Volt): a happy little storm cloud
-  'breed:storm:a': {
+  // Storm (Aurora x Volt): a happy little raincloud with a rainbow and a cheeky bolt
+  'spark:storm': {
     title: 'Storm Slime', tint: '#eef0ff', tintAmt: 0.85, shape: { tall: 0.95, wide: 1.04 }, mat: { transmission: 0.25, roughness: 0.55, sheen: 1, iridescence: 0.35 },
     keep: [], props: ['cloudPuffs', 'rainbowArc', 'stormBolt'], fx: { kind: 'glints', every: 0.6, color: '#fff6b0' },
-  },
-  'breed:storm:b': {
-    title: 'Storm Slime', tint: '#8fc8ff', tintAmt: 0.68, shape: { tall: 1.02 }, mat: { transmission: 0.92, roughness: 0.03, iridescence: 1, thickness: 0.8 },
-    keep: [], props: ['innerStorm'], fx: { kind: 'sparks', every: 1.0, color: '#fff3a8' },
+    headKeep: true, hatLift: 0.16,
   },
 });
 

@@ -6,7 +6,10 @@
 // found through NODE_PATH). Starts its own dev server on a free loopback port and stops it on exit.
 //
 //   node tools/render-samples.cjs                      render everything below, then build the sheets
-//   node tools/render-samples.cjs --only smore         only looks/eggs whose id contains "smore"
+//   node tools/render-samples.cjs --only smore         only looks/eggs whose key contains "smore"
+//
+// The flow sheets (Nursery, move-out, raised, journal) use the frames of tools/breeding-smoke.cjs (run it
+// first, without --quick, so night frames exist too).
 //   node tools/render-samples.cjs --sheets-only        rebuild sheets from frames already rendered
 //   node tools/render-samples.cjs --out DIR            where the sheets go (default tools/out/samples)
 //   node tools/render-samples.cjs --dpr 1              device scale factor (default 2)
@@ -28,7 +31,8 @@ fs.mkdirSync(FRAMES, { recursive: true });
 fs.mkdirSync(OUT, { recursive: true });
 
 // ---------- what to render ----------
-// traits: the diet the slime is shown with (missing trait keys are filled with 0).
+// key: frame name (defaults to id); traits: the diet the slime is shown with (missing trait keys are filled
+// with 0); outfit: worn outfits; cap: nightcap on; pure: the Pure version of the form.
 const LOOKS = [
   // the seven parent looks, for comparison
   { id: 'heat+sweet', label: 'Hearth', note: 'parent', traits: { sweet: 22, heat: 16 } },
@@ -38,59 +42,94 @@ const LOOKS = [
   { id: 'mineral+nature', label: 'Root', note: 'parent', traits: { nature: 20, mineral: 18 } },
   { id: 'prism+spark', label: 'Aurora', note: 'parent', traits: { prism: 20, spark: 18 } },
   { id: 'spark', label: 'Volt', note: 'parent', traits: { spark: 34 } },
-  // breeding-only takes (samples)
-  { id: 'breed:smore:a', label: "S'more · take A", note: 'cracker hat, chocolate heart', traits: { sweet: 20, heat: 16 } },
-  { id: 'breed:smore:b', label: "S'more · take B", note: 'gooey s\'more on a cracker', traits: { sweet: 18, heat: 22 } },
-  { id: 'breed:honeycomb:a', label: 'Honeycomb · take A', note: 'hive buddy, honey dipper', traits: { sweet: 22, nature: 14 } },
-  { id: 'breed:honeycomb:b', label: 'Honeycomb · take B', note: 'wrapped honey-drop candy', traits: { sweet: 20, nature: 14 } },
-  { id: 'breed:campfire:a', label: 'Campfire · take A', note: 'warm heart of a log fire', traits: { heat: 20, nature: 14 } },
-  { id: 'breed:campfire:b', label: 'Campfire · take B', note: 'little camper, campfire hat', traits: { heat: 14, nature: 20 } },
-  { id: 'breed:storm:a', label: 'Storm · take A', note: 'puffy cloud, rainbow, bolt', traits: { spark: 20, prism: 14 } },
-  { id: 'breed:storm:b', label: 'Storm · take B', note: 'storm in a bottle', traits: { spark: 18, prism: 16 } },
-];
+  // the four spark forms (breeding only), with the traits the recipe gives
+  { id: 'spark:smore', label: "S'more Slime", note: 'Hearth × Marshmallow', traits: { sweet: 177, heat: 174, spark: 30, mineral: 5, prism: 5 } },
+  { id: 'spark:honeycomb', label: 'Honeycomb Slime', note: 'Nectar × Candy', traits: { sweet: 211, nature: 160, prism: 6 } },
+  { id: 'spark:campfire', label: 'Campfire Slime', note: 'Hearth × Root', traits: { heat: 152, nature: 133, sweet: 32, spark: 18, mineral: 12 } },
+  { id: 'spark:storm', label: 'Storm Slime', note: 'Aurora × Volt', traits: { spark: 106, prism: 67, mineral: 46, sweet: 38 } },
+  // the hat rule: head pieces of spark forms stay, the hat or nightcap sits on top
+  { key: 'hat:honeycomb:party', id: 'spark:honeycomb', label: 'Honeycomb + Party Hat', note: 'dipper stays', traits: { sweet: 211, nature: 160 }, outfit: { head: 'party' } },
+  { key: 'hat:honeycomb:cap', id: 'spark:honeycomb', label: 'Honeycomb + nightcap', note: 'napping', traits: { sweet: 211, nature: 160 }, cap: true },
+  { key: 'hat:storm:party', id: 'spark:storm', label: 'Storm + Party Hat', note: 'rainbow and bolt stay', traits: { spark: 106, prism: 67, mineral: 46, sweet: 38 }, outfit: { head: 'party' } },
+  { key: 'hat:storm:cap', id: 'spark:storm', label: 'Storm + nightcap', note: 'napping', traits: { spark: 106, prism: 67, mineral: 46, sweet: 38 }, cap: true },
+  { key: 'hat:honeycomb:crown', id: 'spark:honeycomb', label: 'Honeycomb + Tiny Crown', note: 'another hat', traits: { sweet: 211, nature: 160 }, outfit: { head: 'crown' } },
+  { key: 'hat:storm:beret', id: 'spark:storm', label: 'Storm + Artist Beret', note: 'another hat', traits: { spark: 106, prism: 67, mineral: 46, sweet: 38 }, outfit: { head: 'beret' } },
+  // Pure versions next to the normal form
+  { key: 'form:sweet', id: 'sweet', label: 'Candy', note: 'normal', traits: { sweet: 259 } },
+  { key: 'pure:sweet', id: 'sweet', label: 'Pure Candy', note: 'Candy × Candy', traits: { sweet: 259 }, pure: true },
+  { key: 'form:heat+sweet', id: 'heat+sweet', label: 'Hearth', note: 'normal', traits: { sweet: 169, heat: 168, spark: 22 } },
+  { key: 'pure:heat+sweet', id: 'heat+sweet', label: 'Pure Hearth', note: 'Hearth × Hearth', traits: { sweet: 169, heat: 168, spark: 22 }, pure: true },
+  { key: 'form:prism+spark', id: 'prism+spark', label: 'Aurora', note: 'normal', traits: { spark: 100, prism: 70, mineral: 20, sweet: 20 } },
+  { key: 'pure:prism+spark', id: 'prism+spark', label: 'Pure Aurora', note: 'Aurora × Aurora', traits: { spark: 100, prism: 70, mineral: 20, sweet: 20 }, pure: true },
+  { key: 'form:mineral', id: 'mineral', label: 'Iron', note: 'normal', traits: { mineral: 132 } },
+  { key: 'pure:mineral', id: 'mineral', label: 'Pure Iron', note: 'Iron × Iron', traits: { mineral: 132 }, pure: true },
+  { key: 'form:nature', id: 'nature', label: 'Moss', note: 'normal', traits: { nature: 140, sweet: 20 } },
+  { key: 'pure:nature', id: 'nature', label: 'Pure Moss', note: 'Moss × Moss', traits: { nature: 140, sweet: 20 }, pure: true },
+].map(l => ({ key: l.id, ...l }));
 const EGGS = [
-  { id: 'egg:normal', label: 'Normal egg', note: 'as in the game today', kind: null },
-  { id: 'egg:spark:a', label: 'Spark egg · take A', note: 'warm heartbeat glow inside', kind: 'glow' },
-  { id: 'egg:spark:b', label: 'Spark egg · take B', note: 'a twinkle circles it', kind: 'twinkle' },
+  { id: 'egg:normal', label: 'Normal egg', note: 'a plain egg', spark: false },
+  { id: 'egg:spark', label: 'Spark egg', note: 'twinkle; warm glow at night', spark: true },
 ];
-const TAKE_IDS = ['breed:smore:a', 'breed:smore:b', 'breed:honeycomb:a', 'breed:honeycomb:b', 'breed:campfire:a', 'breed:campfire:b', 'breed:storm:a', 'breed:storm:b'];
-// ranch check: every take as a resident (cheaper "lite" slimes), seen from the Ranch tab
-const RANCH = [{ id: 'ranch:all', label: 'All 8 takes on the ranch', note: 'lite residents, Ranch tab' }];
-const PARENT_IDS = ['heat+sweet', 'mochi', 'nature+sweet', 'sweet', 'mineral+nature', 'prism+spark', 'spark'];
-// one sheet per breeding form: parents and both takes, day and night, then close-ups of the takes
-const formSheet = (file, title, sub, ids) => ({ file, title, sub, width: 1330, rows: [
-  { header: 'Day', theme: 'day', ids, w: 320, h: 694 },
-  { header: 'Night', theme: 'night', ids, w: 320, h: 694 },
-  { header: 'Close-up (day)', theme: 'day', crop: true, ids: ids.slice(2), w: 650, h: 650 },
-] });
+const SPARK_IDS = ['spark:smore', 'spark:honeycomb', 'spark:campfire', 'spark:storm'];
+const HAT_KEYS = ['hat:honeycomb:party', 'hat:honeycomb:cap', 'hat:storm:party', 'hat:storm:cap'];
+const PURE_KEYS = ['pure:sweet', 'pure:heat+sweet', 'pure:prism+spark', 'pure:mineral'];
+// ranch check: the spark forms and two Pure forms as residents (cheaper "lite" slimes), seen from the Ranch tab;
+// at night they wear their nightcaps (napping)
+const RANCH_LIST = [...SPARK_IDS.map(id => LOOKS.find(l => l.key === id)), LOOKS.find(l => l.key === 'pure:sweet'), LOOKS.find(l => l.key === 'pure:prism+spark')];
+const RANCH = [{ id: 'ranch:all', label: 'Spark and Pure residents', note: 'lite residents, Ranch tab; nightcaps at night' }];
+// frames from the breeding play-through (tools/breeding-smoke.cjs), for the flow sheets
+const FLOW = path.join(__dirname, 'out', 'breeding');
+const flow = (name, label, note) => ({ id: 'flow:' + name, label, note, flow: name });
+const FLOWS = [
+  flow('01-ranch-with-nursery', 'Ranch with the Nursery', 'front left of the meadow'),
+  flow('02-nursery-panel', 'Nursery panel', 'pick two parents'),
+  flow('03-waiting-eggs', 'Two eggs waiting', 'spark egg + Pure egg, timer'),
+  flow('04-eggs-ready', 'Eggs ready', 'after an hour of game time'),
+  flow('05-egg-choice', 'Moving out: which egg?', 'the spark egg picked'),
+  flow('06-spark-egg', 'Spark egg on the cushion', 'from the Nursery'),
+  flow('07-smore-settled', "Raised on the recipe", "it became a S'more Slime"),
+  flow('08-pure-settled', 'Raised like its parents', 'Pure Candy Slime'),
+  flow('09-smore-resident', "S'more on the ranch", 'visiting it'),
+  flow('10-family-tree', 'Journal: family tree', 'parents, spark forms, Pure'),
+];
+const pairRow = (header, ids, w = 320, h = 694) => [
+  { header: header + ' (day)', theme: 'day', ids, w, h },
+  { header: header + ' (night)', theme: 'night', ids, w, h },
+];
 const SHEETS = [
-  formSheet('01-smore.png', "S'more Slime", 'Hearth × Marshmallow, raised on the right snacks', ['heat+sweet', 'mochi', 'breed:smore:a', 'breed:smore:b']),
-  formSheet('02-honeycomb.png', 'Honeycomb Slime', 'Nectar × Candy, raised on the right snacks', ['nature+sweet', 'sweet', 'breed:honeycomb:a', 'breed:honeycomb:b']),
-  formSheet('03-campfire.png', 'Campfire Slime', 'Hearth × Root, raised on the right snacks', ['heat+sweet', 'mineral+nature', 'breed:campfire:a', 'breed:campfire:b']),
-  formSheet('04-storm.png', 'Storm Slime', 'Aurora × Volt, raised on the right snacks', ['prism+spark', 'spark', 'breed:storm:a', 'breed:storm:b']),
-  { file: '00-overview.png', title: 'Breeding-only forms: all 8 takes', sub: 'Close-ups, day. Each form has a take A and a take B.', width: 1330, rows: [
-    { header: "S'more and Honeycomb", theme: 'day', crop: true, ids: TAKE_IDS.slice(0, 4), w: 320, h: 320 },
-    { header: 'Campfire and Storm', theme: 'day', crop: true, ids: TAKE_IDS.slice(4), w: 320, h: 320 },
+  { file: '01-nursery.png', title: 'The Nursery on the ranch', sub: 'Breeding play-through at 393×852', width: 1330, rows: [
+    ...pairRow('', FLOWS.slice(0, 4).map(f => f.id)),
   ] },
-  { file: 'egg-spark.png', title: 'Family spark egg', sub: 'An egg from a spark pair looks a little special', width: 1000, rows: [
-    { header: 'Day', theme: 'day', ids: EGGS.map(e => e.id), w: 320, h: 694 },
-    { header: 'Night', theme: 'night', ids: EGGS.map(e => e.id), w: 320, h: 694 },
-    { header: 'Close-up (day)', theme: 'day', crop: true, ids: EGGS.map(e => e.id), w: 320, h: 320 },
-    { header: 'Close-up (night)', theme: 'night', crop: true, ids: EGGS.map(e => e.id), w: 320, h: 320 },
+  { file: '02-move-out.png', title: 'Choosing the next egg, and the spark egg', sub: 'Move-out choice, then the spark egg waiting to hatch', width: 1000, rows: [
+    { header: 'Day', theme: 'day', ids: [FLOWS[4].id, FLOWS[5].id, 'egg:spark'], w: 320, h: 694 },
+    { header: 'Night', theme: 'night', ids: [FLOWS[4].id, FLOWS[5].id, 'egg:spark'], w: 320, h: 694 },
+    { header: 'Close-up: normal egg | spark egg (day, night)', theme: 'day', crop: true, ids: ['egg:normal', 'egg:spark', 'egg:spark@night'], w: 320, h: 320 },
   ] },
-  { file: 'ranch-lite.png', title: 'Ranch check: the takes as ranch residents', sub: 'Lite slimes (coarser body). Left to right: day, night', width: 1000, rows: [
+  { file: '03-spark-forms.png', title: 'The four spark forms', sub: "S'more B, Honeycomb A, Campfire A, Storm A as the main slime", width: 1330, rows: [
+    ...pairRow('Main slime', SPARK_IDS),
+    { header: 'Close-up (day)', theme: 'day', crop: true, ids: SPARK_IDS, w: 320, h: 320 },
+  ] },
+  { file: '04-ranch-residents.png', title: 'Spark and Pure slimes living on the ranch', sub: 'Lite residents. Left: day. Right: night, napping in nightcaps', width: 1000, rows: [
     { header: '', theme: 'day', ids: ['ranch:all'], w: 480, h: 1041, pair: true },
   ] },
-  { file: 'parents.png', title: 'Parent looks (as in the game today)', sub: 'Day and night, for comparison', width: 1330, rows: [
-    { header: 'Day', theme: 'day', ids: PARENT_IDS, w: 180, h: 390 },
-    { header: 'Night', theme: 'night', ids: PARENT_IDS, w: 180, h: 390 },
+  { file: '05-hats.png', title: 'Hats on spark forms: the head piece stays, the hat sits on top', sub: 'Honeycomb (dipper) and Storm (rainbow, bolt)', width: 1330, rows: [
+    ...pairRow('', HAT_KEYS),
+    { header: 'Close-up (day)', theme: 'day', crop: true, ids: HAT_KEYS, w: 320, h: 320 },
+    { header: 'Other hats (close-up, day)', theme: 'day', crop: true, ids: ['hat:honeycomb:crown', 'hat:storm:beret'], w: 320, h: 320 },
+  ] },
+  { file: '06-pure.png', title: 'Pure versions (same form as both parents)', sub: 'Brighter colors, a soft shimmer, twinkling sparkles', width: 1330, rows: [
+    { header: 'Normal | Pure (close-up, day)', theme: 'day', crop: true, ids: ['form:sweet', 'pure:sweet', 'form:heat+sweet', 'pure:heat+sweet'], w: 320, h: 320 },
+    { header: 'Normal | Pure (close-up, day)', theme: 'day', crop: true, ids: ['form:prism+spark', 'pure:prism+spark', 'form:mineral', 'pure:mineral'], w: 320, h: 320 },
+    ...pairRow('Pure, full screen', PURE_KEYS),
+  ] },
+  { file: '07-raised-and-journal.png', title: 'Raised from bred eggs, and the family tree', sub: 'From the play-through', width: 1330, rows: [
+    ...pairRow('', FLOWS.slice(6).map(f => f.id)),
   ] },
 ];
-
 // ---------- helpers ----------
 const safe = id => id.replace(/[^a-z0-9+-]+/gi, '_');
 const framePath = (id, theme, ext = 'png') => path.join(FRAMES, `${safe(id)}-${theme}.${ext}`);
-const matches = id => !ONLY || ONLY.split(',').some(s => id.includes(s));
+const matches = key => !ONLY || ONLY.split(',').some(s => key.includes(s));
 
 function freePort(from = 5310) {
   let used = '';
@@ -145,13 +184,13 @@ async function render() {
       for (const dark of [false, true]) {
         await setTheme(dark);
         for (const e of eggs) {
-          await ev(async ({ kind }) => {
+          await ev(async ({ spark, dark }) => {
             const g = window.slimekin;
             const mod = await import('/src/view/egg-spark.js');
             if (g._spark) { g._spark.dispose(); g._spark = null; }
-            if (kind) g._spark = mod.addEggSpark(g.egg, kind);
+            if (spark) g._spark = mod.addEggSpark(g.egg, { night: dark });
             g.advance(2.5);
-          }, e);
+          }, { ...e, dark });
           const file = framePath(e.id, dark ? 'night' : 'day');
           await shot(file);
           const clip = await ev(() => {
@@ -169,7 +208,7 @@ async function render() {
       await setTheme(false);
     }
 
-    const looks = LOOKS.filter(l => matches(l.id));
+    const looks = LOOKS.filter(l => matches(l.key));
     const wantRanch = ONLY ? ONLY.split(',').includes('ranch') : true;
     if (looks.length || wantRanch) {
       // hatch and grow up (as in the smoke test)
@@ -190,7 +229,7 @@ async function render() {
         await setTheme(dark);
         for (const l of looks) {
           const theme = dark ? 'night' : 'day';
-          const stats = await ev(async ({ id, traits }) => {
+          const stats = await ev(async ({ id, traits, outfit, cap, pure }) => {
             const g = window.slimekin, sl = g.slime;
             const t = Object.fromEntries(Object.keys(g.state.slime.traits).map(k => [k, 0]));
             Object.assign(t, traits);
@@ -209,9 +248,13 @@ async function render() {
             };
             sl.setForm(null); g.advance(2);
             const calls0 = solo(), objs0 = count();
-            sl.setForm(id);
+            sl.setForm(id, { pure: !!pure });
+            g.state.slime.worn = { head: null, face: null, neck: null, ...(outfit || {}) };
+            sl.setOutfits(g.state.slime.worn);
+            sl.cap.on = !!cap;
             g.hud.closeModal(); g.debug('needs'); g.requests.timer = 1e9; g.glimmerT = 1e9;
             g.advance(4);
+            if (cap) { sl.cap.on = true; sl.cap.grow = 1; g.advance(0.5); }
             const calls1 = solo(), objs1 = count();
             // and with the look's own props hidden, so the difference is what the props cost
             const props = sl.formProps.flatMap(p => [p.obj, ...(p.extra || [])]), was = props.map(o => o.visible);
@@ -223,39 +266,42 @@ async function render() {
             // lite (ranch resident) copy: must build and stay finite; inner overlays hide on the ranch unless visiting
             const { SlimeAvatar } = await import('/src/view/slime.js');
             const lite = new SlimeAvatar({ quality: 'high', lite: true });
-            lite.setTraits(t); lite.setForm(id); lite.size = lite.sizeTarget = 0.86;
+            lite.setTraits(t); lite.setForm(id, { pure: !!pure }); lite.size = lite.sizeTarget = 0.86;
             for (let i = 0; i < 20; i++) lite.update(1 / 10);
             lite.inner.visible = false;
             let liteObjs = 0, finite = true;
             lite.root.updateMatrixWorld(true);
             lite.root.traverseVisible(o => { if (o.isMesh || o.isSprite) { liteObjs++; const e = o.matrixWorld.elements; if (e.some(v => !Number.isFinite(v))) finite = false; } });
             if (!Array.from(lite.geo.attributes.position.array).every(Number.isFinite)) finite = false;
+            sl.cap.on = false; sl.cap.grow = 0;
             return { callsNoForm: calls0, callsLook: calls1, callsLookNoProps: callsBare, propDrawCalls: calls1 - callsBare, objs0, objs1, propMeshes, liteObjs, liteFinite: finite };
           }, l);
-          const file = framePath(l.id, theme);
+          const file = framePath(l.key, theme);
+          if (l.cap) await ev(() => { const sl = window.slimekin.slime; sl.cap.on = true; sl.cap.grow = 1; window.slimekin.advance(0.3); });
           await shot(file);
+          await ev(() => { const g = window.slimekin, sl = g.slime; sl.cap.on = false; sl.cap.grow = 0; g.state.slime.worn = { head: null, face: null, neck: null }; sl.setOutfits(g.state.slime.worn); });
           const clip = await ev(() => {
             const g = window.slimekin, sl = g.slime, V = () => g.v1.clone().set(0, 0, 0);
             const b = g.screenOf(sl.root.getWorldPosition(V())), t = g.screenOf(sl.headTopWorld(V()));
             const h = b.y - t.y, side = Math.min(h * 2.05, innerWidth), cy = (b.y + t.y) / 2 - h * 0.14;
             return { x: (b.x + t.x) / 2 - side / 2, y: cy - side / 2, w: side, h: side };
           });
-          fs.writeFileSync(framePath(l.id, theme, 'json'), JSON.stringify({ id: l.id, theme, clip, dpr: DPR, stats }, null, 1));
-          console.log('look', l.id, theme, JSON.stringify(stats));
+          fs.writeFileSync(framePath(l.key, theme, 'json'), JSON.stringify({ id: l.id, key: l.key, theme, clip, dpr: DPR, stats }, null, 1));
+          console.log('look', l.key, theme, JSON.stringify(stats));
         }
       }
     }
 
     // ----- ranch residents (lite) -----
     if (wantRanch) {
-      const list = LOOKS.filter(l => TAKE_IDS.includes(l.id)).map((l, i) => ({ id: 'sample' + i, name: l.label, traits: l.traits, form: { id: l.id } }));
+      const list = RANCH_LIST.map((l, i) => ({ id: 'sample' + i, name: l.label, traits: l.traits, form: { id: l.id, pure: !!l.pure } }));
       await setTheme(false);
       await ev(list => {
         const g = window.slimekin;
         const keys = Object.keys(g.state.slime.traits);
         g.ranch.sync(list.map(d => ({ ...d, traits: Object.fromEntries(keys.map(k => [k, d.traits[k] || 0])) })));
         // stand them in rows facing the camera (clear of the barn and pond) and keep them there
-        const spots = [[-1.9, -2.0], [-0.2, 2.5], [-0.4, -2.0], [1.1, -2.0], [-2.6, 0.3], [-1.0, 0.3], [0.6, 0.3], [2.2, 0.3]];
+        const spots = [[-1.9, -1.6], [-0.4, -1.6], [1.1, -1.6], [-2.2, 0.6], [-0.6, 0.6], [1.0, 0.6]];
         let i = 0;
         for (const r of g.ranch.residents.values()) {
           if (!String(r.id).startsWith('sample')) continue;
@@ -268,7 +314,8 @@ async function render() {
       await ev(() => window.slimekin.advance(5));
       for (const dark of [false, true]) {
         await setTheme(dark);
-        await ev(() => window.slimekin.advance(2));
+        // at night they nap in their nightcaps (the hat rule on the ranch)
+        await ev(d => { const g = window.slimekin; for (const r of g.ranch.residents.values()) if (String(r.id).startsWith('sample')) { r.av.cap.on = d; r.state = d ? 'nap' : 'idle'; r.timer = 1e9; } g.advance(2); }, dark);
         const theme = dark ? 'night' : 'day';
         const file = framePath('ranch:all', theme);
         await shot(file);
@@ -277,7 +324,7 @@ async function render() {
           for (const r of g.ranch.residents.values()) {
             let n = 0, finite = true;
             r.av.root.traverseVisible(o => { if (o.isMesh || o.isSprite) { n++; if (o.matrixWorld.elements.some(v => !Number.isFinite(v))) finite = false; } });
-            out.push({ form: r.av.formId, lite: r.av.lite, visibleObjs: n, finite });
+            out.push({ form: r.av.formId, pure: r.av.pure, lite: r.av.lite, visibleObjs: n, finite });
           }
           return out;
         });
@@ -350,8 +397,14 @@ function buildSheet(file, title, sub, rows, width) {
 }
 
 function buildSheets() {
-  const byId = Object.fromEntries([...LOOKS, ...EGGS, ...RANCH].map(l => [l.id, l]));
-  const have = (id, th) => fs.existsSync(framePath(id, th));
+  const byId = Object.fromEntries([...LOOKS.map(l => [l.key, l]), ...[...EGGS, ...RANCH, ...FLOWS].map(l => [l.id, l])]);
+  // flow frames come from the breeding play-through; 'id@night' shows the night frame in a day row
+  const src = (id, th) => {
+    const [base, force] = id.split('@');
+    const t = force || th, f = byId[base];
+    return f && f.flow ? path.join(FLOW, `${f.flow}-${t}.png`) : framePath(base, t);
+  };
+  const have = (id, th) => fs.existsSync(src(id, th));
   for (const s of SHEETS) {
     const ids = s.rows.flatMap(r => r.ids);
     const missing = ids.filter(id => !have(id, 'day') || !have(id, 'night'));
@@ -359,8 +412,8 @@ function buildSheets() {
     const rows = s.rows.map(r => ({
       header: r.header, w: r.w, h: r.h,
       tiles: r.pair
-        ? ['day', 'night'].map(th => ({ img: framePath(r.ids[0], th), label: byId[r.ids[0]].label.replace(/^/, th === 'day' ? 'Day: ' : 'Night: '), note: byId[r.ids[0]].note }))
-        : r.ids.map(id => ({ img: framePath(id, r.theme), label: byId[id].label, note: byId[id].note, crop: !!r.crop })),
+        ? ['day', 'night'].map(th => ({ img: src(r.ids[0], th), label: byId[r.ids[0]].label.replace(/^/, th === 'day' ? 'Day: ' : 'Night: '), note: byId[r.ids[0]].note }))
+        : r.ids.map(id => ({ img: src(id, r.theme), label: byId[id.split('@')[0]].label + (id.includes('@night') ? ' (night)' : ''), note: byId[id.split('@')[0]].note, crop: !!r.crop })),
     }));
     buildSheet(s.file, s.title, s.sub, rows, s.width);
   }
