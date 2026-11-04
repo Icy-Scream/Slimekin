@@ -74,7 +74,11 @@ it up the next time it is opened online (sometimes it takes two opens). Never ed
   offline (three.js from node_modules, every other outside request aborted and logged), a deadline on
   every step (`page.evaluate` has none of its own) and timestamped progress. A stuck step fails with a
   note on what the browser was doing: a busy `gpu-process` means software WebGL is just slow on a loaded
-  machine; everything asleep means a real hang. Run browser tests one at a time on a busy box.
+  machine; everything asleep means a stall. Run browser tests one at a time on a busy box, and not from
+  inside a service that has a memory limit: when that group goes over its limit, the system throttles
+  every process in it and the browser stalls with all its processes asleep (no frames, `page.evaluate`
+  never answers, the reload never reaches "load"). The kit warns at the start when there is less than about
+  1 GB left under the limit, and a failure says when the system throttled the group.
 - Useful debug hooks (with `#debug`): `g.advance(seconds)` fast-forwards the game, `g.debug('grow' |
   'jelly' | 'mega' | 'bond' | 'glim' | 'req' | 'needs')`, `g.tapEgg(...)`, `g.hud.closeModal()`,
   `g.slime.setForm(id)`, `g.ranch.sync([...])`, `g.focusResident(id)`.

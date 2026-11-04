@@ -9,6 +9,11 @@
 // - Gives every step a deadline (page.evaluate has none of its own), prints timestamped progress, and when a
 //   step runs out of time prints what the browser was doing (Linux: CPU of its GPU and page processes, read from
 //   /proc for our own browser only) and the last browser log lines, then fails instead of hanging.
+// - Watches the memory limit of the process group (Linux cgroup v2) the test runs in. A test started from inside a
+//   service with a memory limit shares that limit with the service: once the group goes over it, the system
+//   throttles every process in it, and the browser stalls with all its processes asleep (no frames, page.evaluate
+//   never answers, the page's "load" never comes). The test warns at the start when there is little room under the
+//   limit, and a failure says so when the system throttled the group during the run.
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -71,6 +76,40 @@ function threadTicks(pid) {
   } catch { /* process ended */ }
   return r;
 }
+// The memory limit of our own process group (Linux cgroup v2), or null where there is none to read.
+const MB = 2 ** 20;
+function groupMemory() {
+  try {
+    const rel = fs.readFileSync('/proc/self/cgroup', 'utf8').split('\n').find(l => l.startsWith('0::')).slice(3);
+    const dir = path.join('/sys/fs/cgroup', rel);
+    const num = f => { const v = fs.readFileSync(path.join(dir, f), 'utf8').trim(); return v === 'max' ? Infinity : +v; };
+    const events = Object.fromEntries(fs.readFileSync(path.join(dir, 'memory.events'), 'utf8').trim().split('\n').map(l => l.split(' ')).map(([k, v]) => [k, +v]));
+    const limit = Math.min(num('memory.high'), num('memory.max'));
+    return { group: rel, high: num('memory.high'), max: num('memory.max'), current: num('memory.current'), limit, throttled: events.high || 0, socketsThrottled: events.sock_throttled || 0 };
+  } catch { return null; }
+}
+const mbs = v => v === Infinity ? 'none' : `${Math.round(v / MB)} MB`;
+// The browser test needs about this much memory of its own (Chromium with software WebGL, the page, the server).
+const NEEDS = 1024 * MB;
+function memoryCheck() {
+  const m = groupMemory();
+  if (m && m.limit !== Infinity) {
+    log(`memory limit of this process group: ${mbs(m.limit)} (high ${mbs(m.high)}, max ${mbs(m.max)}), in use ${mbs(m.current)}`);
+    if (m.limit - m.current < NEEDS) log(`WARNING: only ${mbs(Math.max(0, m.limit - m.current))} left under that limit and the browser test needs about ${mbs(NEEDS)}; ` +
+      'the system will throttle the browser and the test may stall. Run it outside the limited group (for example from a plain shell, or in its own scope).');
+  }
+  return m;
+}
+function memoryNote(start) {
+  const m = groupMemory();
+  if (!m || !start) return [];
+  const more = m.throttled - start.throttled, socks = m.socketsThrottled - start.socketsThrottled;
+  if (more <= 0 && socks <= 0) return [`  memory: not throttled during the test (limit ${mbs(m.limit)}, in use ${mbs(m.current)})`];
+  return [`  memory: THROTTLED. This process group went over its memory limit ${more} times during the test (limit ${mbs(m.limit)}, ` +
+    `in use ${mbs(m.current)}${socks > 0 ? `, network sockets throttled ${socks} times` : ''}). The system slows every process in the group when that ` +
+    'happens, so the browser stalls with its processes asleep: this is the machine, not the game. Run the test outside the limited group.'];
+}
+
 // Two seconds of CPU use of our browser's GPU process and page (renderer) processes: tells a slow GPU
 // (busy threads) from a stuck one (everything asleep).
 async function browserActivity() {
@@ -115,6 +154,7 @@ async function offline(context, origin, aborted) {
 // Everything a test needs. Each test step goes through `step(name, fn, ms)`: it is logged, and it fails with a
 // diagnosis instead of hanging if it takes longer than `ms`.
 async function setup({ contextOptions }) {
+  const memStart = memoryCheck();
   const server = await startServer();
   const { browser, browserLog } = await launch();
   const context = await browser.newContext({ serviceWorkers: 'block', ...contextOptions });
@@ -130,6 +170,7 @@ async function setup({ contextOptions }) {
   const diagnose = async () => {
     log(`while at: ${current} (for ${((Date.now() - since) / 1000).toFixed(0)} s); browser activity:`);
     for (const line of await browserActivity()) console.log(line);
+    for (const line of memoryNote(memStart)) console.log(line);
     const tail = browserLog.filter(l => /\[err\]/.test(l) && !/dbus|Fontconfig/i.test(l)).slice(-8);
     if (tail.length) console.log('  last browser messages:\n' + tail.map(l => '    ' + l.slice(0, 220)).join('\n'));
   };
@@ -158,15 +199,19 @@ async function setup({ contextOptions }) {
   };
   const report = () => {
     if (aborted.length) log(`${aborted.length} outside request(s) were aborted (the test runs offline)`);
+    const m = groupMemory();
+    if (m && memStart && m.throttled > memStart.throttled) log(`note: this process group went over its memory limit ${m.throttled - memStart.throttled} times during the test, which slows the browser`);
   };
-  return { server, browser, browserLog, context, page, errors, aborted, step, mark, ev, diagnose, close, report, current: () => current };
+  return { server, browser, browserLog, context, page, errors, aborted, step, mark, ev, diagnose, close, report, current: () => current, memStart };
 }
 
 // Last resort: if the whole test runs past `minutes`, say where it was, show what the browser was doing, and exit.
 function watchdog(minutes, where) {
+  const start = groupMemory();
   const t = setTimeout(async () => {
     log(`test still running after ${minutes} min, at step: ${where()}`);
     for (const line of await browserActivity()) console.log(line);
+    for (const line of memoryNote(start)) console.log(line);
     console.log('\nFAILED\nwatchdog: the test took too long');
     process.exit(1);   // Playwright stops the browser it launched on exit; the dev server is stopped by its exit hook
   }, minutes * 60000);
