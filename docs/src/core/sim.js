@@ -58,7 +58,7 @@ export function createState() {
     lastMorning: null,
     stats: { boops: 0, feeds: 0, petTime: 0, fevers: 0, dizzies: 0, naps: 0, glimmers: 0, requests: 0, playTime: 0, visits: 1 },
     tutorial: 0,
-    settings: { sound: true, music: true, soundOnSilent: true, reducedMotion: false, quality: 'auto', showFps: false },
+    settings: { sound: true, music: true, purr: true, soundOnSilent: true, reducedMotion: false, quality: 'auto', showFps: false },
     ranch: createRanch(),
   };
 }

@@ -360,44 +360,52 @@ export class Sfx {
   }
 
   // Low rumble while being petted.
-  // A soft purr: a low hum (pitched high enough for phone speakers) with a gentle "rrrr" ripple
-  // and a slow breathing swell. It keeps running and only fades in and out, so pauses while
-  // stroking don't make it crackle.
+  // Petting sound: a soft, contented "mmm" hum (not a low rumble: phone speakers turn those into buzz).
+  // A warm tone in the middle of the range small speakers play well, with gentle vibrato, a slow
+  // breathing swell and little rises and falls in pitch. It keeps running and only fades in and out,
+  // so pauses while stroking don't click. Can be turned off in Settings.
   purr(on) {
     if (!this.ctx) return;
     const c = this.ctx;
+    if (on && this.purrOff) on = false;
     if (!this.purrNodes) {
       if (!on || !this.ok) return;
-      const osc = c.createOscillator(); osc.type = 'triangle'; osc.frequency.value = 140;
-      const osc2 = c.createOscillator(); osc2.type = 'sine'; osc2.frequency.value = 280;
-      const o2g = c.createGain(); o2g.gain.value = 0.3;
-      const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 620; lp.Q.value = 0.5;
-      const am = c.createGain(); am.gain.value = 0.55;
-      const rr = c.createOscillator(); rr.type = 'sine'; rr.frequency.value = 23;
-      const rrg = c.createGain(); rrg.gain.value = 0.38;
-      rr.connect(rrg).connect(am.gain);
+      const osc = c.createOscillator(); osc.type = 'sine';
+      const osc2 = c.createOscillator(); osc2.type = 'sine';
+      const o2g = c.createGain(); o2g.gain.value = 0.12;
+      const vib = c.createOscillator(); vib.type = 'sine'; vib.frequency.value = 5.2;
+      const vibg = c.createGain(); vibg.gain.value = 14;            // +-14 cents
+      vib.connect(vibg); vibg.connect(osc.detune); vibg.connect(osc2.detune);
+      const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1400; lp.Q.value = 0.4;
       const breath = c.createGain(); breath.gain.value = 0.8;
-      const br = c.createOscillator(); br.type = 'sine'; br.frequency.value = 0.65;
-      const brg = c.createGain(); brg.gain.value = 0.22;
+      const br = c.createOscillator(); br.type = 'sine'; br.frequency.value = 0.45;
+      const brg = c.createGain(); brg.gain.value = 0.2;
       br.connect(brg).connect(breath.gain);
       const out = c.createGain(); out.gain.value = 0;
       osc.connect(lp); osc2.connect(o2g).connect(lp);
-      lp.connect(am).connect(breath).connect(out).connect(this.master);
-      for (const o of [osc, osc2, rr, br]) o.start();
-      this.purrNodes = { osc, osc2, out, on: false };
+      lp.connect(breath).connect(out).connect(this.master);
+      for (const o of [osc, osc2, vib, br]) o.start();
+      this.purrNodes = { osc, osc2, out, on: false, nextGlide: 0, step: 0 };
     }
     const n = this.purrNodes, t = c.currentTime;
     if (on) {
-      const v = this.voice || 1;
-      n.osc.frequency.setTargetAtTime(140 * v, t, 0.1);
-      n.osc2.frequency.setTargetAtTime(280 * v, t, 0.1);
+      // drift between a few nearby notes, like humming to itself
+      if (t >= n.nextGlide) {
+        const steps = [0, 2, 4, 2, 0, -3, 0, 5, 4, 0];
+        const semi = steps[n.step++ % steps.length];
+        const f = 300 * (this.voice || 1) * Math.pow(2, semi / 12);
+        n.osc.frequency.setTargetAtTime(f, t, n.on ? 0.09 : 0.001);
+        n.osc2.frequency.setTargetAtTime(f * 2, t, n.on ? 0.09 : 0.001);
+        n.nextGlide = t + 0.55 + Math.random() * 0.5;
+      }
     }
     if (on !== n.on) {
       n.on = on;
       n.out.gain.cancelScheduledValues(t);
-      n.out.gain.setTargetAtTime(on && this.sound ? 0.026 : 0, t, on ? 0.12 : 0.25);
+      n.out.gain.setTargetAtTime(on && this.sound ? 0.03 : 0, t, on ? 0.15 : 0.3);
     }
   }
+  setPurr(enabled) { this.purrOff = !enabled; if (!enabled) this.purr(false); }
 
   // ---------- music box lullaby (plays once a Music Box is owned) ----------
   updateMusic() {

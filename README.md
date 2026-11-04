@@ -40,7 +40,7 @@ Phone notes: swipe the menu down (or its grip bar) to close it; drag a notificat
 | Egg and hatching | Tap the egg to warm it, cracks spread, it hatches, looks around, then you name it. |
 | Boop (the clicker) | Click or tap the slime. It squishes where you poke it and drops jelly. |
 | Giggle Fever | Boop in a steady rhythm to fill the giggle meter: inside the pink zone boops pay x2 (x3 with an upgrade). Spam past the top and the slime gets dizzy for a few seconds, so a steady rhythm earns more than tapping as fast as you can. A worn-out slime gives little jelly, naps, and can't be poked awake until it has rested a bit. |
-| Petting | Hold and stroke the slime. It closes its eyes, purrs, leans into your hand, floats hearts. Less jelly than booping, much more joy and bond. |
+| Petting | Hold and stroke the slime. It closes its eyes, hums happily, leans into your hand, floats hearts. Less jelly than booping, much more joy and bond. The happy hum while petting can be turned off in Settings. |
 | Feeding | Drag a snack onto the slime or tap it to toss. It opens wide, chomps, gulps (a bulge travels down), and the snack stays visible inside its jelly body while it digests. |
 | Traits | Six channels (Sweet, Warm, Sturdy, Leafy, Zippy, Prismatic). The body color shifts toward what it eats, and at thresholds it grows sprinkles, a flame, iron studs, a leaf sprout, an antenna or crystals. Repeating the same snack shapes it less each time. |
 | Tastes | Every slime has a hidden favorite and a disliked snack. You find out by watching its face when you hold a snack near it (sparkly eyes vs. a nervous wobbly mouth). |
@@ -102,6 +102,8 @@ tools/build-web.mjs   builds the installable web app (manifest, icons, offline c
 web/                  app icons and the offline service worker template
 docs/                 built web app served by GitHub Pages (do not edit by hand; rebuild instead)
 tools/economy-sim.mjs economy simulator: plays the real rules as an engaged or casual player and prints milestones
+tools/smoke-test.cjs  headless phone-sized play-through (hatch, grow up, ranch, move out); setup notes inside
+AGENTS.md, CLAUDE.md  hand-off guide for coding agents (how it ships, how to test, gotchas, roadmap)
 ```
 
 The split follows the OOP guide's boundaries: `core/` owns rules and returns result objects,
