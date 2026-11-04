@@ -86,28 +86,33 @@ const FLOWS = [
   flow('03-waiting-eggs', 'Two eggs waiting', 'spark egg + Pure egg, timer'),
   flow('04-eggs-ready', 'Eggs ready', 'after an hour of game time'),
   flow('05-egg-choice', 'Moving out: which egg?', 'the spark egg picked'),
+  flow('06-arrival', 'After moving out', 'the egg comes to the cushion'),
   flow('06-spark-egg', 'Spark egg on the cushion', 'from the Nursery'),
-  flow('07-smore-settled', "Raised on the recipe", "it became a S'more Slime"),
-  flow('08-pure-settled', 'Raised like its parents', 'Pure Candy Slime'),
+  flow('06-spark-baby', 'The spark baby', 'Slime tab: family card'),
+  flow('07-smore-card', 'Grown up', "raised on the recipe: S'more"),
+  flow('07-smore-settled', "S'more Slime", 'raised from the spark egg'),
+  flow('08-pure-card', 'Grown up', 'raised like its parents'),
+  flow('08-pure-settled', 'Pure Candy Slime', 'from two Candy parents'),
   flow('09-smore-resident', "S'more on the ranch", 'visiting it'),
   flow('10-family-tree', 'Journal: family tree', 'parents, spark forms, Pure'),
 ];
+const F = name => 'flow:' + name;
 const pairRow = (header, ids, w = 320, h = 694) => [
   { header: header + ' (day)', theme: 'day', ids, w, h },
   { header: header + ' (night)', theme: 'night', ids, w, h },
 ];
 const SHEETS = [
-  { file: '01-nursery.png', title: 'The Nursery on the ranch', sub: 'Breeding play-through at 393×852', width: 1330, rows: [
-    ...pairRow('', FLOWS.slice(0, 4).map(f => f.id)),
+  { file: '01-nursery.png', title: 'The Nursery on the ranch', sub: 'Breeding play-through from an old save, 393×852', width: 1330, rows: [
+    ...pairRow('', ['01-ranch-with-nursery', '02-nursery-panel', '03-waiting-eggs', '04-eggs-ready'].map(F)),
   ] },
-  { file: '02-move-out.png', title: 'Choosing the next egg, and the spark egg', sub: 'Move-out choice, then the spark egg waiting to hatch', width: 1000, rows: [
-    { header: 'Day', theme: 'day', ids: [FLOWS[4].id, FLOWS[5].id, 'egg:spark'], w: 320, h: 694 },
-    { header: 'Night', theme: 'night', ids: [FLOWS[4].id, FLOWS[5].id, 'egg:spark'], w: 320, h: 694 },
-    { header: 'Close-up: normal egg | spark egg (day, night)', theme: 'day', crop: true, ids: ['egg:normal', 'egg:spark', 'egg:spark@night'], w: 320, h: 320 },
+  { file: '02-move-out-and-spark-egg.png', title: 'Choosing the next egg, and the spark egg', sub: 'Move-out choice, arrival, the spark egg waiting to hatch', width: 1330, rows: [
+    ...pairRow('', [F('05-egg-choice'), F('06-arrival'), F('06-spark-egg'), F('06-spark-baby')]),
+    { header: 'Close-up: normal egg | spark egg (day) | spark egg (night)', theme: 'day', crop: true, ids: ['egg:normal', 'egg:spark', 'egg:spark@night'], w: 320, h: 320 },
   ] },
-  { file: '03-spark-forms.png', title: 'The four spark forms', sub: "S'more B, Honeycomb A, Campfire A, Storm A as the main slime", width: 1330, rows: [
+  { file: '03-spark-forms.png', title: 'The four spark forms', sub: "S'more (take B), Honeycomb (A), Campfire (A), Storm (A) as the main slime", width: 1330, rows: [
     ...pairRow('Main slime', SPARK_IDS),
     { header: 'Close-up (day)', theme: 'day', crop: true, ids: SPARK_IDS, w: 320, h: 320 },
+    { header: 'Close-up (night)', theme: 'night', crop: true, ids: SPARK_IDS, w: 320, h: 320 },
   ] },
   { file: '04-ranch-residents.png', title: 'Spark and Pure slimes living on the ranch', sub: 'Lite residents. Left: day. Right: night, napping in nightcaps', width: 1000, rows: [
     { header: '', theme: 'day', ids: ['ranch:all'], w: 480, h: 1041, pair: true },
@@ -117,13 +122,19 @@ const SHEETS = [
     { header: 'Close-up (day)', theme: 'day', crop: true, ids: HAT_KEYS, w: 320, h: 320 },
     { header: 'Other hats (close-up, day)', theme: 'day', crop: true, ids: ['hat:honeycomb:crown', 'hat:storm:beret'], w: 320, h: 320 },
   ] },
-  { file: '06-pure.png', title: 'Pure versions (same form as both parents)', sub: 'Brighter colors, a soft shimmer, twinkling sparkles', width: 1330, rows: [
+  { file: '06-pure.png', title: 'Pure versions (same form as both parents)', sub: 'Richer colors, a soft shimmer, a warm golden glow, twinkling stars', width: 1330, rows: [
     { header: 'Normal | Pure (close-up, day)', theme: 'day', crop: true, ids: ['form:sweet', 'pure:sweet', 'form:heat+sweet', 'pure:heat+sweet'], w: 320, h: 320 },
     { header: 'Normal | Pure (close-up, day)', theme: 'day', crop: true, ids: ['form:prism+spark', 'pure:prism+spark', 'form:mineral', 'pure:mineral'], w: 320, h: 320 },
+    { header: 'Normal | Pure (close-up, night)', theme: 'night', crop: true, ids: ['form:sweet', 'pure:sweet', 'form:nature', 'pure:nature'], w: 320, h: 320 },
     ...pairRow('Pure, full screen', PURE_KEYS),
   ] },
   { file: '07-raised-and-journal.png', title: 'Raised from bred eggs, and the family tree', sub: 'From the play-through', width: 1330, rows: [
-    ...pairRow('', FLOWS.slice(6).map(f => f.id)),
+    ...pairRow('', [F('07-smore-card'), F('07-smore-settled'), F('08-pure-card'), F('08-pure-settled')]),
+    ...pairRow('', [F('09-smore-resident'), F('10-family-tree')]),
+  ] },
+  { file: '00-parents.png', title: 'The parent forms, for comparison', sub: 'Hearth, Marshmallow, Nectar, Candy, Root, Aurora, Volt (close-up, day)', width: 1330, rows: [
+    { header: '', theme: 'day', crop: true, ids: ['heat+sweet', 'mochi', 'nature+sweet', 'sweet'], w: 320, h: 320 },
+    { header: '', theme: 'day', crop: true, ids: ['mineral+nature', 'prism+spark', 'spark'], w: 320, h: 320 },
   ] },
 ];
 // ---------- helpers ----------
@@ -301,7 +312,8 @@ async function render() {
         const keys = Object.keys(g.state.slime.traits);
         g.ranch.sync(list.map(d => ({ ...d, traits: Object.fromEntries(keys.map(k => [k, d.traits[k] || 0])) })));
         // stand them in rows facing the camera (clear of the barn and pond) and keep them there
-        const spots = [[-1.9, -1.6], [-0.4, -1.6], [1.1, -1.6], [-2.2, 0.6], [-0.6, 0.6], [1.0, 0.6]];
+        // two staggered rows, far enough apart that the front row doesn't hide the back row
+        const spots = [[-2.3, -1.5], [-0.3, -1.5], [1.7, -1.5], [-1.7, 1.2], [0.3, 1.2], [2.3, 1.2]];
         let i = 0;
         for (const r of g.ranch.residents.values()) {
           if (!String(r.id).startsWith('sample')) continue;

@@ -5,7 +5,7 @@
 // One-time setup (outside the repo is fine; nothing here is committed):
 //   npm install --no-save playwright three@0.170.0
 //   npx playwright install chromium
-// Run (starts its own dev server on port 5199):
+// Run (starts its own dev server on port 5199, only reachable from this machine):
 //   node tools/smoke-test.cjs
 // Screenshots land in tools/out/ (ignored by git).
 const { spawn } = require('child_process');
@@ -20,7 +20,7 @@ const THREE = path.resolve(path.dirname(require.resolve('three')), '..');   // t
 fs.mkdirSync(OUT, { recursive: true });
 
 (async () => {
-  const server = spawn(process.execPath, [path.join(ROOT, 'tools/serve.mjs'), String(PORT)], { stdio: 'ignore' });
+  const server = spawn(process.execPath, [path.join(ROOT, 'tools/serve.mjs'), String(PORT), '127.0.0.1'], { stdio: 'ignore' });
   await new Promise(r => setTimeout(r, 800));
   // Software WebGL so it runs on machines without a GPU (slow, a few frames a second).
   const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
@@ -37,7 +37,7 @@ fs.mkdirSync(OUT, { recursive: true });
     // Headless Chrome only advances CSS transitions when it draws, so screenshots double as "settle".
     const shot = async name => { for (let i = 0; i < 2; i++) { await page.waitForTimeout(200); await page.screenshot({ path: path.join(OUT, name + '.png'), timeout: 90000 }); } console.log('screenshot', name); };
 
-    await page.goto(`http://localhost:${PORT}/#debug`);   // #debug exposes the game as window.slimekin
+    await page.goto(`http://127.0.0.1:${PORT}/#debug`);   // #debug exposes the game as window.slimekin
     await page.waitForTimeout(3000);
     await ev(() => { const g = window.slimekin; for (let i = 0; i < 5; i++) g.tapEgg(g.egg.group.position.clone()); g.advance(4.5); });
     await page.fill('#slimeName', 'Smoke'); await page.click('#nameOk');
