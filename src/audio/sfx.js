@@ -35,7 +35,21 @@ export class Sfx {
       const d = this.noiseBuf.getChannelData(0);
       for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
     }
-    if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
+    // iPhones only start audio from a finished tap, and need something actually played to fully wake up.
+    if (this.ctx.state !== 'running') {
+      this.ctx.resume().catch(() => {});
+      try {
+        const src = this.ctx.createBufferSource();
+        src.buffer = this.ctx.createBuffer(1, 1, 22050);
+        src.connect(this.ctx.destination);
+        src.start(0);
+      } catch { /* ignore */ }
+    }
+  }
+
+  // On iPhone, silent mode mutes web audio unless the page asks to behave like media playback.
+  setPlayOnSilent(on) {
+    try { if (navigator.audioSession) navigator.audioSession.type = on ? 'playback' : 'auto'; } catch { /* unsupported */ }
   }
 
   get ok() { return !!(this.ctx && this.sound && this.ctx.state === 'running'); }
@@ -50,7 +64,7 @@ export class Sfx {
   setMusicWanted(on) { this.musicWanted = on; this.updateMusic(); }
 
   suspend() { if (this.ctx && this.ctx.state === 'running') this.ctx.suspend().catch(() => {}); }
-  resume() { if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume().catch(() => {}); }
+  resume() { if (this.ctx && this.ctx.state !== 'running' && this.ctx.state !== 'closed') this.ctx.resume().catch(() => {}); }
 
   // ---------- primitives ----------
   tone(o) {

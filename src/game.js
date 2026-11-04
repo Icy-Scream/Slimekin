@@ -156,6 +156,7 @@ export class Game {
 
   applySettings() {
     const s = this.state.settings;
+    this.sfx.setPlayOnSilent(!!s.soundOnSilent);
     this.sfx.setSound(s.sound);
     this.sfx.setMusic(s.music);
     this.reduced = s.reducedMotion || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -374,7 +375,10 @@ export class Game {
     window.addEventListener('pointercancel', e => this.onUp(e, true));
     c.addEventListener('contextmenu', e => e.preventDefault());
     window.addEventListener('keydown', e => this.onKey(e));
-    window.addEventListener('pointerdown', () => this.sfx.unlock(), { capture: true });
+    // Audio can only start from a user gesture; iPhones count the end of a tap, not the start.
+    for (const type of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown']) {
+      window.addEventListener(type, () => this.sfx.unlock(), { capture: true, passive: true });
+    }
   }
 
   setPointer(e) {
@@ -1209,6 +1213,7 @@ export class Game {
     this.hud.openModal(`<h2>Settings</h2>
       <div class="setting"><span>Sound</span>${seg('sound', [[true, 'On'], [false, 'Off']])}</div>
       <div class="setting"><span>Music box lullaby</span>${seg('music', [[true, 'On'], [false, 'Off']])}</div>
+      ${navigator.audioSession ? `<div class="setting"><span>Sound when phone is on silent</span>${seg('soundOnSilent', [[true, 'On'], [false, 'Off']])}</div>` : ''}
       <div class="setting"><span>Motion</span>${seg('reducedMotion', [[false, 'Full'], [true, 'Reduced']])}</div>
       <div class="setting"><span>Graphics</span>${seg('quality', [['auto', 'Auto'], ['high', 'High'], ['low', 'Low']])}</div>
       <div class="setting"><span>Speed meter</span>${seg('showFps', [[false, 'Off'], [true, 'On']])}</div>
