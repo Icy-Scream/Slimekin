@@ -43,6 +43,8 @@ export class Game {
     this.slime.setTraits(this.state.slime.traits);
     this.slime.size = this.slime.sizeTarget = this.sim.size();
     this.slime.setOutfits(this.state.outfits.worn);
+    if (this.state.slime.form) this.slime.setForm(this.state.slime.form.id);
+    this.formFxT = 1;
     this.helpers3d = new HelperWorld(this.scene, this.fx);
     this.helpers3d.sync(this.state.helpers);
     this.hud = new Hud(this);
@@ -910,6 +912,7 @@ export class Game {
     const st = STAGES[r.stageAfter];
     const name = this.Name;
     this.sfx.voice = st.voice;
+    if (r.form) this.slime.setForm(r.form.id);
     this.slime.pulseGlow(1.4);
     this.slime.spin();
     this.slime.hop(6.5);
@@ -1597,6 +1600,22 @@ export class Game {
     }
   }
 
+  // Small signature effects of a grown-up form (steam, glints, sparks, pollen).
+  updateFormFx(dt) {
+    const fx = this.slime.form?.fx;
+    if (!fx || this.reduced) return;
+    this.formFxT -= dt;
+    if (this.formFxT > 0) return;
+    this.formFxT = fx.every * (0.6 + Math.random() * 0.8);
+    const head = this.slime.headTopWorld(this.v1);
+    const r = 0.9 * this.slime.size;
+    const side = new THREE.Vector3((Math.random() - 0.5) * 2 * r, -Math.random() * r, (Math.random() - 0.2) * r).add(head);
+    if (fx.kind === 'steam') this.fx.emit('steam', head, { count: 2, size: 0.2 });
+    else if (fx.kind === 'glints') this.fx.emit('glints', side, { size: 0.2, life: 0.9 });
+    else if (fx.kind === 'sparks') this.fx.emit('sparks', head, { count: 3, speed: 1.6 });
+    else if (fx.kind === 'pollen') this.fx.emit('dream', side, { color: '#ffe27a', size: 0.09, life: 2.6 });
+  }
+
   update(dt) {
     this.time += dt;
     if (this.timeline.length) {
@@ -1620,6 +1639,7 @@ export class Game {
       this.updateRequests(dt);
       this.updateIdle(dt);
       this.updateGlimmer(dt);
+      this.updateFormFx(dt);
       this.updateTutorial();
       if (this.bubbleGame) {
         this.bubbleGame.t += dt;
