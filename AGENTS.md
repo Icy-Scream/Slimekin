@@ -70,7 +70,7 @@ it up the next time it is opened online (sometimes it takes two opens). Never ed
 
 - `node tools/smoke-test.cjs` plays through hatch → Settled → ranch → move out in a headless
   phone-sized browser (setup steps are at the top of the file). Screenshots go to `tools/out/`.
-- Both browser tests use `tools/browser-kit.cjs`: their own dev server on a free loopback port, fully
+- The browser tests use `tools/browser-kit.cjs`: their own dev server on a free loopback port, fully
   offline (three.js from node_modules, every other outside request aborted and logged), a deadline on
   every step (`page.evaluate` has none of its own) and timestamped progress. A stuck step fails with a
   note on what the browser was doing: a busy `gpu-process` means software WebGL is just slow on a loaded
@@ -88,9 +88,13 @@ it up the next time it is opened online (sometimes it takes two opens). Never ed
 - Economy: `node tools/economy-sim.mjs 12 quiet` (engaged), add `casual`, `spam`, or `gen2=1e9`.
   Spamming must never beat normal play. Targets are in the README. `bred` makes the gen-2 baby from a
   Nursery egg.
+- Playtest fixes: `node tools/playtest-smoke.cjs` (menu sheet drags with real touch events, warming egg at
+  move-out, swapping the cushion egg, a baby's new home; `--only sheet,egg,swap,rehome`, `--dpr 1 --quick`).
 - Breeding: `node tools/breeding-test.mjs` (plain node: caps, seeds, sparks, Pure, cooldowns, old saves
   from `tools/fixtures/`), and `node tools/breeding-smoke.cjs` (headless play-through from an old save,
   screenshots in `tools/out/breeding/`). `g.debug('pearls')` adds 100 pearls.
+
+UI work: `UI-CHANGES.md` lists every on-screen element the breeding core and the playtest fixes added or changed.
 
 ## How the owner likes to work
 

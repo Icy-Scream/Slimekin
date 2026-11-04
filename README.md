@@ -53,6 +53,7 @@ Phone notes: swipe the menu down (or its grip bar) to close it; drag a notificat
 | Lucky Glimmers | A golden spark drifts by every few minutes; the slime points it out. Catch it for a Jelly Rush, Sugar Rush or a lump sum. |
 | Settled form | At the last stage the two strongest traits lock in a form (Hearth, Furnace, Nectar, Geode, Aurora... 22 in total, including a healthy generalist). |
 | Journal | Combos found plus a dated memory log of your life together. |
+| The menu on phones | A bottom sheet: drag it up (grip, tab bar, or the list) to a tall size under the top bar, down to normal and closed. |
 | Welcome back | Returning after a while: the slime is happy to see you and nothing bad happened. Helper jelly from your time away waits in the Jelly Jar. |
 | Jelly Jar | Catches part of what helpers make while you're away: 15% for up to 2 hours at first, up to 30% for 24 hours after four upgrades (in the Upgrades tab). Tap the jar under the jelly count, or "Pour it out" on the welcome screen, to collect it. |
 | Upgrades | Every helper has five "twice as good" tiers (at 1, 10, 25, 50 and 100 owned), plus late-game upgrades. Some reward the personal side of the game: Show-Off gives +3% per learned trick, Secret Keeper +2% per secret found. The Upgrades tab shows a breakdown of every bonus. |
@@ -69,7 +70,9 @@ Phone notes: swipe the menu down (or its grip bar) to close it; drag a notificat
 | Moving out (a new generation) | A Settled slime can move to the ranch. That starts a new generation with a new egg: jelly, helpers, upgrades and the Jelly Jar start over; pearls, the ranch, outfits, combos and secrets stay. Each generation adds a permanent Family Bonus to all jelly (bigger the longer it played), and the ranch slime keeps making jelly. |
 | Pearls | The ranch currency. Ranch slimes make about 4 an hour each (more when happy, so visit and pet them). Pearls pop out into the grass to pick up, roll into the Pearl Basket, and wait there while you're away. Spend them on more room and a bigger basket. |
 | New homes and auctions | Three buyers offer a new home for a ranch slime (a better fit pays more, and it sends postcards with a few pearls for a week), or hold a live auction for usually a bit more. Offers and auctions are fixed for the day. |
-| The Nursery (breeding) | A little cottage on the ranch. Pick two ranch slimes and they make an egg (25 pearls, ready in an hour, even while the game is closed; each slime can be a parent once a day; up to two eggs wait in the nest). When your slime moves to the ranch you choose which egg comes next: a new egg or a waiting one. The baby takes after its parents a little (a capped head start in their snack colors and a small personality nudge), but how you raise it decides its form. |
+| The Nursery (breeding) | A little cottage on the ranch. Pick two ranch slimes and they make an egg (25 pearls, ready in an hour, even while the game is closed; each slime can be a parent once a day; up to two eggs wait in the nest). When your slime moves to the ranch you choose which egg comes next: a new egg or a waiting one, even one still warming (it finishes warming on the cushion; taps wait until it is ready). The baby takes after its parents a little (a capped head start in their snack colors and a small personality nudge), but how you raise it decides its form. |
+| The egg on the cushion | While an egg waits on the cushion, the Ranch tab stays open: visit, breed, and before it hatches swap it for a Nursery egg ("Put on the cushion"; a plain egg goes to a neighbor family, a Nursery egg goes back to the Nursery). |
+| A new home for a baby | A slime that is not grown yet can go to a family that will raise it ("Find ... a new home" in the Slime tab), then the next egg comes (plain or from the Nursery). No pearls and no Family Bonus for a baby; it sends postcards. |
 | Family sparks | Some parent pairs share a family spark: their egg twinkles, and a baby raised on the right snacks grows into a form only they can pass on: S'more (Hearth × Marshmallow), Honeycomb (Nectar × Candy), Campfire (Hearth × Root), Storm (Aurora × Volt). Raised differently, it grows into a normal form and the Journal keeps a clue. |
 | Pure slimes | Two parents of the same form, and a baby that grows up the same way, make a Pure version of any of the 22 forms: brighter colors, a soft shimmer and twinkling sparkles. |
 | Family tree | A Journal page with your slime, its two parents and its generation, the spark forms found (silhouettes for the ones not found yet, clues for the ones you have seen) and the Pure forms raised. |
@@ -111,8 +114,10 @@ docs/                 built web app served by GitHub Pages (do not edit by hand;
 tools/economy-sim.mjs economy simulator: plays the real rules as an engaged or casual player and prints milestones
 tools/smoke-test.cjs  headless phone-sized play-through (hatch, grow up, ranch, move out); setup notes inside
 tools/breeding-smoke.cjs  headless breeding play-through from an old save (Nursery, spark egg, S'more, Pure)
-tools/browser-kit.cjs     shared setup for the two browser tests (free port, offline, step deadlines, stall notes)
-tools/breeding-test.mjs   breeding rules check in plain node (caps, seeds, sparks, Pure, cooldowns, old saves)
+tools/playtest-smoke.cjs  headless test of the playtest fixes: menu sheet drags (real touch), warming egg, egg swap, a baby's new home
+tools/browser-kit.cjs     shared setup for the browser tests (free port, offline, step deadlines, stall notes)
+tools/breeding-test.mjs   breeding rules check in plain node (caps, seeds, sparks, Pure, cooldowns, old saves, cushion egg, new homes)
+UI-CHANGES.md             every on-screen element the breeding work added or changed (for the UI branch)
 tools/fixtures/       old saves made with the code from before breeding (tools/fixtures/make-old-saves.mjs)
 tools/render-samples.cjs  renders looks day and night and builds labeled contact sheets
 AGENTS.md, CLAUDE.md  hand-off guide for coding agents (how it ships, how to test, gotchas, roadmap)
