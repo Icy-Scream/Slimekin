@@ -1,0 +1,248 @@
+// All authored game content lives here, so balancing never requires touching game logic.
+// Numbers are first-pass prototype values, meant to be tuned through play.
+
+export const TUNING = {
+  tummyDecayPerSec: 1 / 3.2,   // fullness lost per second while awake
+  energyRegenPerSec: 1.1,       // while awake and not being booped
+  sleepRegenPerSec: 7,          // while napping
+  boopEnergyCost: 0.32,
+  giggleAdd: 10,                // giggle meter per boop
+  giggleDecay: 0.8,             // fraction of the meter lost per second
+  feverAt: 55,                  // Giggle Fever starts here
+  dizzyAt: 100,                 // too much booping, slime gets dizzy
+  dizzySeconds: 2.6,
+  comboWindow: 8,               // seconds between two foods to count as a combo
+  glimmerEvery: [80, 210],      // seconds between Lucky Glimmers
+  requestEvery: [45, 100],      // seconds between slime requests
+  autoSleepIdle: 75,            // seconds without interaction before a tired slime dozes off
+};
+
+export const STAGES = [
+  { id: 'hatchling', name: 'Hatchling', minGrowth: 0,    boop: 1,  size: 0.6,  foodCost: 1,   nutrition: 1,   traitSens: 1.4, voice: 1.32,
+    blurb: 'Tiny, wobbly and curious about everything.' },
+  { id: 'sprout',    name: 'Sprout',    minGrowth: 80,   boop: 2,  size: 0.76, foodCost: 7,   nutrition: 1.2, traitSens: 1.15, voice: 1.16,
+    blurb: 'Favorites and habits start to show.' },
+  { id: 'rascal',    name: 'Rascal',    minGrowth: 420,  boop: 4, size: 0.9,  foodCost: 45,  nutrition: 1.5, traitSens: 1.0, voice: 1.04,
+    blurb: 'Bold, bouncy, and figuring out who they are.' },
+  { id: 'settled',   name: 'Settled',   minGrowth: 1600, boop: 8, size: 1.04, foodCost: 260, nutrition: 2,   traitSens: 0.7, voice: 0.94,
+    blurb: 'All grown up, with a form shaped by everything you shared.' },
+];
+
+// Trait channels. Each food pushes one or more of these.
+export const TRAITS = {
+  sweet:   { name: 'Sweet',     color: '#ff9fd0', badge: 'Sweet-Natured', look: 'rosy sprinkles' },
+  heat:    { name: 'Warm',      color: '#ff7a3d', badge: 'Warm-Hearted',  look: 'a little flame on top' },
+  mineral: { name: 'Sturdy',    color: '#8b9fc4', badge: 'Iron-Bellied',  look: 'shiny iron studs' },
+  nature:  { name: 'Leafy',     color: '#7fd66a', badge: 'Green Thumb',   look: 'a leaf sprout' },
+  spark:   { name: 'Zippy',     color: '#ffe15a', badge: 'Static Spark',  look: 'a crackling antenna' },
+  prism:   { name: 'Prismatic', color: '#a7dcff', badge: 'Prismatic',     look: 'sparkling crystals' },
+};
+export const TRAIT_IDS = Object.keys(TRAITS);
+
+export const FOODS = [
+  { id: 'cookie',  name: 'Cookie',        price: 5,  nutrition: 8,  fullness: 12, energy: 0,   joy: 6, traits: { sweet: 3 },
+    unlock: 'hatchling', sound: 'crunch', reaction: 'hearts', blurb: 'Soft and sweet. Crumbs float inside for a while.' },
+  { id: 'chili',   name: 'Chili',         price: 12, nutrition: 10, fullness: 10, energy: 14,  joy: 2, traits: { heat: 3, spark: 0.4 },
+    unlock: 'hatchling', sound: 'sizzle', reaction: 'steam',  blurb: 'A spicy kick. Warms the body and might cause a sneeze.' },
+  { id: 'iron',    name: 'Iron Scrap',    price: 20, nutrition: 16, fullness: 18, energy: -4,  joy: 0, traits: { mineral: 3 },
+    unlock: 'hatchling', sound: 'clink',  reaction: 'clank',  blurb: 'Heavy and crunchy. Builds a dense, sturdy body.' },
+  { id: 'moss',    name: 'Moss Cube',     price: 15, nutrition: 12, fullness: 15, energy: 10,  joy: 3, traits: { nature: 3, sweet: 0.4 },
+    unlock: 'sprout',    sound: 'squelch', reaction: 'leaves', blurb: 'Cool and calming. Something might sprout.' },
+  { id: 'berry',   name: 'Static Berry',  price: 30, nutrition: 12, fullness: 10, energy: 8,   joy: 5, traits: { spark: 3, sweet: 0.8 },
+    unlock: 'sprout',    sound: 'zap',    reaction: 'sparks', blurb: 'Fizzes with static. Makes everything zippy.' },
+  { id: 'crystal', name: 'Crystal Shard', price: 80, nutrition: 24, fullness: 8,  energy: 0,   joy: 4, traits: { prism: 3, mineral: 0.8 },
+    unlock: 'rascal',    sound: 'chime',  reaction: 'prism',  blurb: 'Rare and refractive. Light bends right through it.' },
+];
+export const FOOD_BY_ID = Object.fromEntries(FOODS.map(f => [f.id, f]));
+
+// Idle producers. Cost grows 15% per copy owned.
+export const HELPERS = [
+  { id: 'feather',     name: 'Tickle Feather',  plural: 'Tickle Feathers',  cost: 15,     jps: 0.1,    blurb: 'Drifts around and tickles now and then.' },
+  { id: 'bubbles',     name: 'Bubble Wand',     plural: 'Bubble Wands',     cost: 100,    jps: 1,      blurb: 'Blows bubbles to chase. You can pop them too.' },
+  { id: 'garden',      name: 'Snack Garden',    plural: 'Snack Gardens',    cost: 1100,   jps: 8,      blurb: 'Little planters that grow slime snacks.' },
+  { id: 'slimeling',   name: 'Slimeling Pal',   plural: 'Slimeling Pals',   cost: 12000,  jps: 47,     blurb: 'A tiny friend who hops around and adores your slime.' },
+  { id: 'musicbox',    name: 'Music Box',       plural: 'Music Boxes',      cost: 130000, jps: 260,    blurb: 'Plays a lullaby. Your slime sways along.' },
+  { id: 'lamp',        name: 'Moon Lamp',       plural: 'Moon Lamps',       cost: 1.4e6,  jps: 1400,   blurb: 'Floating lamps with a soft, cozy glow.' },
+  { id: 'fountain',    name: 'Goo Fountain',    plural: 'Goo Fountains',    cost: 2e7,    jps: 7800,   blurb: 'Burbles pure jelly all day long.' },
+  { id: 'observatory', name: 'Dream Telescope', plural: 'Dream Telescopes', cost: 3.3e8,  jps: 44000,  blurb: 'Catches falling dream-stars for your slime.' },
+  { id: 'spa',         name: 'Slime Spa',       plural: 'Slime Spas',       cost: 2.4e10, jps: 260000, blurb: 'A warm, bubbly bath. Pure bliss for any slime.' },
+  { id: 'rainbow',     name: 'Rainbow Arch',    plural: 'Rainbow Arches',   cost: 1.2e12, jps: 4.2e6,  blurb: 'A rainbow over the nursery that drizzles jelly.' },
+];
+export const HELPER_BY_ID = Object.fromEntries(HELPERS.map(h => [h.id, h]));
+export const HELPER_GROWTH = 1.15;
+
+// Upgrades unlock when `req` passes. Effects are merged by the simulation.
+// Every helper gets five "works twice as well" tiers, unlocked at 1, 10, 25, 50 and 100 owned.
+const TIER_AT = [1, 10, 25, 50, 100];
+const TIER_COST = [10, 50, 500, 5000, 50000];
+const TIER_NAMES = {
+  feather:     ['Fluffier Feathers', 'Silk Feathers', 'Rainbow Plumes', 'Phoenix Quills', 'Featherstorm'],
+  bubbles:     ['Big Bubbles', 'Rainbow Soap', 'Bubble Choir', 'Everlasting Bubbles', 'Bubble Galaxy'],
+  garden:      ['Magic Compost', 'Sunny Windowsill', 'Candy Seeds', 'Greenhouse Glass', 'Endless Orchard'],
+  slimeling:   ['Sibling Love', 'Playdates', 'Slimeling Choir', 'Family Reunion', 'Big Happy Family'],
+  musicbox:    ['Lullaby Book', 'Golden Gears', 'Second Melody', 'Harmony Comb', 'Symphony Box'],
+  lamp:        ['Moonbeam Wicks', 'Starlight Glass', 'Lunar Tides', 'Full Moon Festival', 'Moonlit Garden'],
+  fountain:    ['Deep Springs', 'Sparkling Spout', 'Twin Basins', 'Jelly Geyser', 'Ocean of Goo'],
+  observatory: ['Star Charts', 'Bigger Lens', 'Comet Catcher', 'Constellation Atlas', 'Dream Nebula'],
+  spa:         ['Bath Salts', 'Bubble Jets', 'Warm Stones', 'Moonlight Soak', 'Infinity Pool'],
+  rainbow:     ['Brighter Bands', 'Double Rainbow', 'Pot of Goo', 'Rainbow Road', 'Endless Spectrum'],
+};
+const HELPER_TIERS = HELPERS.flatMap(h => TIER_AT.map((n, i) => ({
+  id: `${h.id}${i + 1}`, name: TIER_NAMES[h.id][i], cost: h.cost * TIER_COST[i], kind: 'helper', helper: h.id,
+  blurb: `${h.plural} work twice as well.`, req: g => g.helpers[h.id] >= n, fx: { helper: { [h.id]: 2 } },
+})));
+
+export const UPGRADES = [
+  { id: 'softTouch',      name: 'Soft Touch',        cost: 100,    blurb: 'Boops give twice as much jelly.',                          req: g => g.stats.boops >= 15, fx: { boopMult: 2 } },
+  { id: 'autoFeeder',     name: 'Cookie Jar Feeder', cost: 300,    blurb: 'Buys and feeds a Cookie whenever the tummy runs low.',      req: g => g.stageIndex >= 1, fx: { autoFeed: true } },
+  { id: 'giggleTraining', name: 'Giggle Training',   cost: 500,    blurb: 'Giggle Fever triples boops and is easier to keep going.',    req: g => g.stats.fevers >= 1, fx: { feverMult: 3, feverWindow: 10 } },
+  { id: 'warmHands',      name: 'Warm Hands',        cost: 800,    blurb: 'Petting gives three times the jelly and bond.',            req: g => g.stats.petTime >= 15, fx: { petMult: 3 } },
+  { id: 'cozyBlanket',    name: 'Cozy Blanket',      cost: 1500,   blurb: 'Naps restore energy twice as fast. Dream jelly doubled.',   req: g => g.stats.naps >= 1, fx: { napMult: 2 } },
+  { id: 'squishy',        name: 'Squishy Fingers',   cost: 2500,   blurb: 'Boops give twice as much jelly.',                          req: g => g.stats.boops >= 300, fx: { boopMult: 2 } },
+  { id: 'metabolism',     name: 'Speedy Tummy',      cost: 3000,   blurb: 'Digests 50% faster, so your slime can eat more often.',    req: g => g.stageIndex >= 1 && g.stats.feeds >= 20, fx: { digestMult: 1.5 } },
+  { id: 'heartToHeart',   name: 'Heart to Heart',    cost: 5000,   blurb: '+5% jelly per second for every bond level.',               req: g => g.bondLevel >= 3, fx: { bondBonus: 0.05 } },
+  { id: 'luckyCharm',     name: 'Lucky Charm',       cost: 7777,   blurb: 'Lucky Glimmers show up twice as often.',                   req: g => g.stats.glimmers >= 1, fx: { glimmerRate: 2 } },
+  { id: 'recipeBook',     name: 'Recipe Book',       cost: 20000,  blurb: 'Combo effects last twice as long.',                        req: g => g.combos >= 2, fx: { comboDur: 2 } },
+  { id: 'showOff',        name: 'Show-Off',          cost: 50000,  blurb: '+3% jelly per second for every trick your slime knows.',   req: g => g.tricks >= 1, fx: { trickBonus: 0.03 } },
+  { id: 'resonance',      name: 'Gooey Resonance',   cost: 50000,  blurb: 'Every boop also gives 2% of your jelly per second.',       req: g => g.stats.boops >= 800 && g.jps >= 50, fx: { boopJps: 0.02 } },
+  { id: 'secretKeeper',   name: 'Secret Keeper',     cost: 150000, blurb: '+2% jelly per second for every secret you have found.',    req: g => g.secrets >= 3, fx: { secretBonus: 0.02 } },
+  { id: 'jellyFingers',   name: 'Jelly Fingers',     cost: 750000, blurb: 'Boops give twice as much jelly.',                          req: g => g.stats.boops >= 2500, fx: { boopMult: 2 } },
+  { id: 'grownUpGlow',    name: 'Grown-Up Glow',     cost: 2e7,    blurb: 'All jelly +25%. Being grown up suits your slime.',         req: g => g.stageIndex >= 3, fx: { globalMult: 1.25 } },
+  { id: 'goldenTouch',    name: 'Golden Touch',      cost: 7.7e7,  blurb: 'Lucky Glimmer rewards are doubled.',                       req: g => g.stats.glimmers >= 7, fx: { glimmerMult: 2 } },
+  { id: 'deepResonance',  name: 'Deep Resonance',    cost: 1e8,    blurb: 'Every boop also gives 3% more of your jelly per second.',  req: g => g.stats.boops >= 6000, fx: { boopJps: 0.03 } },
+  { id: 'soulSync',       name: 'Soul Sync',         cost: 2e8,    blurb: 'Another +5% jelly per second for every bond level.',       req: g => g.bondLevel >= 6, fx: { bondBonus: 0.05 } },
+  { id: 'wiseOldSlime',   name: 'Wise Old Slime',    cost: 2e10,    blurb: 'All jelly +25%.',                                          req: g => g.stageIndex >= 3 && g.bondLevel >= 5, fx: { globalMult: 1.25 } },
+  { id: 'totalResonance', name: 'Total Resonance',   cost: 5e11,   blurb: 'Every boop also gives 5% more of your jelly per second.',  req: g => g.stats.boops >= 15000, fx: { boopJps: 0.05 } },
+  { id: 'foreverBond',    name: 'Forever Bond',      cost: 5e13,   blurb: 'Another +10% jelly per second for every bond level.',      req: g => g.bondLevel >= 9, fx: { bondBonus: 0.1 } },
+  ...HELPER_TIERS,
+];
+// Older saves used these ids for the first helper upgrades.
+export const UPGRADE_RENAMES = {
+  featherFluff: 'feather1', silkFeathers: 'feather2', bigBubbles: 'bubbles1', rainbowSoap: 'bubbles2', compost: 'garden1',
+  siblingLove: 'slimeling1', lullabyBook: 'musicbox1', moonbeams: 'lamp1', deepSprings: 'fountain1', starCharts: 'observatory1',
+};
+export const UPGRADE_BY_ID = Object.fromEntries(UPGRADES.map(u => [u.id, u]));
+
+// Feeding two foods in order within the combo window creates a named combination.
+export const COMBOS = [
+  { id: 'hearth',   name: 'Hearth Biscuit', seq: ['cookie', 'chili'],  hint: 'Something sweet, then a little spice...',
+    effect: 'Warm & Cozy: +50% jelly per second for 45s', buff: { id: 'cozy', name: 'Warm & Cozy', dur: 45, jpsMult: 1.5 } },
+  { id: 'tempered', name: 'Tempered Treat', seq: ['cookie', 'iron'],   hint: 'Something sweet, then something sturdy...',
+    effect: 'Sturdy Belly: no dizziness for 45s', buff: { id: 'sturdy', name: 'Sturdy Belly', dur: 45, noDizzy: true } },
+  { id: 'ember',    name: 'Rooted Ember',   seq: ['moss', 'chili'],    hint: 'Something calm, then something fiery...',
+    effect: 'Steady Glow: boops cost no energy for 60s', buff: { id: 'steady', name: 'Steady Glow', dur: 60, noEnergyDrain: true } },
+  { id: 'fizzy',    name: 'Fizzy Pop',      seq: ['berry', 'cookie'],  hint: 'A fizzy berry, then a treat...',
+    effect: 'Fizzy Fingers: boops x3 for 20s', buff: { id: 'fizzy', name: 'Fizzy Fingers', dur: 20, boopMult: 3 } },
+  { id: 'geode',    name: 'Geode Snack',    seq: ['iron', 'moss'],     hint: 'Metal, then moss...',
+    effect: 'A big growth spurt', growth: 30 },
+  { id: 'prismpop', name: 'Prism Pop',      seq: ['crystal', 'berry'], hint: 'A crystal, then a spark...',
+    effect: 'Rainbow Shine: jelly x2 for 30s, and a Lucky Glimmer appears', buff: { id: 'shine', name: 'Rainbow Shine', dur: 30, jpsMult: 2 }, glimmer: true },
+];
+
+export const BOND = [
+  { xp: 0,    title: 'Curious Stranger' },
+  { xp: 15,   title: 'New Friend',     unlock: 'Watches you wherever you go' },
+  { xp: 50,   title: 'Buddy',          unlock: 'Leans toward you when you come close' },
+  { xp: 120,  title: 'Pal',            unlock: 'Does a happy dance when you come back' },
+  { xp: 250,  title: 'Close Friend',   unlock: 'Floats little hearts when you hover nearby' },
+  { xp: 450,  title: 'Best Friend',    unlock: 'Blows you kisses' },
+  { xp: 750,  title: 'Inseparable',    unlock: 'Hums a little tune when happy' },
+  { xp: 1150, title: 'Kindred Spirit', unlock: 'Glows softly when you pet them' },
+  { xp: 1700, title: 'Soulbound',      unlock: 'Never gets dizzy from your boops' },
+  { xp: 2500, title: 'Forever Family', unlock: 'Remembers everything' },
+];
+
+export const PERSONALITY = {
+  curious: { low: 'Likes the familiar', high: 'Endlessly curious', grow: 'more curious', shrink: 'more cautious' },
+  patient: { low: 'Impulsive',          high: 'Patient',           grow: 'more patient', shrink: 'more impulsive' },
+  playful: { low: 'Mellow',             high: 'Playful',           grow: 'more playful', shrink: 'more mellow' },
+  cuddly:  { low: 'Independent',        high: 'Cuddly',            grow: 'more cuddly',  shrink: 'more independent' },
+  bold:    { low: 'Shy',                high: 'Bold',              grow: 'bolder',       shrink: 'shyer' },
+};
+export const PERSONALITY_IDS = Object.keys(PERSONALITY);
+
+// Mature forms. Read from the two strongest traits; a pure diet gives a pure form;
+// a balanced or light diet gives a healthy generalist.
+export const PURE_FORMS = {
+  sweet:   { name: 'Candy Slime',   blurb: 'Pure sugar and sunshine. Makes friends instantly.' },
+  heat:    { name: 'Blaze Slime',   blurb: 'Runs hot and loves a challenge.' },
+  mineral: { name: 'Iron Slime',    blurb: 'Dense as a boulder and just as dependable.' },
+  nature:  { name: 'Moss Slime',    blurb: 'Calm and green. Little things grow wherever it rests.' },
+  spark:   { name: 'Volt Slime',    blurb: 'Crackles with static and never sits still.' },
+  prism:   { name: 'Crystal Slime', blurb: 'Clear as glass, bending light into rainbows.' },
+};
+export const PAIR_FORMS = {
+  'heat+sweet':     { name: 'Hearth Slime',     blurb: 'Gives off a cozy warmth. Everyone wants to sit nearby.' },
+  'heat+mineral':   { name: 'Furnace Slime',    blurb: 'Hot, heavy and tireless, with a glowing core.' },
+  'nature+sweet':   { name: 'Nectar Slime',     blurb: 'Sweet-smelling. Flowers lean toward it.' },
+  'mineral+nature': { name: 'Root Slime',       blurb: 'Patient and grounded, with roots that hold the soil.' },
+  'prism+spark':    { name: 'Aurora Slime',     blurb: 'Shimmers in waves of colored light.' },
+  'mineral+prism':  { name: 'Geode Slime',      blurb: 'Hard outside, sparkling inside. Sings when tapped.' },
+  'heat+spark':     { name: 'Firework Slime',   blurb: 'Pops and crackles whenever it gets excited.' },
+  'spark+sweet':    { name: 'Fizzy Slime',      blurb: 'Bubbly and giggly, like a soda that never goes flat.' },
+  'nature+spark':   { name: 'Firefly Slime',    blurb: 'Blinks softly in the dark among the leaves.' },
+  'heat+nature':    { name: 'Sunbloom Slime',   blurb: 'Warm as a summer garden.' },
+  'mineral+spark':  { name: 'Dynamo Slime',     blurb: 'Hums with stored energy. Great at keeping lights on.' },
+  'prism+sweet':    { name: 'Sugarglass Slime', blurb: 'Glossy and glittering, like candy glass.' },
+  'heat+prism':     { name: 'Sunstone Slime',   blurb: 'Glows like a gem held up to the sun.' },
+  'nature+prism':   { name: 'Dewdrop Slime',    blurb: 'Fresh as morning, sparkling with tiny droplets.' },
+  'mineral+sweet':  { name: 'Toffee Guardian',  blurb: 'Sturdy and loyal, with a soft center.' },
+};
+export const GENERALIST_FORM = { name: 'Marshmallow Slime', blurb: 'Soft, round and balanced. A little bit of everything.' };
+
+export const NAME_IDEAS = ['Mochi', 'Puddle', 'Gloop', 'Bean', 'Jellybean', 'Pudding', 'Wobbles', 'Boba', 'Dumpling',
+  'Squish', 'Gumdrop', 'Tofu', 'Marble', 'Noodle', 'Pip', 'Dewdrop', 'Blip', 'Muffin', 'Plum', 'Biscuit'];
+
+// Emotes you can do at your slime. It copies you, clumsily at first; after three tries it learns
+// the trick for good and starts doing it on its own.
+export const EMOTES = [
+  { id: 'wave',     name: 'Wave',     icon: '👋' },
+  { id: 'dance',    name: 'Dance',    icon: '💃' },
+  { id: 'kiss',     name: 'Kiss',     icon: '😘' },
+  { id: 'spin',     name: 'Spin',     icon: '🌀', stage: 1, lock: 'Unlocks at Sprout' },
+  { id: 'peekaboo', name: 'Peekaboo', icon: '🙈', bond: 2,  lock: 'Unlocks at bond: Buddy' },
+  { id: 'sing',     name: 'Sing',     icon: '🎵', bond: 4,  lock: 'Unlocks at bond: Close Friend' },
+];
+export const TRICK_LEARNED = 3;
+
+// Hidden interactions. The Journal shows a vague clue for each one.
+export const SECRETS = [
+  { id: 'taffy',    name: 'Taffy Pull',     clue: 'Slimes are stretchier than they look.',       text: 'You stretched it like taffy and let it snap back.' },
+  { id: 'hug',      name: 'Big Hug',        clue: 'Some boops should last a little longer.',     text: 'Press and hold for a squishy hug.' },
+  { id: 'melt',     name: 'Melted',         clue: 'Round and round and round...',                text: 'Rubbing in circles melts it into a happy puddle.' },
+  { id: 'shake',    name: 'Shake It Up',    clue: 'What happens if you give it a good shake?',   text: 'Shake it back and forth. Not too long!' },
+  { id: 'spin',     name: 'Spin Cycle',     clue: 'Give it a flick.',                            text: 'A quick sideways swipe sends it spinning.' },
+  { id: 'tickle',   name: 'Tickle Attack',  clue: 'Everyone has a ticklish side.',               text: 'Boop its sides quickly for a laughing fit.' },
+  { id: 'highfive', name: 'High Five',      clue: 'Pat-pat on the head, then...',                text: 'Double-tap its head, then tap the hand it offers.' },
+  { id: 'nom',      name: 'Nom Nom',        clue: 'What happens near its mouth?',                text: 'Boop its mouth and it nibbles your finger.' },
+  { id: 'pokewar',  name: 'Boop War',       clue: 'Eyes are for looking, not poking...',         text: 'Poke its eyes enough and it boops you back.' },
+  { id: 'hiccup',   name: 'Hiccup Cure',    clue: 'Eating too fast has side effects.',           text: 'A surprise boop scares the hiccups away.' },
+  { id: 'burp',     name: 'Excuse Me',      clue: 'A really, really full tummy...',              text: 'Fill its tummy to the top.' },
+  { id: 'name',     name: 'Name Call',      clue: 'It knows its own name. Call it.',             text: 'Tap its name (or type it on a keyboard) and it answers.' },
+  { id: 'midnight', name: 'Midnight Snack', clue: 'Hungry after midnight?',                      text: 'Feed it between midnight and 4 AM.' },
+  { id: 'rainbow',  name: 'Rainbow Mode',   clue: 'An old cheat code still works here. Phones can swipe it.', text: '↑ ↑ ↓ ↓ ← → ← → B A. On a phone: swipe those directions on the background, then tap twice.' },
+];
+
+// The Jelly Jar catches what helpers make while you're away. Upgrade it to hold more.
+// Upgrade cost is a number of minutes of your current helper output (with a floor).
+export const JAR_LEVELS = [
+  { hours: 2,  rate: 0.15 },
+  { hours: 4,  rate: 0.15, minutes: 15,  floor: 2500 },
+  { hours: 8,  rate: 0.20, minutes: 45,  floor: 50000 },
+  { hours: 12, rate: 0.25, minutes: 120, floor: 2e6 },
+  { hours: 24, rate: 0.30, minutes: 360, floor: 1e8 },
+];
+
+// Outfits: pure dress-up. Each slime secretly has one favorite, which makes it extra happy.
+export const OUTFITS = [
+  { id: 'bow',     slot: 'head', name: 'Ribbon Bow',    cost: 1000,  blurb: 'A big floppy bow.' },
+  { id: 'bowtie',  slot: 'neck', name: 'Bow Tie',       cost: 6000,  blurb: 'Very dapper.' },
+  { id: 'glasses', slot: 'face', name: 'Round Glasses', cost: 5e4, blurb: 'For reading the Journal.' },
+  { id: 'flowers', slot: 'head', name: 'Flower Crown',  cost: 5e5, blurb: 'Fresh from the Snack Garden.' },
+  { id: 'scarf',   slot: 'neck', name: 'Cozy Scarf',    cost: 5e6,   blurb: 'Knitted by the slimeling pals.' },
+  { id: 'beret',   slot: 'head', name: 'Artist Beret',  cost: 5e7,   blurb: 'Instantly sophisticated.' },
+  { id: 'shades',  slot: 'face', name: 'Star Shades',   cost: 5e8,   blurb: 'Too cool to blink.' },
+  { id: 'party',   slot: 'head', name: 'Party Hat',     cost: 5e9,   blurb: 'Every day is a celebration.' },
+  { id: 'crown',   slot: 'head', name: 'Tiny Crown',    cost: 1e11,   blurb: 'Ruler of the nursery.' },
+];
+export const OUTFIT_BY_ID = Object.fromEntries(OUTFITS.map(o => [o.id, o]));
