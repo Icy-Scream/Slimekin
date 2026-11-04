@@ -93,6 +93,8 @@ export class Stage {
     this.camera = new THREE.PerspectiveCamera(30, 1, 0.1, 120);
     this.camPos = new THREE.Vector3(0, 2.6, 9);
     this.camLook = new THREE.Vector3(0, 0.8, 0);
+    this.focus = null;
+    this._fp = new THREE.Vector3(); this._fo = new THREE.Vector3();
     this.portrait = false;
 
     this.hemi = new THREE.HemisphereLight('#fff', '#fff', 1);
@@ -172,6 +174,7 @@ export class Stage {
     paintSky(this.skyGeo, p.sky[0], p.fog);
     this.scene.fog = new THREE.Fog(p.fog, 14, 40);
     this.floorMat.color.set(p.floor);
+    this.onTheme && this.onTheme(dark, p);
     if (this.rugMat.map) this.rugMat.map.dispose();
     this.rugMat.map = rugTexture(p.rug, p.floor);
     this.rugMat.needsUpdate = true;
@@ -208,8 +211,23 @@ export class Stage {
     const dist = (7.6 + size * 2.4) * portraitBoost;
     const sway = reduced ? 0 : 1;
     const tx = pointer.x * 0.35 * sway, ty = pointer.y * 0.18 * sway;
-    this.camPos.lerp(new THREE.Vector3(tx, 2.25 + size * 0.75 + ty, dist), 1 - Math.exp(-dt * 3));
-    this.camLook.lerp(new THREE.Vector3(0, CUSHION_TOP + 0.35 + size * 0.42, 0), 1 - Math.exp(-dt * 3));
+    if (this.focus) {
+      // visiting somewhere else (the ranch): glide over, then sway gently with the pointer
+      const f = this.focus;
+      this.camPos.lerp(this._fp.copy(f.pos).add(this._fo.set(tx * 2, ty * 2, 0)), 1 - Math.exp(-dt * 2.2));
+      this.camLook.lerp(f.look, 1 - Math.exp(-dt * 2.6));
+    }
+    const fogFar = this.focus ? 70 : 40;
+    if (this.scene.fog && Math.abs(this.scene.fog.far - fogFar) > 0.1) {
+      this.scene.fog.far += (fogFar - this.scene.fog.far) * (1 - Math.exp(-dt * 2));
+      this.scene.fog.near = 14 + (this.scene.fog.far - 40) * 0.6;
+    }
+    const fov = this.focus && this.focus.fov ? this.focus.fov : 30;
+    if (Math.abs(this.camera.fov - fov) > 0.05) { this.camera.fov += (fov - this.camera.fov) * (1 - Math.exp(-dt * 2.4)); this.camera.updateProjectionMatrix(); }
+    if (!this.focus) {
+      this.camPos.lerp(new THREE.Vector3(tx, 2.25 + size * 0.75 + ty, dist), 1 - Math.exp(-dt * 3));
+      this.camLook.lerp(new THREE.Vector3(0, CUSHION_TOP + 0.35 + size * 0.42, 0), 1 - Math.exp(-dt * 3));
+    }
     this.camera.position.copy(this.camPos);
     this.camera.lookAt(this.camLook);
     if (this.shakeAmt > 0.002) {

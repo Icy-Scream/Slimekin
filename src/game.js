@@ -14,6 +14,7 @@ import { makeFood, renderIcons, FOOD_MAKERS, HELPER_MAKERS, OUTFIT_MAKERS } from
 import { Sfx } from './audio/sfx.js';
 import { Hud, esc } from './ui/hud.js';
 import { Behaviors } from './behaviors.js';
+import { RanchView } from './view/ranch.js';
 
 const SLIME_Y = CUSHION_TOP - 0.03;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -45,6 +46,10 @@ export class Game {
     this.slime.setOutfits(this.state.outfits.worn);
     if (this.state.slime.form) this.slime.setForm(this.state.slime.form.id);
     this.formFxT = 1;
+    this.ranch = new RanchView(this.scene, { quality: this.resolvedQuality() });
+    this.ranch.setTheme(this.stage.dark, this.stage.palette.floor);
+    this.stage.onTheme = (dark, p) => this.ranch.setTheme(dark, p.floor);
+    this.ranch.sync(this.state.ranch?.residents || []);
     this.helpers3d = new HelperWorld(this.scene, this.fx);
     this.helpers3d.sync(this.state.helpers);
     this.hud = new Hud(this);
@@ -1696,6 +1701,7 @@ export class Game {
         if (!this.transient || this.transient.until < this.time) this.flash({ eyes: 'happy', mouth: 'open', blush: 0.7 }, 0.6);
       },
     });
+    this.ranch.update(dt, this.stage.camera);
     this.fx.update(dt);
 
     // smooth view offset toward the free area of the screen

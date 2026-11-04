@@ -70,12 +70,15 @@ class Spring {
 const TRAIT_COLORS = Object.fromEntries(TRAIT_IDS.map(k => [k, new THREE.Color(TRAITS[k].color)]));
 
 export class SlimeAvatar {
-  constructor({ quality = 'high' } = {}) {
+  // lite: a cheaper slime for the ranch (coarser body, face redrawn less often).
+  constructor({ quality = 'high', lite = false } = {}) {
+    this.lite = lite;
+    this.faceT = 0;
     this.root = new THREE.Group();
     this.body = new THREE.Group();     // squash pivot + roll
     this.root.add(this.body);
 
-    let geo = new THREE.IcosahedronGeometry(1, 5);
+    let geo = new THREE.IcosahedronGeometry(1, lite ? 3 : 5);
     geo.deleteAttribute('normal');
     geo.deleteAttribute('uv');
     geo = mergeVertices(geo);
@@ -735,9 +738,9 @@ export class SlimeAvatar {
       c.setHSL(hsl.h, Math.max(hsl.s, 0.6), Math.min(0.78, Math.max(0.6, hsl.l)), THREE.SRGBColorSpace);
     }
     this.targetColor.copy(c);
-    this.stiffness = 1 + Math.min(1.2, traits.mineral / 40);
+    this.stiffness = 1 + Math.min(1.2, (traits.mineral || 0) / 40);
     this.sq.k = 170 * this.stiffness;
-    this.mat.iridescence = Math.max(Math.min(1, traits.prism / 25), (this.form && this.form.mat && this.form.mat.iridescence) || 0);
+    this.mat.iridescence = Math.max(Math.min(1, (traits.prism || 0) / 25), (this.form && this.form.mat && this.form.mat.iridescence) || 0);
     const iris = c.clone().lerp(new THREE.Color('#ffffff'), 0.35);
     this.expr.iris = `rgba(${Math.round(iris.r * 255)}, ${Math.round(iris.g * 255)}, ${Math.round(iris.b * 255)}, 0.95)`;
   }
@@ -898,8 +901,12 @@ export class SlimeAvatar {
       this.blink = Math.sin(Math.min(1, this.blinkPhase) * Math.PI);
       if (this.blinkPhase >= 1) { this.blinkPhase = -1; this.blink = 0; }
     }
-    this.face.draw(this.expr, this.look, this.blink, t);
-    this.face.texture.needsUpdate = true;
+    this.faceT -= dt;
+    if (!this.lite || this.faceT <= 0) {
+      this.faceT = 1 / 12;
+      this.face.draw(this.expr, this.look, this.blink, t);
+      this.face.texture.needsUpdate = true;
+    }
 
     // accessories
     for (const a of this.acc) {
