@@ -1,0 +1,128 @@
+{
+ "note": "Fresh save on main: an egg, nothing else.",
+ "madeWith": "main 1bc7189",
+ "save": {
+  "v": 1,
+  "createdAt": 1792508400000,
+  "savedAt": 1792508400000,
+  "phase": "egg",
+  "egg": {
+   "warmth": 0
+  },
+  "slime": {
+   "name": "",
+   "bornAt": null,
+   "growth": 0,
+   "tummy": 35,
+   "joy": 62,
+   "energy": 85,
+   "traits": {
+    "sweet": 0,
+    "heat": 0,
+    "mineral": 0,
+    "nature": 0,
+    "spark": 0,
+    "prism": 0
+   },
+   "personality": {
+    "curious": 46,
+    "patient": 53,
+    "playful": 53,
+    "cuddly": 42,
+    "bold": 47
+   },
+   "recent": {
+    "curious": 0,
+    "patient": 0,
+    "playful": 0,
+    "cuddly": 0,
+    "bold": 0
+   },
+   "bondXp": 0,
+   "favorite": "berry",
+   "dislike": "crystal",
+   "knownFavorite": false,
+   "knownDislike": false,
+   "eaten": {},
+   "form": null,
+   "belly": [],
+   "tricks": {}
+  },
+  "jelly": 0,
+  "totalJelly": 0,
+  "jar": {
+   "level": 0,
+   "stored": 0,
+   "lastFill": 0
+  },
+  "outfits": {
+   "owned": [],
+   "worn": {
+    "head": null,
+    "face": null,
+    "neck": null
+   },
+   "favorite": "bowtie",
+   "knownFavorite": false
+  },
+  "helpers": {
+   "feather": 0,
+   "bubbles": 0,
+   "garden": 0,
+   "slimeling": 0,
+   "musicbox": 0,
+   "lamp": 0,
+   "fountain": 0,
+   "observatory": 0,
+   "spa": 0,
+   "rainbow": 0
+  },
+  "upgrades": [],
+  "combos": [],
+  "buffs": [],
+  "memories": [],
+  "memKeys": [],
+  "secrets": [],
+  "lastMorning": null,
+  "stats": {
+   "boops": 0,
+   "feeds": 0,
+   "petTime": 0,
+   "fevers": 0,
+   "dizzies": 0,
+   "naps": 0,
+   "glimmers": 0,
+   "requests": 0,
+   "playTime": 0,
+   "visits": 1
+  },
+  "tutorial": 0,
+  "settings": {
+   "sound": true,
+   "music": true,
+   "purr": true,
+   "soundOnSilent": true,
+   "reducedMotion": false,
+   "quality": "auto",
+   "showFps": false
+  },
+  "ranch": {
+   "residents": [],
+   "slots": 3,
+   "pearls": 0,
+   "totalPearls": 0,
+   "basket": {
+    "level": 0,
+    "stored": 0
+   },
+   "family": {
+    "bonus": 0,
+    "generation": 1,
+    "lifetime": 0
+   },
+   "placed": [],
+   "gift": false,
+   "lastVisit": 0
+  }
+ }
+}
