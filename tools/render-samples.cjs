@@ -254,6 +254,15 @@ async function render() {
         const g = window.slimekin;
         const keys = Object.keys(g.state.slime.traits);
         g.ranch.sync(list.map(d => ({ ...d, traits: Object.fromEntries(keys.map(k => [k, d.traits[k] || 0])) })));
+        // stand them in rows facing the camera (clear of the barn and pond) and keep them there
+        const spots = [[-1.9, -2.0], [-0.2, 2.5], [-0.4, -2.0], [1.1, -2.0], [-2.6, 0.3], [-1.0, 0.3], [0.6, 0.3], [2.2, 0.3]];
+        let i = 0;
+        for (const r of g.ranch.residents.values()) {
+          if (!String(r.id).startsWith('sample')) continue;
+          const [x, z] = spots[i++ % spots.length];
+          r.holder.position.x = x; r.holder.position.z = z;
+          r.holder.rotation.y = 0; r.heading = 0; r.state = 'idle'; r.timer = 1e9;
+        }
       }, list);
       await page.click('#tab-ranch');
       await ev(() => window.slimekin.advance(5));
