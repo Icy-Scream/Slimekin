@@ -64,11 +64,15 @@ Phone notes: swipe the menu down (or its grip bar) to close it; drag a notificat
 | Little moments | Hiccups after eating fast, a burp when its tummy is full, daydream bubbles about its favorite snack, dreams while napping, a nightcap when asleep, a morning stretch, sleepier at night. |
 | Playing with the room | It pops nearby bubbles, swats tickle feathers, slimeling pals hop over to visit, dance breaks to the music box, stargazing with the telescope. |
 | Secrets | 14 hidden interactions, each with a clue in the Journal. |
-| Grown-up forms | All 22 Settled forms have their own look on top of the diet color: a body shape (teardrop, blocky, lumpy...), a pattern (candy stripes, flames, rivets, circuits...), props (a beating heart inside, amethyst clusters, a chimney, a sunflower, a bee or ladybug friend...) and little effects. Head props hide under hats. |
+| Grown-up forms | All 22 Settled forms have their own look on top of the diet color: a body shape (teardrop, blocky, lumpy...), a pattern (candy stripes, flames, rivets, circuits...), props (a beating heart inside, amethyst clusters, a chimney, a sunflower, a bee or ladybug friend...) and little effects. Head props hide under hats (spark forms keep theirs and the hat sits on top). |
 | The ranch | A grassy hill behind the cushion where grown-up slimes live. Open the Ranch tab and the camera flies over; tap a slime to visit it up close and stroke it to pet it. They wander, play, and nap in nightcaps after dark. |
 | Moving out (a new generation) | A Settled slime can move to the ranch. That starts a new generation with a new egg: jelly, helpers, upgrades and the Jelly Jar start over; pearls, the ranch, outfits, combos and secrets stay. Each generation adds a permanent Family Bonus to all jelly (bigger the longer it played), and the ranch slime keeps making jelly. |
 | Pearls | The ranch currency. Ranch slimes make about 4 an hour each (more when happy, so visit and pet them). Pearls pop out into the grass to pick up, roll into the Pearl Basket, and wait there while you're away. Spend them on more room and a bigger basket. |
 | New homes and auctions | Three buyers offer a new home for a ranch slime (a better fit pays more, and it sends postcards with a few pearls for a week), or hold a live auction for usually a bit more. Offers and auctions are fixed for the day. |
+| The Nursery (breeding) | A little cottage on the ranch. Pick two ranch slimes and they make an egg (25 pearls, ready in an hour, even while the game is closed; each slime can be a parent once a day; up to two eggs wait in the nest). When your slime moves to the ranch you choose which egg comes next: a new egg or a waiting one. The baby takes after its parents a little (a capped head start in their snack colors and a small personality nudge), but how you raise it decides its form. |
+| Family sparks | Some parent pairs share a family spark: their egg twinkles, and a baby raised on the right snacks grows into a form only they can pass on: S'more (Hearth × Marshmallow), Honeycomb (Nectar × Candy), Campfire (Hearth × Root), Storm (Aurora × Volt). Raised differently, it grows into a normal form and the Journal keeps a clue. |
+| Pure slimes | Two parents of the same form, and a baby that grows up the same way, make a Pure version of any of the 22 forms: brighter colors, a soft shimmer and twinkling sparkles. |
+| Family tree | A Journal page with your slime, its two parents and its generation, the spark forms found (silhouettes for the ones not found yet, clues for the ones you have seen) and the Pure forms raised. |
 
 Saving: every few seconds to `localStorage`, and also to the player's private slot in the
 artifact's database when it runs on claude.ai (so it follows you across devices).
@@ -82,7 +86,9 @@ src/game.js           coordinator: input -> rules -> reactions, effects, UI
 src/behaviors.js      gestures, emotes and tricks, little moments, room play, secrets
 src/data/content.js   ALL tuning and content: stages, foods, traits, helpers, upgrades, combos, bond, forms
 src/core/sim.js       game rules and save state (no three.js, no DOM), including moving to the ranch
-src/core/ranch.js     ranch rules: pearls, basket, slots, happiness, new homes, auctions, postcards
+src/core/ranch.js     ranch rules: pearls, basket, slots, happiness, new homes, auctions, postcards, the Nursery
+src/core/breeding.js  breeding rules: making an egg, what a baby inherits (capped), family sparks, Pure forms
+src/core/random.js    seeded dice (the same egg, offer or auction every time it is reopened)
 src/core/requests.js  slime requests
 src/core/save.js      local + cloud save
 src/core/format.js    number formatting
@@ -94,6 +100,7 @@ src/view/stage.js     renderer, camera, lights, sky, cushion, day/night palettes
 src/view/helpers3d.js visible helpers in the world
 src/view/models.js    procedural 3D models for snacks/helpers + icon renderer
 src/view/egg.js       the egg and hatching shards
+src/view/egg-spark.js the twinkle (and warm night glow) on an egg with a family spark
 src/view/fx.js        sprite particles
 src/audio/sfx.js      synthesized sounds and slime "voice" (Web Audio, no files)
 src/ui/hud.js         DOM interface
@@ -103,6 +110,10 @@ web/                  app icons and the offline service worker template
 docs/                 built web app served by GitHub Pages (do not edit by hand; rebuild instead)
 tools/economy-sim.mjs economy simulator: plays the real rules as an engaged or casual player and prints milestones
 tools/smoke-test.cjs  headless phone-sized play-through (hatch, grow up, ranch, move out); setup notes inside
+tools/breeding-smoke.cjs  headless breeding play-through from an old save (Nursery, spark egg, S'more, Pure)
+tools/breeding-test.mjs   breeding rules check in plain node (caps, seeds, sparks, Pure, cooldowns, old saves)
+tools/fixtures/       old saves made with the code from before breeding (tools/fixtures/make-old-saves.mjs)
+tools/render-samples.cjs  renders looks day and night and builds labeled contact sheets
 AGENTS.md, CLAUDE.md  hand-off guide for coding agents (how it ships, how to test, gotchas, roadmap)
 ```
 
@@ -150,9 +161,17 @@ node tools/economy-sim.mjs 2 quiet spam
 
 Everything lives in `src/data/content.js`: `TUNING` (needs decay, giggle window, offline cap,
 glimmer and request timing), `STAGES` (growth thresholds, boop power, food price multiplier),
-food nutrition/fullness/traits, helper costs and rates, upgrade costs and unlock rules.
+food nutrition/fullness/traits, helper costs and rates, upgrade costs and unlock rules, and `BREEDING`
+(egg cost, timer, how much a baby inherits) with `SPARK_FORMS` (one entry per family spark).
+
+Breeding: `node tools/breeding-test.mjs` checks the rules. A bred baby compared with a plain one (the only
+difference is the favorite snack it may inherit):
+
+```bash
+node tools/economy-sim.mjs 4 casual quiet gen2=1e9 bred
+```
 
 ## Not in this prototype (from the GDD, deliberately left for later)
 
-Breeding and the Nursery (next), the Training Center and trips, contests and slime battles,
-world conditions and forecasts, contracts.
+More family sparks, rare and lucky eggs, and rewards for special slimes (later breeding slices), the Training
+Center and trips, contests and slime battles, world conditions and forecasts, contracts.

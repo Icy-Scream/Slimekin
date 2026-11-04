@@ -106,8 +106,8 @@ console.log('\n# 1. Caps hold over many seeded pairs');
     for (const id of C.PERSONALITY_IDS) if (Math.abs(e.personality[id]) > BREEDING.personalityCap + 1e-9) worst = Infinity;
     n++;
   }
-  ok(worst <= CAP + 0.051, `no channel above the cap in ${n} eggs (and temperament nudges within ±${BREEDING.personalityCap})`, `largest ${worst.toFixed(1)} <= ${CAP.toFixed(1)}`);
-  ok(worstTotal <= TOTAL + 0.31, `head start over all channels within the total cap`, `largest ${worstTotal.toFixed(1)} <= ${TOTAL.toFixed(1)}`);
+  ok(worst <= CAP + 0.051, `no channel above the cap (give or take rounding to 0.1) in ${n} eggs (and temperament nudges within ±${BREEDING.personalityCap})`, `largest ${worst.toFixed(1)} <= ${CAP.toFixed(1)}`);
+  ok(worstTotal <= TOTAL + 0.31, `head start over all channels within the total cap (each channel is rounded to 0.1, so the sum can be up to 0.3 over)`, `largest ${worstTotal.toFixed(1)} <= ${TOTAL.toFixed(1)}`);
   const concCap = CAP * (1 - BREEDING.regress);
   ok(worstConc <= concCap + 0.051, 'a line that keeps concentrating regresses (cap shrinks by the regress share)', `largest ${worstConc.toFixed(1)} <= ${concCap.toFixed(1)}`);
 }

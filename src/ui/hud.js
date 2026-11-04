@@ -3,6 +3,7 @@
 import {
   FOODS, FOOD_BY_ID, HELPERS, STAGES, TRAITS, TRAIT_IDS, BOND, PERSONALITY, PERSONALITY_IDS, COMBOS, NAME_IDEAS,
   EMOTES, SECRETS, TRICK_LEARNED, JAR_LEVELS, OUTFITS, OUTFIT_BY_ID, RANCH, BUYER_BY_ID,
+  BREEDING, SPARK_FORMS, SPARK_BY_ID, FORM_BY_ID, FORM_IDS, PURE_LINE,
 } from '../data/content.js';
 import { fmt, fmtShort, fmtRate, fmtDuration } from '../core/format.js';
 
@@ -48,7 +49,13 @@ export class Hud {
       else if (b.dataset.act === 'visit') g.focusResident(id);
       else if (b.dataset.act === 'place') g.askPlace(id);
       else if (b.dataset.act === 'auction') g.startAuction(id);
+      else if (b.dataset.act === 'nursery') g.openNursery();
+      else if (b.id === 'nurseryBack') g.closeNursery();
+      else if (b.dataset.act === 'pickParent') this.pickParent(id);
+      else if (b.id === 'breedBtn' && this.nurseryPick.length === 2) g.breed(this.nurseryPick[0], this.nurseryPick[1]);
+      else if (b.dataset.act === 'giveEgg') g.giveEgg(b.dataset.egg);
     });
+    this.nurseryPick = [];
     this.pending = 0; this.pendingRate = 0;
     this.outfitKey = '';
     this.buildEmotes();
@@ -393,12 +400,20 @@ export class Hud {
 
   // ---------- journal tab ----------
   renderJournal(force = false) {
-    const st = this.g.state;
-    const key = st.memories.length + '|' + st.combos.join(',') + '|' + this.g.sim.stageIndex() + '|' + st.secrets.length;
+    const st = this.g.state, R = st.ranch;
+    const page = this.journalPage || 'notes';
+    const key = page + '|' + st.memories.length + '|' + st.combos.join(',') + '|' + this.g.sim.stageIndex() + '|' + st.secrets.length + '|' +
+      JSON.stringify(R.sparks) + '|' + R.pures.length + '|' + R.residents.length + '|' + (st.slime.form?.id || '') + '|' + st.slime.name;
     if (!force && key === this.journalKey) return;
     this.journalKey = key;
     const sim = this.g.sim;
-    let html = '<div class="sec-title">Combos</div><p class="sub">Feed two snacks in a row, quickly, to find combinations.</p>';
+    const seg = `<div class="seg journal-seg" role="group" aria-label="Journal pages"><button data-jp="notes" aria-pressed="${page === 'notes'}">Notes</button><button data-jp="family" aria-pressed="${page === 'family'}">Family tree</button></div>`;
+    if (page === 'family') {
+      this.$('body-journal').innerHTML = seg + this.familyTreeHtml();
+      this.bindJournalSeg();
+      return;
+    }
+    let html = seg + '<div class="sec-title">Combos</div><p class="sub">Feed two snacks in a row, quickly, to find combinations.</p>';
     for (const c of COMBOS) {
       const found = st.combos.includes(c.id);
       const ready = c.seq.every(id => sim.foodUnlocked(id));
@@ -427,6 +442,71 @@ export class Hud {
       html += `<div class="mem"><span class="ic">${ic}</span><div>${esc(m.text)}<time>${time}</time></div></div>`;
     }
     this.$('body-journal').innerHTML = html;
+    this.bindJournalSeg();
+  }
+  bindJournalSeg() {
+    for (const b of this.$('body-journal').querySelectorAll('[data-jp]')) b.addEventListener('click', () => {
+      this.journalPage = b.dataset.jp;
+      this.$('body-journal').scrollTop = 0;
+      this.renderJournal(true);
+    });
+  }
+
+  // Family tree: the slime with its two parents, then the spark forms (unknown / observed / understood,
+  // per the design doc's knowledge states), Pure forms raised, and the families living on the ranch.
+  familyTreeHtml() {
+    const g = this.g, st = g.state, R = st.ranch, s = st.slime, lin = s.lineage || {};
+    // a little colored blob per form: spark forms have their own color, the others use their snack colors
+    const formColor = id => {
+      if (!id) return null;
+      const sp = SPARK_FORMS.find(x => x.look === id);
+      if (sp) return sp.color;
+      const ks = id.split('+').filter(k => TRAITS[k]);
+      if (ks.length === 2) return `linear-gradient(135deg, ${TRAITS[ks[0]].color} 0 50%, ${TRAITS[ks[1]].color} 50%)`;
+      return ks.length ? TRAITS[ks[0]].color : '#fbeef4';
+    };
+    const node = (name, formName, cls = '', color = null) => `<div class="tree-node ${cls}"><span class="blob" style="${color ? `--c:${color}` : ''}" aria-hidden="true"></span><b>${esc(name)}</b><span class="sub">${esc(formName)}</span></div>`;
+    const me = s.name || 'Your slime';
+    const myForm = s.form ? s.form.name : st.phase === 'egg' ? 'Still an egg' : `${g.sim.stage().name}, still growing`;
+    let html = `<div class="sec-title">${esc(me)}'s family</div><div class="card tree">`;
+    if (lin.parents?.length === 2) {
+      const [p, q] = lin.parents;
+      html += `<div class="tree-parents">${node(p.name, p.form.name, 'parent', formColor(p.form.id))}<span class="tree-heart" aria-hidden="true">♥</span>${node(q.name, q.form.name, 'parent', formColor(q.form.id))}</div>
+        <div class="tree-line" aria-hidden="true"></div>`;
+    } else {
+      html += `<div class="tree-parents">${node('?', 'A plain egg', 'parent unknown')}</div><div class="tree-line" aria-hidden="true"></div>`;
+    }
+    html += node(me, myForm, 'me' + (s.form?.pure ? ' pure' : '') + (s.form?.spark ? ' spark' : ''), formColor(s.form?.id));
+    html += `<span class="sub tree-note">Generation ${R.family.generation} of your family.${lin.line > 1 ? ` ${esc(me)} is number ${lin.line} in its family line.` : ' The first of a new family line.'}</span>`;
+    if (lin.spark) html += `<span class="sub spark-line">✦ ${esc(me)} carries a family spark.</span>`;
+    if (lin.pure && FORM_BY_ID[lin.pure]) html += `<span class="sub">Both parents were ${esc(FORM_BY_ID[lin.pure].name)}s.</span>`;
+    html += '</div>';
+
+    const found = SPARK_FORMS.filter(x => R.sparks[x.id] === 'understood').length;
+    html += `<div class="sec-title">Spark forms <span class="count">${found} of ${SPARK_FORMS.length}</span></div><p class="sub">Some pairs of parents share a family spark. Raised just right, their baby becomes something only they can pass on.</p>`;
+    for (const x of SPARK_FORMS) {
+      const k = R.sparks[x.id];
+      const [fa, fb] = x.parents.map(id => FORM_BY_ID[id]?.name || '?');
+      if (k === 'understood') {
+        html += `<div class="combo spark-entry"><span class="pair"><span class="blob" style="--c:${x.color}" aria-hidden="true"><i>${x.icon}</i></span></span><span class="cn">${esc(x.name)}</span>
+          <span class="ce">${esc(x.blurb)} ${esc(fa)} × ${esc(fb)}, raised on ${x.recipe.map(t => esc(TRAITS[t].name)).join(' + ')} snacks.</span></div>`;
+      } else if (k === 'observed') {
+        const misses = R.nearMiss[x.id] || 0;
+        html += `<div class="combo unknown spark-entry"><span class="pair"><span class="blob silhouette" aria-hidden="true"><i>?</i></span></span><span class="cn">A spark between ${esc(fa)} and ${esc(fb)}</span>
+          <span class="ce">${misses ? `Clue: ${esc(x.clue)} (${misses} near miss${misses === 1 ? '' : 'es'} so far)` : 'Seen in an egg. Their baby needs to be raised just right: try different snacks!'}</span></div>`;
+      } else {
+        html += `<div class="combo unknown spark-entry"><span class="pair"><span class="blob silhouette" aria-hidden="true"><i>?</i></span></span><span class="cn">${esc(x.hint)}</span><span class="ce">Not found yet</span></div>`;
+      }
+    }
+    html += `<div class="sec-title">Pure forms <span class="count">${R.pures.length} of ${FORM_IDS.length}</span></div><p class="sub">Two parents of the same form, and a baby raised the same way, make a Pure version.</p>`;
+    html += R.pures.length ? `<div class="badges">${R.pures.map(id => `<span class="badge pure-badge">✦ ${esc(PURE_LINE.name(FORM_BY_ID[id].name))}</span>`).join('')}</div>` : '<p class="empty">None yet.</p>';
+    const fams = R.residents.filter(x => x.lineage?.parents?.length === 2);
+    if (fams.length) {
+      html += '<div class="sec-title">Families on the ranch</div><div class="card">';
+      html += fams.map(x => `<div class="row-between"><span><b>${esc(x.name)}</b> <span class="sub">${esc(x.form?.name || '')}</span></span><span class="sub">${esc(x.lineage.parents[0].name)} × ${esc(x.lineage.parents[1].name)}</span></div>`).join('');
+      html += '</div>';
+    }
+    return html;
   }
 
   // ---------- slime tab ----------
@@ -445,9 +525,26 @@ export class Hud {
       if (sim.canMoveOut()) html += `<div class="card"><b>Ready for the ranch</b><span class="sub">${name} is all grown up. Moving to the ranch starts a new generation and adds a Family Bonus of +${sim.moveOutPreview().bonus.toFixed(1)}% to all jelly, forever.</span><button class="btn" id="slimeMoveOut">Tell me more</button></div>`;
     } else if (si >= 2) {
       const f = sim.formCandidate();
-      html += `<div class="card"><span class="sub">Looks like ${name} is becoming</span><span class="form-name">${esc(f.name)}?</span><span class="sub">${esc(f.blurb)} Still changing until they settle.</span></div>`;
+      const sp = s.lineage?.spark && SPARK_BY_ID[s.lineage.spark];
+      const stirring = sp && f.id === [...sp.recipe].sort().join('+') ? `<span class="sub spark-line">✦ Something sparkly is stirring inside ${name}...</span>` : '';
+      html += `<div class="card"><span class="sub">Looks like ${name} is becoming</span><span class="form-name">${esc(f.name)}?</span><span class="sub">${esc(f.blurb)} Still changing until they settle.</span>${stirring}</div>`;
     } else {
       html += `<div class="card"><span class="sub">Becoming</span><span class="form-name">Too young to tell</span><span class="sub">What ${name} eats now shapes the slime they grow into.</span></div>`;
+    }
+
+    const lin = s.lineage || {};
+    if (lin.parents?.length === 2) {
+      const [p, q] = lin.parents;
+      const leaned = TRAIT_IDS.filter(k => (lin.bias?.[k] || 0) >= 5).sort((a, b) => lin.bias[b] - lin.bias[a]).slice(0, 2).map(k => TRAITS[k].name);
+      html += `<div class="card"><span class="sub">Family</span><b>Child of ${esc(p.name)} and ${esc(q.name)}</b><span class="sub">${esc(p.form.name)} × ${esc(q.form.name)}.${leaned.length ? ` ${name} started out a little ${esc(leaned.join(' and ').toLowerCase())}, like them.` : ''}</span>`;
+      const sp = lin.spark && SPARK_BY_ID[lin.spark];
+      if (sp && !s.form) {
+        html += `<span class="sub spark-line">✦ A family spark glows in ${name}. Raised just right, they could grow into something only ${esc(p.name)} and ${esc(q.name)} can pass on.</span>`;
+        // the clue comes after a near miss (or once the form is known); before that, finding it is the fun
+        if (st.ranch.nearMiss[sp.id] || st.ranch.sparks[sp.id] === 'understood') html += `<span class="sub">Journal clue: ${esc(sp.clue)}</span>`;
+      }
+      if (lin.pure && !s.form && FORM_BY_ID[lin.pure]) html += `<span class="sub">Both parents are ${esc(FORM_BY_ID[lin.pure].name)}s. If ${name} grows up the same way, they become a ${esc(PURE_LINE.name(FORM_BY_ID[lin.pure].name))}.</span>`;
+      html += '</div>';
     }
 
     const traits = TRAIT_IDS.map(k => [k, s.traits[k]]).filter(e => e[1] > 0.05).sort((a, b) => b[1] - a[1]);
@@ -520,11 +617,12 @@ export class Hud {
 
   // ---------- ranch tab ----------
   renderRanch(force = false) {
+    if (this.g.ranchPage === 'nursery') return this.renderNursery(force);
     const g = this.g, sim = g.sim, st = g.state, R = st.ranch, rr = sim.ranch;
     const focus = g.ranchFocus ? rr.resident(g.ranchFocus) : null;
     const fm = rr.familyMult();
     const canMove = sim.canMoveOut();
-    const key = [R.pearls, R.basket.stored, R.basket.level, R.slots, R.residents.map(x => x.id + ':' + Math.round(x.happiness / 5)).join(','), focus && focus.id, canMove, R.placed.length, st.slime.name].join('|');
+    const key = [R.pearls, R.basket.stored, R.basket.level, R.slots, R.residents.map(x => x.id + ':' + Math.round(x.happiness / 5)).join(','), focus && focus.id, canMove, R.placed.length, st.slime.name, rr.eggs().length].join('|');
     if (!force && key === this.ranchKey) return;
     this.ranchKey = key;
     const happyWord = h => h > 80 ? 'Very happy' : h > 55 ? 'Happy' : h > 30 ? 'A little lonely' : 'Misses you';
@@ -539,7 +637,8 @@ export class Hud {
       html += `<div class="card"><div class="row-between"><span class="form-name">${esc(x.name)}</span><span class="sub">Generation ${x.generation}</span></div>
         <b>${esc(x.form?.name || 'Slime')}</b><span class="sub">${esc(x.form?.blurb || '')}</span>
         <div class="row-between"><span class="sub">${happyWord(x.happiness)}</span><span class="sub">${Math.round(x.happiness)}%</span></div><div class="meter"><i style="width:${x.happiness.toFixed(0)}%;background:linear-gradient(90deg,#ffb0c8,var(--berry))"></i></div>
-        <span class="sub">Tap or stroke ${esc(x.name)} to pet them. Happy slimes make pearls faster.</span></div>`;
+        <span class="sub">Tap or stroke ${esc(x.name)} to pet them. Happy slimes make pearls faster.</span>
+        ${x.lineage?.parents?.length ? `<span class="sub">Child of ${esc(x.lineage.parents[0].name)} (${esc(x.lineage.parents[0].form.name)}) and ${esc(x.lineage.parents[1].name)} (${esc(x.lineage.parents[1].form.name)}).</span>` : ''}</div>`;
       html += `<div class="stat-grid">
         <div class="stat"><div class="k">Jelly</div><div class="v">${fmtRate(x.jps * fm)}/s</div></div>
         <div class="stat"><div class="k">Pearls</div><div class="v">~${(rr.pearlRate(x) * 3600).toFixed(1)}/hour</div></div>
@@ -563,6 +662,12 @@ export class Hud {
       } else if (!R.residents.length) {
         html += `<div class="card"><b>Nobody lives here yet</b><span class="sub">When ${name} is all grown up (Settled), they can move to the ranch. They keep making jelly and pearls, you raise a new baby, and every generation adds a Family Bonus to all your jelly.</span></div>`;
       }
+      if (R.residents.length || rr.eggs().length) {
+        const n = rr.eggs().length;
+        html += `<div class="card nursery-card"><div class="row-between"><b>Nursery</b><span class="sub">${n ? `${n} egg${n === 1 ? '' : 's'} waiting` : 'No eggs yet'}</span></div>
+          <span class="sub">${R.residents.length < 2 ? 'When two slimes live here, they can make an egg together.' : `Two ranch slimes can make an egg together. Choose it when ${name} moves to the ranch.`}</span>
+          <button class="btn" data-act="nursery">Open the Nursery</button></div>`;
+      }
       if (R.residents.length || R.basket.stored > 0) {
         const cap = rr.basketCap(), next = RANCH.basket[R.basket.level + 1];
         html += `<div class="sec-title">Pearl Basket</div><div class="card"><div class="row-between"><span>Pearls waiting</span><b>${R.basket.stored} / ${cap}</b></div>
@@ -585,6 +690,66 @@ export class Hud {
       if (R.placed.length) {
         html += `<div class="sec-title">Living elsewhere</div><div class="card">` + R.placed.slice(-8).reverse().map(p => `<div class="row-between"><span>${esc(p.name)}</span><span class="sub">${esc(BUYER_BY_ID[p.buyer]?.name || '')}</span></div>`).join('') + '</div>';
       }
+    }
+    this.$('body-ranch').innerHTML = html;
+  }
+
+  // ---------- the Nursery (inside the Ranch tab) ----------
+  pickParent(id) {
+    const p = this.nurseryPick;
+    if (p.includes(id)) this.nurseryPick = p.filter(x => x !== id);
+    else { p.push(id); if (p.length > 2) p.shift(); }
+    this.g.sfx.plip();
+    this.renderNursery(true);
+  }
+  renderNursery(force = false) {
+    const g = this.g, st = g.state, R = st.ranch, rr = g.sim.ranch, now = g.nowMs();
+    const eggs = rr.eggs();
+    this.nurseryPick = this.nurseryPick.filter(id => rr.resident(id) && !rr.restingToday(rr.resident(id), now));
+    const pick = this.nurseryPick;
+    const key = ['nursery', R.pearls, eggs.map(e => e.id + ':' + Math.ceil(rr.eggSecondsLeft(e, now) / 60)).join(','),
+      R.residents.map(x => x.id + (rr.restingToday(x, now) ? 'r' : '')).join(','), pick.join(','), JSON.stringify(R.sparks), st.slime.name].join('|');
+    if (!force && key === this.ranchKey) return;
+    this.ranchKey = key;
+    const cur = esc(st.slime.name || 'your slime');
+    const pname = x => esc(x.name);
+    let html = `<button class="link-btn" id="nurseryBack">← Back to the ranch</button>`;
+    html += `<div class="card"><div class="row-between"><span class="form-name">Nursery</span><span class="sub"><i class="pearl"></i> ${fmt(R.pearls)} pearls</span></div>
+      <span class="sub">Two ranch slimes can make an egg together. The baby takes after them a little, but how you raise it decides who it becomes.</span>
+      <span class="sub">An egg costs <b>${BREEDING.cost} pearls</b> and is ready in ${fmtDuration(BREEDING.readyHours * 3600)} (even while the game is closed). Each slime can be a parent once a day.</span></div>`;
+    html += `<div class="sec-title">Waiting eggs <span class="count">${eggs.length} of ${BREEDING.maxEggs}</span></div>`;
+    if (!eggs.length) html += '<p class="sub">No eggs yet. Pick two parents below.</p>';
+    for (const e of eggs) {
+      const left = rr.eggSecondsLeft(e, now), ready = left <= 0, [p, q] = e.parents;
+      const cols = g.eggColors(e.bias) || [];
+      const done = 1 - left / (BREEDING.readyHours * 3600);
+      html += `<div class="card egg-card${e.spark ? ' spark' : ''}"><div class="egg-row"><span class="egg-ic${e.spark ? ' spark' : ''}" style="--a:${cols[0] || '#9eefd3'};--b:${cols[1] || '#ffc2dc'}" aria-hidden="true"></span>
+        <div><b>${pname(p)} and ${pname(q)}'s egg</b><span class="sub">${ready ? `Ready! Choose it when ${cur} moves to the ranch.` : `Ready in ${fmtDuration(left)}`}</span></div></div>
+        ${ready ? '' : `<div class="meter"><i style="width:${(done * 100).toFixed(0)}%"></i></div>`}
+        ${e.spark ? `<span class="sub spark-line">✦ It twinkles! ${pname(p)} and ${pname(q)} share a family spark.</span>` : ''}
+        ${e.pure ? `<span class="sub">Both parents are ${esc(FORM_BY_ID[e.pure].name)}s. Raised the same way, the baby becomes a ${esc(PURE_LINE.name(FORM_BY_ID[e.pure].name))}.</span>` : ''}
+        <button class="btn small" data-act="giveEgg" data-egg="${e.id}">Give to a neighbor</button></div>`;
+    }
+    html += '<div class="sec-title">Pick two parents</div>';
+    if (R.residents.length < 2) {
+      html += `<div class="card"><span class="sub">Two slimes need to live on the ranch first. When ${cur} is all grown up, move them here too.</span></div>`;
+    } else {
+      html += '<div class="parent-grid">' + R.residents.map(x => {
+        const rest = rr.restingToday(x, now), on = pick.includes(x.id);
+        return `<button class="parent-pick" data-act="pickParent" data-id="${x.id}" aria-pressed="${on}" ${rest ? 'disabled' : ''}><b>${pname(x)}</b><span class="sub">${esc(x.form?.name || 'Slime')}</span>${rest ? '<span class="sub">Resting today</span>' : ''}</button>`;
+      }).join('') + '</div>';
+      const c = pick.length === 2 ? rr.canBreed(pick[0], pick[1], now) : null;
+      let msg = pick.length === 0 ? 'Tap two slimes to pick them.' : pick.length === 1 ? 'Now pick one more.' : '';
+      if (c && !c.ok) msg = c.reason === 'full' ? `The nest is full. Choose a waiting egg when ${cur} moves to the ranch, or give one to a neighbor.`
+        : c.reason === 'pearls' ? `An egg costs ${BREEDING.cost} pearls. You have ${fmt(R.pearls)}.`
+        : c.reason === 'resting' ? `${esc(c.who.join(' and '))} already made an egg today.` : '';
+      if (c && c.ok) {
+        const [a, b] = pick.map(id => rr.resident(id));
+        msg = `${pname(a)} and ${pname(b)} would make a lovely egg.`;
+        if (c.spark && R.sparks[c.spark]) msg += ` <span class="spark-line">✦ They share a family spark!</span>`;
+        if (c.pure) msg += ` Both are ${esc(FORM_BY_ID[c.pure].name)}s: their baby could be a ${esc(PURE_LINE.name(FORM_BY_ID[c.pure].name))}.`;
+      }
+      html += `<p class="sub" id="breedMsg">${msg}</p><button class="btn primary" id="breedBtn" ${c && c.ok ? '' : 'disabled'}>Make an egg · <i class="pearl"></i> ${BREEDING.cost}</button>`;
     }
     this.$('body-ranch').innerHTML = html;
   }
@@ -903,11 +1068,12 @@ export class Hud {
     cb && cb();
   }
 
-  showNaming(onDone, { rename = false, current = '' } = {}) {
+  // title/text: already-escaped html for a baby from the Nursery
+  showNaming(onDone, { rename = false, current = '', title = null, text = null } = {}) {
     const idea = () => NAME_IDEAS[Math.floor(Math.random() * NAME_IDEAS.length)];
     this.openModal(`
-      <h2>${rename ? 'A new name?' : 'Your slime hatched!'}</h2>
-      <p>${rename ? 'Names can change. Your slime will still know it is you.' : 'They are looking right at you. What will you call them?'}</p>
+      <h2>${rename ? 'A new name?' : title || 'Your slime hatched!'}</h2>
+      <p>${rename ? 'Names can change. Your slime will still know it is you.' : text || 'They are looking right at you. What will you call them?'}</p>
       <form class="name-input" id="nameForm" autocomplete="off">
         <input id="slimeName" name="slimeName" maxlength="16" placeholder="${esc(idea())}" value="${esc(current)}" autofocus aria-label="Slime name">
         <button type="button" id="nameDice" aria-label="Suggest a name">${DICE}</button>

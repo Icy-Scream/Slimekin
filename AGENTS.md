@@ -61,6 +61,10 @@ it up the next time it is opened online (sometimes it takes two opens). Never ed
 - Anything that sits on the ranch grass needs a small lift or it z-fights with the ground.
 - The hill in the background is deliberately **not** tappable (it interrupted booping). The ranch
   opens only from the Ranch tab or the pearl counter.
+- Breeding uses seeded dice (`core/random.js`): an egg's inheritance is fixed when it is made, so
+  reopening the game never rerolls it. Egg timers use the wall clock; `g.advance()` moves a test clock
+  (`g.timeSkip`) along so tests can wait out the Nursery.
+- A new spark form is one `SPARK_FORMS` entry in `content.js` plus one `FORM_LOOKS['spark:<id>']` look.
 
 ## Testing
 
@@ -73,7 +77,11 @@ it up the next time it is opened online (sometimes it takes two opens). Never ed
   take a screenshot (or a few) before measuring layout after an animation.
 - Touch gestures: use CDP `Input.dispatchTouchEvent` (Playwright's tap alone can't drag).
 - Economy: `node tools/economy-sim.mjs 12 quiet` (engaged), add `casual`, `spam`, or `gen2=1e9`.
-  Spamming must never beat normal play. Targets are in the README.
+  Spamming must never beat normal play. Targets are in the README. `bred` makes the gen-2 baby from a
+  Nursery egg.
+- Breeding: `node tools/breeding-test.mjs` (plain node: caps, seeds, sparks, Pure, cooldowns, old saves
+  from `tools/fixtures/`), and `node tools/breeding-smoke.cjs` (headless play-through from an old save,
+  screenshots in `tools/out/breeding/`). `g.debug('pearls')` adds 100 pearls.
 
 ## How the owner likes to work
 
@@ -88,17 +96,16 @@ it up the next time it is opened online (sometimes it takes two opens). Never ed
 
 Done: alive pass (gestures, emotes, tricks, secrets), economy (Jelly Jar, upgrades, outfits), iPhone
 web app, 22 grown-up form looks, ranch + pearls + prestige + new homes + auctions, anti-spam and
-slower bond, swipe-to-close menu, movable notifications.
+slower bond, swipe-to-close menu, movable notifications, breeding core (Nursery, capped inheritance,
+choosing the next egg at move-out, four spark forms, Pure versions of all 22 forms, family tree).
 
 Next, in this order (agreed with the owner):
 
-1. **Breeding**: a Nursery building on the ranch. Two residents make an egg; the baby leans toward
-   its parents' traits (capped, per the design doc). Some parent pairs give the egg a "family spark":
-   raised on the right snacks it becomes a breeding-only form. First four to build (samples first):
-   S'more Slime (Hearth × Marshmallow), Honeycomb Slime (Nectar × Candy), Campfire Slime (Hearth ×
-   Root), Storm Slime (Aurora × Volt). Later: Opal (Geode × Aurora), Fairy Ring (Root × Nectar),
-   Pop Rocks (Candy × Volt), Pure versions (same form × same form), rare Sparkle (~1/50), Golden
-   (~1/500) and Ghost (hatches at night) variants, Royal crown after three generations of one line.
+1. **More breeding**: the core is built (the Nursery, family sparks for S'more, Honeycomb, Campfire
+   and Storm, Pure versions). Next: signature moves for every slime, more spark forms (Opal = Geode ×
+   Aurora, Fairy Ring = Root × Nectar, Pop Rocks = Candy × Volt...; samples first), rewards for rare
+   breeds, rare Sparkle (~1/50), Golden (~1/500) and Ghost (hatches at night) variants, Royal crown
+   after three generations of one line.
 2. **Training Center** (Bounce, Speed, Sturdy, Smarts, Charm; costs pearls and time) and **trips**
    (send a resident away for hours; it brings back pearls, a rare snack, a souvenir and a story).
 3. **Contests** (Beauty Show, Slime Sprint, Bounce-Off) and then **Slime Sumo battles** (cozy,

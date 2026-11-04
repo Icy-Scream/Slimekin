@@ -2,7 +2,8 @@
 import * as THREE from 'three';
 
 export class Egg {
-  constructor() {
+  // colors: spot colors (a bred egg takes its colors from what its parents were raised on)
+  constructor({ colors = null } = {}) {
     this.group = new THREE.Group();
     const pts = [];
     for (let i = 0; i <= 40; i++) {
@@ -17,7 +18,7 @@ export class Egg {
     this.canvas.width = 512; this.canvas.height = 256;
     this.ctx2d = this.canvas.getContext('2d');
     this.spots = [];
-    const cols = ['#9eefd3', '#ffc2dc', '#ffe39a', '#c9b8ff'];
+    const cols = colors && colors.length ? colors : ['#9eefd3', '#ffc2dc', '#ffe39a', '#c9b8ff'];
     for (let i = 0; i < 26; i++) this.spots.push({ x: Math.random() * 512, y: 30 + Math.random() * 200, r: 8 + Math.random() * 18, c: cols[i % cols.length] });
     this.crackPath = [];
     let x = 0, y = 108;
