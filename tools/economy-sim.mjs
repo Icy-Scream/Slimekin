@@ -1,8 +1,9 @@
 // Economy simulator: plays the real game rules with a simple player model, to check pacing.
-// Usage: node tools/economy-sim.mjs [days] [casual] [quiet]
+// Usage: node tools/economy-sim.mjs [days] [casual] [quiet] [gen2=<jelly>]
 //   engaged (default): ~80 min of play a day, booping in bursts, buys the best-value helper
 //   casual:            ~40 min of play a day, boops less, buys helpers at random
 //   quiet:             only print the milestones
+//   gen2=<jelly>:      start as generation 2, after a slime that made <jelly> moved to the ranch (e.g. gen2=1e9)
 import url from 'node:url';
 import path from 'node:path';
 const SRC = url.pathToFileURL(path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), '../src')).href;
@@ -16,6 +17,16 @@ const fmt = n => n < 1e3 ? n.toFixed(0) : n < 1e6 ? (n / 1e3).toFixed(1) + 'K' :
 let rnd = 12345; Math.random = () => ((rnd = (rnd * 1103515245 + 12345) % 2147483648) / 2147483648);
 
 const st = createState(); st.phase = 'play'; st.slime.name = 'Sim';
+const GEN2 = args.find(a => a.startsWith('gen2='));
+if (GEN2) {
+  // a previous generation already lives on the ranch
+  const { familyBonusFor, residentJpsFor } = await import(SRC + '/core/ranch.js');
+  const total = Number(GEN2.split('=')[1]);
+  st.ranch.family.bonus = familyBonusFor(total);
+  st.ranch.family.generation = 2;
+  st.ranch.residents.push({ id: 'r1', name: 'Gen1', traits: {}, jps: residentJpsFor(total), happiness: 80, bondLevel: 4, runTotal: total, generation: 1 });
+  console.log(`generation 2: Family Bonus +${st.ranch.family.bonus.toFixed(1)}%, ranch slime makes ${residentJpsFor(total)} jelly/s`);
+}
 const sim = new Sim(st);
 const DT = 0.25;
 // daily schedule (seconds): play/away pairs. ~80 min of play per day.

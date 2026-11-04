@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { FaceRenderer } from './face.js';
 import { makeFood, OUTFIT_MAKERS } from './models.js';
+import { FORM_LOOKS, PROP_MAKERS, makePattern } from './forms.js';
 import { TRAITS, TRAIT_IDS, FOOD_BY_ID } from '../data/content.js';
 
 // How long each snack takes to fully dissolve (seconds of play), and what it breaks into.
@@ -69,18 +70,29 @@ class Spring {
 const TRAIT_COLORS = Object.fromEntries(TRAIT_IDS.map(k => [k, new THREE.Color(TRAITS[k].color)]));
 
 export class SlimeAvatar {
-  constructor({ quality = 'high' } = {}) {
+  // lite: a cheaper slime for the ranch (coarser body, face redrawn less often).
+  constructor({ quality = 'high', lite = false } = {}) {
+    this.lite = lite;
+    this.faceT = 0;
     this.root = new THREE.Group();
     this.body = new THREE.Group();     // squash pivot + roll
     this.root.add(this.body);
 
-    let geo = new THREE.IcosahedronGeometry(1, 5);
+    let geo = new THREE.IcosahedronGeometry(1, lite ? 3 : 5);
     geo.deleteAttribute('normal');
     geo.deleteAttribute('uv');
     geo = mergeVertices(geo);
     this.geo = geo;
     this.base = Float32Array.from(geo.attributes.position.array);
     const n = this.base.length / 3;
+    // Wrap-around UVs (seam at the back) so grown-up forms can paint patterns on the body.
+    const uvs = new Float32Array(n * 2);
+    for (let i = 0; i < n; i++) {
+      const x = this.base[i * 3], y = this.base[i * 3 + 1], z = this.base[i * 3 + 2];
+      uvs[i * 2] = 0.5 + Math.atan2(x, z) / (Math.PI * 2);
+      uvs[i * 2 + 1] = 0.5 + Math.asin(Math.max(-1, Math.min(1, y))) / Math.PI;
+    }
+    geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
     this.baseAz = new Float32Array(n);
     for (let i = 0; i < n; i++) this.baseAz[i] = Math.atan2(this.base[i * 3 + 2], this.base[i * 3]);
     geo.computeVertexNormals();
@@ -159,6 +171,9 @@ export class SlimeAvatar {
     this.buildAccessories();
     this.buildCap();
     this.outfit = { head: null, face: null, neck: null };
+    this.formProps = [];
+    this.form = null;
+    this.formShape = null;
     this._z = new THREE.Vector3(0, 0, 1);
     this.buildShadow();
 
@@ -199,6 +214,7 @@ export class SlimeAvatar {
   }
 
   setQuality(q) {
+    this.quality = q;
     const high = q !== 'low';
     this.mat.transmission = high ? 0.66 : 0;
     this.mat.transparent = !high;
@@ -331,6 +347,34 @@ export class SlimeAvatar {
     this.cap = { obj: g, dir: new THREE.Vector3(0.12, 1, -0.08).normalize(), grow: 0, on: false };
   }
 
+  // Apply a grown-up form's signature look (see forms.js). Unknown ids leave the slime as it is.
+  setForm(id) {
+    const look = FORM_LOOKS[id] || null;
+    for (const p of this.formProps) for (const o of [p.obj, ...(p.extra || [])]) o.parent && o.parent.remove(o);
+    this.formProps = [];
+    const m = this.mat;
+    Object.assign(m, { roughness: 0.13, clearcoat: 1, sheen: 0.6, metalness: 0, iridescence: Math.min(1, (this.traits.prism || 0) / 25), thickness: 1.1 });
+    m.transmission = this.quality === 'low' ? 0 : 0.66;
+    if (m.map) { m.map.dispose(); m.map = null; }
+    if (m.emissiveMap) { m.emissiveMap.dispose(); m.emissiveMap = null; }
+    this.form = look;
+    this.formId = look ? id : null;
+    this.formShape = look && look.shape ? { tall: 1, wide: 1, lumpy: 0, square: 0, ...look.shape } : null;
+    if (look) {
+      if (look.mat) {
+        for (const [k, v] of Object.entries(look.mat)) {
+          if (k === 'transmission' && this.quality === 'low') continue;
+          m[k] = v;
+        }
+      }
+      if (look.pattern) m.map = makePattern(look.pattern);
+      if (look.glowPattern) m.emissiveMap = makePattern(look.glowPattern);
+      for (const name of look.props || []) if (PROP_MAKERS[name]) this.formProps.push(PROP_MAKERS[name](this));
+    }
+    this.formAnchor = (this.formProps.find(p => p.anchor) || {}).anchor || null;
+    m.needsUpdate = true;
+  }
+
   // Show the outfits the player has chosen (one per slot).
   setOutfits(worn) {
     for (const slot of ['head', 'face', 'neck']) {
@@ -414,10 +458,21 @@ export class SlimeAvatar {
       const w = 1 - 0.07 * py * py;
       x *= w; z *= w;
     }
+    const F = this.formShape;
+    if (F) {
+      if (F.square) {
+        const r2 = Math.sqrt(x * x + z * z);
+        if (r2 > 1e-4) { const r4 = Math.sqrt(Math.sqrt(x ** 4 + z ** 4)); const k = 1 + (r2 / r4 - 1) * F.square; x *= k; z *= k; }
+      }
+      if (F.wide !== 1) { x *= F.wide; z *= F.wide; }
+      if (F.tall !== 1 && py > 0) y *= F.tall;
+      if (F.peak && py > 0) { const k = py * py * py; x *= 1 - F.peak * k * 0.8; z *= 1 - F.peak * k * 0.8; y *= 1 + F.peak * k * 0.32; }
+    }
     y += BOTTOM;
     const h = y / HEIGHT;
 
     let off = 0;
+    if (F && F.lumpy) off += F.lumpy * 2.2 * Math.sin(px * 5.1 + 1.3) * Math.sin(py * 6.3 + 0.7) * Math.sin(pz * 5.7 + 2.1);
     const W = this.wobble;
     if (W > 0.0005) off += W * (Math.sin(3 * az + this.time * 11) * 0.6 + Math.sin(py * 7 + this.time * 8.3) * 0.4);
     for (let i = 0; i < this.dents.length; i++) {
@@ -683,9 +738,9 @@ export class SlimeAvatar {
       c.setHSL(hsl.h, Math.max(hsl.s, 0.6), Math.min(0.78, Math.max(0.6, hsl.l)), THREE.SRGBColorSpace);
     }
     this.targetColor.copy(c);
-    this.stiffness = 1 + Math.min(1.2, traits.mineral / 40);
+    this.stiffness = 1 + Math.min(1.2, (traits.mineral || 0) / 40);
     this.sq.k = 170 * this.stiffness;
-    this.mat.iridescence = Math.min(1, traits.prism / 25);
+    this.mat.iridescence = Math.max(Math.min(1, (traits.prism || 0) / 25), (this.form && this.form.mat && this.form.mat.iridescence) || 0);
     const iris = c.clone().lerp(new THREE.Color('#ffffff'), 0.35);
     this.expr.iris = `rgba(${Math.round(iris.r * 255)}, ${Math.round(iris.g * 255)}, ${Math.round(iris.b * 255)}, 0.95)`;
   }
@@ -787,12 +842,20 @@ export class SlimeAvatar {
     // color + glow
     this.color.lerp(this.targetColor, 1 - Math.exp(-dt * 1.4));
     const shown = this._c.copy(this.colorOverride || this.color);
+    const look = this.form;
+    if (look && look.tint && !this.colorOverride) shown.lerp(this._lookTint || (this._lookTint = new THREE.Color()), 0).lerp(this._lookTint.set(look.tint), look.tintAmt || 0.5);
     if (this.tintAmt > 0.002 && !this.colorOverride) shown.lerp(this.tint, this.tintAmt);
-    this.mat.color.copy(shown);
     this.mat.attenuationColor.copy(shown);
+    if (look && look.mapWhite && this.mat.map) this.mat.color.copy(shown).lerp(this._c2.setRGB(1, 1, 1), look.mapWhite);
+    else this.mat.color.copy(shown);
+    if (look && look.mapScroll && this.mat.map) this.mat.map.offset.x = (t * look.mapScroll) % 1;
     this.glow *= Math.exp(-dt * 1.5);
     const heatGlow = Math.min(0.28, this.traits.heat / 90) * (0.8 + 0.2 * Math.sin(t * 3));
-    this.mat.emissive.copy(shown).multiplyScalar(0.1 + heatGlow + this.glow * 0.7 + this.emissiveBoost);
+    if (look && look.glowPattern) {
+      const k = look.glowMode === 'pulse' ? 0.5 + 0.45 * (0.5 + 0.5 * Math.sin(t * (look.glowSpeed || 2))) : 0.55 + 0.35 * Math.random();
+      this.mat.emissive.set(look.glowColor || '#ffffff').multiplyScalar(k + this.glow);
+    }
+    else this.mat.emissive.copy(shown).multiplyScalar(0.1 + heatGlow + this.glow * 0.7 + this.emissiveBoost + (look && look.glow || 0));
     this.mat.sheenColor.copy(shown).lerp(this._c2.setRGB(1, 1, 1), 0.6);
 
     // deform body
@@ -838,12 +901,17 @@ export class SlimeAvatar {
       this.blink = Math.sin(Math.min(1, this.blinkPhase) * Math.PI);
       if (this.blinkPhase >= 1) { this.blinkPhase = -1; this.blink = 0; }
     }
-    this.face.draw(this.expr, this.look, this.blink, t);
-    this.face.texture.needsUpdate = true;
+    this.faceT -= dt;
+    if (!this.lite || this.faceT <= 0) {
+      this.faceT = 1 / 12;
+      this.face.draw(this.expr, this.look, this.blink, t);
+      this.face.texture.needsUpdate = true;
+    }
 
     // accessories
     for (const a of this.acc) {
-      const target = smooth(a.at, a.at + 14, this.traits[a.trait] || 0);
+      const hidden = this.form && !(this.form.keep || []).includes(a.trait);
+      const target = hidden ? 0 : smooth(a.at, a.at + 14, this.traits[a.trait] || 0);
       a.grow += (target - a.grow) * (1 - Math.exp(-dt * 2));
       const vis = a.grow > 0.02;
       a.obj.visible = vis;
@@ -868,6 +936,19 @@ export class SlimeAvatar {
     this.inner.scale.set(1 - this.sq.x * 0.45, 1 + this.sq.x, 1 - this.sq.x * 0.45);
     this.updateInner(dt);
     this.placeOutfits(dt);
+    const hatOn = !!this.outfit.head || this.cap.grow > 0.3;
+    for (const p of this.formProps) {
+      if (p.head) { p.obj.visible = !hatOn; if (hatOn) continue; }
+      if (p.ring !== undefined) {
+        this.shape(0, p.ring, 0, 0, o);
+        const cx = o.x, cy = o.y, cz = o.z;
+        this.shape(Math.sqrt(1 - p.ring * p.ring), p.ring, 0, 0, o);
+        const r = Math.abs(o.x - cx);
+        p.obj.position.set(cx, cy, cz);
+        p.obj.scale.set(r, r * (1 + this.sq.x), r);
+      }
+      p.update && p.update(t);
+    }
 
     // nightcap
     const cap = this.cap;

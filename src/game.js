@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { Sim, createState, migrate } from './core/sim.js';
 import { Requests } from './core/requests.js';
-import { TUNING, FOODS, FOOD_BY_ID, HELPERS, HELPER_BY_ID, UPGRADE_BY_ID, STAGES, TRAITS, TRAIT_IDS, BOND, PERSONALITY_IDS, JAR_LEVELS, OUTFITS, OUTFIT_BY_ID } from './data/content.js';
+import { TUNING, FOODS, FOOD_BY_ID, HELPERS, HELPER_BY_ID, UPGRADE_BY_ID, STAGES, TRAITS, TRAIT_IDS, BOND, PERSONALITY_IDS, JAR_LEVELS, OUTFITS, OUTFIT_BY_ID, RANCH, BUYER_BY_ID } from './data/content.js';
 import { fmt, fmtShort, fmtDuration } from './core/format.js';
 import { Stage, CUSHION_TOP } from './view/stage.js';
 import { SlimeAvatar } from './view/slime.js';
@@ -111,8 +111,19 @@ export class Game {
     this.v3 = new THREE.Vector3();
     this.plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -1.6);
 
+    this.view = 'home';
+    this.ranchFocus = null;
+    this.rpress = null;
+    this.departing = null;
+    // The ranch keeps going while the game is closed (in every phase, even while an egg waits).
+    const awayAll = (Date.now() - (this.state.savedAt || Date.now())) / 1000;
+    this.ranchAway = awayAll > 5 ? this.sim.ranch.tickAway(awayAll) : { pearls: 0, full: false };
+    this.ranch.setBasket(this.state.ranch.basket.stored, this.sim.ranch.basketCap());
+
     this.applySettings();
     this.setupPhase();
+    this.after(2.5, () => this.checkPostcards());
+    if (this.state.ranch.justMoved) { const j = this.state.ranch.justMoved; delete this.state.ranch.justMoved; this.after(1.4, () => this.showMovedIn(j)); }
     this.bindInput();
     this.watchTheme();
     this.resize();
@@ -304,7 +315,12 @@ export class Game {
         <span class="form-name">${fmt(st.jar.stored)} jelly</span>
         <span class="sub">Your helpers kept working and the jar caught ${Math.round(lvl.rate * 100)}% of it${jar.full ? `, until it filled up after ${lvl.hours} hours` : ''}.${jar.full && JAR_LEVELS[st.jar.level + 1] ? ' A bigger jar (in Upgrades) catches more.' : ''}</span></div>`;
     }
-    const body = `<p>You were away for ${fmtDuration(away)}. Nothing bad happened while you were gone. ${esc(name)} just waited for you.</p>${jarHtml}`;
+    let ranchHtml = '';
+    if (this.ranchAway && this.ranchAway.pearls > 0) {
+      ranchHtml = `<div class="card"><div class="row-between"><b>The ranch</b><span class="sub">${st.ranch.basket.stored} / ${this.sim.ranch.basketCap()}</span></div><span class="sub">Your ranch slimes made <b>${this.ranchAway.pearls}</b> pearl${this.ranchAway.pearls === 1 ? '' : 's'}. They're waiting in the Pearl Basket${this.ranchAway.full ? ' (it filled up)' : ''}.</span></div>`;
+      this.ranchAway = null;
+    }
+    const body = `<p>You were away for ${fmtDuration(away)}. Nothing bad happened while you were gone. ${esc(name)} just waited for you.</p>${jarHtml}${ranchHtml}`;
     if (st.jar.stored > 0) {
       this.hud.openModal(`<h2>${esc(name)} missed you!</h2>${body}<div class="actions"><button class="btn primary" id="pourBtn">Pour it out</button></div>`, {
         onOpen: card => card.querySelector('#pourBtn').addEventListener('click', ev => { const r = ev.currentTarget.getBoundingClientRect(); this.hud.closeModal(); this.collectJar(r); }),
@@ -373,6 +389,370 @@ export class Game {
     }
   }
 
+  // ---------- the ranch ----------
+  onTab(t) {
+    if (t === 'ranch') this.goRanch();
+    else if (this.view === 'ranch') this.leaveRanch(false);
+  }
+
+  goRanch() {
+    if (this.view === 'ranch' || this.state.phase !== 'play' || this.departing) return;
+    this.view = 'ranch';
+    this.ranch.visiting = true;
+    this.ranch.grassLife = RANCH.grassLife;
+    this.press = null; this.swipe = null;
+    document.body.classList.add('at-ranch');
+    document.getElementById('ranchBar').hidden = false;
+    this.hud.toggleEmotes(false);
+    this.stage.focus = { pos: this.stage.camPos.clone(), look: this.stage.camLook.clone(), fov: 30 };
+    this.updateRanchCamera();
+    this.sfx.whee ? this.sfx.whee() : this.sfx.sparkle();
+    const R = this.state.ranch;
+    if (R.residents.length && this.sim.ranch.visit()) {
+      this.after(1.6, () => {
+        for (const r of this.ranch.residents.values()) { r.av.hop(4 + Math.random() * 2); r.happyT = 1.8; }
+        this.sfx.mii();
+        this.hud.toast('<b>Everyone is happy to see you!</b>A visit cheers up all your ranch slimes.', 'love', 2600);
+      });
+    }
+    this.layoutChanged();
+  }
+
+  leaveRanch(selectTab = true) {
+    if (this.view !== 'ranch') return;
+    this.view = 'home';
+    this.ranch.visiting = false;
+    this.ranchFocus = null;
+    this.ranch.focusId = null;
+    this.rpress = null;
+    document.body.classList.remove('at-ranch');
+    document.getElementById('ranchBar').hidden = true;
+    this.stage.focus = null;
+    if (selectTab && this.hud.tab === 'ranch') {
+      document.getElementById('panel').classList.remove('open');
+      this.hud.selectTab('helpers');
+    }
+    this.layoutChanged();
+  }
+
+  updateRanchCamera() {
+    const f = this.stage.focus;
+    if (this.view !== 'ranch' || !f) return;
+    const aspect = innerWidth / innerHeight;
+    let fov = null;
+    if (this.ranchFocus) fov = this.ranch.cameraNear(this.ranchFocus, aspect, f.pos, f.look);
+    if (fov === null) { if (this.ranchFocus) this.focusResident(null); fov = this.ranch.cameraFor(aspect, f.pos, f.look); }
+    f.fov = fov;
+  }
+
+  focusResident(id) {
+    if (id && this.view !== 'ranch') this.hud.openTab('ranch');
+    this.ranchFocus = id || null;
+    this.ranch.focusId = this.ranchFocus;
+    const x = id && this.sim.ranch.resident(id);
+    document.getElementById('ranchHint').textContent = x ? `Tap or stroke ${x.name} to pet them. Tap the grass to step back.` : 'Tap a slime to visit it. Drag to look around.';
+    if (x) { const r = this.ranch.resident(id); if (r) { r.av.hop(3); r.happyT = 1.2; } this.sfx.mii(); }
+    this.hud.renderRanch(true);
+  }
+
+  // Ranch slimes make pearls even while you're home; while you watch, they pop out into the grass.
+  updateRanch(dt) {
+    const made = this.sim.ranch.tick(dt);
+    for (const id of made) {
+      if (this.view === 'ranch' && this.ranch.spawnPearl(id)) { this.sfx.plip(); }
+    }
+    if (made.length) this.markDirty(false);
+    this.ranch.setBasket(this.state.ranch.basket.stored, this.sim.ranch.basketCap());
+    this.updateRanchCamera();
+  }
+
+  ranchDown(e) {
+    const hit = this.ranch.pick(this.raycaster);
+    const rp = this.rpress = { id: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, t: this.time, hit, moved: 0, orbit0: this.ranch.orbit, done: false, petT: 0 };
+    try { this.canvas.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+    if (!hit) return;
+    if (hit.type === 'pearl') { this.pickRanchPearl(hit.pearl); rp.done = true; }
+    else if (hit.type === 'basket') { this.collectBasket(); rp.done = true; }
+    else if (hit.type === 'slime') {
+      if (this.ranchFocus === hit.id) this.petResident(hit.id);
+      else { this.focusResident(hit.id); rp.done = true; }
+    }
+  }
+
+  ranchMove(e) {
+    const rp = this.rpress;
+    rp.moved += Math.abs(e.clientX - rp.x);
+    rp.x = e.clientX;
+    if (rp.hit && rp.hit.type === 'slime' && this.ranchFocus === rp.hit.id) {
+      // stroking the slime you're visiting keeps petting it
+      if (this.time - rp.petT > 0.35) { rp.petT = this.time; this.petResident(rp.hit.id, true); }
+      return;
+    }
+    if (!rp.hit || rp.hit.type === 'ranch') this.ranch.orbit = rp.orbit0 - (e.clientX - rp.x0) * 0.006;
+  }
+
+  ranchUp(e, cancel) {
+    const rp = this.rpress;
+    this.rpress = null;
+    if (cancel || rp.done) return;
+    const tap = Math.hypot(e.clientX - rp.x0, e.clientY - rp.y0) < 10 && this.time - rp.t < 0.6;
+    if (tap && (!rp.hit || rp.hit.type === 'ranch') && this.ranchFocus) this.focusResident(null);
+  }
+
+  petResident(id, stroke = false) {
+    const r = this.sim.ranch.pet(id);
+    if (!r) return;
+    const v = this.ranch.pet(id);
+    if (v) {
+      const head = v.av.headTopWorld(new THREE.Vector3());
+      this.fx.emit('hearts', head, { count: stroke ? 2 : 4 });
+    }
+    if (!stroke) this.sfx.mii(); else this.sfx.purr(true), this.after(0.4, () => this.sfx.purr(false));
+    if (r.counted) {
+      this.remember('🏡', `You visited ${r.resident.name} on the ranch.`, 'ranchpet-' + r.resident.id);
+      this.markDirty(false);
+    }
+  }
+
+  pickRanchPearl(p) {
+    const got = this.sim.ranch.pickPearl();
+    const pos = this.ranch.pearlWorld(p, new THREE.Vector3());
+    this.ranch.removePearl(p);
+    if (!got) return;
+    this.fx.emit('sparkles', pos, { count: 8, color: '#ffe6f6' });
+    const sp = this.screenOf(pos);
+    this.hud.floatText(sp.x, sp.y - 10, '+1 pearl', 'pearl-float');
+    this.sfx.plip(); this.after(0.08, () => this.sfx.sparkle());
+    this.remember('🫧', 'You picked up your first pearl on the ranch.', 'pearl1');
+    this.markDirty(false);
+  }
+
+  collectBasket() {
+    this.sfx.unlock();
+    const n = this.sim.ranch.collectBasket();
+    if (n <= 0) return;
+    this.ranch.clearPearls();
+    const pos = this.ranch.basketWorld(new THREE.Vector3());
+    if (this.view === 'ranch') {
+      this.fx.emit('sparkles', pos, { count: 16, color: '#ffe6f6', speed: 2.4 });
+      const sp = this.screenOf(pos);
+      this.hud.floatText(sp.x, sp.y - 20, `+${n} pearls`, 'pearl-float');
+    } else this.hud.toast(`<b>+${n} pearls</b>Collected from the Pearl Basket.`, '', 2400);
+    for (let i = 0; i < Math.min(6, n); i++) this.after(0.08 * i, () => this.sfx.plip());
+    this.after(0.5, () => this.sfx.sparkle());
+    this.hud.renderRanch(true);
+    this.markDirty(true);
+  }
+
+  buyRanchSlot() {
+    this.sfx.unlock();
+    const r = this.sim.ranch.buySlot();
+    if (!r) { this.sfx.error(); return; }
+    this.sfx.buy();
+    this.hud.toast(`<b>More room on the ranch</b>Space for ${r.slots} slimes now.`);
+    this.hud.renderRanch(true);
+    this.saveNow(true);
+  }
+
+  buyBasket() {
+    this.sfx.unlock();
+    const r = this.sim.ranch.buyBasket();
+    if (!r) { this.sfx.error(); return; }
+    this.sfx.buy();
+    this.hud.toast(`<b>Bigger Pearl Basket</b>Holds ${r.cap} pearls now.`);
+    this.hud.renderRanch(true);
+    this.saveNow(true);
+  }
+
+  // ---------- moving to the ranch (a new generation) ----------
+  askMoveOut() {
+    const sim = this.sim;
+    if (!sim.canMoveOut()) return;
+    const name = esc(this.Name), R = this.state.ranch;
+    const pv = sim.moveOutPreview();
+    if (!pv.room) {
+      this.hud.showSimple('The ranch is full', `<p>There's room for ${R.slots} slimes. Buy more room with pearls, or find one of your ranch slimes a new home first.</p>`, 'OK');
+      return;
+    }
+    this.hud.openModal(`<h2>Move ${name} to the ranch?</h2>
+      <p>${name} will live on the hill behind the cushion, making jelly and pearls, and you can visit any time. A new egg arrives and you raise a new baby.</p>
+      <div class="card"><b>Family Bonus +${pv.bonus.toFixed(1)}%</b><span class="sub">to all jelly, forever. It adds up with every generation. Playing longer first makes it bigger.</span></div>
+      <div class="card"><b>You keep</b><span class="sub">Pearls, the ranch, outfits, combos you found and secrets. ${name}'s journal goes with them.</span><b>Starts over</b><span class="sub">Jelly, helpers, upgrades and the Jelly Jar.</span></div>
+      <div class="actions"><button class="btn" id="mvNo">Not yet</button><button class="btn primary" id="mvYes">Move to the ranch</button></div>`, {
+      onOpen: card => {
+        card.querySelector('#mvNo').addEventListener('click', () => this.hud.closeModal());
+        card.querySelector('#mvYes').addEventListener('click', () => { this.hud.closeModal(); this.moveOut(); });
+      },
+    });
+  }
+
+  moveOut() {
+    if (this.departing || !this.sim.canMoveOut()) return;
+    this.leaveRanch();
+    this.departing = { t: 0, z: 0, hopT: 0.4 };
+    const name = this.Name;
+    this.press = null;
+    this.flash({ eyes: 'happy', mouth: 'grin', blush: 1 }, 3);
+    this.sfx.mii();
+    this.hud.say("I'll be on the hill! ♥", 2200);
+    this.fx.emit('hearts', this.slime.headTopWorld(this.v1), { count: 10 });
+    this.after(1.2, () => { this.slime.spin(); this.slime.hop(6); this.sfx.whee ? this.sfx.whee() : this.sfx.sparkle(); });
+    this.after(2.2, () => { this.departing.go = true; });
+    this.after(4.2, () => {
+      const fade = document.createElement('div');
+      fade.className = 'fade-white';
+      document.body.appendChild(fade);
+      requestAnimationFrame(() => fade.classList.add('on'));
+    });
+    this.after(5.3, async () => {
+      const r = this.sim.moveToRanch();
+      if (!r) { location.reload(); return; }
+      this.state.ranch.justMoved = { name, form: r.resident.form?.name || '', bonus: r.bonus, gift: r.gift };
+      this.saveNow(false);
+      try { await Promise.race([this.store.saveCloud(this.serialize()), new Promise(res => setTimeout(res, 2500))]); } catch { /* ignore */ }
+      this.resetting = true;
+      location.reload();
+    });
+  }
+
+  // the grown slime hops off toward the hill
+  updateDeparture(dt) {
+    const d = this.departing;
+    d.t += dt;
+    if (!d.go) return;
+    d.hopT -= dt;
+    if (d.hopT <= 0 && this.slime.hopY <= 0) { this.slime.hop(5); d.hopT = 0.35; this.sfx.boing ? this.sfx.boing() : null; }
+    d.z -= dt * 2.6;
+    this.slime.root.position.z = d.z;
+    this.slime.root.position.x = Math.sin(d.t * 2) * 0.2;
+    this.slime.sizeTarget = Math.max(0.25, this.sim.size() * (1 + d.z / 12));
+  }
+
+  showMovedIn(j) {
+    const R = this.state.ranch;
+    const others = R.residents.length - 1;
+    let body = `<p>${esc(j.name)} is settling in on the hill behind the cushion${others > 0 ? `, with ${others} other slime${others === 1 ? '' : 's'}` : ''}. Tap the hill (or the Ranch tab) to visit.</p>`;
+    body += `<div class="card"><b>Family Bonus +${j.bonus.toFixed(1)}%</b><span class="sub">Now +${R.family.bonus.toFixed(1)}% to all jelly, forever. This is generation ${R.family.generation}.</span></div>`;
+    if (j.gift) body += `<div class="card"><b><i class="pearl"></i> ${j.gift} pearls</b><span class="sub">${esc(j.name)} found these on the way. Ranch slimes make pearls over time: spend them on more room and a bigger Pearl Basket.</span></div>`;
+    body += '<p>And look: a new egg arrived. Tap it to keep it warm.</p>';
+    this.hud.showSimple(`${esc(j.name)} moved to the ranch!`, body, 'Hello, little egg!');
+    this.saveNow(true);
+  }
+
+  // ---------- new homes and auctions ----------
+  askPlace(id) {
+    const x = this.sim.ranch.resident(id);
+    if (!x) return;
+    const offers = this.sim.ranch.offers(x);
+    const hearts = f => { const n = Math.max(1, Math.min(5, Math.round((f - 0.75) / 0.6 * 4) + 1)); return '♥'.repeat(n) + '♡'.repeat(5 - n); };
+    const name = esc(x.name);
+    this.hud.openModal(`<h2>A new home for ${name}</h2>
+      <p class="sub">These places would love ${name}. A better fit pays more, and ${name} will send you postcards for a week.</p>
+      ${offers.map(o => `<button class="card offer" data-buyer="${o.buyer}"><b>${esc(o.name)}</b><span class="cost"><i class="pearl"></i> ${o.pearls}</span><span class="sub">${esc(o.line)}</span><span class="fit" title="How well ${name} fits">${hearts(o.fit)}</span></button>`).join('')}
+      <div class="actions"><button class="btn" id="plNo">Keep ${name}</button></div>`, {
+      onOpen: card => {
+        card.querySelector('#plNo').addEventListener('click', () => this.hud.closeModal());
+        for (const b of card.querySelectorAll('.offer')) b.addEventListener('click', () => {
+          const o = offers.find(q => q.buyer === b.dataset.buyer);
+          this.hud.closeModal();
+          this.confirmPlace(x, o);
+        });
+      },
+    });
+  }
+
+  confirmPlace(x, o) {
+    const name = esc(x.name);
+    this.hud.openModal(`<h2>Say goodbye to ${name}?</h2><p>${name} will go live at ${esc(o.name)}. You get <b>${o.pearls} pearls</b>, and ${name} will write to you.</p>
+      <div class="actions"><button class="btn" id="cpNo">Keep ${name}</button><button class="btn primary" id="cpYes">Say goodbye</button></div>`, {
+      onOpen: card => {
+        card.querySelector('#cpNo').addEventListener('click', () => this.hud.closeModal());
+        card.querySelector('#cpYes').addEventListener('click', () => {
+          this.hud.closeModal();
+          const r = this.sim.ranch.place(x.id, o.buyer);
+          if (!r) { this.sfx.error(); return; }
+          this.farewell(x, `${x.name} went to live at ${o.name}.`, r.offer.pearls, `They'll send you postcards.`);
+        });
+      },
+    });
+  }
+
+  startAuction(id) {
+    const x = this.sim.ranch.resident(id);
+    if (!x) return;
+    const a = this.sim.ranch.auction(x);
+    const name = esc(x.name);
+    this.hud.openModal(`<h2>Auction: ${name}</h2><p class="sub" id="aucLine">Buyers are taking their seats...</p>
+      <div class="auction-price"><i class="pearl big"></i><span id="aucPrice">${a.opening}</span></div>
+      <div class="bids">${a.bidders.map(b => `<div class="bid" data-buyer="${b.buyer}"><span>${esc(b.name)}</span><span class="sub">waiting</span></div>`).join('')}</div>
+      <p class="sub">The same buyers come all day, so the result won't change if you try again later today.</p>
+      <div class="actions" id="aucActs"><button class="btn" id="aucStop">Keep ${name}</button></div>`, {
+      dismiss: false,
+      onOpen: card => card.querySelector('#aucStop').addEventListener('click', () => { this.auction = null; this.hud.closeModal(); }),
+    });
+    const run = this.auction = { id };
+    const alive = () => this.auction === run && document.getElementById('aucPrice');
+    let t = 1.0;
+    a.steps.forEach((st, i) => {
+      t += i < 4 ? 0.7 : 0.45;
+      this.after(t, () => {
+        if (!alive()) return;
+        document.getElementById('aucPrice').textContent = st.price;
+        document.getElementById('aucLine').textContent = `${st.name} bids ${st.price}!`;
+        for (const el of document.querySelectorAll('.bid')) {
+          const lead = el.dataset.buyer === st.buyer;
+          el.classList.toggle('lead', lead);
+          if (lead) el.lastElementChild.textContent = `${st.price} pearls`;
+        }
+        this.sfx.plip();
+      });
+    });
+    const end = t;
+    this.after(end + 0.9, () => { if (alive()) { document.getElementById('aucLine').textContent = 'Going once...'; this.sfx.tickle && this.sfx.tickle(); } });
+    this.after(end + 1.8, () => { if (alive()) document.getElementById('aucLine').textContent = 'Going twice...'; });
+    this.after(end + 2.7, () => {
+      if (!alive()) return;
+      for (const el of document.querySelectorAll('.bid')) if (!el.classList.contains('lead')) el.classList.add('out');
+      document.getElementById('aucLine').innerHTML = `<b>Sold to ${esc(a.winner.name)} for ${a.price} pearls!</b>`;
+      this.sfx.levelUp();
+      const acts = document.getElementById('aucActs');
+      acts.innerHTML = `<button class="btn" id="aucKeep">Keep ${name}</button><button class="btn primary" id="aucSell">Sell for ${a.price}</button>`;
+      acts.querySelector('#aucKeep').addEventListener('click', () => { this.auction = null; this.hud.closeModal(); });
+      acts.querySelector('#aucSell').addEventListener('click', () => {
+        this.auction = null;
+        this.hud.closeModal();
+        const r = this.sim.ranch.sellAtAuction(x.id);
+        if (!r) { this.sfx.error(); return; }
+        this.farewell(x, `${x.name} was sold at auction to ${r.buyer.name}.`, r.price, '');
+      });
+    });
+  }
+
+  // a resident leaves the ranch for its new home
+  farewell(x, line, pearls, extra) {
+    this.remember('💌', line);
+    if (this.ranchFocus === x.id) this.focusResident(null);
+    if (this.view === 'ranch') {
+      const r = this.ranch.resident(x.id);
+      if (r) { r.happyT = 3; r.av.hop(5); }
+      this.ranch.leave(x.id, () => this.ranch.sync(this.state.ranch.residents));
+    } else this.ranch.sync(this.state.ranch.residents);
+    this.sfx.sparkle();
+    this.hud.toast(`<b>Bye-bye, ${esc(x.name)}! +${pearls} pearls</b>${esc(line)} ${esc(extra)}`, 'love', 4200);
+    this.hud.renderRanch(true);
+    this.saveNow(true);
+  }
+
+  checkPostcards() {
+    const cards = this.sim.ranch.postcards();
+    cards.forEach((c, i) => this.after(i * 3.5, () => {
+      this.remember('💌', `A postcard from ${c.name} at ${c.buyer}: "${c.text}"`);
+      this.hud.toast(`<b>Postcard from ${esc(c.name)}</b>"${esc(c.text)}" (+${c.pearls} pearls tucked inside)`, 'love', 5200);
+      this.sfx.sparkle();
+    }));
+    if (cards.length) this.markDirty(true);
+  }
+
   // ---------- input ----------
   bindInput() {
     const c = this.canvas;
@@ -408,12 +788,14 @@ export class Game {
       if (h) this.tapEgg(h.point);
       return;
     }
-    if (st.phase !== 'play' || this.hud.modalOpen) return;
+    if (st.phase !== 'play' || this.hud.modalOpen || this.departing) return;
+    if (this.view === 'ranch') { this.ranchDown(e); return; }
     if (this.behave.tryHighFive(this.raycaster)) return;
     if (this.glimmer && this.raycaster.ray.distanceSqToPoint(this.glimmer.obj.position) < 0.5 * 0.5) { this.catchGlimmer(); return; }
     const b = this.helpers3d.hitBubble(this.raycaster);
     if (b) { this.popBubble(b); return; }
     const hit = this.slime.hit(this.raycaster);
+    if (!hit && this.ranch.pick(this.raycaster)) { this.hud.openTab('ranch'); return; }
     if (!hit) this.swipe = { id: e.pointerId, x: e.clientX, y: e.clientY, t: this.time };
     if (hit) {
       const region = this.slime.faceRegion(this.raycaster);
@@ -428,6 +810,7 @@ export class Game {
   onMove(e) {
     this.setPointer(e);
     this.lastPointerMove = this.time;
+    if (this.rpress && e.pointerId === this.rpress.id) { this.ranchMove(e); return; }
     if (this.foodPress && e.pointerId === this.foodPress.pointerId) {
       const fp = this.foodPress;
       if (!fp.dragging && Math.hypot(e.clientX - fp.x, e.clientY - fp.y) > 10) this.startFoodDrag();
@@ -455,6 +838,7 @@ export class Game {
   }
 
   onUp(e, cancel = false) {
+    if (this.rpress && e.pointerId === this.rpress.id) { this.ranchUp(e, cancel); return; }
     if (this.foodPress && e.pointerId === this.foodPress.pointerId) {
       const fp = this.foodPress;
       this.foodPress = null;
@@ -1387,7 +1771,7 @@ export class Game {
       const mobile = window.matchMedia('(max-width: 860px)').matches;
       const panel = document.getElementById('panel').getBoundingClientRect();
       const top = document.querySelector('.top').getBoundingClientRect();
-      const tray = document.getElementById('tray').getBoundingClientRect();
+      const tray = document.getElementById(this.view === 'ranch' ? 'ranchBar' : 'tray').getBoundingClientRect();
       if (!mobile) {
         x = (panel.width + 18) / 2;
         const free = (top.bottom + tray.top) / 2;
@@ -1410,6 +1794,11 @@ export class Game {
     } else {
       this.sfx.resume();
       this.behave.morningCheck();
+      if (this.hiddenAt) {
+        const ra = this.sim.ranch.tickAway((Date.now() - this.hiddenAt) / 1000);
+        if (ra.pearls > 0 && this.state.phase === 'play') this.hud.toast(`<b>The ranch made ${ra.pearls} pearl${ra.pearls === 1 ? '' : 's'}</b>They're waiting in the Pearl Basket.`, '', 3200);
+        this.checkPostcards();
+      }
       if (this.hiddenAt && this.state.phase === 'play') {
         const away = (Date.now() - this.hiddenAt) / 1000;
         if (away > 30) {
@@ -1687,7 +2076,9 @@ export class Game {
     this.computeLook();
     this.computeMotion();
     this.slime.sizeTarget = this.sim.size();
-    if (this.slime.visible) this.slime.update(dt);
+    if (this.departing) this.updateDeparture(dt);
+    // (off screen while visiting the ranch, so it can rest)
+    if (this.slime.visible && (this.view !== 'ranch' || this.stage.camPos.z > -2)) this.slime.update(dt);
     this.updateFood(dt);
     const center = this.slime.centerWorld(new THREE.Vector3());
     this.helpers3d.update(dt, {
@@ -1701,6 +2092,7 @@ export class Game {
         if (!this.transient || this.transient.until < this.time) this.flash({ eyes: 'happy', mouth: 'open', blush: 0.7 }, 0.6);
       },
     });
+    this.updateRanch(dt);
     this.ranch.update(dt, this.stage.camera);
     this.fx.update(dt);
 

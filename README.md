@@ -64,6 +64,11 @@ Phone notes: the game is portrait-only (turning sideways shows a reminder), runs
 | Little moments | Hiccups after eating fast, a burp when its tummy is full, daydream bubbles about its favorite snack, dreams while napping, a nightcap when asleep, a morning stretch, sleepier at night. |
 | Playing with the room | It pops nearby bubbles, swats tickle feathers, slimeling pals hop over to visit, dance breaks to the music box, stargazing with the telescope. |
 | Secrets | 14 hidden interactions, each with a clue in the Journal. |
+| Grown-up forms | All 22 Settled forms have their own look on top of the diet color: a body shape (teardrop, blocky, lumpy...), a pattern (candy stripes, flames, rivets, circuits...), props (a beating heart inside, amethyst clusters, a chimney, a sunflower, a bee or ladybug friend...) and little effects. Head props hide under hats. |
+| The ranch | A grassy hill behind the cushion where grown-up slimes live. Tap it (or the Ranch tab) and the camera flies over; tap a slime to visit it up close and stroke it to pet it. They wander, play, and nap in nightcaps after dark. |
+| Moving out (a new generation) | A Settled slime can move to the ranch. That starts a new generation with a new egg: jelly, helpers, upgrades and the Jelly Jar start over; pearls, the ranch, outfits, combos and secrets stay. Each generation adds a permanent Family Bonus to all jelly (bigger the longer it played), and the ranch slime keeps making jelly. |
+| Pearls | The ranch currency. Ranch slimes make about 4 an hour each (more when happy, so visit and pet them). Pearls pop out into the grass to pick up, roll into the Pearl Basket, and wait there while you're away. Spend them on more room and a bigger basket. |
+| New homes and auctions | Three buyers offer a new home for a ranch slime (a better fit pays more, and it sends postcards with a few pearls for a week), or hold a live auction for usually a bit more. Offers and auctions are fixed for the day. |
 
 Saving: every few seconds to `localStorage`, and also to the player's private slot in the
 artifact's database when it runs on claude.ai (so it follows you across devices).
@@ -76,11 +81,14 @@ src/main.js           boot: load save (local + cloud), start the game
 src/game.js           coordinator: input -> rules -> reactions, effects, UI
 src/behaviors.js      gestures, emotes and tricks, little moments, room play, secrets
 src/data/content.js   ALL tuning and content: stages, foods, traits, helpers, upgrades, combos, bond, forms
-src/core/sim.js       game rules and save state (no three.js, no DOM)
+src/core/sim.js       game rules and save state (no three.js, no DOM), including moving to the ranch
+src/core/ranch.js     ranch rules: pearls, basket, slots, happiness, new homes, auctions, postcards
 src/core/requests.js  slime requests
 src/core/save.js      local + cloud save
 src/core/format.js    number formatting
 src/view/slime.js     the slime: CPU soft-body deformation, face patch, accessories, inner snacks
+src/view/forms.js     the 22 grown-up form looks: shapes, patterns, props, effects
+src/view/ranch.js     the ranch hill: scenery, wandering residents, pearls, basket, visit cameras
 src/view/face.js      canvas-drawn expressions (eyes, mouth, blush, tears, sweat)
 src/view/stage.js     renderer, camera, lights, sky, cushion, day/night palettes
 src/view/helpers3d.js visible helpers in the world
@@ -123,6 +131,12 @@ node tools/economy-sim.mjs 12 quiet
 node tools/economy-sim.mjs 12 casual quiet
 ```
 
+To see how a second generation plays, after a slime that made 1 billion jelly moved to the ranch:
+
+```bash
+node tools/economy-sim.mjs 4 casual quiet gen2=1e9
+```
+
 Current targets: a casual player (about 40 minutes a day) has a grown-up slime on day 2 and is still saving
 for the Slime Spa after 12 days; an engaged player (about 80 minutes a day) gets the Party Hat around day 5,
 the Crown around day 8 and the Rainbow Arch around day 10.
@@ -134,5 +148,5 @@ food nutrition/fullness/traits, helper costs and rates, upgrade costs and unlock
 
 ## Not in this prototype (from the GDD, deliberately left for later)
 
-Mature futures (placement, auctions, contracts), world conditions and forecasts, breeding/lineage,
-automated sporting events, multiple resident slimes.
+Breeding and the Nursery (next), the Training Center and trips, contests and slime battles,
+world conditions and forecasts, contracts.

@@ -350,7 +350,7 @@ export class RanchView {
   sync(list) {
     const keep = new Set(list.map(d => d.id));
     for (const [id, r] of this.residents) {
-      if (!keep.has(id)) { this.group.remove(r.holder); this.residents.delete(id); }
+      if (!keep.has(id) && r.state !== 'leave') { this.group.remove(r.holder); this.residents.delete(id); }
     }
     for (const d of list) {
       if (this.residents.has(d.id)) continue;
@@ -386,10 +386,10 @@ export class RanchView {
   }
 
   // ---------- pearls ----------
-  spawnPearl(id, color, value = 1) {
+  spawnPearl(id, color) {
     const r = this.residents.get(id);
     if (!r || this.pearls.length > 40) return null;
-    const m = new THREE.Mesh(PEARL_GEO, pearlMaterial(color));
+    const m = new THREE.Mesh(PEARL_GEO, pearlMaterial(color || '#' + r.av.mat.color.getHexString()));
     const spark = new THREE.Sprite(new THREE.SpriteMaterial({ map: sparkTexture(), color: '#ffffff', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
     spark.scale.setScalar(0.4);
     spark.position.set(0.05, 0.08, 0.05);
@@ -398,7 +398,7 @@ export class RanchView {
     this.group.worldToLocal(start);
     m.position.copy(start);
     const a = Math.random() * TAU;
-    const pearl = { mesh: m, spark, vel: new THREE.Vector3(Math.sin(a) * 1.2, 3.2, Math.cos(a) * 1.2), landed: false, t: Math.random() * 5, value, id };
+    const pearl = { mesh: m, spark, vel: new THREE.Vector3(Math.sin(a) * 1.2, 3.2, Math.cos(a) * 1.2), landed: false, t: 0, id };
     r.av.squish(0.6);
     this.group.add(m);
     this.pearls.push(pearl);
@@ -408,6 +408,20 @@ export class RanchView {
   removePearl(p) {
     this.group.remove(p.mesh);
     this.pearls = this.pearls.filter(x => x !== p);
+  }
+  clearPearls() { for (const p of this.pearls) this.group.remove(p.mesh); this.pearls = []; }
+  pearlWorld(p, out) { return p.mesh.getWorldPosition(out); }
+  basketWorld(out) { return this.basket.getWorldPosition(out).add(new THREE.Vector3(0, 0.35, 0)); }
+
+  // A resident hops out through the gate to its new home, then disappears.
+  leave(id, onDone) {
+    const r = this.residents.get(id);
+    if (!r) { onDone && onDone(); return; }
+    r.state = 'leave';
+    r.target.set(0, RANCH_TOP, FENCE_R + 1.2);
+    r.timer = 14;
+    r.onGone = onDone;
+    r.av.cap.on = false;
   }
 
   setBasket(stored, cap) {
@@ -521,6 +535,21 @@ export class RanchView {
       else { r.timer = 2 + Math.random() * 4; av.kick(0.04); }
     }
     if (r.state === 'nap' && r.timer <= 0) { r.state = 'idle'; r.timer = 1; av.cap.on = false; av.breathRate = 2.1; }
+    if (r.state === 'leave') {
+      const dx = r.target.x - h.position.x, dz = r.target.z - h.position.z;
+      const dist = Math.hypot(dx, dz);
+      r.heading = Math.atan2(dx, dz); h.rotation.y = r.heading;
+      r.hopT -= dt;
+      if (av.hopY <= 0 && r.hopT <= 0) { av.hop(4); r.hopT = 0.15; }
+      if (av.hopY > 0) { const sp = Math.min(dist, 2.2 * dt); h.position.x += Math.sin(r.heading) * sp; h.position.z += Math.cos(r.heading) * sp; }
+      Object.assign(av.expr, { eyes: 'happy', mouth: 'open', blush: 0.8 });
+      if (dist < 0.3 || r.timer <= 0) {
+        av.sizeTarget = 0.001;
+        if (av.size < 0.05 || r.timer <= -1.5) { this.group.remove(h); this.residents.delete(r.id); r.onGone && r.onGone(); return; }
+      }
+      av.update(dt);
+      return;
+    }
     if (r.state === 'walk') {
       const dx = r.target.x - h.position.x, dz = r.target.z - h.position.z;
       const dist = Math.hypot(dx, dz);
@@ -540,7 +569,7 @@ export class RanchView {
   }
 
   updatePearls(dt) {
-    for (const p of this.pearls) {
+    for (const p of [...this.pearls]) {
       p.t += dt;
       if (!p.landed) {
         p.vel.y -= 12 * dt;
@@ -554,6 +583,16 @@ export class RanchView {
         // keep pearls inside the fence
         const r2 = Math.hypot(p.mesh.position.x, p.mesh.position.z);
         if (r2 > FENCE_R - 0.4) p.mesh.position.multiplyScalar((FENCE_R - 0.4) / r2).setY(p.mesh.position.y);
+      } else if (p.t > (this.grassLife || 120) || p.rolling) {
+        // nobody picked it up: it rolls over to the basket
+        p.rolling = true;
+        const b = this.basket.position;
+        const dx = b.x - p.mesh.position.x, dz = b.z - p.mesh.position.z, d = Math.hypot(dx, dz);
+        if (d < 0.25) { this.removePearl(p); continue; }
+        const sp = Math.min(d, 2.5 * dt);
+        p.mesh.position.x += dx / d * sp; p.mesh.position.z += dz / d * sp;
+        p.mesh.position.y = RANCH_TOP + 0.12 + Math.abs(Math.sin(p.t * 9)) * 0.08;
+        p.mesh.rotation.x += dt * 8;
       } else {
         p.mesh.position.y = RANCH_TOP + 0.12 + Math.sin(p.t * 2.5) * 0.02;
         p.mesh.rotation.y += dt;

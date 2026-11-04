@@ -2,7 +2,7 @@
 // speech/request bubbles, floating numbers, toasts and modals.
 import {
   FOODS, FOOD_BY_ID, HELPERS, STAGES, TRAITS, TRAIT_IDS, BOND, PERSONALITY, PERSONALITY_IDS, COMBOS, NAME_IDEAS,
-  EMOTES, SECRETS, TRICK_LEARNED, JAR_LEVELS, OUTFITS, OUTFIT_BY_ID,
+  EMOTES, SECRETS, TRICK_LEARNED, JAR_LEVELS, OUTFITS, OUTFIT_BY_ID, RANCH, BUYER_BY_ID,
 } from '../data/content.js';
 import { fmt, fmtShort, fmtRate, fmtDuration } from '../core/format.js';
 
@@ -31,6 +31,24 @@ export class Hud {
     this.$('emoteBtn').addEventListener('click', () => this.toggleEmotes());
     this.$('emoteFab').addEventListener('click', () => this.toggleEmotes());
     this.$('jarBtn').addEventListener('click', () => this.g.collectJar());
+    this.$('pearlBtn').addEventListener('click', () => this.openTab('ranch'));
+    this.$('homeBtn').addEventListener('click', () => this.g.leaveRanch());
+    this.$('basketBtn').addEventListener('click', () => this.g.collectBasket());
+    this.ranchKey = '';
+    this.$('body-ranch').addEventListener('click', e => {
+      const b = e.target.closest('button');
+      if (!b || b.disabled) return;
+      const g = this.g, id = b.dataset.id;
+      if (b.id === 'moveOutBtn') g.askMoveOut();
+      else if (b.id === 'collectBasket') g.collectBasket();
+      else if (b.id === 'basketUp') g.buyBasket();
+      else if (b.id === 'slotUp') g.buyRanchSlot();
+      else if (b.id === 'ranchBack') g.focusResident(null);
+      else if (b.id === 'ranchHome') g.leaveRanch();
+      else if (b.dataset.act === 'visit') g.focusResident(id);
+      else if (b.dataset.act === 'place') g.askPlace(id);
+      else if (b.dataset.act === 'auction') g.startAuction(id);
+    });
     this.pending = 0; this.pendingRate = 0;
     this.outfitKey = '';
     this.buildEmotes();
@@ -71,7 +89,7 @@ export class Hud {
           panel.classList.remove('open');
         } else {
           if (mobile) panel.classList.add('open');
-          this.selectTab(t);
+          if (this.tab !== t || t === 'ranch') this.selectTab(t);
         }
         this.g.layoutChanged();
       });
@@ -83,11 +101,19 @@ export class Hud {
       btn.setAttribute('aria-selected', btn.dataset.tab === t ? 'true' : 'false');
       if (btn.dataset.tab === t) btn.querySelector('.dot').hidden = true;
     }
-    for (const id of ['helpers', 'upgrades', 'outfits', 'journal', 'slime']) this.$('body-' + id).hidden = id !== t;
+    for (const id of ['helpers', 'upgrades', 'outfits', 'journal', 'slime', 'ranch']) this.$('body-' + id).hidden = id !== t;
+    if (t === 'ranch') { this.ranchKey = ''; this.renderRanch(); }
+    this.g.onTab && this.g.onTab(t);
     if (t === 'outfits') { this.outfitKey = ''; this.renderOutfits(); }
     if (t === 'journal') { this.journalKey = ''; this.renderJournal(); }
     if (t === 'slime') this.renderSlime();
     if (t === 'upgrades') { this.upgradeKey = ''; this.renderUpgrades(); }
+  }
+  openTab(t) {
+    const mobile = window.matchMedia('(max-width: 860px)').matches;
+    if (mobile) this.$('panel').classList.add('open');
+    this.selectTab(t);
+    this.g.layoutChanged();
   }
   dot(tab) {
     if (this.tab === tab && this.panelVisible()) return;
@@ -293,8 +319,10 @@ export class Hud {
       const rows = [
         ['Joy', `x${sim.moodMult().toFixed(2)}`],
         ['Bond', pct(sim.bondMult())],
-        ['Upgrades, tricks and secrets', pct(sim.globalMult())],
+        ['Upgrades, tricks and secrets', pct(sim.globalMult() / sim.ranch.familyMult())],
       ];
+      if (st.ranch.family.bonus > 0) rows.push(['Family Bonus (ranch)', pct(sim.ranch.familyMult())]);
+      if (sim.ranchJps() > 0) rows.push(['Ranch slimes', `+${fmtRate(sim.ranchJps())}/s`]);
       if (sim.buff('jpsMult') !== 1) rows.push(['Active effects', `x${sim.buff('jpsMult').toFixed(1)}`]);
       if (sim.asleep) rows.push(['Dream jelly (napping)', `x${sim.dreamMult().toFixed(2)}`]);
       const html = rows.map(([k, v]) => `<div class="row-between"><span>${k}</span><b>${v}</b></div>`).join('');
@@ -412,6 +440,7 @@ export class Hud {
 
     if (s.form) {
       html += `<div class="card"><span class="sub">Settled form</span><span class="form-name">${esc(s.form.name)}</span><span class="sub">${esc(s.form.blurb)}</span></div>`;
+      if (sim.canMoveOut()) html += `<div class="card"><b>Ready for the ranch</b><span class="sub">${name} is all grown up. Moving to the ranch starts a new generation and adds a Family Bonus of +${sim.moveOutPreview().bonus.toFixed(1)}% to all jelly, forever.</span><button class="btn" id="slimeMoveOut">Tell me more</button></div>`;
     } else if (si >= 2) {
       const f = sim.formCandidate();
       html += `<div class="card"><span class="sub">Looks like ${name} is becoming</span><span class="form-name">${esc(f.name)}?</span><span class="sub">${esc(f.blurb)} Still changing until they settle.</span></div>`;
@@ -483,6 +512,79 @@ export class Hud {
     this.$('body-slime').innerHTML = html;
     const rb = this.$('renameBtn');
     if (rb) rb.addEventListener('click', () => this.showRename());
+    const mo = this.$('slimeMoveOut');
+    if (mo) mo.addEventListener('click', () => this.g.askMoveOut());
+  }
+
+  // ---------- ranch tab ----------
+  renderRanch(force = false) {
+    const g = this.g, sim = g.sim, st = g.state, R = st.ranch, rr = sim.ranch;
+    const focus = g.ranchFocus ? rr.resident(g.ranchFocus) : null;
+    const fm = rr.familyMult();
+    const canMove = sim.canMoveOut();
+    const key = [R.pearls, R.basket.stored, R.basket.level, R.slots, R.residents.map(x => x.id + ':' + Math.round(x.happiness / 5)).join(','), focus && focus.id, canMove, R.placed.length, st.slime.name].join('|');
+    if (!force && key === this.ranchKey) return;
+    this.ranchKey = key;
+    const happyWord = h => h > 80 ? 'Very happy' : h > 55 ? 'Happy' : h > 30 ? 'A little lonely' : 'Misses you';
+    const pearlCost = n => `<span class="cost"><i class="pearl"></i>${fmt(n)}</span>`;
+    let html = '';
+    if (focus) {
+      const x = focus;
+      const traits = Object.entries(x.traits || {}).filter(e => e[1] > 1).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([k]) => TRAITS[k].name).join(' + ');
+      const lean = PERSONALITY_IDS.map(id => [id, x.personality?.[id] ?? 50]).sort((a, b) => Math.abs(b[1] - 50) - Math.abs(a[1] - 50)).slice(0, 2)
+        .map(([id, v]) => (v >= 50 ? PERSONALITY[id].high : PERSONALITY[id].low)).join(', ');
+      html += `<button class="link-btn" id="ranchBack">← All ranch slimes</button>`;
+      html += `<div class="card"><div class="row-between"><span class="form-name">${esc(x.name)}</span><span class="sub">Generation ${x.generation}</span></div>
+        <b>${esc(x.form?.name || 'Slime')}</b><span class="sub">${esc(x.form?.blurb || '')}</span>
+        <div class="row-between"><span class="sub">${happyWord(x.happiness)}</span><span class="sub">${Math.round(x.happiness)}%</span></div><div class="meter"><i style="width:${x.happiness.toFixed(0)}%;background:linear-gradient(90deg,#ffb0c8,var(--berry))"></i></div>
+        <span class="sub">Tap or stroke ${esc(x.name)} to pet them. Happy slimes make pearls faster.</span></div>`;
+      html += `<div class="stat-grid">
+        <div class="stat"><div class="k">Jelly</div><div class="v">${fmtRate(x.jps * fm)}/s</div></div>
+        <div class="stat"><div class="k">Pearls</div><div class="v">~${(rr.pearlRate(x) * 3600).toFixed(1)}/hour</div></div>
+        <div class="stat"><div class="k">Made of</div><div class="v">${esc(traits || 'A bit of everything')}</div></div>
+        <div class="stat"><div class="k">Favorite snack</div><div class="v">${esc(FOOD_BY_ID[x.favorite]?.name || '?')}</div></div></div>`;
+      if (lean) html += `<p class="sub">Personality: ${esc(lean)}. Bond: ${esc(BOND[x.bondLevel || 0].title)}.</p>`;
+      const mem = (x.memories || []).slice(-6).reverse();
+      if (mem.length) html += `<div class="sec-title">${esc(x.name)}'s story</div><div class="card">` + mem.map(m => `<div class="sub">${m.icon} ${esc(m.text)}</div>`).join('') + '</div>';
+      html += `<div class="res"><div class="acts"><button class="btn" data-act="place" data-id="${x.id}">Find a new home</button><button class="btn" data-act="auction" data-id="${x.id}">Auction</button></div></div>`;
+    } else {
+      html += `<button class="link-btn" id="ranchHome">← Back home</button>`;
+      html += `<div class="card"><div class="row-between"><span class="form-name">Slime Ranch</span><span class="sub">Generation ${R.family.generation}</span></div>
+        <div class="big-num"><i class="pearl big"></i>${fmt(R.pearls)}<span class="sub">pearls</span></div>
+        <span class="sub">${R.family.bonus > 0 ? `Family Bonus: <b>+${R.family.bonus.toFixed(1)}%</b> to all jelly, forever.` : 'Every slime that moves here adds a Family Bonus to all your jelly, forever.'}</span>
+        ${R.residents.length ? `<span class="sub">The ranch makes <b>${fmtRate(sim.ranchJps())}</b> jelly a second and about <b>${rr.pearlsPerHour().toFixed(1)}</b> pearls an hour.</span>` : ''}</div>`;
+      const name = esc(st.slime.name || 'Your slime');
+      if (canMove) {
+        const pv = sim.moveOutPreview();
+        html += `<div class="card"><b>${name} is all grown up</b><span class="sub">Moving to the ranch starts a new generation with a new egg. ${name} adds <b>+${pv.bonus.toFixed(1)}%</b> Family Bonus and makes ${fmtRate(pv.jps * (1 + (R.family.bonus + pv.bonus) / 100))} jelly a second plus pearls on the ranch. The longer you play first, the bigger the bonus.</span>
+          <button class="btn primary" id="moveOutBtn">${pv.room ? `Move ${name} to the ranch` : 'The ranch is full'}</button></div>`;
+      } else if (!R.residents.length) {
+        html += `<div class="card"><b>Nobody lives here yet</b><span class="sub">When ${name} is all grown up (Settled), they can move to the ranch. They keep making jelly and pearls, you raise a new baby, and every generation adds a Family Bonus to all your jelly.</span></div>`;
+      }
+      if (R.residents.length || R.basket.stored > 0) {
+        const cap = rr.basketCap(), next = RANCH.basket[R.basket.level + 1];
+        html += `<div class="sec-title">Pearl Basket</div><div class="card"><div class="row-between"><span>Pearls waiting</span><b>${R.basket.stored} / ${cap}</b></div>
+          <div class="meter"><i style="width:${(R.basket.stored / cap * 100).toFixed(0)}%;background:linear-gradient(90deg,#efd9f5,#b9d4f2)"></i></div>
+          <span class="sub">Ranch slimes make pearls. They pop out into the grass (tap them!) and roll into the basket. When the basket is full, they take a break.</span>
+          <button class="btn primary" id="collectBasket" ${R.basket.stored ? '' : 'disabled'}>${R.basket.stored ? `Collect ${R.basket.stored} pearl${R.basket.stored === 1 ? '' : 's'}` : 'Basket is empty'}</button>
+          ${next ? `<button class="upgrade${R.pearls < next.cost ? ' poor' : ''}" id="basketUp"><span class="un">Bigger basket</span><span class="ub">Holds ${next.cap} pearls.</span>${pearlCost(next.cost)}</button>` : ''}</div>`;
+      }
+      if (R.residents.length) {
+        html += `<div class="sec-title">Living here · ${R.residents.length} of ${R.slots}</div>`;
+        for (const x of R.residents) {
+          html += `<div class="card res"><span class="nm">${esc(x.name)}</span><span class="sub">Gen ${x.generation}</span>
+            <span class="sub">${esc(x.form?.name || 'Slime')}</span><span class="sub">${fmtRate(x.jps * fm)} jelly/s</span>
+            <div class="meter" title="Happiness"><i style="width:${x.happiness.toFixed(0)}%"></i></div><span class="sub">${happyWord(x.happiness)}</span>
+            <div class="acts"><button class="btn small" data-act="visit" data-id="${x.id}">Visit</button><button class="btn small" data-act="place" data-id="${x.id}">New home</button><button class="btn small" data-act="auction" data-id="${x.id}">Auction</button></div></div>`;
+        }
+        const sc = rr.slotCost();
+        if (sc !== null) html += `<button class="upgrade${R.pearls < sc ? ' poor' : ''}" id="slotUp"><span class="un">More room</span><span class="ub">Space for one more slime (${R.slots + 1} in total).</span>${pearlCost(sc)}</button>`;
+      }
+      if (R.placed.length) {
+        html += `<div class="sec-title">Living elsewhere</div><div class="card">` + R.placed.slice(-8).reverse().map(p => `<div class="row-between"><span>${esc(p.name)}</span><span class="sub">${esc(BUYER_BY_ID[p.buyer]?.name || '')}</span></div>`).join('') + '</div>';
+      }
+    }
+    this.$('body-ranch').innerHTML = html;
   }
 
   // ---------- per-frame ----------
@@ -504,6 +606,14 @@ export class Hud {
         const t = `${fmtShort(stored)} ready`;
         if (this.$('jarAmt').textContent !== t) { this.$('jarAmt').textContent = t; jb.setAttribute('aria-label', `Pour out the Jelly Jar: ${fmt(stored)} jelly`); }
       }
+      const R = st.ranch;
+      const pb = this.$('pearlBtn');
+      const showPearls = R.totalPearls > 0 || R.residents.length > 0;
+      if (pb.hidden === showPearls) pb.hidden = !showPearls;
+      if (showPearls) { const t = fmt(R.pearls); if (this.$('pearlCount').textContent !== t) this.$('pearlCount').textContent = t; }
+      const bb = this.$('basketBtn');
+      const bt = R.basket.stored > 0 ? `Collect ${R.basket.stored}` : '';
+      if (bb.textContent !== bt) { bb.textContent = bt; bb.hidden = !bt; }
       const jps = sim.jps();
       this.$('jps').textContent = `${fmtRate(jps)} jelly per second${sim.asleep ? ' · dreaming' : ''}`;
       this.$('tummyFill').style.width = s.tummy.toFixed(1) + '%';
@@ -553,6 +663,10 @@ export class Hud {
       if (this.tab === 'slime' && this.panelVisible() && this.slimeT <= 0) { this.slimeT = 1; this.renderSlime(); }
       this.renderBuffs();
       if (!this.$('emotes').hidden) this.updateEmotes();
+      if (this.tab === 'ranch' && this.panelVisible()) this.renderRanch();
+      const ready = sim.canMoveOut() || st.ranch.basket.stored >= sim.ranch.basketCap();
+      if (ready && !this.ranchDotShown) { this.ranchDotShown = true; this.dot('ranch'); }
+      if (!ready) this.ranchDotShown = false;
     }
   }
 

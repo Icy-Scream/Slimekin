@@ -246,3 +246,44 @@ export const OUTFITS = [
   { id: 'crown',   slot: 'head', name: 'Tiny Crown',    cost: 1e11,   blurb: 'Ruler of the nursery.' },
 ];
 export const OUTFIT_BY_ID = Object.fromEntries(OUTFITS.map(o => [o.id, o]));
+
+// ---------- The ranch (grown-up slimes) and pearls ----------
+// Moving a grown slime to the ranch starts a new generation: everything bought with jelly resets
+// (jelly, helpers, upgrades, Jelly Jar), outfits and discoveries stay, and the family grows stronger.
+export const RANCH = {
+  startSlots: 3,
+  maxSlots: 10,
+  slotCosts: [20, 45, 90, 160, 260, 400, 600],      // pearls for slots 4..10
+  basket: [                                          // the Pearl Basket catches pearls you haven't picked up
+    { cap: 12 },
+    { cap: 30, cost: 15 },
+    { cap: 80, cost: 40 },
+    { cap: 200, cost: 100 },
+    { cap: 500, cost: 250 },
+  ],
+  pearlMinutes: 15,          // each resident makes a pearl about every 15 minutes when happy
+  happyDecayPerHour: 4,      // happiness slowly fades (never below 0); pets and visits bring it back
+  petHappy: 15,
+  petCooldown: 40,           // seconds before the same slime's pet counts again
+  visitHappy: 6,
+  visitCooldown: 1800,
+  welcomeGift: 10,           // pearls for the very first move-in
+  grassLife: 120,            // seconds a dropped pearl waits in the grass before rolling into the basket
+  postcardDays: 7,           // placed slimes send postcards for a week
+};
+
+// Buyers for placement and auctions. "want" lists traits that make a slime a good fit;
+// an empty list prefers well-rounded slimes.
+export const BUYERS = [
+  { id: 'bakery',    name: 'Sugarvale Bakery',       want: ['sweet', 'heat'],    line: 'needs a warm helper to keep the ovens cozy.', card: 'They let me nap next to the oven. Everything smells like cookies!' },
+  { id: 'garden',    name: 'Willowbend Gardens',     want: ['nature'],           line: 'is looking for a friend for the greenhouse.', card: 'I sat in the tomato patch all day. The bees say hi.' },
+  { id: 'mine',      name: 'Pebblepeak Mine',        want: ['mineral'],          line: 'wants a sturdy partner who loves rocks.',     card: 'I found a shiny rock! I am keeping it forever.' },
+  { id: 'observe',   name: 'Starlight Observatory',  want: ['prism', 'spark'],   line: 'needs someone to light up the telescope dome.', card: 'We counted 300 stars last night. I counted 4, then fell asleep.' },
+  { id: 'windmill',  name: 'Breezy Windmill',        want: ['spark'],            line: 'needs a zippy friend to keep the lights on.',  card: 'I spin with the windmill blades sometimes. Wheee!' },
+  { id: 'cafe',      name: 'Puddle Café',            want: ['sweet'],            line: 'wants a greeter that makes guests smile.',     card: 'A little kid gave me a sprinkle today. Best day.' },
+  { id: 'school',    name: 'Little Sprouts School',  want: [],                   line: 'would love a gentle class pet.',               card: 'The kids drew me! I look like a potato. I love it.' },
+  { id: 'springs',   name: 'Mistwater Hot Springs',  want: ['heat', 'nature'],   line: 'wants a cozy companion for the warm pools.',  card: 'I soaked so long I got extra squishy.' },
+  { id: 'museum',    name: 'Glimmer Museum',         want: ['prism', 'mineral'], line: 'wants a sparkly star for the gem hall.',       card: 'People stare at me like I am a famous painting.' },
+  { id: 'festival',  name: 'Summer Festival Crew',   want: ['heat', 'spark'],    line: 'needs help with the fireworks show.',          card: 'BOOM! Pop! Sparkle! (I was very brave.)' },
+];
+export const BUYER_BY_ID = Object.fromEntries(BUYERS.map(b => [b.id, b]));

@@ -30,7 +30,10 @@ async function boot(hotData) {
   // A cloud save that arrives late only replaces a brand-new egg.
   if (lateCloud) {
     lateCloud.then(cloud => {
-      if (cloud && cloud.phase !== 'egg' && game.state.phase === 'egg') {
+      // An egg can also mean a slime just moved to the ranch: then only a newer cloud save wins.
+      const st = game.state;
+      const brandNew = st.ranch.family.generation === 1 && !st.stats.boops;
+      if (cloud && cloud.phase !== 'egg' && st.phase === 'egg' && (brandNew || (cloud.savedAt || 0) > (st.savedAt || 0))) {
         store.saveLocal(cloud);
         location.reload();
       }

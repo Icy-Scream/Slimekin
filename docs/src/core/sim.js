@@ -3,8 +3,9 @@
 import {
   TUNING, STAGES, TRAIT_IDS, FOODS, FOOD_BY_ID, HELPERS, HELPER_BY_ID, HELPER_GROWTH,
   UPGRADES, UPGRADE_BY_ID, COMBOS, BOND, PERSONALITY_IDS, PURE_FORMS, PAIR_FORMS, GENERALIST_FORM,
-  UPGRADE_RENAMES, JAR_LEVELS, OUTFITS, OUTFIT_BY_ID, TRICK_LEARNED,
+  UPGRADE_RENAMES, JAR_LEVELS, OUTFITS, OUTFIT_BY_ID, TRICK_LEARNED, RANCH,
 } from '../data/content.js';
+import { createRanch, migrateRanch, Ranch, familyBonusFor, residentJpsFor } from './ranch.js';
 
 export const SAVE_VERSION = 1;
 
@@ -58,6 +59,7 @@ export function createState() {
     stats: { boops: 0, feeds: 0, petTime: 0, fevers: 0, dizzies: 0, naps: 0, glimmers: 0, requests: 0, playTime: 0, visits: 1 },
     tutorial: 0,
     settings: { sound: true, music: true, soundOnSilent: true, reducedMotion: false, quality: 'auto', showFps: false },
+    ranch: createRanch(),
   };
 }
 
@@ -82,6 +84,7 @@ export function migrate(save) {
   for (const k of ['upgrades', 'combos', 'buffs', 'memories', 'memKeys', 'secrets']) if (!Array.isArray(out[k])) out[k] = [];
   if (!Array.isArray(out.slime.belly)) out.slime.belly = [];
   out.slime.tricks = { ...(save.slime?.tricks || {}) };
+  out.ranch = migrateRanch(save.ranch);
   out.v = SAVE_VERSION;
   return out;
 }
@@ -97,6 +100,7 @@ export class Sim {
     this.sinceBoop = 99;
     this.lastFed = null;
     this.recentFoods = [];
+    this.ranch = new Ranch(state);
     this.recompute();
   }
 
@@ -170,12 +174,15 @@ export class Sim {
   dreamMult() { return this.asleep ? 1 + 0.25 * this.fx.napMult : 1; }
   tricksLearned() { return Object.values(this.slime.tricks || {}).filter(n => n >= TRICK_LEARNED).length; }
   // Permanent multiplier from upgrades, learned tricks and found secrets.
+  // Includes the Family Bonus earned by every generation that moved to the ranch.
   globalMult() {
-    return this.fx.globalMult * (1 + this.fx.trickBonus * this.tricksLearned() + this.fx.secretBonus * this.s.secrets.length);
+    return this.fx.globalMult * (1 + this.fx.trickBonus * this.tricksLearned() + this.fx.secretBonus * this.s.secrets.length) * this.ranch.familyMult();
   }
-  jps() { return this.baseJps() * this.moodMult() * this.bondMult() * this.globalMult() * this.buff('jpsMult') * this.dreamMult(); }
+  // Steady jelly from the slimes living on the ranch.
+  ranchJps() { return this.ranch.jps() * this.ranch.familyMult(); }
+  jps() { return this.baseJps() * this.moodMult() * this.bondMult() * this.globalMult() * this.buff('jpsMult') * this.dreamMult() + this.ranchJps(); }
   // Helper output used while you're away: no mood, buffs or naps, just the steady part.
-  awayJps() { return this.baseJps() * this.bondMult() * this.globalMult(); }
+  awayJps() { return this.baseJps() * this.bondMult() * this.globalMult() + this.ranchJps(); }
   boopValue() {
     const fever = this.fever ? this.fx.feverMult : 1;
     return this.stage().boop * this.fx.boopMult * this.moodMult() * fever * this.buff('boopMult') + this.jps() * this.fx.boopJps;
@@ -462,6 +469,54 @@ export class Sim {
     this.s.jelly -= cost;
     this.s.jar.level++;
     return { cost, level: this.s.jar.level };
+  }
+
+  // ---------- Moving to the ranch (a new generation) ----------
+  canMoveOut() { return this.s.phase === 'play' && this.stageIndex() === STAGES.length - 1; }
+  moveOutPreview() {
+    const total = this.s.totalJelly;
+    return { bonus: familyBonusFor(total), jps: residentJpsFor(total), room: this.ranch.free() > 0, generation: this.s.ranch.family.generation };
+  }
+  // The grown slime moves to the ranch and a new egg arrives. Everything bought with jelly resets
+  // (jelly, helpers, upgrades, the Jelly Jar); outfits, combos, secrets, pearls and the ranch stay.
+  moveToRanch(now = Date.now()) {
+    const s = this.s, sl = s.slime, ranch = s.ranch;
+    if (!this.canMoveOut() || this.ranch.free() <= 0) return null;
+    const total = s.totalJelly;
+    const bonus = familyBonusFor(total);
+    const resident = {
+      id: 'r' + now.toString(36) + Math.floor(Math.random() * 1e4).toString(36),
+      name: sl.name, form: sl.form || this.formCandidate(), traits: { ...sl.traits }, personality: { ...sl.personality },
+      bondXp: sl.bondXp, bondLevel: this.bondLevel(), favorite: sl.favorite, dislike: sl.dislike, tricks: { ...sl.tricks },
+      worn: { ...s.outfits.worn }, bornAt: sl.bornAt, movedAt: now, generation: ranch.family.generation,
+      runTotal: total, jps: residentJpsFor(total), happiness: 90, pearlT: 0.6, petAt: 0,
+      memories: s.memories.slice(-40),
+    };
+    ranch.residents.push(resident);
+    ranch.family.bonus += bonus;
+    ranch.family.generation++;
+    ranch.family.lifetime += total;
+    let gift = 0;
+    if (!ranch.gift) { ranch.gift = true; gift = RANCH.welcomeGift; this.ranch.addPearls(gift); }
+
+    const fresh = createState();
+    s.phase = 'egg';
+    s.egg = fresh.egg;
+    s.slime = fresh.slime;
+    s.jelly = 0;
+    s.totalJelly = 0;
+    s.jar = fresh.jar;
+    s.helpers = fresh.helpers;
+    s.upgrades = [];
+    s.buffs = [];
+    s.outfits.worn = { ...fresh.outfits.worn };
+    s.outfits.favorite = fresh.outfits.favorite;
+    s.outfits.knownFavorite = false;
+    s.memKeys = s.memKeys.filter(k => k.startsWith('combo-') || k.startsWith('secret'));
+    s.memories = [{ t: now, icon: '🏡', text: `${resident.name} moved to the ranch. A new egg arrived on the cushion.` }];
+    this.giggle = 0; this.dizzy = 0; this.fever = false; this.asleep = false; this.recentFoods = []; this.lastFed = null;
+    this.recompute();
+    return { resident, bonus, gift };
   }
 
   // ---------- Outfits ----------
