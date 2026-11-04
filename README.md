@@ -111,6 +111,7 @@ docs/                 built web app served by GitHub Pages (do not edit by hand;
 tools/economy-sim.mjs economy simulator: plays the real rules as an engaged or casual player and prints milestones
 tools/smoke-test.cjs  headless phone-sized play-through (hatch, grow up, ranch, move out); setup notes inside
 tools/breeding-smoke.cjs  headless breeding play-through from an old save (Nursery, spark egg, S'more, Pure)
+tools/browser-kit.cjs     shared setup for the two browser tests (free port, offline, step deadlines, stall notes)
 tools/breeding-test.mjs   breeding rules check in plain node (caps, seeds, sparks, Pure, cooldowns, old saves)
 tools/fixtures/       old saves made with the code from before breeding (tools/fixtures/make-old-saves.mjs)
 tools/render-samples.cjs  renders looks day and night and builds labeled contact sheets

@@ -70,6 +70,11 @@ it up the next time it is opened online (sometimes it takes two opens). Never ed
 
 - `node tools/smoke-test.cjs` plays through hatch → Settled → ranch → move out in a headless
   phone-sized browser (setup steps are at the top of the file). Screenshots go to `tools/out/`.
+- Both browser tests use `tools/browser-kit.cjs`: their own dev server on a free loopback port, fully
+  offline (three.js from node_modules, every other outside request aborted and logged), a deadline on
+  every step (`page.evaluate` has none of its own) and timestamped progress. A stuck step fails with a
+  note on what the browser was doing: a busy `gpu-process` means software WebGL is just slow on a loaded
+  machine; everything asleep means a real hang. Run browser tests one at a time on a busy box.
 - Useful debug hooks (with `#debug`): `g.advance(seconds)` fast-forwards the game, `g.debug('grow' |
   'jelly' | 'mega' | 'bond' | 'glim' | 'req' | 'needs')`, `g.tapEgg(...)`, `g.hud.closeModal()`,
   `g.slime.setForm(id)`, `g.ranch.sync([...])`, `g.focusResident(id)`.
