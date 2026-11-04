@@ -3,6 +3,7 @@
 import {
   FOODS, FOOD_BY_ID, HELPERS, STAGES, TRAITS, TRAIT_IDS, BOND, PERSONALITY, PERSONALITY_IDS, COMBOS, NAME_IDEAS,
   EMOTES, SECRETS, TRICK_LEARNED, JAR_LEVELS, OUTFITS, OUTFIT_BY_ID, RANCH, BUYER_BY_ID,
+  BREEDING, SPARK_FORMS, SPARK_BY_ID, FORM_BY_ID, FORM_IDS, PURE_LINE,
 } from '../data/content.js';
 import { fmt, fmtShort, fmtRate, fmtDuration } from '../core/format.js';
 
@@ -48,7 +49,14 @@ export class Hud {
       else if (b.dataset.act === 'visit') g.focusResident(id);
       else if (b.dataset.act === 'place') g.askPlace(id);
       else if (b.dataset.act === 'auction') g.startAuction(id);
+      else if (b.dataset.act === 'nursery') g.openNursery();
+      else if (b.id === 'nurseryBack') g.closeNursery();
+      else if (b.dataset.act === 'pickParent') this.pickParent(id);
+      else if (b.id === 'breedBtn' && this.nurseryPick.length === 2) g.breed(this.nurseryPick[0], this.nurseryPick[1]);
+      else if (b.dataset.act === 'giveEgg') g.giveEgg(b.dataset.egg);
+      else if (b.dataset.act === 'cushion') g.askCushion(b.dataset.egg);
     });
+    this.nurseryPick = [];
     this.pending = 0; this.pendingRate = 0;
     this.outfitKey = '';
     this.buildEmotes();
@@ -78,6 +86,28 @@ export class Hud {
 
   setPhase(phase) {
     this.$('ui').classList.toggle('egg', phase !== 'play');
+    this.updateEggRanch();
+  }
+  // While an egg waits on the cushion, a family with a ranch (or eggs in the Nursery) can still visit the ranch:
+  // the menu shows just the Ranch tab.
+  updateEggRanch() {
+    const st = this.g.state, R = st.ranch;
+    const on = st.phase === 'egg' && !this.g.hatching && (R.residents.length > 0 || R.nursery.eggs.length > 0);
+    if (this.$('ui').classList.contains('has-ranch') !== on) { this.$('ui').classList.toggle('has-ranch', on); this.g.layoutChanged(); }
+  }
+  // the per-frame part that still runs while an egg waits (the ranch keeps going)
+  updateEggPhase(dt) {
+    this.slowT -= dt;
+    if (this.slowT > 0) return;
+    this.slowT = 0.25;
+    this.updateEggRanch();
+    this.updateBasketBtn();
+    if (this.tab === 'ranch' && this.panelVisible()) this.renderRanch();
+  }
+  updateBasketBtn() {
+    const R = this.g.state.ranch, bb = this.$('basketBtn');
+    const bt = R.basket.stored > 0 ? `Collect ${R.basket.stored}` : '';
+    if (bb.textContent !== bt) { bb.textContent = bt; bb.hidden = !bt; }
   }
 
   // ---------- tabs / panel ----------
@@ -88,9 +118,9 @@ export class Hud {
         const t = btn.dataset.tab;
         const mobile = window.matchMedia('(max-width: 860px)').matches;
         if (mobile && panel.classList.contains('open') && this.tab === t) {
-          panel.classList.remove('open');
+          this.setSheet('closed', false);
         } else {
-          if (mobile) panel.classList.add('open');
+          if (mobile && !panel.classList.contains('open')) this.setSheet('normal', false);   // always opens at its normal size
           if (this.tab !== t || t === 'ranch') this.selectTab(t);
         }
         this.g.layoutChanged();
@@ -113,7 +143,7 @@ export class Hud {
   }
   openTab(t) {
     const mobile = window.matchMedia('(max-width: 860px)').matches;
-    if (mobile) this.$('panel').classList.add('open');
+    if (mobile && !this.$('panel').classList.contains('open')) this.setSheet('normal', false);
     this.selectTab(t);
     this.g.layoutChanged();
   }
@@ -393,12 +423,20 @@ export class Hud {
 
   // ---------- journal tab ----------
   renderJournal(force = false) {
-    const st = this.g.state;
-    const key = st.memories.length + '|' + st.combos.join(',') + '|' + this.g.sim.stageIndex() + '|' + st.secrets.length;
+    const st = this.g.state, R = st.ranch;
+    const page = this.journalPage || 'notes';
+    const key = page + '|' + st.memories.length + '|' + st.combos.join(',') + '|' + this.g.sim.stageIndex() + '|' + st.secrets.length + '|' +
+      JSON.stringify(R.sparks) + '|' + R.pures.length + '|' + R.residents.length + '|' + (st.slime.form?.id || '') + '|' + st.slime.name;
     if (!force && key === this.journalKey) return;
     this.journalKey = key;
     const sim = this.g.sim;
-    let html = '<div class="sec-title">Combos</div><p class="sub">Feed two snacks in a row, quickly, to find combinations.</p>';
+    const seg = `<div class="seg journal-seg" role="group" aria-label="Journal pages"><button data-jp="notes" aria-pressed="${page === 'notes'}">Notes</button><button data-jp="family" aria-pressed="${page === 'family'}">Family tree</button></div>`;
+    if (page === 'family') {
+      this.$('body-journal').innerHTML = seg + this.familyTreeHtml();
+      this.bindJournalSeg();
+      return;
+    }
+    let html = seg + '<div class="sec-title">Combos</div><p class="sub">Feed two snacks in a row, quickly, to find combinations.</p>';
     for (const c of COMBOS) {
       const found = st.combos.includes(c.id);
       const ready = c.seq.every(id => sim.foodUnlocked(id));
@@ -427,6 +465,71 @@ export class Hud {
       html += `<div class="mem"><span class="ic">${ic}</span><div>${esc(m.text)}<time>${time}</time></div></div>`;
     }
     this.$('body-journal').innerHTML = html;
+    this.bindJournalSeg();
+  }
+  bindJournalSeg() {
+    for (const b of this.$('body-journal').querySelectorAll('[data-jp]')) b.addEventListener('click', () => {
+      this.journalPage = b.dataset.jp;
+      this.$('body-journal').scrollTop = 0;
+      this.renderJournal(true);
+    });
+  }
+
+  // Family tree: the slime with its two parents, then the spark forms (unknown / observed / understood,
+  // per the design doc's knowledge states), Pure forms raised, and the families living on the ranch.
+  familyTreeHtml() {
+    const g = this.g, st = g.state, R = st.ranch, s = st.slime, lin = s.lineage || {};
+    // a little colored blob per form: spark forms have their own color, the others use their snack colors
+    const formColor = id => {
+      if (!id) return null;
+      const sp = SPARK_FORMS.find(x => x.look === id);
+      if (sp) return sp.color;
+      const ks = id.split('+').filter(k => TRAITS[k]);
+      if (ks.length === 2) return `linear-gradient(135deg, ${TRAITS[ks[0]].color} 0 50%, ${TRAITS[ks[1]].color} 50%)`;
+      return ks.length ? TRAITS[ks[0]].color : '#fbeef4';
+    };
+    const node = (name, formName, cls = '', color = null) => `<div class="tree-node ${cls}"><span class="blob" style="${color ? `--c:${color}` : ''}" aria-hidden="true"></span><b>${esc(name)}</b><span class="sub">${esc(formName)}</span></div>`;
+    const me = s.name || 'Your slime';
+    const myForm = s.form ? s.form.name : st.phase === 'egg' ? 'Still an egg' : `${g.sim.stage().name}, still growing`;
+    let html = `<div class="sec-title">${esc(me)}'s family</div><div class="card tree">`;
+    if (lin.parents?.length === 2) {
+      const [p, q] = lin.parents;
+      html += `<div class="tree-parents">${node(p.name, p.form.name, 'parent', formColor(p.form.id))}<span class="tree-heart" aria-hidden="true">♥</span>${node(q.name, q.form.name, 'parent', formColor(q.form.id))}</div>
+        <div class="tree-line" aria-hidden="true"></div>`;
+    } else {
+      html += `<div class="tree-parents">${node('?', 'A plain egg', 'parent unknown')}</div><div class="tree-line" aria-hidden="true"></div>`;
+    }
+    html += node(me, myForm, 'me' + (s.form?.pure ? ' pure' : '') + (s.form?.spark ? ' spark' : ''), formColor(s.form?.id));
+    html += `<span class="sub tree-note">Generation ${R.family.generation} of your family.${lin.line > 1 ? ` ${esc(me)} is number ${lin.line} in its family line.` : ' The first of a new family line.'}</span>`;
+    if (lin.spark) html += `<span class="sub spark-line">✦ ${esc(me)} carries a family spark.</span>`;
+    if (lin.pure && FORM_BY_ID[lin.pure]) html += `<span class="sub">Both parents were ${esc(FORM_BY_ID[lin.pure].name)}s.</span>`;
+    html += '</div>';
+
+    const found = SPARK_FORMS.filter(x => R.sparks[x.id] === 'understood').length;
+    html += `<div class="sec-title">Spark forms <span class="count">${found} of ${SPARK_FORMS.length}</span></div><p class="sub">Some pairs of parents share a family spark. Raised just right, their baby becomes something only they can pass on.</p>`;
+    for (const x of SPARK_FORMS) {
+      const k = R.sparks[x.id];
+      const [fa, fb] = x.parents.map(id => FORM_BY_ID[id]?.name || '?');
+      if (k === 'understood') {
+        html += `<div class="combo spark-entry"><span class="pair"><span class="blob" style="--c:${x.color}" aria-hidden="true"><i>${x.icon}</i></span></span><span class="cn">${esc(x.name)}</span>
+          <span class="ce">${esc(x.blurb)} ${esc(fa)} × ${esc(fb)}, raised on ${x.recipe.map(t => esc(TRAITS[t].name)).join(' + ')} snacks.</span></div>`;
+      } else if (k === 'observed') {
+        const misses = R.nearMiss[x.id] || 0;
+        html += `<div class="combo unknown spark-entry"><span class="pair"><span class="blob silhouette" aria-hidden="true"><i>?</i></span></span><span class="cn">A spark between ${esc(fa)} and ${esc(fb)}</span>
+          <span class="ce">${misses ? `Clue: ${esc(x.clue)} (${misses} near miss${misses === 1 ? '' : 'es'} so far)` : 'Seen in an egg. Their baby needs to be raised just right: try different snacks!'}</span></div>`;
+      } else {
+        html += `<div class="combo unknown spark-entry"><span class="pair"><span class="blob silhouette" aria-hidden="true"><i>?</i></span></span><span class="cn">${esc(x.hint)}</span><span class="ce">Not found yet</span></div>`;
+      }
+    }
+    html += `<div class="sec-title">Pure forms <span class="count">${R.pures.length} of ${FORM_IDS.length}</span></div><p class="sub">Two parents of the same form, and a baby raised the same way, make a Pure version.</p>`;
+    html += R.pures.length ? `<div class="badges">${R.pures.map(id => `<span class="badge pure-badge">✦ ${esc(PURE_LINE.name(FORM_BY_ID[id].name))}</span>`).join('')}</div>` : '<p class="empty">None yet.</p>';
+    const fams = R.residents.filter(x => x.lineage?.parents?.length === 2);
+    if (fams.length) {
+      html += '<div class="sec-title">Families on the ranch</div><div class="card">';
+      html += fams.map(x => `<div class="row-between"><span><b>${esc(x.name)}</b> <span class="sub">${esc(x.form?.name || '')}</span></span><span class="sub">${esc(x.lineage.parents[0].name)} × ${esc(x.lineage.parents[1].name)}</span></div>`).join('');
+      html += '</div>';
+    }
+    return html;
   }
 
   // ---------- slime tab ----------
@@ -445,9 +548,31 @@ export class Hud {
       if (sim.canMoveOut()) html += `<div class="card"><b>Ready for the ranch</b><span class="sub">${name} is all grown up. Moving to the ranch starts a new generation and adds a Family Bonus of +${sim.moveOutPreview().bonus.toFixed(1)}% to all jelly, forever.</span><button class="btn" id="slimeMoveOut">Tell me more</button></div>`;
     } else if (si >= 2) {
       const f = sim.formCandidate();
-      html += `<div class="card"><span class="sub">Looks like ${name} is becoming</span><span class="form-name">${esc(f.name)}?</span><span class="sub">${esc(f.blurb)} Still changing until they settle.</span></div>`;
+      const sp = s.lineage?.spark && SPARK_BY_ID[s.lineage.spark];
+      const stirring = sp && f.id === [...sp.recipe].sort().join('+') ? `<span class="sub spark-line">✦ Something sparkly is stirring inside ${name}...</span>` : '';
+      html += `<div class="card"><span class="sub">Looks like ${name} is becoming</span><span class="form-name">${esc(f.name)}?</span><span class="sub">${esc(f.blurb)} Still changing until they settle.</span>${stirring}</div>`;
     } else {
       html += `<div class="card"><span class="sub">Becoming</span><span class="form-name">Too young to tell</span><span class="sub">What ${name} eats now shapes the slime they grow into.</span></div>`;
+    }
+    // not grown yet: a kind family can raise them (no pearls and no Family Bonus for a baby)
+    if (sim.canRehome()) {
+      html += `<div class="card rehome-card"><b>Raising a different egg?</b><span class="sub">A kind family would love to raise ${name}, and ${name} will send you postcards. Babies don't bring pearls or a Family Bonus.</span>
+        <button class="btn" id="slimeRehome">Find ${name} a new home</button></div>`;
+    }
+
+    const lin = s.lineage || {};
+    if (lin.parents?.length === 2) {
+      const [p, q] = lin.parents;
+      const leaned = TRAIT_IDS.filter(k => (lin.bias?.[k] || 0) >= 5).sort((a, b) => lin.bias[b] - lin.bias[a]).slice(0, 2).map(k => TRAITS[k].name);
+      html += `<div class="card"><span class="sub">Family</span><b>Child of ${esc(p.name)} and ${esc(q.name)}</b><span class="sub">${esc(p.form.name)} × ${esc(q.form.name)}.${leaned.length ? ` ${name} started out a little ${esc(leaned.join(' and ').toLowerCase())}, like them.` : ''}</span>`;
+      const sp = lin.spark && SPARK_BY_ID[lin.spark];
+      if (sp && !s.form) {
+        html += `<span class="sub spark-line">✦ A family spark glows in ${name}. Raised just right, they could grow into something only ${esc(p.name)} and ${esc(q.name)} can pass on.</span>`;
+        // the clue comes after a near miss (or once the form is known); before that, finding it is the fun
+        if (st.ranch.nearMiss[sp.id] || st.ranch.sparks[sp.id] === 'understood') html += `<span class="sub">Journal clue: ${esc(sp.clue)}</span>`;
+      }
+      if (lin.pure && !s.form && FORM_BY_ID[lin.pure]) html += `<span class="sub">Both parents are ${esc(FORM_BY_ID[lin.pure].name)}s. If ${name} grows up the same way, they become a ${esc(PURE_LINE.name(FORM_BY_ID[lin.pure].name))}.</span>`;
+      html += '</div>';
     }
 
     const traits = TRAIT_IDS.map(k => [k, s.traits[k]]).filter(e => e[1] > 0.05).sort((a, b) => b[1] - a[1]);
@@ -516,15 +641,19 @@ export class Hud {
     if (rb) rb.addEventListener('click', () => this.showRename());
     const mo = this.$('slimeMoveOut');
     if (mo) mo.addEventListener('click', () => this.g.askMoveOut());
+    const rh = this.$('slimeRehome');
+    if (rh) rh.addEventListener('click', () => this.g.askRehome());
   }
 
   // ---------- ranch tab ----------
   renderRanch(force = false) {
+    if (this.g.ranchPage === 'nursery') return this.renderNursery(force);
     const g = this.g, sim = g.sim, st = g.state, R = st.ranch, rr = sim.ranch;
     const focus = g.ranchFocus ? rr.resident(g.ranchFocus) : null;
     const fm = rr.familyMult();
     const canMove = sim.canMoveOut();
-    const key = [R.pearls, R.basket.stored, R.basket.level, R.slots, R.residents.map(x => x.id + ':' + Math.round(x.happiness / 5)).join(','), focus && focus.id, canMove, R.placed.length, st.slime.name].join('|');
+    const eggPhase = st.phase === 'egg';
+    const key = [R.pearls, R.basket.stored, R.basket.level, R.slots, R.residents.map(x => x.id + ':' + Math.round(x.happiness / 5)).join(','), focus && focus.id, canMove, R.placed.length, st.slime.name, rr.eggs().length, st.phase].join('|');
     if (!force && key === this.ranchKey) return;
     this.ranchKey = key;
     const happyWord = h => h > 80 ? 'Very happy' : h > 55 ? 'Happy' : h > 30 ? 'A little lonely' : 'Misses you';
@@ -539,10 +668,11 @@ export class Hud {
       html += `<div class="card"><div class="row-between"><span class="form-name">${esc(x.name)}</span><span class="sub">Generation ${x.generation}</span></div>
         <b>${esc(x.form?.name || 'Slime')}</b><span class="sub">${esc(x.form?.blurb || '')}</span>
         <div class="row-between"><span class="sub">${happyWord(x.happiness)}</span><span class="sub">${Math.round(x.happiness)}%</span></div><div class="meter"><i style="width:${x.happiness.toFixed(0)}%;background:linear-gradient(90deg,#ffb0c8,var(--berry))"></i></div>
-        <span class="sub">Tap or stroke ${esc(x.name)} to pet them. Happy slimes make pearls faster.</span></div>`;
+        <span class="sub">Tap or stroke ${esc(x.name)} to pet them. Happy slimes make pearls faster.</span>
+        ${x.lineage?.parents?.length ? `<span class="sub">Child of ${esc(x.lineage.parents[0].name)} (${esc(x.lineage.parents[0].form.name)}) and ${esc(x.lineage.parents[1].name)} (${esc(x.lineage.parents[1].form.name)}).</span>` : ''}</div>`;
       html += `<div class="stat-grid">
         <div class="stat"><div class="k">Jelly</div><div class="v">${fmtRate(x.jps * fm)}/s</div></div>
-        <div class="stat"><div class="k">Pearls</div><div class="v">~${(rr.pearlRate(x) * 3600).toFixed(1)}/hour</div></div>
+        <div class="stat"><div class="k">Pearls</div><div class="v">+${(rr.pearlRate(x) * 3600).toFixed(1)}/hour</div></div>
         <div class="stat"><div class="k">Made of</div><div class="v">${esc(traits || 'A bit of everything')}</div></div>
         <div class="stat"><div class="k">Favorite snack</div><div class="v">${esc(FOOD_BY_ID[x.favorite]?.name || '?')}</div></div></div>`;
       if (lean) html += `<p class="sub">Personality: ${esc(lean)}. Bond: ${esc(BOND[x.bondLevel || 0].title)}.</p>`;
@@ -560,8 +690,14 @@ export class Hud {
         const pv = sim.moveOutPreview();
         html += `<div class="card"><b>${name} is all grown up</b><span class="sub">Moving to the ranch starts a new generation with a new egg. ${name} adds <b>+${pv.bonus.toFixed(1)}%</b> Family Bonus and makes ${fmtRate(pv.jps * (1 + (R.family.bonus + pv.bonus) / 100))} jelly a second plus pearls on the ranch. The longer you play first, the bigger the bonus.</span>
           <button class="btn primary" id="moveOutBtn">${pv.room ? `Move ${name} to the ranch` : 'The ranch is full'}</button></div>`;
-      } else if (!R.residents.length) {
+      } else if (!R.residents.length && !eggPhase) {
         html += `<div class="card"><b>Nobody lives here yet</b><span class="sub">When ${name} is all grown up (Settled), they can move to the ranch. They keep making jelly and pearls, you raise a new baby, and every generation adds a Family Bonus to all your jelly.</span></div>`;
+      }
+      if (R.residents.length || rr.eggs().length) {
+        const n = rr.eggs().length;
+        html += `<div class="card nursery-card"><div class="row-between"><b>Nursery</b><span class="sub">${n ? `${n} egg${n === 1 ? '' : 's'} waiting` : 'No eggs yet'}</span></div>
+          <span class="sub">${eggPhase && n ? 'Before the egg at home hatches, you can put a Nursery egg on the cushion instead.' : R.residents.length < 2 ? 'When two slimes live here, they can make an egg together.' : eggPhase ? 'Two ranch slimes can make an egg together, then put it on the cushion.' : `Two ranch slimes can make an egg together. Choose it when ${name} moves to the ranch.`}</span>
+          <button class="btn" data-act="nursery">Open the Nursery</button></div>`;
       }
       if (R.residents.length || R.basket.stored > 0) {
         const cap = rr.basketCap(), next = RANCH.basket[R.basket.level + 1];
@@ -583,8 +719,70 @@ export class Hud {
         if (sc !== null) html += `<button class="upgrade${R.pearls < sc ? ' poor' : ''}" id="slotUp"><span class="un">More room</span><span class="ub">Space for one more slime (${R.slots + 1} in total).</span>${pearlCost(sc)}</button>`;
       }
       if (R.placed.length) {
-        html += `<div class="sec-title">Living elsewhere</div><div class="card">` + R.placed.slice(-8).reverse().map(p => `<div class="row-between"><span>${esc(p.name)}</span><span class="sub">${esc(BUYER_BY_ID[p.buyer]?.name || '')}</span></div>`).join('') + '</div>';
+        html += `<div class="sec-title">Living elsewhere</div><div class="card">` + R.placed.slice(-8).reverse().map(p => `<div class="row-between"><span>${esc(p.name)}</span><span class="sub">${esc(BUYER_BY_ID[p.buyer]?.name || '')}${p.baby ? ' · growing up there' : ''}</span></div>`).join('') + '</div>';
       }
+    }
+    this.$('body-ranch').innerHTML = html;
+  }
+
+  // ---------- the Nursery (inside the Ranch tab) ----------
+  pickParent(id) {
+    const p = this.nurseryPick;
+    if (p.includes(id)) this.nurseryPick = p.filter(x => x !== id);
+    else { p.push(id); if (p.length > 2) p.shift(); }
+    this.g.sfx.plip();
+    this.renderNursery(true);
+  }
+  renderNursery(force = false) {
+    const g = this.g, st = g.state, R = st.ranch, rr = g.sim.ranch, now = g.nowMs();
+    const eggs = rr.eggs();
+    this.nurseryPick = this.nurseryPick.filter(id => rr.resident(id) && !rr.restingToday(rr.resident(id), now));
+    const pick = this.nurseryPick;
+    const eggPhase = st.phase === 'egg';
+    const key = ['nursery', R.pearls, eggs.map(e => e.id + ':' + Math.ceil(rr.eggSecondsLeft(e, now) / 60)).join(','),
+      R.residents.map(x => x.id + (rr.restingToday(x, now) ? 'r' : '')).join(','), pick.join(','), JSON.stringify(R.sparks), st.slime.name, st.phase, st.egg.bred?.id || ''].join('|');
+    if (!force && key === this.ranchKey) return;
+    this.ranchKey = key;
+    const cur = esc(st.slime.name || 'your slime');
+    const pname = x => esc(x.name);
+    let html = `<button class="link-btn" id="nurseryBack">← Back to the ranch</button>`;
+    html += `<div class="card"><div class="row-between"><span class="form-name">Nursery</span><span class="sub"><i class="pearl"></i> ${fmt(R.pearls)} pearls</span></div>
+      <span class="sub">Two ranch slimes can make an egg together. The baby takes after them a little, but how you raise it decides who it becomes.</span>
+      <span class="sub">An egg costs <b>${BREEDING.cost} pearls</b> and is ready in ${fmtDuration(BREEDING.readyHours * 3600)} (even while the game is closed). Each slime can be a parent once a day.</span>
+      ${eggPhase ? '<span class="sub"><b>An egg is waiting on the cushion at home.</b> Before it hatches, you can put a Nursery egg there instead, even one that is still warming.</span>' : ''}</div>`;
+    html += `<div class="sec-title">Waiting eggs <span class="count">${eggs.length} of ${BREEDING.maxEggs}</span></div>`;
+    if (!eggs.length) html += '<p class="sub">No eggs yet. Pick two parents below.</p>';
+    for (const e of eggs) {
+      const left = rr.eggSecondsLeft(e, now), ready = left <= 0, [p, q] = e.parents;
+      const cols = g.eggColors(e.bias) || [];
+      const done = 1 - left / (BREEDING.readyHours * 3600);
+      html += `<div class="card egg-card${e.spark ? ' spark' : ''}"><div class="egg-row"><span class="egg-ic${e.spark ? ' spark' : ''}" style="--a:${cols[0] || '#9eefd3'};--b:${cols[1] || '#ffc2dc'}" aria-hidden="true"></span>
+        <div><b>${pname(p)} and ${pname(q)}'s egg</b><span class="sub">${ready ? (eggPhase ? 'Ready!' : `Ready! Choose it when ${cur} moves to the ranch.`) : `Ready in ${fmtDuration(left)}${eggPhase ? ' (it can finish warming on the cushion)' : ''}`}</span></div></div>
+        ${ready ? '' : `<div class="meter"><i style="width:${(done * 100).toFixed(0)}%"></i></div>`}
+        ${e.spark ? `<span class="sub spark-line">✦ It twinkles! ${pname(p)} and ${pname(q)} share a family spark.</span>` : ''}
+        ${e.pure ? `<span class="sub">Both parents are ${esc(FORM_BY_ID[e.pure].name)}s. Raised the same way, the baby becomes a ${esc(PURE_LINE.name(FORM_BY_ID[e.pure].name))}.</span>` : ''}
+        <div class="egg-acts">${eggPhase ? `<button class="btn small primary" data-act="cushion" data-egg="${e.id}">Put on the cushion</button>` : ''}<button class="btn small" data-act="giveEgg" data-egg="${e.id}">Give to a neighbor</button></div></div>`;
+    }
+    html += '<div class="sec-title">Pick two parents</div>';
+    if (R.residents.length < 2) {
+      html += `<div class="card"><span class="sub">Two slimes need to live on the ranch first. When ${cur} is all grown up, move them here too.</span></div>`;
+    } else {
+      html += '<div class="parent-grid">' + R.residents.map(x => {
+        const rest = rr.restingToday(x, now), on = pick.includes(x.id);
+        return `<button class="parent-pick" data-act="pickParent" data-id="${x.id}" aria-pressed="${on}" ${rest ? 'disabled' : ''}><b>${pname(x)}</b><span class="sub">${esc(x.form?.name || 'Slime')}</span>${rest ? '<span class="sub">Resting today</span>' : ''}</button>`;
+      }).join('') + '</div>';
+      const c = pick.length === 2 ? rr.canBreed(pick[0], pick[1], now) : null;
+      let msg = pick.length === 0 ? 'Tap two slimes to pick them.' : pick.length === 1 ? 'Now pick one more.' : '';
+      if (c && !c.ok) msg = c.reason === 'full' ? (eggPhase ? 'The nest is full. Put a waiting egg on the cushion, or give one to a neighbor.' : `The nest is full. Choose a waiting egg when ${cur} moves to the ranch, or give one to a neighbor.`)
+        : c.reason === 'pearls' ? `An egg costs ${BREEDING.cost} pearls. You have ${fmt(R.pearls)}.`
+        : c.reason === 'resting' ? `${esc(c.who.join(' and '))} already made an egg today.` : '';
+      if (c && c.ok) {
+        const [a, b] = pick.map(id => rr.resident(id));
+        msg = `${pname(a)} and ${pname(b)} would make a lovely egg.`;
+        if (c.spark && R.sparks[c.spark]) msg += ` <span class="spark-line">✦ They share a family spark!</span>`;
+        if (c.pure) msg += ` Both are ${esc(FORM_BY_ID[c.pure].name)}s: their baby could be a ${esc(PURE_LINE.name(FORM_BY_ID[c.pure].name))}.`;
+      }
+      html += `<p class="sub" id="breedMsg">${msg}</p><button class="btn primary" id="breedBtn" ${c && c.ok ? '' : 'disabled'}>Make an egg · <i class="pearl"></i> ${BREEDING.cost}</button>`;
     }
     this.$('body-ranch').innerHTML = html;
   }
@@ -613,9 +811,7 @@ export class Hud {
       const showPearls = R.totalPearls > 0 || R.residents.length > 0;
       if (pb.hidden === showPearls) pb.hidden = !showPearls;
       if (showPearls) { const t = fmt(R.pearls); if (this.$('pearlCount').textContent !== t) this.$('pearlCount').textContent = t; }
-      const bb = this.$('basketBtn');
-      const bt = R.basket.stored > 0 ? `Collect ${R.basket.stored}` : '';
-      if (bb.textContent !== bt) { bb.textContent = bt; bb.hidden = !bt; }
+      this.updateBasketBtn();
       const jps = sim.jps();
       this.$('jps').textContent = `${fmtRate(jps)} jelly per second${sim.asleep ? ' · dreaming' : ''}`;
       this.$('tummyFill').style.width = s.tummy.toFixed(1) + '%';
@@ -662,7 +858,7 @@ export class Hud {
       if (this.tab === 'journal' && this.panelVisible()) this.renderJournal();
       if (this.tab === 'outfits' && this.panelVisible()) this.renderOutfits();
       this.slimeT = (this.slimeT || 0) - 0.25;
-      if (this.tab === 'slime' && this.panelVisible() && this.slimeT <= 0) { this.slimeT = 1; this.renderSlime(); }
+      if (this.tab === 'slime' && this.panelVisible() && this.slimeT <= 0 && !this.panelPress) { this.slimeT = 1; this.renderSlime(); }
       this.renderBuffs();
       if (!this.$('emotes').hidden) this.updateEmotes();
       if (this.tab === 'ranch' && this.panelVisible()) this.renderRanch();
@@ -843,45 +1039,118 @@ export class Hud {
     box.addEventListener('pointercancel', end);
   }
 
-  // Phones: swipe the open menu down (from its grip, or from the top of the list) to close it.
+  // ---------- the phone menu sheet: closed, normal or tall ----------
+  // Open sizes: normal (the CSS heights) and tall (its top just under the top HUD bar). It always opens at normal;
+  // closing it, or going home <-> ranch, brings it back to normal. Desktop (> 860 px) has no sheet.
+  sheetState() {
+    const p = this.$('panel');
+    return !p.classList.contains('open') ? 'closed' : p.classList.contains('tall') ? 'tall' : 'normal';
+  }
+  setSheet(s, layout = true) {
+    const p = this.$('panel');
+    p.classList.toggle('instant', !!this.g.reduced);   // reduced motion: no snap animation
+    if (s === 'tall') { this.measureTall(); p.classList.add('open', 'tall'); }
+    else { p.classList.remove('tall'); p.classList.toggle('open', s !== 'closed'); }
+    if (layout) this.g.layoutChanged();
+  }
+  // The tall height: from just under the top HUD bar (slime card + jelly column) to the bottom of the screen.
+  measureTall() {
+    const p = this.$('panel'), top = document.querySelector('.top');
+    const r = top && top.offsetParent ? top.getBoundingClientRect() : null;
+    const h = r && r.height > 0 ? innerHeight - (r.bottom + 8) : innerHeight * 0.88;
+    const px = Math.round(Math.max(this.measureNormal() + 40, Math.min(innerHeight - 8, h)));
+    p.style.setProperty('--sheet-tall', px + 'px');
+    return px;
+  }
+  // The normal open height right now (home and ranch differ), measured without a visible change: transitions stay
+  // off until the classes are back and the style is flushed, so putting them back doesn't animate anything.
+  measureNormal() {
+    const p = this.$('panel');
+    const keep = { tall: p.classList.contains('tall'), open: p.classList.contains('open'), drag: p.classList.contains('dragging'), h: p.style.height };
+    p.classList.add('dragging', 'open'); p.classList.remove('tall'); p.style.height = '';
+    const h = p.getBoundingClientRect().height;
+    p.classList.toggle('tall', keep.tall); p.classList.toggle('open', keep.open); p.style.height = keep.h;
+    void p.offsetHeight;
+    p.classList.toggle('dragging', keep.drag);
+    return h;
+  }
+
+  // Phones: drag the open menu. Up (from the grip, the tab bar, or the list while it is at normal) stretches it to
+  // tall, following the finger; down goes tall -> normal -> closed (from the grip or the tab bar, or from the list
+  // when it is scrolled to the top). On release it snaps: past halfway or a quick flick. Once tall, upward drags on
+  // the list scroll the list. A tap on the grip closes it.
+  // The move and end listeners sit on the touched element itself: lists re-render while open (the Slime tab every
+  // second), and touch events aimed at a removed element no longer bubble up to the panel.
   setupSheetSwipe() {
     const panel = this.$('panel');
     const mobile = () => window.matchMedia('(max-width: 860px)').matches;
     let d = null;
+    const release = () => { if (d && d.off) d.off(); };
     panel.addEventListener('touchstart', e => {
-      if (!mobile() || !panel.classList.contains('open') || e.touches.length !== 1 || e.target.closest('.tabs')) return;
+      release(); d = null;
+      if (!mobile() || !panel.classList.contains('open') || e.touches.length !== 1) return;
       const t = e.touches[0];
       const body = e.target.closest('.tab-body');
-      d = { y0: t.clientY, x0: t.clientX, body, active: false, h0: panel.getBoundingClientRect().height, t0: performance.now(), dy: 0 };
+      const tall = panel.classList.contains('tall');
+      const tallH = this.measureTall(), normalH = this.measureNormal();
+      // at normal the list belongs to the sheet: native scrolling never starts, so an upward drag can stretch it
+      d = { y0: t.clientY, x0: t.clientX, body, tall, own: !!body && !tall, st0: body ? body.scrollTop : 0, mode: null,
+        h0: panel.getBoundingClientRect().height, tallH, normalH, pts: [{ y: t.clientY, t: e.timeStamp }] };
+      const el = e.target;
+      el.addEventListener('touchmove', move, { passive: false });
+      el.addEventListener('touchend', end);
+      el.addEventListener('touchcancel', end);
+      d.off = () => { el.removeEventListener('touchmove', move); el.removeEventListener('touchend', end); el.removeEventListener('touchcancel', end); };
     }, { passive: true });
-    panel.addEventListener('touchmove', e => {
+    const move = e => {
       if (!d) return;
       const t = e.touches[0];
       const dy = t.clientY - d.y0, dx = t.clientX - d.x0;
-      if (!d.active) {
-        if (Math.hypot(dx, dy) < 8) return;
-        if (dy > 0 && Math.abs(dy) > Math.abs(dx) && (!d.body || d.body.scrollTop <= 0)) {
-          d.active = true; d.y0 = t.clientY; d.t0 = performance.now();
-          panel.classList.add('dragging');
-        } else { d = null; return; }
+      if (!d.mode) {
+        if (d.own && e.cancelable) e.preventDefault();
+        if (Math.hypot(dx, dy) < 6) return;
+        if (Math.abs(dx) > Math.abs(dy)) { release(); d = null; return; }   // sideways: not a sheet drag
+        if (dy < 0) {
+          if (d.tall && d.body) { release(); d = null; return; }             // tall: the list scrolls
+          d.mode = 'size';
+        } else if (!d.body || d.body.scrollTop <= 0) d.mode = 'size';
+        else if (d.own) d.mode = 'scroll';                                   // normal, list scrolled down: scroll it back up by hand
+        else { release(); d = null; return; }                                // tall, list scrolled down: the list scrolls
+        d.y0 = t.clientY; d.x0 = t.clientX;
+        if (d.mode === 'size') panel.classList.add('dragging');
       }
-      e.preventDefault();
-      d.dy = Math.max(0, t.clientY - d.y0);
-      panel.style.height = Math.max(60, d.h0 - d.dy) + 'px';
-    }, { passive: false });
-    const end = () => {
+      if (e.cancelable) e.preventDefault();
+      const my = t.clientY - d.y0;
+      if (d.mode === 'scroll') { d.body.scrollTop = Math.max(0, d.st0 - my); return; }
+      panel.style.height = Math.max(60, Math.min(d.tallH + 16, d.h0 - my)) + 'px';
+      // speed from the input's own timestamps (a busy frame on the main thread must not look like a flick)
+      const now = e.timeStamp;
+      d.pts.push({ y: t.clientY, t: now });
+      while (d.pts.length > 2 && now - d.pts[0].t > 120) d.pts.shift();
+    };
+    const end = e => {
       if (!d) return;
+      release();
       const k = d; d = null;
-      if (!k.active) return;
-      const fast = k.dy / Math.max(1, performance.now() - k.t0) > 0.5;
+      if (k.mode !== 'size') return;
+      const h = panel.getBoundingClientRect().height;
+      const a = k.pts[0], b = k.pts[k.pts.length - 1];
+      // px per ms, + is downward; a finger that stopped before lifting is not a flick
+      const v = e.timeStamp - b.t > 100 ? 0 : (b.y - a.y) / Math.max(16, b.t - a.t);
+      const flickUp = v < -0.5, flickDown = v > 0.5;
+      let to;
+      if (h > k.normalH + 1) to = flickDown ? 'normal' : (flickUp || h - k.normalH > (k.tallH - k.normalH) / 2) ? 'tall' : 'normal';
+      else { const drop = k.normalH - h; to = (drop > 90 || (flickDown && drop > 30)) ? 'closed' : 'normal'; }
       panel.classList.remove('dragging');
       panel.style.height = '';
-      if (k.dy > 90 || (fast && k.dy > 30)) { panel.classList.remove('open'); this.g.layoutChanged(); }
+      this.setSheet(to);
     };
-    panel.addEventListener('touchend', end);
-    panel.addEventListener('touchcancel', end);
-    // tapping the grip also closes it
-    this.$('sheetGrip').addEventListener('click', () => { panel.classList.remove('open'); this.g.layoutChanged(); });
+    // while a finger is down on the menu, the Slime tab waits with its once-a-second refresh (so a tap or a drag
+    // there never loses the button under the finger)
+    panel.addEventListener('pointerdown', () => { this.panelPress = true; });
+    for (const t of ['pointerup', 'pointercancel']) window.addEventListener(t, () => { this.panelPress = false; }, true);
+    // tapping the grip still closes it
+    this.$('sheetGrip').addEventListener('click', () => this.setSheet('closed'));
   }
 
   // ---------- modals ----------
@@ -903,11 +1172,12 @@ export class Hud {
     cb && cb();
   }
 
-  showNaming(onDone, { rename = false, current = '' } = {}) {
+  // title/text: already-escaped html for a baby from the Nursery
+  showNaming(onDone, { rename = false, current = '', title = null, text = null } = {}) {
     const idea = () => NAME_IDEAS[Math.floor(Math.random() * NAME_IDEAS.length)];
     this.openModal(`
-      <h2>${rename ? 'A new name?' : 'Your slime hatched!'}</h2>
-      <p>${rename ? 'Names can change. Your slime will still know it is you.' : 'They are looking right at you. What will you call them?'}</p>
+      <h2>${rename ? 'A new name?' : title || 'Your slime hatched!'}</h2>
+      <p>${rename ? 'Names can change. Your slime will still know it is you.' : text || 'They are looking right at you. What will you call them?'}</p>
       <form class="name-input" id="nameForm" autocomplete="off">
         <input id="slimeName" name="slimeName" maxlength="16" placeholder="${esc(idea())}" value="${esc(current)}" autofocus aria-label="Slime name">
         <button type="button" id="nameDice" aria-label="Suggest a name">${DICE}</button>
