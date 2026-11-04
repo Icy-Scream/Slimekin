@@ -651,7 +651,8 @@ export class Hud {
       if (nb.textContent !== (s.name || 'Slime')) nb.textContent = s.name || 'Slime';
       this.$('stagePill').textContent = sim.stage().name;
       this.$('bondTitle').textContent = BOND[sim.bondLevel()].title;
-      this.$('tab-slime').firstChild.textContent = s.name || 'Slime';
+      const tl = this.$('tab-slime').querySelector('.tl');
+      if (tl.textContent !== (s.name || 'Slime')) tl.textContent = s.name || 'Slime';
       this.updateTray();
       this.updateHelpers();
       const n = this.renderUpgrades();

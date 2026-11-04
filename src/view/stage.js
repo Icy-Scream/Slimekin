@@ -1,5 +1,6 @@
 // Renderer, camera, lights and the cozy habitat (rug, cushion, drifting motes).
-// Two palettes: a soft daytime nursery and a starry night room.
+// Two palettes: a soft daytime meadow and a starry night. The meadow itself (grass, hills, clouds,
+// trees, flowers, moon) lives in scenery.js.
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
@@ -7,13 +8,13 @@ export const CUSHION_TOP = 0.3;
 
 const PALETTES = {
   light: {
-    sky: ['#cfe3f7', '#f3dbe4'], fog: '#f2d3d6', floor: '#e9bdb6', rug: ['#f8dccf', '#f3b4ba', '#f6d39f'],
+    sky: ['#a9d6f5', '#fbe4ec'], fog: '#f6e6ec', floor: '#a6d888', rug: ['#f8dccf', '#f3b4ba', '#f6d39f'],
     cushion: '#ff92b2', piping: '#ffcf70', button: '#ee6f98',
-    hemi: ['#fff3ee', '#f2c3b5', 0.7], key: ['#fff0de', 1.5], rim: ['#bfe9ff', 1.1], env: 0.5, exposure: 0.92,
+    hemi: ['#fff3ee', '#d8e6c2', 0.7], key: ['#fff0de', 1.5], rim: ['#bfe9ff', 1.1], env: 0.5, exposure: 0.92,
     mote: '#ffffff', moteAlpha: 0.35,
   },
   dark: {
-    sky: ['#0d0b24', '#2a2047'], fog: '#2a2047', floor: '#3a2d58', rug: ['#4a3a6e', '#3f3060', '#56407a'],
+    sky: ['#0b0a22', '#2b2550'], fog: '#2b2550', floor: '#2b4650', rug: ['#4a3a6e', '#3f3060', '#56407a'],
     cushion: '#c87aa6', piping: '#e8c27a', button: '#a95f8c',
     hemi: ['#7c74c8', '#2b2149', 0.95], key: ['#ffd6a8', 1.7], rim: ['#a08cff', 1.9], env: 0.55, exposure: 1.0,
     mote: '#fff6c8', moteAlpha: 0.9,
@@ -94,7 +95,8 @@ export class Stage {
     this.camPos = new THREE.Vector3(0, 2.6, 9);
     this.camLook = new THREE.Vector3(0, 0.8, 0);
     this.focus = null;
-    this._fp = new THREE.Vector3(); this._fo = new THREE.Vector3();
+    this._fp = new THREE.Vector3(); this._fo = new THREE.Vector3(); this._fl = new THREE.Vector3();
+    this.zoom = 1; this.fitZoom = 1;
     this.portrait = false;
 
     this.hemi = new THREE.HemisphereLight('#fff', '#fff', 1);
@@ -172,7 +174,7 @@ export class Stage {
     this.dark = dark;
     this.palette = p;
     paintSky(this.skyGeo, p.sky[0], p.fog);
-    this.scene.fog = new THREE.Fog(p.fog, 14, 40);
+    this.scene.fog = new THREE.Fog(p.fog, 18, 58);
     this.floorMat.color.set(p.floor);
     this.onTheme && this.onTheme(dark, p);
     if (this.rugMat.map) this.rugMat.map.dispose();
@@ -217,16 +219,20 @@ export class Stage {
       this.camPos.lerp(this._fp.copy(f.pos).add(this._fo.set(tx * 2, ty * 2, 0)), 1 - Math.exp(-dt * 2.2));
       this.camLook.lerp(f.look, 1 - Math.exp(-dt * 2.6));
     }
-    const fogFar = this.focus ? 70 : 40;
+    const fogFar = this.focus ? 80 : 58;
     if (this.scene.fog && Math.abs(this.scene.fog.far - fogFar) > 0.1) {
       this.scene.fog.far += (fogFar - this.scene.fog.far) * (1 - Math.exp(-dt * 2));
-      this.scene.fog.near = 14 + (this.scene.fog.far - 40) * 0.6;
+      this.scene.fog.near = 18 + (this.scene.fog.far - 58) * 0.6;
     }
+    // zoom out when a phone menu covers most of the screen, so the slime still fits above it
+    this.zoom += ((this.focus ? 1 : this.fitZoom) - this.zoom) * (1 - Math.exp(-dt * 5));
     const fov = this.focus && this.focus.fov ? this.focus.fov : 30;
     if (Math.abs(this.camera.fov - fov) > 0.05) { this.camera.fov += (fov - this.camera.fov) * (1 - Math.exp(-dt * 2.4)); this.camera.updateProjectionMatrix(); }
     if (!this.focus) {
-      this.camPos.lerp(new THREE.Vector3(tx, 2.25 + size * 0.75 + ty, dist), 1 - Math.exp(-dt * 3));
-      this.camLook.lerp(new THREE.Vector3(0, CUSHION_TOP + 0.35 + size * 0.42, 0), 1 - Math.exp(-dt * 3));
+      const look = this._fl.set(0, CUSHION_TOP + 0.35 + size * 0.42, 0);
+      const pos = this._fp.set(tx, 2.25 + size * 0.75 + ty, dist).sub(look).multiplyScalar(this.zoom).add(look);
+      this.camPos.lerp(pos, 1 - Math.exp(-dt * 3));
+      this.camLook.lerp(look, 1 - Math.exp(-dt * 3));
     }
     this.camera.position.copy(this.camPos);
     this.camera.lookAt(this.camLook);

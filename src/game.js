@@ -15,6 +15,7 @@ import { Sfx } from './audio/sfx.js';
 import { Hud, esc } from './ui/hud.js';
 import { Behaviors } from './behaviors.js';
 import { RanchView } from './view/ranch.js';
+import { Scenery } from './view/scenery.js';
 
 const SLIME_Y = CUSHION_TOP - 0.03;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -36,6 +37,8 @@ export class Game {
 
     this.stage = new Stage(canvas);
     this.scene = this.stage.scene;
+    this.scenery = new Scenery(this.scene, this.stage);
+    this.scenery.setTheme(this.stage.dark);
     this.fx = new FX(this.scene);
     this.fx.floor = CUSHION_TOP;
     this.slime = new SlimeAvatar({ quality: this.resolvedQuality() });
@@ -48,7 +51,7 @@ export class Game {
     this.formFxT = 1;
     this.ranch = new RanchView(this.scene, { quality: this.resolvedQuality() });
     this.ranch.setTheme(this.stage.dark, this.stage.palette.floor);
-    this.stage.onTheme = (dark, p) => this.ranch.setTheme(dark, p.floor);
+    this.stage.onTheme = (dark, p) => { this.ranch.setTheme(dark, p.floor); this.scenery.setTheme(dark); };
     this.ranch.sync(this.state.ranch?.residents || []);
     this.helpers3d = new HelperWorld(this.scene, this.fx);
     this.helpers3d.sync(this.state.helpers);
@@ -128,6 +131,8 @@ export class Game {
     this.watchTheme();
     this.resize();
     window.addEventListener('resize', () => this.resize());
+    // re-measure once the phone menu finishes sliding (the camera fits the slime into what's left)
+    document.getElementById('panel').addEventListener('transitionend', e => { if (e.propertyName === 'height') this.resize(); });
     document.addEventListener('visibilitychange', () => this.onVisibility());
     window.addEventListener('pagehide', () => this.saveNow(true));
 
@@ -1774,7 +1779,7 @@ export class Game {
 
   computeViewGoal() {
     const w = innerWidth, h = innerHeight;
-    let x = 0, y = 0;
+    let x = 0, y = 0, zoom = 1;
     const mobileTop = window.matchMedia('(max-width: 860px)').matches;
     this.topLimit = mobileTop ? document.querySelector('.top').getBoundingClientRect().bottom : 0;
     if (this.state.phase === 'play') {
@@ -1790,8 +1795,11 @@ export class Game {
         const bottom = Math.min(tray.top, panel.top);
         const free = (top.bottom + bottom) / 2;
         y = h / 2 - free;
+        // a tall menu leaves little room: zoom out so the slime still fits above it
+        zoom = Math.max(1, Math.min(2.3, (h * 0.4) / Math.max(80, bottom - top.bottom)));
       }
     }
+    this.stage.fitZoom = zoom;
     this.viewGoal.set(x, y);
   }
 
@@ -2104,6 +2112,7 @@ export class Game {
     });
     this.updateRanch(dt);
     this.ranch.update(dt, this.stage.camera);
+    this.scenery.update(dt);
     this.fx.update(dt);
 
     // smooth view offset toward the free area of the screen
