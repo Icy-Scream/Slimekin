@@ -1,4 +1,4 @@
-// Local dev server: node tools/serve.mjs [port]
+// Local dev server: node tools/serve.mjs [port] [host]
 // index.html is written as an artifact body (no <html>/<head>), so this wraps it
 // in the same small document skeleton the artifact host adds at publish time.
 import http from 'node:http';
@@ -23,4 +23,4 @@ http.createServer((req, res) => {
   if (!file.startsWith(root) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); res.end('not found'); return; }
   res.writeHead(200, { 'content-type': types[path.extname(file)] || 'application/octet-stream', 'cache-control': 'no-store' });
   fs.createReadStream(file).pipe(res);
-}).listen(port, () => console.log(`Slimekin running at http://localhost:${port}`));
+}).listen(port, process.argv[3] || undefined, () => console.log(`Slimekin running at http://localhost:${port}`));   // optional 2nd arg: host (e.g. 127.0.0.1)
