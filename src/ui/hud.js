@@ -54,6 +54,7 @@ export class Hud {
       else if (b.dataset.act === 'pickParent') this.pickParent(id);
       else if (b.id === 'breedBtn' && this.nurseryPick.length === 2) g.breed(this.nurseryPick[0], this.nurseryPick[1]);
       else if (b.dataset.act === 'giveEgg') g.giveEgg(b.dataset.egg);
+      else if (b.dataset.act === 'cushion') g.askCushion(b.dataset.egg);
     });
     this.nurseryPick = [];
     this.pending = 0; this.pendingRate = 0;
@@ -85,6 +86,28 @@ export class Hud {
 
   setPhase(phase) {
     this.$('ui').classList.toggle('egg', phase !== 'play');
+    this.updateEggRanch();
+  }
+  // While an egg waits on the cushion, a family with a ranch (or eggs in the Nursery) can still visit the ranch:
+  // the menu shows just the Ranch tab.
+  updateEggRanch() {
+    const st = this.g.state, R = st.ranch;
+    const on = st.phase === 'egg' && (R.residents.length > 0 || R.nursery.eggs.length > 0);
+    if (this.$('ui').classList.contains('has-ranch') !== on) { this.$('ui').classList.toggle('has-ranch', on); this.g.layoutChanged(); }
+  }
+  // the per-frame part that still runs while an egg waits (the ranch keeps going)
+  updateEggPhase(dt) {
+    this.slowT -= dt;
+    if (this.slowT > 0) return;
+    this.slowT = 0.25;
+    this.updateEggRanch();
+    this.updateBasketBtn();
+    if (this.tab === 'ranch' && this.panelVisible()) this.renderRanch();
+  }
+  updateBasketBtn() {
+    const R = this.g.state.ranch, bb = this.$('basketBtn');
+    const bt = R.basket.stored > 0 ? `Collect ${R.basket.stored}` : '';
+    if (bb.textContent !== bt) { bb.textContent = bt; bb.hidden = !bt; }
   }
 
   // ---------- tabs / panel ----------
@@ -622,7 +645,8 @@ export class Hud {
     const focus = g.ranchFocus ? rr.resident(g.ranchFocus) : null;
     const fm = rr.familyMult();
     const canMove = sim.canMoveOut();
-    const key = [R.pearls, R.basket.stored, R.basket.level, R.slots, R.residents.map(x => x.id + ':' + Math.round(x.happiness / 5)).join(','), focus && focus.id, canMove, R.placed.length, st.slime.name, rr.eggs().length].join('|');
+    const eggPhase = st.phase === 'egg';
+    const key = [R.pearls, R.basket.stored, R.basket.level, R.slots, R.residents.map(x => x.id + ':' + Math.round(x.happiness / 5)).join(','), focus && focus.id, canMove, R.placed.length, st.slime.name, rr.eggs().length, st.phase].join('|');
     if (!force && key === this.ranchKey) return;
     this.ranchKey = key;
     const happyWord = h => h > 80 ? 'Very happy' : h > 55 ? 'Happy' : h > 30 ? 'A little lonely' : 'Misses you';
@@ -659,13 +683,13 @@ export class Hud {
         const pv = sim.moveOutPreview();
         html += `<div class="card"><b>${name} is all grown up</b><span class="sub">Moving to the ranch starts a new generation with a new egg. ${name} adds <b>+${pv.bonus.toFixed(1)}%</b> Family Bonus and makes ${fmtRate(pv.jps * (1 + (R.family.bonus + pv.bonus) / 100))} jelly a second plus pearls on the ranch. The longer you play first, the bigger the bonus.</span>
           <button class="btn primary" id="moveOutBtn">${pv.room ? `Move ${name} to the ranch` : 'The ranch is full'}</button></div>`;
-      } else if (!R.residents.length) {
+      } else if (!R.residents.length && !eggPhase) {
         html += `<div class="card"><b>Nobody lives here yet</b><span class="sub">When ${name} is all grown up (Settled), they can move to the ranch. They keep making jelly and pearls, you raise a new baby, and every generation adds a Family Bonus to all your jelly.</span></div>`;
       }
       if (R.residents.length || rr.eggs().length) {
         const n = rr.eggs().length;
         html += `<div class="card nursery-card"><div class="row-between"><b>Nursery</b><span class="sub">${n ? `${n} egg${n === 1 ? '' : 's'} waiting` : 'No eggs yet'}</span></div>
-          <span class="sub">${R.residents.length < 2 ? 'When two slimes live here, they can make an egg together.' : `Two ranch slimes can make an egg together. Choose it when ${name} moves to the ranch.`}</span>
+          <span class="sub">${eggPhase && n ? 'Before the egg at home hatches, you can put a Nursery egg on the cushion instead.' : R.residents.length < 2 ? 'When two slimes live here, they can make an egg together.' : eggPhase ? 'Two ranch slimes can make an egg together, then put it on the cushion.' : `Two ranch slimes can make an egg together. Choose it when ${name} moves to the ranch.`}</span>
           <button class="btn" data-act="nursery">Open the Nursery</button></div>`;
       }
       if (R.residents.length || R.basket.stored > 0) {
@@ -707,8 +731,9 @@ export class Hud {
     const eggs = rr.eggs();
     this.nurseryPick = this.nurseryPick.filter(id => rr.resident(id) && !rr.restingToday(rr.resident(id), now));
     const pick = this.nurseryPick;
+    const eggPhase = st.phase === 'egg';
     const key = ['nursery', R.pearls, eggs.map(e => e.id + ':' + Math.ceil(rr.eggSecondsLeft(e, now) / 60)).join(','),
-      R.residents.map(x => x.id + (rr.restingToday(x, now) ? 'r' : '')).join(','), pick.join(','), JSON.stringify(R.sparks), st.slime.name].join('|');
+      R.residents.map(x => x.id + (rr.restingToday(x, now) ? 'r' : '')).join(','), pick.join(','), JSON.stringify(R.sparks), st.slime.name, st.phase, st.egg.bred?.id || ''].join('|');
     if (!force && key === this.ranchKey) return;
     this.ranchKey = key;
     const cur = esc(st.slime.name || 'your slime');
@@ -716,7 +741,8 @@ export class Hud {
     let html = `<button class="link-btn" id="nurseryBack">← Back to the ranch</button>`;
     html += `<div class="card"><div class="row-between"><span class="form-name">Nursery</span><span class="sub"><i class="pearl"></i> ${fmt(R.pearls)} pearls</span></div>
       <span class="sub">Two ranch slimes can make an egg together. The baby takes after them a little, but how you raise it decides who it becomes.</span>
-      <span class="sub">An egg costs <b>${BREEDING.cost} pearls</b> and is ready in ${fmtDuration(BREEDING.readyHours * 3600)} (even while the game is closed). Each slime can be a parent once a day.</span></div>`;
+      <span class="sub">An egg costs <b>${BREEDING.cost} pearls</b> and is ready in ${fmtDuration(BREEDING.readyHours * 3600)} (even while the game is closed). Each slime can be a parent once a day.</span>
+      ${eggPhase ? '<span class="sub"><b>An egg is waiting on the cushion at home.</b> Before it hatches, you can put a Nursery egg there instead, even one that is still warming.</span>' : ''}</div>`;
     html += `<div class="sec-title">Waiting eggs <span class="count">${eggs.length} of ${BREEDING.maxEggs}</span></div>`;
     if (!eggs.length) html += '<p class="sub">No eggs yet. Pick two parents below.</p>';
     for (const e of eggs) {
@@ -724,11 +750,11 @@ export class Hud {
       const cols = g.eggColors(e.bias) || [];
       const done = 1 - left / (BREEDING.readyHours * 3600);
       html += `<div class="card egg-card${e.spark ? ' spark' : ''}"><div class="egg-row"><span class="egg-ic${e.spark ? ' spark' : ''}" style="--a:${cols[0] || '#9eefd3'};--b:${cols[1] || '#ffc2dc'}" aria-hidden="true"></span>
-        <div><b>${pname(p)} and ${pname(q)}'s egg</b><span class="sub">${ready ? `Ready! Choose it when ${cur} moves to the ranch.` : `Ready in ${fmtDuration(left)}`}</span></div></div>
+        <div><b>${pname(p)} and ${pname(q)}'s egg</b><span class="sub">${ready ? (eggPhase ? 'Ready!' : `Ready! Choose it when ${cur} moves to the ranch.`) : `Ready in ${fmtDuration(left)}${eggPhase ? ' (it can finish warming on the cushion)' : ''}`}</span></div></div>
         ${ready ? '' : `<div class="meter"><i style="width:${(done * 100).toFixed(0)}%"></i></div>`}
         ${e.spark ? `<span class="sub spark-line">✦ It twinkles! ${pname(p)} and ${pname(q)} share a family spark.</span>` : ''}
         ${e.pure ? `<span class="sub">Both parents are ${esc(FORM_BY_ID[e.pure].name)}s. Raised the same way, the baby becomes a ${esc(PURE_LINE.name(FORM_BY_ID[e.pure].name))}.</span>` : ''}
-        <button class="btn small" data-act="giveEgg" data-egg="${e.id}">Give to a neighbor</button></div>`;
+        <div class="egg-acts">${eggPhase ? `<button class="btn small primary" data-act="cushion" data-egg="${e.id}">Put on the cushion</button>` : ''}<button class="btn small" data-act="giveEgg" data-egg="${e.id}">Give to a neighbor</button></div></div>`;
     }
     html += '<div class="sec-title">Pick two parents</div>';
     if (R.residents.length < 2) {
@@ -740,7 +766,7 @@ export class Hud {
       }).join('') + '</div>';
       const c = pick.length === 2 ? rr.canBreed(pick[0], pick[1], now) : null;
       let msg = pick.length === 0 ? 'Tap two slimes to pick them.' : pick.length === 1 ? 'Now pick one more.' : '';
-      if (c && !c.ok) msg = c.reason === 'full' ? `The nest is full. Choose a waiting egg when ${cur} moves to the ranch, or give one to a neighbor.`
+      if (c && !c.ok) msg = c.reason === 'full' ? (eggPhase ? 'The nest is full. Put a waiting egg on the cushion, or give one to a neighbor.' : `The nest is full. Choose a waiting egg when ${cur} moves to the ranch, or give one to a neighbor.`)
         : c.reason === 'pearls' ? `An egg costs ${BREEDING.cost} pearls. You have ${fmt(R.pearls)}.`
         : c.reason === 'resting' ? `${esc(c.who.join(' and '))} already made an egg today.` : '';
       if (c && c.ok) {
@@ -778,9 +804,7 @@ export class Hud {
       const showPearls = R.totalPearls > 0 || R.residents.length > 0;
       if (pb.hidden === showPearls) pb.hidden = !showPearls;
       if (showPearls) { const t = fmt(R.pearls); if (this.$('pearlCount').textContent !== t) this.$('pearlCount').textContent = t; }
-      const bb = this.$('basketBtn');
-      const bt = R.basket.stored > 0 ? `Collect ${R.basket.stored}` : '';
-      if (bb.textContent !== bt) { bb.textContent = bt; bb.hidden = !bt; }
+      this.updateBasketBtn();
       const jps = sim.jps();
       this.$('jps').textContent = `${fmtRate(jps)} jelly per second${sim.asleep ? ' · dreaming' : ''}`;
       this.$('tummyFill').style.width = s.tummy.toFixed(1) + '%';

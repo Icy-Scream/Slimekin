@@ -130,6 +130,7 @@ export class Game {
     this.applySettings();
     this.setupPhase();
     this.instantEggs();
+    document.getElementById('eggAlt').addEventListener('click', () => this.openNursery());
     this.after(2.5, () => this.checkPostcards());
     if (this.state.ranch.justMoved) { const j = this.state.ranch.justMoved; delete this.state.ranch.justMoved; this.after(1.4, () => this.showMovedIn(j)); }
     this.bindInput();
@@ -199,12 +200,7 @@ export class Game {
   setupPhase() {
     const st = this.state;
     if (st.phase === 'egg') {
-      const lin = st.slime.lineage || {};
-      this.egg = new Egg({ colors: lin.parents?.length ? this.eggColors(lin.bias) : null });
-      if (lin.spark) this.eggSpark = addEggSpark(this.egg, { night: this.stage.dark });
-      this.egg.group.position.y = SLIME_Y;
-      this.egg.setWarmth(st.egg.warmth);
-      this.scene.add(this.egg.group);
+      this.makeEggView();
       this.slime.root.visible = false;
       this.slime.visible = false;
       document.getElementById('eggHint').hidden = false;
@@ -216,6 +212,20 @@ export class Game {
       if (st.phase === 'naming') this.after(0.6, () => this.askName());
       else this.welcomeBack();
     }
+  }
+
+  // the egg on the cushion as you see it: a bred egg has its parents' spot colors (and a twinkle for a family spark)
+  makeEggView() {
+    if (this.egg) {
+      this.scene.remove(this.egg.group);
+      this.egg.mesh.geometry.dispose(); this.egg.mat.dispose(); this.egg.tex.dispose();
+    }
+    const lin = this.state.slime.lineage || {};
+    this.egg = new Egg({ colors: lin.parents?.length ? this.eggColors(lin.bias) : null });
+    this.eggSpark = lin.spark ? addEggSpark(this.egg, { night: this.stage.dark }) : null;
+    this.egg.group.position.y = SLIME_Y;
+    this.egg.setWarmth(this.state.egg.warmth);
+    this.scene.add(this.egg.group);
   }
 
   // The hint under the egg. A Nursery egg chosen while still warming finishes on the cushion: the hint counts down
@@ -235,6 +245,9 @@ export class Game {
       set('eggTitle', "Something's wiggling");
       set('eggText', w <= 0 ? 'Tap the egg to keep it warm' : w < 0.4 ? 'It likes that. Keep going' : w < 0.8 ? 'It is getting warmer...' : 'Almost there!');
     }
+    // a gentle way to a Nursery egg instead (before this one hatches)
+    const alt = document.getElementById('eggAlt'), show = this.sim.ranch.eggs().length > 0 && !this.hatching;
+    if (alt.hidden === show) alt.hidden = !show;
   }
   // once a second while the egg waits: the countdown, and a little sparkle the moment a warming egg is ready
   updateEggWait(dt) {
@@ -450,8 +463,10 @@ export class Game {
     else if (this.view === 'ranch') this.leaveRanch(false);
   }
 
+  // (also while an egg waits on the cushion: the family's ranch keeps going and can be visited)
   goRanch() {
-    if (this.view === 'ranch' || this.state.phase !== 'play' || this.departing) return;
+    const phase = this.state.phase;
+    if (this.view === 'ranch' || (phase !== 'play' && phase !== 'egg') || this.hatching || this.departing) return;
     this.view = 'ranch';
     this.ranch.visiting = true;
     this.ranch.grassLife = RANCH.grassLife;
@@ -637,7 +652,7 @@ export class Game {
     this.ranch.setNursery(rr.eggs().map(e => ({ id: e.id, spark: !!e.spark, colors: this.eggColors(e.bias), ready: rr.eggReady(e, now) })));
   }
   openNursery() {
-    if (this.state.phase !== 'play') return;
+    if ((this.state.phase !== 'play' && this.state.phase !== 'egg') || this.hatching) return;
     if (this.view !== 'ranch') this.hud.openTab('ranch');
     if (this.view !== 'ranch') return;
     if (this.ranchFocus) this.focusResident(null);
@@ -672,7 +687,8 @@ export class Game {
       this.hud.toast(`<b>A twinkly egg!</b>${esc(p.name)} and ${esc(q.name)} share a family spark. Something special could hatch, if the baby is raised just right.`, 'love', 5200);
     } else {
       this.remember('🥚', `${p.name} and ${q.name} made an egg together in the Nursery.`);
-      this.hud.toast(`<b>A new egg in the Nursery</b>${esc(p.name)} and ${esc(q.name)}'s egg is ${this.debugInstant ? 'ready now (debug: instant eggs)' : `ready in ${fmtDuration(BREEDING.readyHours * 3600)}`}. Choose it when ${esc(this.Name)} moves to the ranch.`, 'love', 4600);
+      const when = this.state.phase === 'egg' ? 'You can put it on the cushion instead of the egg there now.' : `Choose it when ${esc(this.Name)} moves to the ranch.`;
+      this.hud.toast(`<b>A new egg in the Nursery</b>${esc(p.name)} and ${esc(q.name)}'s egg is ${this.debugInstant ? 'ready now (debug: instant eggs)' : `ready in ${fmtDuration(BREEDING.readyHours * 3600)}`}. ${when}`, 'love', 4600);
     }
     this.hud.nurseryPick = [];
     this.hud.renderRanch(true);
@@ -698,6 +714,49 @@ export class Game {
           this.saveNow(true);
         });
       },
+    });
+  }
+
+  // ---------- the egg on the cushion: a Nursery egg can take its place before it hatches ----------
+  askCushion(id) {
+    const rr = this.sim.ranch, e = rr.egg(id);
+    if (!e || this.state.phase !== 'egg' || this.hatching) return;
+    const sw = this.sim.cushionSwap(id);
+    const names = `${esc(e.parents[0].name)} and ${esc(e.parents[1].name)}`;
+    const left = rr.eggSecondsLeft(e, this.nowMs());
+    const now = sw.old ? `${esc(sw.old.parents[0].name)} and ${esc(sw.old.parents[1].name)}'s egg (on the cushion now)` : 'The egg there now';
+    const goes = sw.oldTo === 'nursery' ? 'will go back to the Nursery' : 'will go to a neighbor family who will love the baby';
+    this.hud.openModal(`<h2>Put ${names}'s egg on the cushion?</h2>
+      <p>${now} ${goes}.${left > 0 ? ` ${names}'s egg is still warming: ready in ${fmtDuration(left)}. It can finish warming on the cushion.` : ''}</p>
+      <div class="actions"><button class="btn" id="cuNo">Not now</button><button class="btn primary" id="cuYes">Put it on the cushion</button></div>`, {
+      onOpen: card => {
+        card.querySelector('#cuNo').addEventListener('click', () => this.hud.closeModal());
+        card.querySelector('#cuYes').addEventListener('click', () => { this.hud.closeModal(); this.swapEgg(id); });
+      },
+    });
+  }
+  swapEgg(id) {
+    this.sfx.unlock();
+    const r = this.sim.swapCushionEgg(id, this.nowMs());
+    if (!r) { this.sfx.error(); this.hud.renderRanch(true); return; }
+    const [p, q] = r.egg.parents;
+    const old = r.old ? `${r.old.parents[0].name} and ${r.old.parents[1].name}'s egg` : 'The plain egg';
+    const was = r.oldTo === 'nursery' ? `${old} went back to the Nursery.` : `${old} went to a neighbor family who will love the baby.`;
+    this.remember('🥚', `${p.name} and ${q.name}'s egg went on the cushion. ${was}`);
+    this.makeEggView();
+    this.eggWarming = !this.sim.eggReady(this.nowMs());
+    this.updateEggHint();
+    this.syncNursery();
+    this.hud.renderRanch(true);
+    this.saveNow(true);
+    // home, to see it on the cushion
+    this.leaveRanch();
+    this.hud.toast(`<b>${esc(p.name)} and ${esc(q.name)}'s egg is on the cushion</b>${esc(was)}`, 'love', 4200);
+    this.after(0.6, () => {
+      if (!this.egg) return;
+      this.egg.tap();
+      this.fx.emit('sparkles', this.egg.group.position.clone().add(new THREE.Vector3(0, 0.9, 0)), { count: 14, color: r.egg.spark ? '#ffe08a' : '#ffe7a8' });
+      this.sfx.sparkle();
     });
   }
 
@@ -954,6 +1013,7 @@ export class Game {
     this.lastInteract = this.time;
     const st = this.state;
     if (st.phase === 'egg') {
+      if (this.view === 'ranch') { if (!this.hud.modalOpen) this.ranchDown(e); return; }
       const h = this.egg && this.egg.hit(this.raycaster);
       if (h) this.tapEgg(h.point);
       return;
@@ -1982,7 +2042,7 @@ export class Game {
     let x = 0, y = 0;
     const mobileTop = window.matchMedia('(max-width: 860px)').matches;
     this.topLimit = mobileTop ? document.querySelector('.top').getBoundingClientRect().bottom : 0;
-    if (this.state.phase === 'play') {
+    if (this.state.phase === 'play' || this.view === 'ranch') {
       const mobile = window.matchMedia('(max-width: 860px)').matches;
       const panelEl = document.getElementById('panel');
       // a stretched (tall) menu covers most of the screen on purpose: keep the scene where it was behind it
@@ -2286,6 +2346,8 @@ export class Game {
       this.updateSave(dt);
     } else if (st.phase === 'egg') {
       this.updateEggWait(dt);
+      this.hud.updateEggPhase(dt);
+      this.updateSave(dt);   // the ranch keeps going while the egg waits
     }
     if (this.egg) {
       this.egg.update(dt, this.scene);

@@ -74,6 +74,12 @@ button { font: inherit; color: inherit; }
   display: grid; grid-template-columns: minmax(0, 1fr) var(--panel-w); grid-template-rows: auto 1fr auto; column-gap: 18px;
 }
 #ui.egg .panel, #ui.egg .tray-wrap, #ui.egg .top { display: none; }
+/* while an egg waits on the cushion, a family with a ranch can still visit it: only the Ranch tab shows */
+#ui.egg.has-ranch .panel { display: flex; }
+#ui.egg .tab:not([data-tab="ranch"]) { display: none; }
+#ui.egg .tabs { grid-template-columns: minmax(0, 1fr); }
+body.at-ranch #ui.egg .tray-wrap { display: flex; }
+body.at-ranch .egg-hint { display: none !important; }
 .top { grid-column: 1; grid-row: 1; display: grid; grid-template-columns: minmax(0, 290px) 1fr minmax(0, 290px); align-items: start; gap: 12px; }
 .tray-wrap { grid-column: 1; grid-row: 3; display: flex; flex-direction: column; align-items: center; gap: 10px; min-width: 0; }
 
@@ -356,6 +362,8 @@ button { font: inherit; color: inherit; }
 /* a Nursery egg finishing warming on the cushion: the bar shows the time, in calm colors */
 .egg-hint.warming .warm i { background: linear-gradient(90deg, #b9d4f2, #efd9f5); }
 .egg-hint[hidden] { display: none !important; }
+.egg-hint .egg-alt { pointer-events: auto; min-height: 44px; padding: 8px 12px; font-size: 14px; text-shadow: 0 1px 0 var(--panel-strong); }
+.egg-acts { display: flex; flex-wrap: wrap; gap: 8px; }
 
 /* ---------- mid-size screens ---------- */
 @media (max-width: 1240px) {
@@ -474,6 +482,7 @@ body.at-ranch .tray, body.at-ranch .tray-top, body.at-ranch #giggle, body.at-ran
   .food { width: 70px; }
   .food img { width: 40px; height: 40px; }
   .toasts { top: calc(env(safe-area-inset-top, 0px) + 128px); }
+  #ui.egg.has-ranch ~ .egg-hint { bottom: calc(var(--tab-pad) + var(--tabbar) + 18px); }
 }
 @media (max-width: 480px) {
   .emotes { gap: 5px; }
@@ -583,6 +592,7 @@ body.at-ranch .tray, body.at-ranch .tray-top, body.at-ranch #giggle, body.at-ran
   <h1 id="eggTitle">Something's wiggling</h1>
   <p id="eggText">Tap the egg to keep it warm</p>
   <div class="warm"><i id="eggWarm"></i></div>
+  <button class="link-btn egg-alt" id="eggAlt" hidden>Want a Nursery egg instead? Open the Nursery</button>
 </div>
 
 <div class="fps" id="fpsMeter" hidden></div>

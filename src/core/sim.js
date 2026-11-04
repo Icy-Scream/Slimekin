@@ -3,7 +3,7 @@
 import {
   TUNING, STAGES, TRAIT_IDS, FOODS, FOOD_BY_ID, HELPERS, HELPER_BY_ID, HELPER_GROWTH,
   UPGRADES, UPGRADE_BY_ID, COMBOS, BOND, PERSONALITY_IDS, PURE_FORMS, PAIR_FORMS, GENERALIST_FORM,
-  UPGRADE_RENAMES, JAR_LEVELS, OUTFITS, OUTFIT_BY_ID, TRICK_LEARNED, RANCH,
+  UPGRADE_RENAMES, JAR_LEVELS, OUTFITS, OUTFIT_BY_ID, TRICK_LEARNED, RANCH, BREEDING,
 } from '../data/content.js';
 import { createRanch, migrateRanch, Ranch, familyBonusFor, residentJpsFor } from './ranch.js';
 import { emptyLineage, applyEgg, resolveForm, eggFromLineage } from './breeding.js';
@@ -538,6 +538,25 @@ export class Sim {
     this.giggle = 0; this.dizzy = 0; this.fever = false; this.asleep = false; this.recentFoods = []; this.lastFed = null;
     this.recompute();
     return egg;
+  }
+  // Before the egg on the cushion hatches, a Nursery egg (ready or still warming) can take its place. It is an
+  // exchange: the chosen egg leaves the Nursery first, then the egg it replaces goes back there if it came from
+  // there and there is room, otherwise a neighbor family raises it (counted like a given Nursery egg).
+  cushionSwap(eggId) {
+    const n = this.s.ranch.nursery, old = this.s.egg.bred || null;
+    const left = n.eggs.length - (this.ranch.egg(eggId) ? 1 : 0);
+    return { old, oldTo: old && left < BREEDING.maxEggs ? 'nursery' : 'neighbor' };
+  }
+  swapCushionEgg(eggId, now = Date.now()) {
+    const s = this.s, n = s.ranch.nursery;
+    if (s.phase !== 'egg' || !this.ranch.egg(eggId)) return null;
+    const { old, oldTo } = this.cushionSwap(eggId);
+    const egg = this.ranch.takeEgg(eggId, now, { early: true });
+    if (oldTo === 'nursery') n.eggs.push(old);
+    else n.given++;
+    s.slime = createState().slime;
+    this.placeEgg(egg);
+    return { egg, old, oldTo };
   }
 
   // ---------- Moving to the ranch (a new generation) ----------

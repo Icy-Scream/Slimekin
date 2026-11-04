@@ -325,5 +325,49 @@ function family(n = 2, at = NOW) {
   ok(ps.eggReady(NOW) && ps.warmEgg(NOW).ok === true, 'a plain egg is ready at once (no readyAt), as before');
 }
 
+// ---------- 11. playtest fixes 1: swapping the cushion egg ----------
+console.log('\n# 11. Before it hatches, a Nursery egg can take the cushion egg\'s place');
+{
+  const { st, sim, rr, R, eggs } = family(2);
+  raise(sim, ['cookie']);
+  sim.moveToRanch(NOW + 10 * 60 * 1000);   // a plain egg, while both Nursery eggs are still warming
+  const given0 = R.nursery.given;
+  st.egg.warmth = 0.4;                      // it had a few taps already
+  const t = NOW + 15 * 60 * 1000;
+  const p1 = sim.cushionSwap(eggs[0].id);
+  const s1 = sim.swapCushionEgg(eggs[0].id, t);
+  ok(p1.oldTo === 'neighbor' && s1 && s1.oldTo === 'neighbor' && !s1.old && R.nursery.given === given0 + 1, 'plain -> bred: the plain egg goes to a neighbor family, counted like a given Nursery egg', `given ${given0} -> ${R.nursery.given}`);
+  ok(st.egg.bred?.id === eggs[0].id && st.egg.warmth === 0 && st.egg.readyAt === eggs[0].readyAt && rr.eggs().map(e => e.id).join() === eggs[1].id && st.slime.lineage.egg === eggs[0].id,
+    'the chosen egg left the Nursery and is on the cushion (warmth 0, its readyAt kept, the baby comes from it)');
+  ok(sim.warmEgg(t).ok === false, 'it is still warming, so taps wait (task 2 rules)');
+  const p2 = sim.cushionSwap(eggs[1].id);
+  const s2 = sim.swapCushionEgg(eggs[1].id, t + 1000);
+  const back = rr.eggs()[0];
+  ok(p2.oldTo === 'nursery' && s2 && s2.oldTo === 'nursery' && rr.eggs().length === 1 && back.id === eggs[0].id && back.readyAt === eggs[0].readyAt && R.nursery.given === given0 + 1,
+    'bred -> bred: the egg it replaces goes back to the Nursery with its original readyAt (nothing given away)');
+  ok(st.egg.bred?.id === eggs[1].id && st.slime.lineage.parents.map(p => p.name).join(' & ') === 'Candy & Iron' && !st.slime.lineage.spark,
+    'the baby on the cushion now comes from Candy and Iron\'s egg', `head start ${fmtT(st.slime.traits)}`);
+  st.phase = 'play';
+  ok(sim.swapCushionEgg(back.id, t + 2000) === null, 'once hatched, the cushion egg can no longer be swapped');
+}
+{
+  // the Nursery is full (2 of 2) and a bred egg is on the cushion: the chosen egg leaves first, so the old one fits
+  const { st, sim, rr, R, eggs } = family(2);
+  raise(sim, ['cookie']);
+  sim.moveToRanch(NOW + 2 * HOUR, { eggId: eggs[0].id });       // Juniper + Pebble's egg on the cushion
+  const tomorrow = NOW + 26 * HOUR;
+  const third = rr.breed('h', 'c', tomorrow).egg;                // the nest is full again: Candy + Iron's, Juniper + Candy's
+  const given0 = R.nursery.given;
+  ok(rr.eggs().length === BREEDING.maxEggs, `(the Nursery is full: ${rr.eggs().length} of ${BREEDING.maxEggs})`);
+  const s = sim.swapCushionEgg(eggs[1].id, tomorrow + 1000);
+  ok(s && s.oldTo === 'nursery' && rr.eggs().map(e => e.id).sort().join() === [third.id, eggs[0].id].sort().join() && R.nursery.given === given0,
+    'swap with a full Nursery: an exchange, the old bred egg takes the chosen egg\'s spot and nothing is given away');
+  // only an over-full nest (not reachable by the rules: a hand-edited or damaged save) has no room for it
+  R.nursery.eggs.push({ ...third, id: 'extra' });
+  const s3 = sim.swapCushionEgg(third.id, tomorrow + 2000);
+  ok(s3 && s3.oldTo === 'neighbor' && R.nursery.given === given0 + 1 && !rr.eggs().some(e => e.id === eggs[1].id),
+    'if the nest has no room even after the swap (over full), the old bred egg goes to a neighbor family (counted)');
+}
+
 console.log(`\n${passes} passed, ${fails} failed`);
 process.exit(fails ? 1 : 0);

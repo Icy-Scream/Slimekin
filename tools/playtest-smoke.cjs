@@ -250,6 +250,80 @@ const FIXTURE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'mai
       await calm();
     }
 
+    // ---------- 3. swap the cushion egg (the captain's case) ----------
+    // Move out with a plain egg, don't hatch it, visit the ranch while it waits, breed the slime that just moved out,
+    // and put their egg on the cushion; then swap it for another Nursery egg (the first goes back to the Nursery).
+    if (ONLY.includes('swap')) {
+      kit.mark('3. swap the cushion egg');
+      const rest = () => ev(() => { const g = window.slimekin; for (const x of g.state.ranch.residents) x.bredDay = null; g.debug('pearls'); g.advance(1); });
+      await rest();
+      await breedInNursery('Juniper', 'Pebble');                                  // egg A, warming
+      await ev(() => window.slimekin.leaveRanch());
+      await growUp();
+      const mover = await ev(() => window.slimekin.state.slime.name);
+      await page.click('#tab-ranch'); await ev(() => window.slimekin.advance(3));
+      await page.click('#moveOutBtn');
+      await page.waitForSelector('.egg-choice');
+      await keepClock();
+      await reloadInto(() => page.click('#mvYes'));                             // "A new egg" (plain) is the default
+      await ev(() => { const g = window.slimekin; g.advance(2); g.hud.closeModal(); g.advance(0.5); });   // the moved-in card
+      let es = await eggState();
+      const ui = await ev(() => ({ hasRanch: document.getElementById('ui').classList.contains('has-ranch'),
+        tabs: [...document.querySelectorAll('.tab')].filter(t => t.offsetParent).map(t => t.textContent.trim()), alt: !document.getElementById('eggAlt').hidden && document.getElementById('eggAlt').textContent }));
+      expect(es.phase === 'egg' && !es.bred && es.nursery.length === 1, 'a plain egg on the cushion, and the Nursery egg still waiting', JSON.stringify(es));
+      expect(ui.hasRanch && ui.tabs.join() === 'Ranch' && /Nursery egg instead/.test(ui.alt), 'while the egg waits: the Ranch tab and a "Nursery egg instead?" link', JSON.stringify(ui));
+      await ev(() => { const g = window.slimekin; g.tapEgg(g.egg.group.position.clone()); g.tapEgg(g.egg.group.position.clone()); g.advance(0.5); });
+      const warm0 = (await eggState()).warmth;
+      await shot('08-egg-with-ranch-tab');
+      // to the Nursery from the link under the egg; the slime that just moved out makes an egg with Juniper
+      await page.click('#eggAlt');
+      await ev(() => window.slimekin.advance(3));
+      const view = await ev(() => ({ view: window.slimekin.view, page: window.slimekin.ranchPage, sheet: window.slimekin.hud.sheetState() }));
+      expect(view.view === 'ranch' && view.page === 'nursery' && view.sheet === 'normal', 'the link opens the Nursery on the ranch (while the egg waits at home)', JSON.stringify(view));
+      await rest();
+      await ev(() => window.slimekin.openNursery());
+      await page.click(`.parent-pick:has-text("${mover}")`); await page.click('.parent-pick:has-text("Juniper")');
+      await page.click('#breedBtn');
+      await ev(() => window.slimekin.advance(2));
+      const nb = await ev(() => [...document.querySelectorAll('[data-act="cushion"]')].map(b => b.textContent));
+      expect(nb.length === 2 && nb.every(t => t === 'Put on the cushion'), 'every Nursery egg has "Put on the cushion" (ready or warming)', nb.join(', '));
+      await shot('09-nursery-put-on-cushion');
+      // the new egg (the mover's) goes on the cushion; the plain egg goes to a neighbor family
+      await page.click(`.egg-card:has-text("${mover}") [data-act="cushion"]`);
+      await page.waitForSelector('#cuYes');
+      const ask = await ev(() => document.getElementById('modalCard').innerText.replace(/\s+/g, ' '));
+      expect(new RegExp(`Put ${mover} and Juniper's egg on the cushion\\?|Put Juniper and ${mover}'s egg on the cushion\\?`).test(ask) && /The egg there now will go to a neighbor family/.test(ask), 'the confirm step says where the egg there now goes', ask);
+      await shot('10-swap-confirm-plain');
+      await page.click('#cuYes');
+      await ev(() => window.slimekin.advance(2));
+      es = await eggState();
+      expect(es.phase === 'egg' && es.bred && es.parents.includes(mover) && es.warmth === 0 && es.given >= 1 && es.nursery.length === 1 && warm0 > 0,
+        'plain -> bred: their egg is on the cushion (warmth back to 0), the plain egg went to a neighbor family', JSON.stringify(es));
+      const home = await ev(() => window.slimekin.view);
+      expect(home === 'home', 'back home to see it on the cushion', home);
+      await shot('11-swapped-egg-on-cushion');
+      // and back: Juniper and Pebble's egg takes its place; the mover's egg goes back to the Nursery
+      const given1 = es.given;
+      await page.click('#eggAlt'); await ev(() => window.slimekin.advance(3));
+      await page.click('.egg-card:has-text("Pebble") [data-act="cushion"]');
+      await page.waitForSelector('#cuYes');
+      const ask2 = await ev(() => document.getElementById('modalCard').innerText.replace(/\s+/g, ' '));
+      expect(/will go back to the Nursery/.test(ask2), 'bred -> bred: the confirm step says the egg there now goes back to the Nursery', ask2);
+      await shot('12-swap-confirm-bred');
+      await page.click('#cuYes');
+      await ev(() => window.slimekin.advance(2));
+      es = await eggState();
+      expect(es.parents === 'Juniper & Pebble' && es.given === given1 && es.nursery.length === 1 && es.nursery[0].includes(mover), 'bred -> bred: the other egg went back to the Nursery (nothing given away)', JSON.stringify(es));
+      // it hatches when ready
+      await ev(() => window.slimekin.advance(3605, 1 / 10), null, 300000);
+      await ev(() => { const g = window.slimekin; g.advance(1.5); for (let i = 0; i < 5; i++) g.tapEgg(g.egg.group.position.clone()); g.advance(4.5); });
+      await page.waitForSelector('#slimeName');
+      await page.fill('#slimeName', 'Clover'); await page.click('#nameOk');
+      await calm();
+      const after = await ev(() => ({ phase: window.slimekin.state.phase, ui: document.getElementById('ui').className, tabs: [...document.querySelectorAll('.tab')].filter(t => t.offsetParent).length }));
+      expect(after.phase === 'play' && !/has-ranch|egg/.test(after.ui) && after.tabs === 6, 'after hatching the menu is back to all six tabs', JSON.stringify(after));
+    }
+
     const fin = await ev(() => ({ phase: window.slimekin.state.phase }));
     note('end:', JSON.stringify(fin));
   } catch (e) {
