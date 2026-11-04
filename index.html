@@ -456,6 +456,9 @@ body.at-ranch .tray, body.at-ranch .tray-top, body.at-ranch #giggle, body.at-ran
   .panel.open .sheet-grip { display: flex; justify-content: center; align-items: center; flex: none; height: 18px; margin-bottom: -6px; touch-action: none; cursor: grab; }
   .sheet-grip i { width: 40px; height: 5px; border-radius: 99px; background: var(--ink-2); opacity: .35; }
   body.at-ranch .panel.open { height: min(44%, 400px); }
+  /* stretched up: the sheet top stops just under the top HUD bar (--sheet-tall is measured in hud.js) */
+  body .panel.open.tall, body.at-ranch .panel.open.tall { height: var(--sheet-tall, 88%); }
+  .panel.instant { transition: none; }
   .ranch-bar { width: 100%; box-sizing: border-box; }
   .tabs { border-bottom: 0; border-top: 1.5px solid var(--edge); box-sizing: border-box; height: var(--tabbar); align-content: center; }
   .panel:not(.open) .tab[aria-selected="true"] { background: none; box-shadow: none; color: var(--ink-2); }
@@ -570,7 +573,7 @@ body.at-ranch .tray, body.at-ranch .tray-top, body.at-ranch #giggle, body.at-ran
     <div class="tab-body" id="body-journal" hidden></div>
     <div class="tab-body" id="body-slime" hidden></div>
     <div class="tab-body" id="body-ranch" hidden></div>
-    <div class="sheet-grip" id="sheetGrip" aria-label="Swipe down to close"><i></i></div>
+    <div class="sheet-grip" id="sheetGrip" aria-label="Drag up to see more, down to close"><i></i></div>
   </aside>
 </div>
 

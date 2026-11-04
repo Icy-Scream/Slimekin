@@ -95,9 +95,9 @@ export class Hud {
         const t = btn.dataset.tab;
         const mobile = window.matchMedia('(max-width: 860px)').matches;
         if (mobile && panel.classList.contains('open') && this.tab === t) {
-          panel.classList.remove('open');
+          this.setSheet('closed', false);
         } else {
-          if (mobile) panel.classList.add('open');
+          if (mobile && !panel.classList.contains('open')) this.setSheet('normal', false);   // always opens at its normal size
           if (this.tab !== t || t === 'ranch') this.selectTab(t);
         }
         this.g.layoutChanged();
@@ -120,7 +120,7 @@ export class Hud {
   }
   openTab(t) {
     const mobile = window.matchMedia('(max-width: 860px)').matches;
-    if (mobile) this.$('panel').classList.add('open');
+    if (mobile && !this.$('panel').classList.contains('open')) this.setSheet('normal', false);
     this.selectTab(t);
     this.g.layoutChanged();
   }
@@ -827,7 +827,7 @@ export class Hud {
       if (this.tab === 'journal' && this.panelVisible()) this.renderJournal();
       if (this.tab === 'outfits' && this.panelVisible()) this.renderOutfits();
       this.slimeT = (this.slimeT || 0) - 0.25;
-      if (this.tab === 'slime' && this.panelVisible() && this.slimeT <= 0) { this.slimeT = 1; this.renderSlime(); }
+      if (this.tab === 'slime' && this.panelVisible() && this.slimeT <= 0 && !this.panelPress) { this.slimeT = 1; this.renderSlime(); }
       this.renderBuffs();
       if (!this.$('emotes').hidden) this.updateEmotes();
       if (this.tab === 'ranch' && this.panelVisible()) this.renderRanch();
@@ -1008,45 +1008,118 @@ export class Hud {
     box.addEventListener('pointercancel', end);
   }
 
-  // Phones: swipe the open menu down (from its grip, or from the top of the list) to close it.
+  // ---------- the phone menu sheet: closed, normal or tall ----------
+  // Open sizes: normal (the CSS heights) and tall (its top just under the top HUD bar). It always opens at normal;
+  // closing it, or going home <-> ranch, brings it back to normal. Desktop (> 860 px) has no sheet.
+  sheetState() {
+    const p = this.$('panel');
+    return !p.classList.contains('open') ? 'closed' : p.classList.contains('tall') ? 'tall' : 'normal';
+  }
+  setSheet(s, layout = true) {
+    const p = this.$('panel');
+    p.classList.toggle('instant', !!this.g.reduced);   // reduced motion: no snap animation
+    if (s === 'tall') { this.measureTall(); p.classList.add('open', 'tall'); }
+    else { p.classList.remove('tall'); p.classList.toggle('open', s !== 'closed'); }
+    if (layout) this.g.layoutChanged();
+  }
+  // The tall height: from just under the top HUD bar (slime card + jelly column) to the bottom of the screen.
+  measureTall() {
+    const p = this.$('panel'), top = document.querySelector('.top');
+    const r = top && top.offsetParent ? top.getBoundingClientRect() : null;
+    const h = r && r.height > 0 ? innerHeight - (r.bottom + 8) : innerHeight * 0.88;
+    const px = Math.round(Math.max(this.measureNormal() + 40, Math.min(innerHeight - 8, h)));
+    p.style.setProperty('--sheet-tall', px + 'px');
+    return px;
+  }
+  // The normal open height right now (home and ranch differ), measured without a visible change: transitions stay
+  // off until the classes are back and the style is flushed, so putting them back doesn't animate anything.
+  measureNormal() {
+    const p = this.$('panel');
+    const keep = { tall: p.classList.contains('tall'), open: p.classList.contains('open'), drag: p.classList.contains('dragging'), h: p.style.height };
+    p.classList.add('dragging', 'open'); p.classList.remove('tall'); p.style.height = '';
+    const h = p.getBoundingClientRect().height;
+    p.classList.toggle('tall', keep.tall); p.classList.toggle('open', keep.open); p.style.height = keep.h;
+    void p.offsetHeight;
+    p.classList.toggle('dragging', keep.drag);
+    return h;
+  }
+
+  // Phones: drag the open menu. Up (from the grip, the tab bar, or the list while it is at normal) stretches it to
+  // tall, following the finger; down goes tall -> normal -> closed (from the grip or the tab bar, or from the list
+  // when it is scrolled to the top). On release it snaps: past halfway or a quick flick. Once tall, upward drags on
+  // the list scroll the list. A tap on the grip closes it.
+  // The move and end listeners sit on the touched element itself: lists re-render while open (the Slime tab every
+  // second), and touch events aimed at a removed element no longer bubble up to the panel.
   setupSheetSwipe() {
     const panel = this.$('panel');
     const mobile = () => window.matchMedia('(max-width: 860px)').matches;
     let d = null;
+    const release = () => { if (d && d.off) d.off(); };
     panel.addEventListener('touchstart', e => {
-      if (!mobile() || !panel.classList.contains('open') || e.touches.length !== 1 || e.target.closest('.tabs')) return;
+      release(); d = null;
+      if (!mobile() || !panel.classList.contains('open') || e.touches.length !== 1) return;
       const t = e.touches[0];
       const body = e.target.closest('.tab-body');
-      d = { y0: t.clientY, x0: t.clientX, body, active: false, h0: panel.getBoundingClientRect().height, t0: performance.now(), dy: 0 };
+      const tall = panel.classList.contains('tall');
+      const tallH = this.measureTall(), normalH = this.measureNormal();
+      // at normal the list belongs to the sheet: native scrolling never starts, so an upward drag can stretch it
+      d = { y0: t.clientY, x0: t.clientX, body, tall, own: !!body && !tall, st0: body ? body.scrollTop : 0, mode: null,
+        h0: panel.getBoundingClientRect().height, tallH, normalH, pts: [{ y: t.clientY, t: e.timeStamp }] };
+      const el = e.target;
+      el.addEventListener('touchmove', move, { passive: false });
+      el.addEventListener('touchend', end);
+      el.addEventListener('touchcancel', end);
+      d.off = () => { el.removeEventListener('touchmove', move); el.removeEventListener('touchend', end); el.removeEventListener('touchcancel', end); };
     }, { passive: true });
-    panel.addEventListener('touchmove', e => {
+    const move = e => {
       if (!d) return;
       const t = e.touches[0];
       const dy = t.clientY - d.y0, dx = t.clientX - d.x0;
-      if (!d.active) {
-        if (Math.hypot(dx, dy) < 8) return;
-        if (dy > 0 && Math.abs(dy) > Math.abs(dx) && (!d.body || d.body.scrollTop <= 0)) {
-          d.active = true; d.y0 = t.clientY; d.t0 = performance.now();
-          panel.classList.add('dragging');
-        } else { d = null; return; }
+      if (!d.mode) {
+        if (d.own && e.cancelable) e.preventDefault();
+        if (Math.hypot(dx, dy) < 6) return;
+        if (Math.abs(dx) > Math.abs(dy)) { release(); d = null; return; }   // sideways: not a sheet drag
+        if (dy < 0) {
+          if (d.tall && d.body) { release(); d = null; return; }             // tall: the list scrolls
+          d.mode = 'size';
+        } else if (!d.body || d.body.scrollTop <= 0) d.mode = 'size';
+        else if (d.own) d.mode = 'scroll';                                   // normal, list scrolled down: scroll it back up by hand
+        else { release(); d = null; return; }                                // tall, list scrolled down: the list scrolls
+        d.y0 = t.clientY; d.x0 = t.clientX;
+        if (d.mode === 'size') panel.classList.add('dragging');
       }
-      e.preventDefault();
-      d.dy = Math.max(0, t.clientY - d.y0);
-      panel.style.height = Math.max(60, d.h0 - d.dy) + 'px';
-    }, { passive: false });
-    const end = () => {
+      if (e.cancelable) e.preventDefault();
+      const my = t.clientY - d.y0;
+      if (d.mode === 'scroll') { d.body.scrollTop = Math.max(0, d.st0 - my); return; }
+      panel.style.height = Math.max(60, Math.min(d.tallH + 16, d.h0 - my)) + 'px';
+      // speed from the input's own timestamps (a busy frame on the main thread must not look like a flick)
+      const now = e.timeStamp;
+      d.pts.push({ y: t.clientY, t: now });
+      while (d.pts.length > 2 && now - d.pts[0].t > 120) d.pts.shift();
+    };
+    const end = e => {
       if (!d) return;
+      release();
       const k = d; d = null;
-      if (!k.active) return;
-      const fast = k.dy / Math.max(1, performance.now() - k.t0) > 0.5;
+      if (k.mode !== 'size') return;
+      const h = panel.getBoundingClientRect().height;
+      const a = k.pts[0], b = k.pts[k.pts.length - 1];
+      // px per ms, + is downward; a finger that stopped before lifting is not a flick
+      const v = e.timeStamp - b.t > 100 ? 0 : (b.y - a.y) / Math.max(16, b.t - a.t);
+      const flickUp = v < -0.5, flickDown = v > 0.5;
+      let to;
+      if (h > k.normalH + 1) to = flickDown ? 'normal' : (flickUp || h - k.normalH > (k.tallH - k.normalH) / 2) ? 'tall' : 'normal';
+      else { const drop = k.normalH - h; to = (drop > 90 || (flickDown && drop > 30)) ? 'closed' : 'normal'; }
       panel.classList.remove('dragging');
       panel.style.height = '';
-      if (k.dy > 90 || (fast && k.dy > 30)) { panel.classList.remove('open'); this.g.layoutChanged(); }
+      this.setSheet(to);
     };
-    panel.addEventListener('touchend', end);
-    panel.addEventListener('touchcancel', end);
-    // tapping the grip also closes it
-    this.$('sheetGrip').addEventListener('click', () => { panel.classList.remove('open'); this.g.layoutChanged(); });
+    // while a finger is down on the menu, the Slime tab waits with its once-a-second refresh (so a tap or a drag
+    // there never loses the button under the finger)
+    panel.addEventListener('pointerdown', () => { this.panelPress = true; });
+    for (const t of ['pointerup', 'pointercancel']) window.addEventListener(t, () => { this.panelPress = false; }, true);
+    // tapping the grip still closes it
+    this.$('sheetGrip').addEventListener('click', () => this.setSheet('closed'));
   }
 
   // ---------- modals ----------

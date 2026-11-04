@@ -415,6 +415,7 @@ export class Game {
     this.ranch.visiting = true;
     this.ranch.grassLife = RANCH.grassLife;
     this.press = null; this.swipe = null;
+    if (this.hud.sheetState() === 'tall') this.hud.setSheet('normal', false);   // going to the ranch: the menu is back to normal
     document.body.classList.add('at-ranch');
     document.getElementById('ranchBar').hidden = false;
     this.hud.toggleEmotes(false);
@@ -444,9 +445,9 @@ export class Game {
     document.getElementById('ranchBar').hidden = true;
     this.stage.focus = null;
     if (selectTab && this.hud.tab === 'ranch') {
-      document.getElementById('panel').classList.remove('open');
+      this.hud.setSheet('closed', false);
       this.hud.selectTab('helpers');
-    }
+    } else if (this.hud.sheetState() === 'tall') this.hud.setSheet('normal', false);   // back home: the menu is back to normal
     this.layoutChanged();
   }
 
@@ -1929,7 +1930,10 @@ export class Game {
     this.topLimit = mobileTop ? document.querySelector('.top').getBoundingClientRect().bottom : 0;
     if (this.state.phase === 'play') {
       const mobile = window.matchMedia('(max-width: 860px)').matches;
-      const panel = document.getElementById('panel').getBoundingClientRect();
+      const panelEl = document.getElementById('panel');
+      // a stretched (tall) menu covers most of the screen on purpose: keep the scene where it was behind it
+      if (mobile && panelEl.classList.contains('tall')) return;
+      const panel = panelEl.getBoundingClientRect();
       const top = document.querySelector('.top').getBoundingClientRect();
       const tray = document.getElementById(this.view === 'ranch' ? 'ranchBar' : 'tray').getBoundingClientRect();
       if (!mobile) {
