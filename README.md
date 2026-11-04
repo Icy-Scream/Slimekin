@@ -25,7 +25,7 @@ import map.
 
 ## Play on your iPhone
 
-The game is published at **https://icy-scream.github.io/slimekin/** (GitHub Pages, built from `docs/`).
+The game is published at **https://icy-scream.github.io/Slimekin/** (GitHub Pages, built from `docs/`).
 
 1. Open that link in Safari on the iPhone.
 2. Tap the Share button, then **Add to Home Screen**. It gets its own icon, opens full screen, and works offline after the first visit.
