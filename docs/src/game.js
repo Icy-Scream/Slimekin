@@ -377,7 +377,7 @@ export class Game {
     window.addEventListener('keydown', e => this.onKey(e));
     // Audio can only start from a user gesture; iPhones count the end of a tap, not the start.
     for (const type of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown']) {
-      window.addEventListener(type, () => this.sfx.unlock(), { capture: true, passive: true });
+      window.addEventListener(type, () => this.sfx.unlock(type), { capture: true, passive: true });
     }
   }
 
@@ -1214,6 +1214,7 @@ export class Game {
       <div class="setting"><span>Sound</span>${seg('sound', [[true, 'On'], [false, 'Off']])}</div>
       <div class="setting"><span>Music box lullaby</span>${seg('music', [[true, 'On'], [false, 'Off']])}</div>
       ${navigator.audioSession ? `<div class="setting"><span>Sound when phone is on silent</span>${seg('soundOnSilent', [[true, 'On'], [false, 'Off']])}</div>` : ''}
+      <div class="setting"><span>Sound check<br><span class="sub" id="audioStatus">${esc(this.sfx.status())}</span></span><button class="btn small" id="testSound">Test sound</button></div>
       <div class="setting"><span>Motion</span>${seg('reducedMotion', [[false, 'Full'], [true, 'Reduced']])}</div>
       <div class="setting"><span>Graphics</span>${seg('quality', [['auto', 'Auto'], ['high', 'High'], ['low', 'Low']])}</div>
       <div class="setting"><span>Speed meter</span>${seg('showFps', [[false, 'Off'], [true, 'On']])}</div>
@@ -1237,6 +1238,11 @@ export class Game {
         }
         card.querySelector('#setDone').addEventListener('click', () => this.hud.closeModal());
         card.querySelector('#setReset').addEventListener('click', () => this.confirmReset());
+        card.querySelector('#testSound').addEventListener('click', () => {
+          this.sfx.test();
+          const el = card.querySelector('#audioStatus');
+          for (const ms of [150, 800, 1600]) setTimeout(() => { el.textContent = this.sfx.status(); }, ms);
+        });
         card.querySelector('#copySave').addEventListener('click', () => this.copySaveCode());
         card.querySelector('#loadSave').addEventListener('click', () => this.loadSaveCode());
         for (const b of card.querySelectorAll('[data-dbg]')) b.addEventListener('click', () => this.debug(b.dataset.dbg));

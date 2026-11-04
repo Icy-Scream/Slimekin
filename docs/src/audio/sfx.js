@@ -3,6 +3,7 @@
 
 const NOTE = n => 440 * Math.pow(2, (n - 69) / 12);
 const PENTA = [0, 2, 4, 7, 9];
+const IS_IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
 export class Sfx {
   constructor() {
@@ -14,37 +15,67 @@ export class Sfx {
     this.purrNodes = null;
   }
 
-  unlock() {
+  build() {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    try { this.ctx = new AC(); } catch { this.ctx = null; return; }
+    const c = this.ctx;
+    this.out = c.createDynamicsCompressor();
+    this.out.threshold.value = -16;
+    this.out.ratio.value = 3;
+    this.out.connect(c.destination);
+    this.master = c.createGain();
+    this.master.gain.value = this.sound ? 0.75 : 0;
+    this.master.connect(this.out);
+    this.musicBus = c.createGain();
+    this.musicBus.gain.value = 0;
+    this.musicBus.connect(this.out);
+    const len = c.sampleRate;
+    this.noiseBuf = c.createBuffer(1, len, c.sampleRate);
+    const d = this.noiseBuf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    this.purrNodes = null;
+  }
+
+  // Called on every user gesture. iPhones only allow audio to start from a finished tap
+  // (touchend/click), so the context is created there, and rebuilt if it gets stuck.
+  unlock(type) {
+    const strong = type === 'pointerup' || type === 'touchend' || type === 'click' || type === 'keydown';
     if (!this.ctx) {
-      const AC = window.AudioContext || window.webkitAudioContext;
-      if (!AC) return;
-      try { this.ctx = new AC(); } catch { return; }
-      const c = this.ctx;
-      this.out = c.createDynamicsCompressor();
-      this.out.threshold.value = -16;
-      this.out.ratio.value = 3;
-      this.out.connect(c.destination);
-      this.master = c.createGain();
-      this.master.gain.value = this.sound ? 0.75 : 0;
-      this.master.connect(this.out);
-      this.musicBus = c.createGain();
-      this.musicBus.gain.value = 0;
-      this.musicBus.connect(this.out);
-      const len = c.sampleRate;
-      this.noiseBuf = c.createBuffer(1, len, c.sampleRate);
-      const d = this.noiseBuf.getChannelData(0);
-      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      if (IS_IOS && !strong) return;
+      this.build();
+      this.updateMusic();
+    } else if (this.stuck && strong) {
+      try { this.ctx.close(); } catch { /* ignore */ }
+      this.ctx = null;
+      this.stuck = false;
+      this.build();
+      this.updateMusic();
     }
-    // iPhones only start audio from a finished tap, and need something actually played to fully wake up.
-    if (this.ctx.state !== 'running') {
-      this.ctx.resume().catch(() => {});
-      try {
-        const src = this.ctx.createBufferSource();
-        src.buffer = this.ctx.createBuffer(1, 1, 22050);
-        src.connect(this.ctx.destination);
-        src.start(0);
-      } catch { /* ignore */ }
+    const c = this.ctx;
+    if (!c || c.state === 'running') return;
+    c.resume().catch(() => {});
+    try {
+      const src = c.createBufferSource();
+      src.buffer = c.createBuffer(1, 1, 22050);
+      src.connect(c.destination);
+      src.start(0);
+    } catch { /* ignore */ }
+    if (strong) {
+      clearTimeout(this.stuckT);
+      this.stuckT = setTimeout(() => { if (this.ctx === c && c.state !== 'running' && !document.hidden) this.stuck = true; }, 700);
     }
+  }
+
+  status() {
+    const st = this.ctx ? this.ctx.state : 'not started yet';
+    const mode = navigator.audioSession ? ` · mode: ${navigator.audioSession.type}` : '';
+    return `Audio: ${st}${mode}${this.sound ? '' : ' · sound is off'}`;
+  }
+
+  test() {
+    this.unlock('click');
+    setTimeout(() => { this.sparkle(); this.mii(); }, 60);
   }
 
   // On iPhone, silent mode mutes web audio unless the page asks to behave like media playback.
