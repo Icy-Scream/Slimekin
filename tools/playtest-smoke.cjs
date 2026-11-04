@@ -255,7 +255,8 @@ const FIXTURE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'mai
     // and put their egg on the cushion; then swap it for another Nursery egg (the first goes back to the Nursery).
     if (ONLY.includes('swap')) {
       kit.mark('3. swap the cushion egg');
-      const rest = () => ev(() => { const g = window.slimekin; for (const x of g.state.ranch.residents) x.bredDay = null; g.debug('pearls'); g.advance(1); });
+      // parents rested, pearls, and room on the ranch for one more slime (the egg part moved one out already)
+      const rest = () => ev(() => { const g = window.slimekin, R = g.state.ranch; for (const x of R.residents) x.bredDay = null; R.slots = Math.max(R.slots, R.residents.length + 2); g.debug('pearls'); g.advance(1); });
       await rest();
       await breedInNursery('Juniper', 'Pebble');                                  // egg A, warming
       await ev(() => window.slimekin.leaveRanch());
@@ -343,7 +344,7 @@ const FIXTURE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'mai
       const ask = await ev(() => document.getElementById('modalCard').innerText.replace(/\s+/g, ' '));
       expect(ask.includes(`${before.buyer} would love to raise ${before.name}`) && /No pearls for a baby/.test(ask) && /Still warming: ready in \d+ min/.test(ask),
         'one confirm step: the family that suits the baby, no pearls, and the same egg choice (warming eggs allowed)', ask.slice(0, 400));
-      await page.click('.choice[data-egg]:not([data-egg=""])');
+      await page.click('.choice.warming');
       await shot('14-rehome-confirm');
       // the goodbye: a wave, then hops off to the side toward the new family
       await keepClock();
