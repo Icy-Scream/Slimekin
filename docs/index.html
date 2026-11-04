@@ -41,6 +41,10 @@
   --chip: rgba(44, 33, 66, 0.06);
   --locked: rgba(44, 33, 66, 0.35);
   --icon-glow: rgba(255, 255, 255, 0);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --tabbar: 58px;
+  /* phone tab bar sits partly inside the home-indicator margin, clear of the indicator itself */
+  --tab-pad: max(6px, calc(var(--safe-b) * 0.55));
   --display: 'DynaPuff', 'Baloo 2', ui-rounded, 'Arial Rounded MT Bold', system-ui, sans-serif;
   --body: 'M PLUS Rounded 1c', ui-rounded, 'Nunito', 'Segoe UI', system-ui, sans-serif;
   --panel-w: 356px;
@@ -372,7 +376,7 @@ button { font: inherit; color: inherit; }
 
 /* ---------- phones ---------- */
 @media (max-width: 860px) {
-  #ui { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr auto; padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 70px); }
+  #ui { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr auto; padding-bottom: calc(var(--tab-pad) + var(--tabbar) + 12px); }
   .top { grid-template-columns: minmax(180px, 1fr) auto; }
   .top .spacer { display: none; }
   .jelly { justify-self: end; align-items: flex-end; text-align: right; }
@@ -381,9 +385,9 @@ button { font: inherit; color: inherit; }
   .giggle { width: 150px; }
   .slime-card { padding: 10px 12px; gap: 6px; }
   .name { font-size: 19px; }
-  .panel { position: fixed; left: 0; right: 0; bottom: 0; grid-column: auto; grid-row: auto; border-radius: 26px 26px 0 0; height: calc(env(safe-area-inset-bottom, 0px) + 62px); transition: height .35s cubic-bezier(.3, 1.1, .5, 1); z-index: 8; padding-left: max(8px, env(safe-area-inset-left, 0px)); padding-right: max(8px, env(safe-area-inset-right, 0px)); flex-direction: column-reverse; padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .panel { position: fixed; left: 0; right: 0; bottom: 0; grid-column: auto; grid-row: auto; border-radius: 26px 26px 0 0; box-sizing: border-box; height: calc(var(--tabbar) + var(--tab-pad)); transition: height .35s cubic-bezier(.3, 1.1, .5, 1); z-index: 8; padding-left: max(8px, env(safe-area-inset-left, 0px)); padding-right: max(8px, env(safe-area-inset-right, 0px)); flex-direction: column-reverse; padding-bottom: var(--tab-pad); }
   .panel.open { height: min(64%, 560px); }
-  .tabs { border-bottom: 0; border-top: 1.5px solid var(--edge); }
+  .tabs { border-bottom: 0; border-top: 1.5px solid var(--edge); box-sizing: border-box; height: var(--tabbar); align-content: center; }
   .panel:not(.open) .tab[aria-selected="true"] { background: none; box-shadow: none; color: var(--ink-2); }
   .tab { font-size: 12px; }
   .emote-fab { display: grid; }
