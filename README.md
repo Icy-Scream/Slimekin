@@ -136,6 +136,13 @@ UI-CHANGES.md             every on-screen element the breeding work added or cha
 tools/fixtures/       old saves made with the code from before breeding (tools/fixtures/make-old-saves.mjs) and from
                       just before the jelly loop, plus the Moving Day tester save (tools/fixtures/make-jelly-loop-saves.mjs)
 tools/render-samples.cjs  renders looks day and night and builds labeled contact sheets
+src/platform/index.js the iPhone app's seam (Capacitor): isNative, save backup, haptics; a no-op on the web
+tools/build-ios.mjs   builds native/www/ for the iPhone app (offline: three.js and fonts copied in), then runs the gate
+tools/check-ios-www.mjs   gate for native/www/: no links, no network calls in the game code, every import resolves
+tools/platform-test.cjs   headless test of src/platform/ with a fake Capacitor and without one
+tools/check-store-pages.mjs  App Store pages (web/pages/) ready to submit? (only before a submission)
+native/               the iPhone app (Capacitor 8): MAC-GUIDE.md, mac-build.sh, APP-STORE-NOTES.md, the Xcode
+                      project in native/ios/, its settings as code in native/tools/ (patch-ios, check-ios)
 AGENTS.md, CLAUDE.md  hand-off guide for coding agents (how it ships, how to test, gotchas, roadmap)
 ```
 
