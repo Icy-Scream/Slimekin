@@ -1,0 +1,20 @@
+App/build
+App/Pods
+App/output
+App/App/public
+DerivedData
+xcuserdata
+
+# Cordova plugins for Capacitor
+capacitor-cordova-ios-plugins
+
+# Generated Config files
+App/App/capacitor.config.json
+App/App/config.xml
+
+# Added for Slimekin: Xcode and CocoaPods leftovers anywhere, Mac folder files
+xcuserdata/
+DerivedData/
+Pods/
+*.xcarchive
+.DS_Store
