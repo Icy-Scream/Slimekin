@@ -4,6 +4,7 @@ import { RANCH, BUYERS, BUYER_BY_ID, TRAIT_IDS, BREEDING, SPARK_BY_ID } from '..
 import { rng } from './random.js';
 import { makeEgg, sparkFor, pureFor, emptyLineage } from './breeding.js';
 import { residentMedal } from './medals.js';
+import { heirloomMult } from './heirlooms.js';
 
 export function createRanch() {
   return {
@@ -79,10 +80,13 @@ export class Ranch {
 
   happyMult(x) { return 0.4 + 0.6 * x.happiness / 100; }
   // Medal perks (core/medals.js, MEDALS in content.js): a resident's medal makes more pearls and fetches better
-  // offers. Old residents get theirs from runTotal (nothing new is saved for residents).
+  // offers. Old residents get theirs from runTotal (nothing new is saved for residents). Heirlooms multiply on top:
+  // Ranch Lanterns (pearls), Family Statue (what buyers pay).
   medal(x) { return residentMedal(x); }
-  pearlMult(x) { return this.medal(x).pearls; }
-  offerMult(x) { return 1 + this.medal(x).offers; }
+  pearlMult(x) { return this.medal(x).pearls * heirloomMult(this.s, 'ranchPearls'); }
+  offerMult(x) { return (1 + this.medal(x).offers) * heirloomMult(this.s, 'buyerPay'); }
+  // happiness lost per hour (the Family Portrait halves it)
+  happyDecay() { return RANCH.happyDecayPerHour * heirloomMult(this.s, 'happyDecay'); }
   // pearls per second for one resident
   pearlRate(x) { return this.happyMult(x) * (1 + 0.05 * (x.bondLevel || 0)) * this.pearlMult(x) / (RANCH.pearlMinutes * 60); }
   pearlsPerHour() { let t = 0; for (const x of this.r.residents) t += this.pearlRate(x) * 3600; return t; }
@@ -92,7 +96,7 @@ export class Ranch {
   // Production pauses while the basket is full.
   tick(dt) {
     const made = [];
-    const decay = RANCH.happyDecayPerHour / 3600 * dt;
+    const decay = this.happyDecay() / 3600 * dt;
     for (const x of this.r.residents) {
       x.happiness = Math.max(0, x.happiness - decay);
       if (this.r.basket.stored >= this.basketCap()) continue;
@@ -115,7 +119,7 @@ export class Ranch {
     let made = 0;
     for (const x of this.r.residents) {
       const before = x.happiness;
-      x.happiness = Math.max(0, x.happiness - RANCH.happyDecayPerHour / 3600 * seconds);
+      x.happiness = Math.max(0, x.happiness - this.happyDecay() / 3600 * seconds);
       const avg = { ...x, happiness: (before + x.happiness) / 2 };
       const t = (x.pearlT || 0) + this.pearlRate(avg) * seconds;
       made += Math.floor(t);
@@ -173,6 +177,7 @@ export class Ranch {
     const a = this.resident(aId), b = this.resident(bId), n = this.r.nursery;
     this.spend(BREEDING.cost);
     const egg = makeEgg(a, b, { now, id: `e${now.toString(36)}-${n.made}` });
+    egg.readyAt = now + (egg.readyAt - now) * heirloomMult(this.s, 'eggTime');   // the Patchwork Quilt
     n.made++;
     n.eggs.push(egg);
     a.bredDay = b.bredDay = dayNumber(now);
@@ -180,6 +185,10 @@ export class Ranch {
     return { egg, cost: BREEDING.cost };
   }
   eggReady(egg, now = Date.now()) { return !!egg && now >= egg.readyAt; }
+  // how long this egg warms in all (eggs made with the Patchwork Quilt warm faster)
+  eggWarmSeconds(egg) { return egg && egg.laidAt > 0 && egg.readyAt > egg.laidAt ? (egg.readyAt - egg.laidAt) / 1000 : BREEDING.readyHours * 3600; }
+  // how long a new egg would warm now
+  newEggSeconds() { return BREEDING.readyHours * 3600 * heirloomMult(this.s, 'eggTime'); }
   eggSecondsLeft(egg, now = Date.now()) { return Math.max(0, (egg.readyAt - now) / 1000); }
   // A ready egg leaves the Nursery to start the next generation (early: one still warming may leave too; it
   // finishes warming on the cushion).

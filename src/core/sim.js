@@ -4,11 +4,12 @@ import {
   TUNING, STAGES, TRAIT_IDS, FOODS, FOOD_BY_ID, HELPERS, HELPER_BY_ID, HELPER_GROWTH,
   UPGRADES, UPGRADE_BY_ID, COMBOS, BOND, PERSONALITY_IDS, PURE_FORMS, PAIR_FORMS, GENERALIST_FORM,
   UPGRADE_RENAMES, JAR_LEVELS, OUTFITS, OUTFIT_BY_ID, TRICK_LEARNED, RANCH, BREEDING, BUYERS, BUYER_BY_ID,
-  MEDALS, MEDAL_BY_ID,
+  MEDALS, MEDAL_BY_ID, HEIRLOOM_BY_ID,
 } from '../data/content.js';
 import { createRanch, migrateRanch, Ranch, residentJpsFor, dayNumber } from './ranch.js';
 import { emptyLineage, applyEgg, resolveForm, eggFromLineage } from './breeding.js';
 import { medalFor, medalRank } from './medals.js';
+import { createHeirlooms, migrateHeirlooms, heirloomMult, heirloomFlag, startHelpers, forSale, ownsHeirloom } from './heirlooms.js';
 
 export const SAVE_VERSION = 1;
 
@@ -67,6 +68,7 @@ export function createState() {
     tutorial: 0,
     settings: { sound: true, music: true, purr: true, soundOnSilent: true, reducedMotion: false, quality: 'auto', showFps: false },
     ranch: createRanch(),
+    heirlooms: createHeirlooms(),   // family treasures (core/heirlooms.js): they stay through every move-out
   };
 }
 
@@ -102,6 +104,7 @@ export function migrate(save) {
   }
   if (out.slime.medalShown && !MEDAL_BY_ID[out.slime.medalShown]) out.slime.medalShown = null;
   out.ranch = migrateRanch(save.ranch);
+  out.heirlooms = migrateHeirlooms(save.heirlooms);
   out.v = SAVE_VERSION;
   return out;
 }
@@ -170,6 +173,7 @@ export class Sim {
         else fx[k] += v;
       }
     }
+    fx.glimmerMult *= heirloomMult(this.s, 'glimmerMult');   // Pressed Clover
     this.fx = fx;
   }
 
@@ -211,7 +215,7 @@ export class Sim {
   noDizzy() { return this.hasBuffFlag('noDizzy'); }
 
   helperCost(id, owned = this.s.helpers[id]) { return Math.ceil(HELPER_BY_ID[id].cost * Math.pow(HELPER_GROWTH, owned)); }
-  foodPrice(id) { return Math.ceil(FOOD_BY_ID[id].price * this.stage().foodCost); }
+  foodPrice(id) { return Math.ceil(FOOD_BY_ID[id].price * this.stage().foodCost * heirloomMult(this.s, 'foodPrice')); }
   foodUnlocked(id) {
     const need = STAGES.findIndex(st => st.id === FOOD_BY_ID[id].unlock);
     return this.stageIndex() >= need;
@@ -549,8 +553,10 @@ export class Sim {
     if (egg) this.placeEgg(egg);
     s.jelly = 0;
     s.totalJelly = 0;
-    s.jar = fresh.jar;
+    // heirlooms: the Golden Jar Lid keeps the jar's size (not what is in it); the Toy Box gives the new slime helpers
+    s.jar = heirloomFlag(s, 'keepJar') ? { ...fresh.jar, level: s.jar.level } : fresh.jar;
     s.helpers = fresh.helpers;
+    for (const [id, n] of Object.entries(startHelpers(s))) if (id in s.helpers) s.helpers[id] = Math.max(s.helpers[id], n);
     s.upgrades = [];
     s.buffs = [];
     s.outfits.worn = { ...fresh.outfits.worn };
@@ -652,6 +658,35 @@ export class Sim {
     const arrived = egg ? `${egg.parents[0].name} and ${egg.parents[1].name}'s egg is waiting on the cushion.` : 'A new egg arrived on the cushion.';
     s.memories = [{ t: now, icon: '💌', text: `${name} went to live at ${buyer.name}, where they will be loved and looked after. ${arrived}` }];
     return { buyer, name, stage, egg, jelly };
+  }
+
+  // ---------- Heirlooms (core/heirlooms.js) ----------
+  // Bought with jelly in hand: never changes the jelly this slime made (totalJelly), the family lifetime or the bonus.
+  canBuyHeirloom(id) {
+    const h = HEIRLOOM_BY_ID[id];
+    if (!h) return { ok: false, reason: 'unknown' };
+    if (h.buyable === false) return { ok: false, reason: 'soon' };
+    if (ownsHeirloom(this.s, id)) return { ok: false, reason: 'owned' };
+    if (!this.canAfford(h.price)) return { ok: false, reason: 'poor' };
+    return { ok: true };
+  }
+  buyHeirloom(id) {
+    if (!this.canBuyHeirloom(id).ok) return null;
+    const h = HEIRLOOM_BY_ID[id];
+    this.s.jelly -= h.price;
+    this.s.heirlooms.owned.push(id);
+    if (!this.s.heirlooms.seen.includes(id)) this.s.heirlooms.seen.push(id);
+    this.recompute();
+    return h;
+  }
+  // Heirlooms that just became affordable and were not announced yet (the tab glows for them).
+  newlyAffordableHeirlooms() { return forSale(this.s).filter(h => this.canAfford(h.price) && !this.s.heirlooms.seen.includes(h.id)); }
+  // Opening the Heirlooms page: everything affordable now has been seen (the glow stops).
+  markHeirloomsSeen() {
+    const seen = this.s.heirlooms.seen;
+    let n = 0;
+    for (const h of this.newlyAffordableHeirlooms()) { seen.push(h.id); n++; }
+    return n;
   }
 
   // ---------- Outfits ----------

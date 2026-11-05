@@ -365,3 +365,36 @@ export const MEDALS = [
   { id: 'nova',     name: 'Nova',            title: 'NOVA',                icon: '🌟', jelly: 1e16, pearls: 3,    offers: 1.00 },
 ];
 export const MEDAL_BY_ID = Object.fromEntries(MEDALS.map(m => [m.id, m]));
+
+// Heirlooms: family treasures bought with jelly (spending never changes the jelly a slime made, the family lifetime
+// or the Family Bonus). Owned ones stay through every move-out and baby new home, and help every slime after.
+// fx keys (multipliers multiply with each other and with medal perks):
+//   startHelpers  helpers every new egg's slime starts with        foodPrice  x snack prices
+//   glimmerMult   x Lucky Glimmer rewards (sim fx.glimmerMult)       keepJar    the Jelly Jar keeps its level
+//   ranchPearls   x pearls ranch slimes make                         eggTime    x how long a new Nursery egg warms
+//   happyDecay    x how fast ranch happiness fades (live and away)   buyerPay   x what buyers pay (homes, auctions)
+// `where`: where it will live in the world (the in-world objects are not built yet: placeholder icons only).
+// buyable: false = shown, not for sale yet (`soon` says why).
+export const HEIRLOOMS = [
+  { id: 'toybox',   name: 'Toy Box',              icon: '🧸', price: 1e7,  where: 'in the nursery corner',
+    effect: 'Every new egg starts with 10 Tickle Feathers and 5 Bubble Wands.', fx: { startHelpers: { feather: 10, bubbles: 5 } } },
+  { id: 'cookietin', name: "Grandma's Cookie Tin", icon: '🍪', price: 1e8,  where: 'on the nursery shelf',
+    effect: 'Snacks cost 20% less.', fx: { foodPrice: 0.8 } },
+  { id: 'clover',   name: 'Pressed Clover',       icon: '🍀', price: 1e9,  where: 'in a frame on the wall',
+    effect: 'Lucky Glimmers give twice as much.', fx: { glimmerMult: 2 } },
+  { id: 'jarlid',   name: 'Golden Jar Lid',       icon: '🫙', price: 1e10, where: 'on the Jelly Jar',
+    effect: 'The Jelly Jar keeps its size when a slime moves out (what is inside still starts over).', fx: { keepJar: true } },
+  { id: 'lanterns', name: 'Ranch Lanterns',       icon: '🏮', price: 1e11, where: 'along the ranch fence',
+    effect: 'Ranch slimes make 25% more pearls.', fx: { ranchPearls: 1.25 } },
+  { id: 'quilt',    name: 'Patchwork Quilt',      icon: '🧵', price: 1e12, where: 'in the Nursery',
+    effect: 'New Nursery eggs are ready twice as fast.', fx: { eggTime: 0.5 } },
+  { id: 'portrait', name: 'Family Portrait',      icon: '🖼️', price: 1e13, where: 'on the nursery wall',
+    effect: "Ranch slimes' happiness fades half as fast.", fx: { happyDecay: 0.5 } },
+  { id: 'statue',   name: 'Family Statue',        icon: '🗿', price: 1e14, where: 'on the ranch hill',
+    effect: 'Buyers pay 25% more pearls (new homes and auctions).', fx: { buyerPay: 1.25 } },
+  { id: 'wishstar', name: 'Wishing Star',         icon: '⭐', price: 1e15, where: 'over the ranch at night',
+    effect: 'Rare eggs twice as likely.', fx: {}, buyable: false, soon: 'Arrives with rare eggs.' },
+];
+export const HEIRLOOM_BY_ID = Object.fromEntries(HEIRLOOMS.map(h => [h.id, h]));
+// The Heirlooms tab: a placeholder icon key (memIcon), no text label; `glow` while a new heirloom is affordable.
+export const HEIRLOOM_TAB = { icon: '🧰', label: 'Heirlooms', showNext: 3 };
