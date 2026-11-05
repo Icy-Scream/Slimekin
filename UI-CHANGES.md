@@ -178,7 +178,10 @@ and it shows everywhere without touching this code.
 
 ### Medal badges
 
-- `#medalBadge.medal-badge`: right after `#nameBtn` in the HUD; `hidden` until the slime has a medal.
+- `#medalBadge.medal-badge`: right after `#nameBtn` in the HUD; `hidden` until the slime has a medal. Hidden on phones
+  (<= 860 px) by `.slime-card #medalBadge { display: none }`: in UI pass 2's compact pill it squeezed the name to one
+  letter. The UI pass can find it a better place (the name is already cut to "Clo..." for a 6-letter name at 393 px
+  without it).
 - `.medal-badge` (a `role="img"` span with an aria-label; `.big` on cards) also shows: on the Slime tab's
   `.card.medal-card` (`.medal-row` badge + name, rank "N of 9", a `.meter` toward the next medal and the ranch perk;
   before the slime is grown a preview card), the ranch resident page (next to the name, plus `.sub.medal-line`),

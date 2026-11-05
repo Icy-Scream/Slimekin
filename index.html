@@ -592,6 +592,9 @@ body.at-ranch .tray, body.at-ranch .tray-top, body.at-ranch #giggle, body.at-ran
 .medal-badge[hidden] { display: none; }
 .medal-badge .gi, .medal-badge svg { width: 1.1em; height: 1.1em; }
 .medal-badge.big { font-size: 24px; }
+/* Phones: the compact status pill (UI pass 2) has no room for the badge (it squeezed the name to one letter); the medal
+   still shows as the pin on the slime, on its page, on the ranch card and on the move-out screen. */
+@media (max-width: 860px) { .slime-card #medalBadge { display: none; } }
 #medalBadge { font-size: 18px; }
 .medal-row { display: inline-flex; align-items: center; gap: 8px; }
 .toast.medal-toast { background: linear-gradient(120deg, #fff4d6, #ffe7f1 55%, #e4fbf2); color: #2c2142; border-color: transparent; }
