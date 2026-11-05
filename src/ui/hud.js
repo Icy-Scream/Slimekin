@@ -3,10 +3,11 @@
 import {
   FOODS, FOOD_BY_ID, HELPERS, STAGES, TRAITS, TRAIT_IDS, BOND, PERSONALITY, PERSONALITY_IDS, COMBOS, NAME_IDEAS,
   EMOTES, SECRETS, TRICK_LEARNED, JAR_LEVELS, OUTFITS, OUTFIT_BY_ID, RANCH, BUYER_BY_ID,
-  BREEDING, SPARK_FORMS, SPARK_BY_ID, FORM_BY_ID, FORM_IDS, PURE_LINE,
+  BREEDING, SPARK_FORMS, SPARK_BY_ID, FORM_BY_ID, FORM_IDS, PURE_LINE, MEDALS,
 } from '../data/content.js';
 import { fmt, fmtShort, fmtRate, fmtDuration } from '../core/format.js';
 import { ICON, memIcon, slimeArt, slimeUnknown } from './icons.js';
+import { nextMedal, residentMedal } from '../core/medals.js';
 
 const DROP = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.2c3.7 4.6 6.6 8.4 6.6 12a6.6 6.6 0 0 1-13.2 0c0-3.6 2.9-7.4 6.6-12z"/></svg>';
 const DICE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm2.5 3a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm9 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM12 10.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM7.5 15a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm9 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z"/></svg>';
@@ -60,6 +61,7 @@ export class Hud {
     this.nurseryPick = [];
     this.pending = 0; this.pendingRate = 0;
     this.outfitKey = '';
+    this.mountJellyLoop();
     this.buildEmotes();
     this.setupSheetSwipe();
     this.setupToastDrag();
@@ -75,6 +77,33 @@ export class Hud {
   icon(id, alt = '') {
     if (this.icons[id]) return `<img src="${this.icons[id]}" alt="${esc(alt)}" draggable="false">`;
     return `<span style="font-size:30px;line-height:1" aria-hidden="true">${FALLBACK[id] || '•'}</span>`;
+  }
+
+  // ---------- jelly loop: medal badges (and, below, the Heirlooms tab) ----------
+  // Elements are made here (stable ids/classes, listed in UI-CHANGES.md) so the HUD markup in index.html stays as is.
+  mountJellyLoop() {
+    const badge = document.createElement('span');
+    badge.className = 'medal-badge';
+    badge.id = 'medalBadge';
+    badge.hidden = true;
+    this.$('nameBtn').insertAdjacentElement('afterend', badge);
+  }
+  // A small medal badge (placeholder emoji icon from content.js, drawn through memIcon so the UI branch can swap it).
+  medalChip(m, cls = '') {
+    if (!m) return '';
+    const label = m.id === 'ribbon' ? m.name : `${m.name} medal`;
+    return `<span class="medal-badge${cls ? ' ' + cls : ''}" role="img" aria-label="${esc(label)}" title="${esc(label)}">${memIcon(m.icon, esc(m.icon))}</span>`;
+  }
+  // The HUD badge next to the slime's name: the medal its last ceremony played for.
+  updateMedalBadge() {
+    const el = this.$('medalBadge'), m = this.g.sim.medalShown(), key = m ? m.id : '';
+    if (!el || el.dataset.m === key) return;
+    el.dataset.m = key;
+    el.hidden = !m;
+    el.innerHTML = m ? memIcon(m.icon, esc(m.icon)) : '';
+    const label = m ? (m.id === 'ribbon' ? m.name : `${m.name} medal`) : '';
+    el.title = label;
+    if (m) { el.setAttribute('role', 'img'); el.setAttribute('aria-label', label); }
   }
 
   setIcons(icons) {
@@ -488,18 +517,20 @@ export class Hud {
       const ks = id.split('+').filter(k => TRAITS[k]);
       return slimeArt(ks.length ? ks.map(k => TRAITS[k].color) : '#fbeef4', motif);
     };
-    const node = (name, formName, cls = '', formId = null) => `<div class="tree-node ${cls}">${cls.includes('unknown') ? slimeUnknown() : formArt(formId)}<b>${esc(name)}</b><span class="sub">${esc(formName)}</span></div>`;
+    const node = (name, formName, cls = '', formId = null, medal = null) => `<div class="tree-node ${cls}">${cls.includes('unknown') ? slimeUnknown() : formArt(formId)}<b>${esc(name)}${medal ? ' ' + this.medalChip(medal) : ''}</b><span class="sub">${esc(formName)}</span></div>`;
+    // a parent still on the ranch shows its medal (one that moved away is not known here)
+    const parentMedal = p => { const x = R.residents.find(r => r.id === p.id); return x ? residentMedal(x) : null; };
     const me = s.name || 'Your slime';
     const myForm = s.form ? s.form.name : st.phase === 'egg' ? 'Still an egg' : `${g.sim.stage().name}, still growing`;
     let html = `<div class="sec-title">${esc(me)}'s family</div><div class="card tree">`;
     if (lin.parents?.length === 2) {
       const [p, q] = lin.parents;
-      html += `<div class="tree-parents">${node(p.name, p.form.name, 'parent', p.form.id)}<span class="tree-heart" aria-hidden="true">${ICON.heart}</span>${node(q.name, q.form.name, 'parent', q.form.id)}</div>
+      html += `<div class="tree-parents">${node(p.name, p.form.name, 'parent', p.form.id, parentMedal(p))}<span class="tree-heart" aria-hidden="true">${ICON.heart}</span>${node(q.name, q.form.name, 'parent', q.form.id, parentMedal(q))}</div>
         <div class="tree-line" aria-hidden="true"></div>`;
     } else {
       html += `<div class="tree-parents">${node('?', 'A plain egg', 'parent unknown')}</div><div class="tree-line" aria-hidden="true"></div>`;
     }
-    html += node(me, myForm, 'me' + (s.form?.pure ? ' pure' : '') + (s.form?.spark ? ' spark' : ''), s.form?.id || (st.phase === 'egg' ? null : 'mochi'));
+    html += node(me, myForm, 'me' + (s.form?.pure ? ' pure' : '') + (s.form?.spark ? ' spark' : ''), s.form?.id || (st.phase === 'egg' ? null : 'mochi'), st.phase === 'play' ? g.sim.medalShown() : null);
     html += `<span class="sub tree-note">Generation ${R.family.generation} of your family.${lin.line > 1 ? ` ${esc(me)} is number ${lin.line} in its family line.` : ' The first of a new family line.'}</span>`;
     if (lin.spark) html += `<span class="sub spark-line">${ICON.sparkle}${esc(me)} carries a family spark.</span>`;
     if (lin.pure && FORM_BY_ID[lin.pure]) html += `<span class="sub">Both parents were ${esc(FORM_BY_ID[lin.pure].name)}s.</span>`;
@@ -526,7 +557,7 @@ export class Hud {
     const fams = R.residents.filter(x => x.lineage?.parents?.length === 2);
     if (fams.length) {
       html += '<div class="sec-title">Families on the ranch</div><div class="card">';
-      html += fams.map(x => `<div class="row-between"><span><b>${esc(x.name)}</b> <span class="sub">${esc(x.form?.name || '')}</span></span><span class="sub">${esc(x.lineage.parents[0].name)} × ${esc(x.lineage.parents[1].name)}</span></div>`).join('');
+      html += fams.map(x => `<div class="row-between"><span><b>${esc(x.name)}</b> ${this.medalChip(residentMedal(x))} <span class="sub">${esc(x.form?.name || '')}</span></span><span class="sub">${esc(x.lineage.parents[0].name)} × ${esc(x.lineage.parents[1].name)}</span></div>`).join('');
       html += '</div>';
     }
     return html;
@@ -553,6 +584,20 @@ export class Hud {
       html += `<div class="card"><span class="sub">Looks like ${name} is becoming</span><span class="form-name">${esc(f.name)}?</span><span class="sub">${esc(f.blurb)} Still changing until they settle.</span>${stirring}</div>`;
     } else {
       html += `<div class="card"><span class="sub">Becoming</span><span class="form-name">Too young to tell</span><span class="sub">What ${name} eats now shapes the slime they grow into.</span></div>`;
+    }
+    // medals: the one its ceremony played for, and the next step (a medal every x10 of its own jelly)
+    {
+      const m = sim.medalShown(), nx = m ? nextMedal(m) : MEDALS[0];
+      if (m) {
+        html += `<div class="card medal-card"><div class="row-between"><span class="medal-row">${this.medalChip(m, 'big')}<b>${esc(m.id === 'ribbon' ? m.name : `${m.name} medal`)}</b></span><span class="sub">${MEDALS.indexOf(m) + 1} of ${MEDALS.length}</span></div>`;
+        if (nx) {
+          const k = Math.max(0, Math.min(1, (st.totalJelly - m.jelly) / (nx.jelly - m.jelly)));
+          html += `<div class="meter"><i style="width:${(k * 100).toFixed(1)}%"></i></div><span class="sub">Next: ${esc(nx.name)} at ${fmtShort(nx.jelly)} of ${name}'s own jelly (${fmtShort(st.totalJelly)} so far).</span>`;
+        } else html += `<span class="sub">The very top of the ladder. Wow!</span>`;
+        html += `<span class="sub">On the ranch, ${m.id === 'ribbon' ? 'every medal after this one makes more pearls and gets better offers.' : `this medal makes pearls x${m.pearls} and buyers pay +${Math.round(m.offers * 100)}%.`}</span></div>`;
+      } else if (si >= 1) {
+        html += `<div class="card medal-card"><span class="sub">Medals</span><span class="sub">When ${name} is all grown up they get the Grown-Up Ribbon, then a medal every time their own jelly grows ten times bigger, from Bronze (${fmtShort(MEDALS[1].jelly)}) to Nova (${fmtShort(MEDALS[MEDALS.length - 1].jelly)}).</span></div>`;
+      }
     }
     // not grown yet: a kind family can raise them (no pearls and no Family Bonus for a baby)
     if (sim.canRehome()) {
@@ -665,8 +710,10 @@ export class Hud {
       const lean = PERSONALITY_IDS.map(id => [id, x.personality?.[id] ?? 50]).sort((a, b) => Math.abs(b[1] - 50) - Math.abs(a[1] - 50)).slice(0, 2)
         .map(([id, v]) => (v >= 50 ? PERSONALITY[id].high : PERSONALITY[id].low)).join(', ');
       html += `<button class="link-btn" id="ranchBack">← All ranch slimes</button>`;
-      html += `<div class="card"><div class="row-between"><span class="form-name">${esc(x.name)}</span><span class="sub">Generation ${x.generation}</span></div>
+      const xm = residentMedal(x);
+      html += `<div class="card"><div class="row-between"><span class="form-name">${esc(x.name)} ${this.medalChip(xm)}</span><span class="sub">Generation ${x.generation}</span></div>
         <b>${esc(x.form?.name || 'Slime')}</b><span class="sub">${esc(x.form?.blurb || '')}</span>
+        <span class="sub medal-line">${esc(xm.id === 'ribbon' ? 'Grown-Up Ribbon' : `${xm.name} medal: pearls x${xm.pearls}, buyers pay +${Math.round(xm.offers * 100)}%`)} (${fmtShort(x.runTotal || 0)} jelly made growing up).</span>
         <div class="row-between"><span class="sub">${happyWord(x.happiness)}</span><span class="sub">${Math.round(x.happiness)}%</span></div><div class="meter"><i style="width:${x.happiness.toFixed(0)}%;background:linear-gradient(90deg,#ffb0c8,var(--berry))"></i></div>
         <span class="sub">Tap or stroke ${esc(x.name)} to pet them. Happy slimes make pearls faster.</span>
         ${x.lineage?.parents?.length ? `<span class="sub">Child of ${esc(x.lineage.parents[0].name)} (${esc(x.lineage.parents[0].form.name)}) and ${esc(x.lineage.parents[1].name)} (${esc(x.lineage.parents[1].form.name)}).</span>` : ''}</div>`;
@@ -710,7 +757,7 @@ export class Hud {
       if (R.residents.length) {
         html += `<div class="sec-title">Living here · ${R.residents.length} of ${R.slots}</div>`;
         for (const x of R.residents) {
-          html += `<div class="card res"><span class="nm">${esc(x.name)}</span><span class="sub">Gen ${x.generation}</span>
+          html += `<div class="card res"><span class="nm">${esc(x.name)} ${this.medalChip(residentMedal(x))}</span><span class="sub">Gen ${x.generation}</span>
             <span class="sub">${esc(x.form?.name || 'Slime')}</span><span class="sub">${fmtRate(x.jps * fm)} jelly/s</span>
             <div class="meter" title="Happiness"><i style="width:${x.happiness.toFixed(0)}%"></i></div><span class="sub">${happyWord(x.happiness)}</span>
             <div class="acts"><button class="btn small" data-act="visit" data-id="${x.id}">Visit</button><button class="btn small" data-act="place" data-id="${x.id}">New home</button><button class="btn small" data-act="auction" data-id="${x.id}">Auction</button></div></div>`;
@@ -845,6 +892,7 @@ export class Hud {
       this.slowT = 0.25;
       const nb = this.$('nameBtn');
       if (nb.textContent !== (s.name || 'Slime')) nb.textContent = s.name || 'Slime';
+      this.updateMedalBadge();
       this.$('stagePill').textContent = sim.stage().name;
       this.$('bondTitle').textContent = BOND[sim.bondLevel()].title;
       const tl = this.$('tab-slime').querySelector('.tl');

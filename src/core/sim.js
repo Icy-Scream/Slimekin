@@ -4,9 +4,11 @@ import {
   TUNING, STAGES, TRAIT_IDS, FOODS, FOOD_BY_ID, HELPERS, HELPER_BY_ID, HELPER_GROWTH,
   UPGRADES, UPGRADE_BY_ID, COMBOS, BOND, PERSONALITY_IDS, PURE_FORMS, PAIR_FORMS, GENERALIST_FORM,
   UPGRADE_RENAMES, JAR_LEVELS, OUTFITS, OUTFIT_BY_ID, TRICK_LEARNED, RANCH, BREEDING, BUYERS, BUYER_BY_ID,
+  MEDALS, MEDAL_BY_ID,
 } from '../data/content.js';
 import { createRanch, migrateRanch, Ranch, residentJpsFor, dayNumber } from './ranch.js';
 import { emptyLineage, applyEgg, resolveForm, eggFromLineage } from './breeding.js';
+import { medalFor, medalRank } from './medals.js';
 
 export const SAVE_VERSION = 1;
 
@@ -47,6 +49,7 @@ export function createState() {
       belly: [],
       tricks: {},
       lineage: emptyLineage(),   // where it came from (parents, family spark, Pure line); see core/breeding.js
+      medalShown: null,          // the last medal this slime's ceremony played for (id in MEDALS; null = none yet)
     },
     jelly: 0,
     totalJelly: 0,
@@ -92,6 +95,12 @@ export function migrate(save) {
   if (!Array.isArray(out.slime.lineage.parents)) out.slime.lineage.parents = [];
   // a bred egg put on the cushion before the cushion remembered its egg: rebuild that egg from the baby's lineage
   if (out.phase === 'egg' && !out.egg.bred && out.slime.lineage.parents.length === 2) out.egg.bred = eggFromLineage(out.slime.lineage);
+  // medals: a save from before medals starts with the medal its slime already has, so no old ceremony replays
+  if (!('medalShown' in (save.slime || {}))) {
+    const grown = (out.slime.growth || 0) >= STAGES[STAGES.length - 1].minGrowth;
+    out.slime.medalShown = medalFor(out.totalJelly, out.phase === 'play' && grown)?.id || null;
+  }
+  if (out.slime.medalShown && !MEDAL_BY_ID[out.slime.medalShown]) out.slime.medalShown = null;
   out.ranch = migrateRanch(save.ranch);
   out.v = SAVE_VERSION;
   return out;
@@ -240,6 +249,19 @@ export class Sim {
     if (res.nearMiss) { this.ranch.learnSpark(res.nearMiss.spark, 'observed'); R.nearMiss[res.nearMiss.spark] = (R.nearMiss[res.nearMiss.spark] || 0) + 1; }
     if (res.pure && !R.pures.includes(res.pure)) R.pures.push(res.pure);
     return res;
+  }
+
+  // ---------- medals (core/medals.js) ----------
+  // The medal this slime has earned from its own jelly (null until it is grown up).
+  medal() { return medalFor(this.s.totalJelly, this.s.phase === 'play' && this.stageIndex() === STAGES.length - 1); }
+  // The medal its ceremony last played for (what the badges show).
+  medalShown() { return MEDAL_BY_ID[this.slime.medalShown] || null; }
+  // Medals reached since the last ceremony, oldest first; marks them as shown (once per medal per slime).
+  takeNewMedals() {
+    const cur = this.medal(), from = medalRank(this.slime.medalShown), to = medalRank(cur);
+    if (to <= from) return [];
+    this.slime.medalShown = cur.id;
+    return MEDALS.slice(from + 1, to + 1);
   }
 
   // ---------- memories ----------

@@ -14,7 +14,7 @@ import { addEggSpark } from './view/egg-spark.js';
 import { makeFood, renderIcons, FOOD_MAKERS, HELPER_MAKERS, OUTFIT_MAKERS } from './view/models.js';
 import { Sfx } from './audio/sfx.js';
 import { Hud, esc } from './ui/hud.js';
-import { ICON } from './ui/icons.js';
+import { ICON, memIcon } from './ui/icons.js';
 import { Behaviors } from './behaviors.js';
 import { RanchView } from './view/ranch.js';
 import { Scenery } from './view/scenery.js';
@@ -1642,6 +1642,39 @@ export class Game {
     if (r.form) body = `<p>Everything you shared shaped who ${esc(name)} became.</p><div class="card"><span class="form-name">${esc(r.form.name)}</span><span class="sub">${esc(r.form.blurb)}</span>${extra}</div>` + body;
     else if (r.stageAfter >= 1) body += '<p>Snacks cost more now, since bigger slimes eat bigger portions.</p>';
     this.after(1.6, () => this.hud.showSimple(r.form ? `${esc(name)} is all grown up!` : `${esc(name)} is now a ${esc(st.name)}!`, body, 'Yay!'));
+    this.medalHold = this.time + 4;   // the Grown-Up Ribbon's ceremony waits for this card
+    this.saveNow(true);
+  }
+
+  // ---------- medals: earned live, a small ceremony once per medal per slime (also after a reload) ----------
+  // Waits for a calm moment at home: not asleep, not eating, no card open, not mid-goodbye.
+  updateMedals(dt) {
+    this.medalT = (this.medalT ?? 1) - dt;
+    if (this.medalT > 0) return;
+    this.medalT = 0.5;
+    if (this.view === 'ranch' || this.hud.modalOpen || this.sim.asleep || this.busy() || this.departing || this.hatching || this.time < (this.medalHold || 0)) return;
+    const got = this.sim.takeNewMedals();
+    if (got.length) this.medalCeremony(got);
+  }
+  medalCeremony(list) {
+    const m = list[list.length - 1], name = this.Name;
+    for (const x of list) {
+      this.remember(x.icon, x.id === 'ribbon' ? `${name} earned the Grown-Up Ribbon: all grown up!` : `${name} earned the ${x.name} medal: ${fmtShort(x.jelly)} jelly of their own.`, 'medal-' + x.id);
+    }
+    const head = this.slime.headTopWorld(this.v1).clone();
+    this.fx.emit('confetti', head, { count: 40 });
+    this.fx.emit('sparkles', head, { count: 16, speed: 2.4, color: '#ffe08a' });
+    this.slime.pulseGlow(1);
+    this.slime.hop(6);
+    this.after(0.35, () => this.slime.spin());
+    this.flash({ eyes: 'sparkle', mouth: 'grin', blush: 1 }, 2.2);
+    this.sfx.levelUp();
+    this.after(0.6, () => this.sfx.mii());
+    this.hud.say(`${m.icon}!`, 1800);
+    const perk = m.id === 'ribbon' ? 'All grown up. Every grown slime wears one.' : `${fmtShort(m.jelly)} jelly of their own! On the ranch: pearls x${m.pearls}, buyers pay +${Math.round(m.offers * 100)}%.`;
+    this.hud.toast(`<span class="medal-ic" aria-hidden="true">${memIcon(m.icon, esc(m.icon))}</span><b>${esc(name)} earned ${esc(m.title)}!</b>${esc(perk)}`, 'combo medal-toast', 5200);
+    this.hud.dot('slime');
+    this.hud.updateMedalBadge();
     this.saveNow(true);
   }
 
@@ -2407,6 +2440,7 @@ export class Game {
       this.updateRequests(dt);
       this.updateIdle(dt);
       this.updateGlimmer(dt);
+      this.updateMedals(dt);
       this.updateFormFx(dt);
       this.updateTutorial();
       if (this.bubbleGame) {

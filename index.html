@@ -539,6 +539,15 @@ body.at-ranch .tray, body.at-ranch .tray-top, body.at-ranch #giggle, body.at-ran
   .need { gap: 3px; }
   .upgrades { grid-template-columns: minmax(0, 1fr); }
 }
+/* ---------- Jelly loop (medals, heirlooms): placeholder looks for the UI branch to restyle; see UI-CHANGES.md ---------- */
+.medal-badge { display: inline-flex; align-items: center; justify-content: center; font-size: 15px; line-height: 1; vertical-align: -2px; flex: none; }
+.medal-badge[hidden] { display: none; }
+.medal-badge .gi, .medal-badge svg { width: 1.1em; height: 1.1em; }
+.medal-badge.big { font-size: 24px; }
+#medalBadge { font-size: 18px; }
+.medal-row { display: inline-flex; align-items: center; gap: 8px; }
+.toast.medal-toast .medal-ic { display: block; font-size: 30px; line-height: 1.1; }
+.toast.medal-toast .medal-ic svg { width: 30px; height: 30px; }
 /* bigger tap targets on touch screens */
 @media (pointer: coarse) {
   .icon-btn { width: 40px; height: 40px; }
