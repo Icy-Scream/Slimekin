@@ -15,6 +15,7 @@
 //   the copy is written back before the game reads it. "Start over" drops the copy too. Deleting the app deletes
 //   both; the Save Code in Settings stays the backup and the way to move a slime to another device.
 // - Haptics. buzz(ms) becomes a light tap (a medium one for a buzz longer than 20 ms; never heavy).
+// - A brand-new game starts with "Sound when phone is on silent" Off (freshState); the web keeps it On.
 // - Slots for later, both null: `store` (in-app purchases, slice W2) and `ads` (not decided).
 
 export const SAVE_KEY = 'slimekin.save.v1';            // the key src/core/save.js writes; the only one mirrored
@@ -64,6 +65,16 @@ export async function restoreSave() {
     localStorage.setItem(SAVE_KEY, json);
     return true;
   } catch { return false; }
+}
+
+// A brand-new game state (src/core/sim.js createState()), used only when the game starts without a save: no save on
+// this phone, no copy brought back by restoreSave(), and so also right after "Start over". In the app, "Sound when
+// phone is on silent" starts Off, so the game follows the silent switch until the player turns it on in Settings. A
+// save that already exists, a restored copy and a pasted save code never come through here: they keep their own value.
+// On the web the state is returned untouched (the game's default stays On).
+export function freshState(state) {
+  if (isNative && state && state.settings) state.settings.soundOnSilent = false;
+  return state;
 }
 
 // ---------- the copy ----------

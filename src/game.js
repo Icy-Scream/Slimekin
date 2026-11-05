@@ -22,7 +22,7 @@ import { MovingDay } from './moving-day.js';
 import { movingDayRatio, movingDayLevel } from './core/movingday.js';
 import { RanchView } from './view/ranch.js';
 import { Scenery } from './view/scenery.js';
-import { isNative, haptic } from './platform/index.js';
+import { isNative, haptic, freshState } from './platform/index.js';
 
 const SLIME_Y = CUSHION_TOP - 0.03;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -34,7 +34,7 @@ export class Game {
   constructor({ canvas, save, store }) {
     this.canvas = canvas;
     this.store = store;
-    this.state = save ? migrate(save) : createState();
+    this.state = save ? migrate(save) : freshState(createState());   // freshState: the iPhone app's defaults (no-op on the web)
     this.sim = new Sim(this.state);
     this.requests = new Requests(this.sim);
     this.sfx = new Sfx();

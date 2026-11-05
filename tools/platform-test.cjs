@@ -8,7 +8,10 @@
 //   (d) haptics: light for the game's 8 ms buzz, medium for a long one, never heavy, close taps merge; a boop on the
 //       real game makes a light tap; failures of the phone's plugins never reach the game;
 //   (e) with no Capacitor (or Capacitor that is not native) nothing changes: isNative false, no plugin is touched,
-//       navigator.vibrate is called as before, and #debug still works on the web.
+//       navigator.vibrate is called as before, and #debug still works on the web;
+//   (f) "Sound when phone is on silent" (with a fake navigator.audioSession, as Safari has): a fresh start in the app
+//       is Off, and so is the game after Start over; a restored copy and a pasted save code keep their own value (On);
+//       a fresh start on the web is On. Each time: the game's state, the audio session type and the Settings row.
 // Setup and running as in tools/smoke-test.cjs (playwright + three@0.170.0 outside the repo, found through NODE_PATH).
 //   node tools/platform-test.cjs
 const path = require('path');
@@ -40,6 +43,10 @@ function fakePhone({ seeds }) {
   const keep = p => sessionStorage.setItem(K('prefs'), JSON.stringify(p));
   window.__pt = { calls, prefs, rec };
   try { Object.defineProperty(Navigator.prototype, 'vibrate', { configurable: true, value: ms => { rec({ m: 'vibrate', ms }); return true; } }); } catch { /* ignore */ }
+  // Safari's audio session (Chromium has none): the game only shows "Sound when phone is on silent" where it exists.
+  // Every type the game sets is kept in order, so a test can tell "set to auto" from "never set".
+  const session = { sets: [], t: 'auto', get type() { return this.t; }, set type(v) { this.t = v; this.sets.push(v); } };
+  try { Object.defineProperty(Navigator.prototype, 'audioSession', { configurable: true, get: () => session }); } catch { /* ignore */ }
   if (s.startsWith('capweb')) {   // Capacitor on a web page: not native, and its plugins must not be touched
     window.Capacitor = { isNativePlatform: () => false, Plugins: new Proxy({}, { get: (o, k) => { rec({ m: 'plugins-access', k: String(k) }); return undefined; } }) };
     return;
@@ -65,7 +72,9 @@ function fakePhone({ seeds }) {
     kit = await setup({ contextOptions: { userAgent: dev.userAgent, isMobile: true, hasTouch: true, viewport: VIEW, screen: VIEW, deviceScaleFactor: 1 } });
     const { page, step, ev } = kit;
     page.setDefaultTimeout(120000);
-    const seeds = { restore: { [KEY]: JSON.stringify({ ...PEBBLE, savedAt: Date.now() - 60000 }) }, unitbad: { [KEY]: '{not json' } };
+    const ON = { ...PEBBLE, settings: { ...PEBBLE.settings, soundOnSilent: true } };   // a web save: sound on silent On
+    const seeds = { restore: { [KEY]: JSON.stringify({ ...ON, savedAt: Date.now() - 60000 }) }, unitbad: { [KEY]: '{not json' } };
+    const CODE = 'SLIMEKIN1:' + Buffer.from(JSON.stringify(ON), 'utf8').toString('base64');   // as Copy save code makes it
     await kit.context.addInitScript(fakePhone, { seeds });
     // A blank page on the test server for the module-level checks (no game running, so nothing else saves).
     await page.route(u => new URL(u).pathname === '/__pt.html', r => r.fulfill({ contentType: 'text/html', body: '<!doctype html><meta charset="utf-8"><title>platform test</title><body>platform test</body>' }));
@@ -73,6 +82,22 @@ function fakePhone({ seeds }) {
     const booted = () => page.waitForFunction(() => document.getElementById('boot')?.hidden === true, null, { timeout: 120000 });
     const lsSave = () => ev(k => { const r = localStorage.getItem(k); return r ? JSON.parse(r) : null; }, KEY);
     const shot = name => step('screenshot ' + name, async () => { for (let i = 0; i < 2; i++) { await page.waitForTimeout(250); await page.screenshot({ path: path.join(OUT, name + '.png'), timeout: 120000 }); } }, 200000);
+    // "Sound when phone is on silent": the Settings row (open), the audio session types the game set, the saved value
+    const silentRow = () => ev(() => {
+      const b = [...document.querySelectorAll('#modalCard [data-k="soundOnSilent"]')];
+      const pressed = v => b.find(x => x.dataset.v === v)?.getAttribute('aria-pressed');
+      return { buttons: b.length, on: pressed('true'), off: pressed('false') };
+    });
+    const sessionSets = () => ev(() => navigator.audioSession.sets.slice());
+    const last = a => a[a.length - 1];
+    const savedSilent = () => ev(k => {   // the game saves on pagehide; pageshow right after, as a return to the app would
+      window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true }));
+      window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+      const r = localStorage.getItem(k);
+      return r ? JSON.parse(r).settings.soundOnSilent : 'no save';
+    }, KEY);
+    // While the egg waits the top bar (and its Settings button) is hidden: click the button from script, its own handler.
+    const openSettingsHidden = () => step('open Settings', async () => { await ev(() => document.getElementById('settingsBtn').click()); await page.waitForSelector('#setDone'); });
 
     // ---------- (a) fresh start in the app ----------
     await step('(a) open the app fresh', async () => { await page.goto(`${kit.server.origin}/?pt=fresh#debug`); await booted(); });
@@ -86,6 +111,18 @@ function fakePhone({ seeds }) {
       check(await ev(() => !document.getElementById('eggHint')?.hidden), '(a) the egg hint shows');
       check(await ev(() => window.slimekin === undefined), '(a) #debug does not expose the game in the app (window.slimekin undefined)');
       await shot('a-fresh');
+    }
+    // (f) the app's fresh start: sound on silent Off
+    {
+      const sets = await sessionSets();
+      check(last(sets) === 'auto', '(f) app, fresh start: the audio session follows the silent switch (type auto)', JSON.stringify(sets));
+      await openSettingsHidden();
+      const row = await silentRow();
+      check(row.buttons === 2 && row.off === 'true' && row.on === 'false', '(f) app, fresh start: Settings shows "Sound when phone is on silent" Off', JSON.stringify(row));
+      await shot('f-fresh-settings');
+      await page.click('#setDone');
+      const v = await savedSilent();
+      check(v === false, '(f) app, fresh start: the save says soundOnSilent false', JSON.stringify(v));
     }
 
     // ---------- (b) localStorage wiped, the copy is there ----------
@@ -105,6 +142,11 @@ function fakePhone({ seeds }) {
       await page.waitForSelector('#setDone');
       const dbg = await ev(() => ({ buttons: document.querySelectorAll('#modalCard [data-dbg]').length, text: /Debug/.test(document.getElementById('modalCard').innerText) }));
       check(dbg.buttons === 0 && !dbg.text, '(b) #debug: no Debug section in Settings in the app', JSON.stringify(dbg));
+      const row = await silentRow();
+      check(row.buttons === 2 && row.on === 'true' && row.off === 'false', '(f) app, restored copy (On): Settings shows On', JSON.stringify(row));
+      const sets = await sessionSets();
+      check(last(sets) === 'playback', '(f) app, restored copy (On): the audio session plays on silent (type playback)', JSON.stringify(sets));
+      check((await lsSave()).settings.soundOnSilent === true, '(f) app, restored copy (On): the save still says true');
       await shot('b-settings-no-debug');
       await page.click('#setDone');
     }
@@ -166,6 +208,43 @@ function fakePhone({ seeds }) {
       check(await ev(() => localStorage.getItem('slimekin.platform.cleared') === null), '(c) the Start over marker is gone after the boot that used it');
       await shot('c-after-start-over');
     }
+    // (f) Start over in the app (Pebble had On): the new egg is Off again
+    {
+      const sets = await sessionSets();
+      check(last(sets) === 'auto', '(f) app, after Start over: the audio session follows the silent switch (type auto)', JSON.stringify(sets));
+      await openSettingsHidden();
+      const row = await silentRow();
+      check(row.buttons === 2 && row.off === 'true' && row.on === 'false', '(f) app, after Start over: Settings shows Off', JSON.stringify(row));
+      await page.click('#setDone');
+      const v = await savedSilent();
+      check(v === false, '(f) app, after Start over: the save says soundOnSilent false', JSON.stringify(v));
+    }
+    // (f) a family member pastes a save code from the web game (On there): the code's own value is kept
+    await step('(f) paste a save code (On)', async () => {
+      await ev(() => document.getElementById('settingsBtn').click());   // the egg is waiting: top bar hidden, as above
+      await page.waitForSelector('#setDone');
+      await page.click('#loadSave');
+      await page.fill('#saveCodeIn', CODE);
+      const nav = page.waitForNavigation({ waitUntil: 'commit', timeout: 90000 });
+      await page.click('#codeLoad');
+      await nav;
+      await booted();
+    });
+    await page.waitForTimeout(1500);
+    {
+      const name = await ev(() => document.getElementById('nameBtn')?.innerText || '');
+      check(/Pebble/.test(name), '(f) app, pasted code: the game shows Pebble', JSON.stringify(name));
+      const sets = await sessionSets();
+      check(last(sets) === 'playback', '(f) app, pasted code (On): the audio session plays on silent (type playback)', JSON.stringify(sets));
+      await page.click('#settingsBtn');
+      await page.waitForSelector('#setDone');
+      const row = await silentRow();
+      check(row.buttons === 2 && row.on === 'true' && row.off === 'false', '(f) app, pasted code (On): Settings shows On', JSON.stringify(row));
+      await shot('f-pasted-code-settings');
+      await page.click('#setDone');
+      const v = await savedSilent();
+      check(v === true, '(f) app, pasted code (On): the save says soundOnSilent true', JSON.stringify(v));
+    }
 
     // ---------- module checks on a blank page (no game) ----------
     await step('(c) module: burst of saves, one write', async () => { await page.goto(`${kit.server.origin}/__pt.html?pt=unit`); });
@@ -192,9 +271,11 @@ function fakePhone({ seeds }) {
         p.mirrorSave('p3');
         await new Promise(r => setTimeout(r, 100));
         const afterShow = sets().map(x => x.value);
-        return { isNative: p.isNative, store: p.store, ads: p.ads, MIRROR_MS: p.MIRROR_MS, early, first, second, atHide, whileLeaving, afterShow };
+        const fresh = p.freshState({ settings: { sound: true, soundOnSilent: true } }).settings;
+        return { isNative: p.isNative, store: p.store, ads: p.ads, MIRROR_MS: p.MIRROR_MS, early, first, second, atHide, whileLeaving, afterShow, fresh };
       });
       check(r.isNative === true && r.store === null && r.ads === null, '(c) module: isNative true with the fake runtime; store and ads slots are null');
+      check(r.fresh.soundOnSilent === false && r.fresh.sound === true, '(f) module: freshState in the app turns soundOnSilent off and nothing else', JSON.stringify(r.fresh));
       check(r.early === 0, '(c) module: no write right after a burst of five saves', `${r.early}`);
       check(r.first.length === 1 && r.first[0].v === 'm5' && r.first[0].dt >= r.MIRROR_MS - 50, '(c) module: one write, the last save, after MIRROR_MS', JSON.stringify(r.first));
       check(r.second.length === 2 && r.second[1].v === 'm7' && r.second[1].dt - r.second[0].dt >= r.MIRROR_MS, '(c) module: the next burst is one more write, MIRROR_MS later', JSON.stringify(r.second));
@@ -271,10 +352,13 @@ function fakePhone({ seeds }) {
         const restored = await p.restoreSave();
         await new Promise(r => setTimeout(r, p.MIRROR_MS + 300));
         const c = window.__pt.calls();
-        return { isNative: p.isNative, same, restored, vib: c.filter(x => x.m === 'vibrate').map(x => x.ms), plugin: c.filter(x => x.m !== 'vibrate') };
+        const fs0 = { settings: { sound: true, soundOnSilent: true } };
+        const fresh = p.freshState(fs0) === fs0 && JSON.stringify(fs0) === '{"settings":{"sound":true,"soundOnSilent":true}}';
+        return { isNative: p.isNative, same, restored, fresh, vib: c.filter(x => x.m === 'vibrate').map(x => x.ms), plugin: c.filter(x => x.m !== 'vibrate') };
       });
       check(r.isNative === false, `(e) ${s}: isNative is false`);
       check(r.same, `(e) ${s}: the save store is left exactly as it is`);
+      check(r.fresh, `(f) ${s}: freshState leaves a new game exactly as it is (soundOnSilent stays true)`);
       check(r.restored === false && r.plugin.length === 0, `(e) ${s}: no plugin is touched`, JSON.stringify(r.plugin));
       check(JSON.stringify(r.vib) === '[8]', `(e) ${s}: haptic(8) calls navigator.vibrate(8), as buzz() always did`, JSON.stringify(r.vib));
     }
@@ -290,6 +374,13 @@ function fakePhone({ seeds }) {
       check(JSON.stringify(r.vib) === '[8]', '(e) web: the game\'s buzz(8) calls navigator.vibrate(8)', JSON.stringify(r.vib));
       const dbg = await ev(() => { window.slimekin.openSettings(); return document.querySelectorAll('#modalCard [data-dbg]').length; });
       check(dbg > 0, '(e) web: Settings still has the Debug section', `${dbg} debug buttons`);
+      // (f) the web's fresh start: sound on silent stays On (the game's default)
+      const w = await ev(() => ({ v: window.slimekin.state.settings.soundOnSilent, phase: window.slimekin.state.phase, sets: navigator.audioSession.sets.slice() }));
+      check(w.v === true && w.phase === 'egg', '(f) web, fresh start: soundOnSilent true (the game\'s default)', JSON.stringify(w));
+      check(last(w.sets) === 'playback', '(f) web, fresh start: the audio session plays on silent (type playback)', JSON.stringify(w.sets));
+      const row = await silentRow();
+      check(row.buttons === 2 && row.on === 'true' && row.off === 'false', '(f) web, fresh start: Settings shows On', JSON.stringify(row));
+      await shot('f-web-settings');
     }
   } catch (e) {
     errors.push('test error: ' + e.message);
