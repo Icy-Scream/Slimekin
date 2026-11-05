@@ -205,13 +205,19 @@ export class Scenery {
     g.add(this.moon);
   }
 
+  // The classic look turns the whole meadow off (the floor goes back to the plain nursery color).
+  setEnabled(on) {
+    this.enabled = !!on;
+    this.setTheme(!!this.stage.dark);
+  }
+
   // Recolor for day or night; also sets the ground's grass texture.
   setTheme(dark) {
     const L = dark ? LOOK.night : LOOK.day;
     const fm = this.stage.floorMat;
-    if (fm.map) fm.map.dispose();
-    fm.map = grassTexture(L.grass);
-    fm.color.set('#ffffff');
+    if (fm.map) { fm.map.dispose(); fm.map = null; }
+    this.group.visible = this.enabled !== false;
+    if (this.enabled !== false) { fm.map = grassTexture(L.grass); fm.color.set('#ffffff'); }
     fm.needsUpdate = true;
     for (const h of this.hillMats) h.mat.color.set(L.hills[h.row]).lerp(new THREE.Color(L.far), h.row ? 0.35 : 0.1);
     this.leafMats.forEach((m, i) => m.color.set(L.leaves[i]));

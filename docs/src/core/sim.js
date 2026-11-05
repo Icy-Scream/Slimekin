@@ -3,9 +3,10 @@
 import {
   TUNING, STAGES, TRAIT_IDS, FOODS, FOOD_BY_ID, HELPERS, HELPER_BY_ID, HELPER_GROWTH,
   UPGRADES, UPGRADE_BY_ID, COMBOS, BOND, PERSONALITY_IDS, PURE_FORMS, PAIR_FORMS, GENERALIST_FORM,
-  UPGRADE_RENAMES, JAR_LEVELS, OUTFITS, OUTFIT_BY_ID, TRICK_LEARNED, RANCH,
+  UPGRADE_RENAMES, JAR_LEVELS, OUTFITS, OUTFIT_BY_ID, TRICK_LEARNED, RANCH, BREEDING, BUYERS, BUYER_BY_ID,
 } from '../data/content.js';
-import { createRanch, migrateRanch, Ranch, familyBonusFor, residentJpsFor } from './ranch.js';
+import { createRanch, migrateRanch, Ranch, familyBonusFor, residentJpsFor, dayNumber } from './ranch.js';
+import { emptyLineage, applyEgg, resolveForm, eggFromLineage } from './breeding.js';
 
 export const SAVE_VERSION = 1;
 
@@ -23,7 +24,9 @@ export function createState() {
     createdAt: Date.now(),
     savedAt: Date.now(),
     phase: 'egg', // egg -> naming -> play
-    egg: { warmth: 0 },
+    // the egg on the cushion: warmth from taps; bred = the Nursery egg it is (null for a plain egg), so it can go
+    // back to the Nursery; readyAt = when a bred egg is done warming (it can finish warming on the cushion)
+    egg: { warmth: 0, bred: null, readyAt: null },
     slime: {
       name: '',
       bornAt: null,
@@ -43,6 +46,7 @@ export function createState() {
       form: null,
       belly: [],
       tricks: {},
+      lineage: emptyLineage(),   // where it came from (parents, family spark, Pure line); see core/breeding.js
     },
     jelly: 0,
     totalJelly: 0,
@@ -84,6 +88,10 @@ export function migrate(save) {
   for (const k of ['upgrades', 'combos', 'buffs', 'memories', 'memKeys', 'secrets']) if (!Array.isArray(out[k])) out[k] = [];
   if (!Array.isArray(out.slime.belly)) out.slime.belly = [];
   out.slime.tricks = { ...(save.slime?.tricks || {}) };
+  out.slime.lineage = { ...emptyLineage(), ...(save.slime?.lineage || {}) };
+  if (!Array.isArray(out.slime.lineage.parents)) out.slime.lineage.parents = [];
+  // a bred egg put on the cushion before the cushion remembered its egg: rebuild that egg from the baby's lineage
+  if (out.phase === 'egg' && !out.egg.bred && out.slime.lineage.parents.length === 2) out.egg.bred = eggFromLineage(out.slime.lineage);
   out.ranch = migrateRanch(save.ranch);
   out.v = SAVE_VERSION;
   return out;
@@ -222,6 +230,16 @@ export class Sim {
     if (share < 0.3) return { ...GENERALIST_FORM, id: 'mochi' };
     const key = [top[0], second[0]].sort().join('+');
     return { ...(PAIR_FORMS[key] || GENERALIST_FORM), id: key };
+  }
+  // The form it settles into: the diet form, unless its egg carried a family spark (and it was raised on
+  // the recipe) or both parents had this same form (a Pure line). Records what the family learned.
+  settleForm() {
+    const res = resolveForm(this.formCandidate(), this.slime.lineage);
+    const R = this.s.ranch;
+    if (res.spark) this.ranch.learnSpark(res.spark, 'understood');
+    if (res.nearMiss) { this.ranch.learnSpark(res.nearMiss.spark, 'observed'); R.nearMiss[res.nearMiss.spark] = (R.nearMiss[res.nearMiss.spark] || 0) + 1; }
+    if (res.pure && !R.pures.includes(res.pure)) R.pures.push(res.pure);
+    return res;
   }
 
   // ---------- memories ----------
@@ -420,12 +438,14 @@ export class Sim {
     }
 
     const stageAfter = this.stageIndex();
-    let form = null;
+    let form = null, settled = null;
     if (stageAfter > stageBefore && stageAfter === STAGES.length - 1) {
-      form = this.formCandidate();
+      settled = this.settleForm();
+      form = settled.form;
       s.form = form;
     }
-    return { def, price, liked, overfed, growthGain, traitDeltas, joyDelta, bondUp, combo, comboNew, stageBefore, stageAfter, firstTime, discovered, form };
+    return { def, price, liked, overfed, growthGain, traitDeltas, joyDelta, bondUp, combo, comboNew, stageBefore, stageAfter, firstTime, discovered, form,
+      nearMiss: settled?.nearMiss || null, pureMiss: settled?.pureMiss || null };
   }
 
   buyHelper(id) {
@@ -477,38 +497,34 @@ export class Sim {
     return { cost, level: this.s.jar.level };
   }
 
-  // ---------- Moving to the ranch (a new generation) ----------
-  canMoveOut() { return this.s.phase === 'play' && this.stageIndex() === STAGES.length - 1; }
-  moveOutPreview() {
-    const total = this.s.totalJelly;
-    return { bonus: familyBonusFor(total), jps: residentJpsFor(total), room: this.ranch.free() > 0, generation: this.s.ranch.family.generation };
+  // ---------- The egg on the cushion ----------
+  // A bred egg can still be warming (readyAt); a plain egg is ready at once. Wall clock, like the Nursery.
+  eggReady(now = Date.now()) { return !this.s.egg.readyAt || now >= this.s.egg.readyAt; }
+  eggSecondsLeft(now = Date.now()) { return this.s.egg.readyAt ? Math.max(0, (this.s.egg.readyAt - now) / 1000) : 0; }
+  // A tap on the egg: warms it once it is ready (5 taps hatch it); before that, nothing changes.
+  warmEgg(now = Date.now()) {
+    if (this.s.phase !== 'egg') return null;
+    if (!this.eggReady(now)) return { ok: false, left: this.eggSecondsLeft(now) };
+    const e = this.s.egg;
+    e.warmth = Math.min(1, e.warmth + 0.2);
+    return { ok: true, warmth: e.warmth, hatch: e.warmth >= 1 };
   }
-  // The grown slime moves to the ranch and a new egg arrives. Everything bought with jelly resets
-  // (jelly, helpers, upgrades, the Jelly Jar); outfits, combos, secrets, pearls and the ranch stay.
-  moveToRanch(now = Date.now()) {
-    const s = this.s, sl = s.slime, ranch = s.ranch;
-    if (!this.canMoveOut() || this.ranch.free() <= 0) return null;
-    const total = s.totalJelly;
-    const bonus = familyBonusFor(total);
-    const resident = {
-      id: 'r' + now.toString(36) + Math.floor(Math.random() * 1e4).toString(36),
-      name: sl.name, form: sl.form || this.formCandidate(), traits: { ...sl.traits }, personality: { ...sl.personality },
-      bondXp: sl.bondXp, bondLevel: this.bondLevel(), favorite: sl.favorite, dislike: sl.dislike, tricks: { ...sl.tricks },
-      worn: { ...s.outfits.worn }, bornAt: sl.bornAt, movedAt: now, generation: ranch.family.generation,
-      runTotal: total, jps: residentJpsFor(total), happiness: 90, pearlT: 0.6, petAt: 0,
-      memories: s.memories.slice(-40),
-    };
-    ranch.residents.push(resident);
-    ranch.family.bonus += bonus;
-    ranch.family.generation++;
-    ranch.family.lifetime += total;
-    let gift = 0;
-    if (!ranch.gift) { ranch.gift = true; gift = RANCH.welcomeGift; this.ranch.addPearls(gift); }
-
+  // A Nursery egg goes on the cushion: the baby takes after its parents a little (see core/breeding.js).
+  placeEgg(egg) {
+    this.s.egg = { warmth: 0, bred: egg, readyAt: egg.readyAt ?? null };
+    applyEgg(this.s.slime, egg);
+  }
+  // Everything bought with jelly starts over and an egg goes on the cushion: a plain egg, or (eggId) one from the
+  // Nursery, ready or still warming (it finishes warming on the cushion). Outfits, combos, secrets, pearls and the
+  // ranch stay. Used by moving to the ranch and by finding a baby a new home.
+  startNextEgg(now, eggId = null) {
+    const s = this.s;
     const fresh = createState();
     s.phase = 'egg';
     s.egg = fresh.egg;
     s.slime = fresh.slime;
+    const egg = eggId ? this.ranch.takeEgg(eggId, now, { early: true }) : null;
+    if (egg) this.placeEgg(egg);
     s.jelly = 0;
     s.totalJelly = 0;
     s.jar = fresh.jar;
@@ -519,10 +535,95 @@ export class Sim {
     s.outfits.favorite = fresh.outfits.favorite;
     s.outfits.knownFavorite = false;
     s.memKeys = s.memKeys.filter(k => k.startsWith('combo-') || k.startsWith('secret'));
-    s.memories = [{ t: now, icon: '🏡', text: `${resident.name} moved to the ranch. A new egg arrived on the cushion.` }];
     this.giggle = 0; this.dizzy = 0; this.fever = false; this.asleep = false; this.recentFoods = []; this.lastFed = null;
     this.recompute();
-    return { resident, bonus, gift };
+    return egg;
+  }
+  // Before the egg on the cushion hatches, a Nursery egg (ready or still warming) can take its place. It is an
+  // exchange: the chosen egg leaves the Nursery first, then the egg it replaces goes back there if it came from
+  // there and there is room, otherwise a neighbor family raises it (counted like a given Nursery egg).
+  cushionSwap(eggId) {
+    const n = this.s.ranch.nursery, old = this.s.egg.bred || null;
+    const left = n.eggs.length - (this.ranch.egg(eggId) ? 1 : 0);
+    return { old, oldTo: old && left < BREEDING.maxEggs ? 'nursery' : 'neighbor' };
+  }
+  swapCushionEgg(eggId, now = Date.now()) {
+    const s = this.s, n = s.ranch.nursery;
+    if (s.phase !== 'egg' || !this.ranch.egg(eggId)) return null;
+    const { old, oldTo } = this.cushionSwap(eggId);
+    const egg = this.ranch.takeEgg(eggId, now, { early: true });
+    if (oldTo === 'nursery') n.eggs.push(old);
+    else n.given++;
+    s.slime = createState().slime;
+    this.placeEgg(egg);
+    return { egg, old, oldTo };
+  }
+
+  // ---------- Moving to the ranch (a new generation) ----------
+  canMoveOut() { return this.s.phase === 'play' && this.stageIndex() === STAGES.length - 1; }
+  moveOutPreview() {
+    const total = this.s.totalJelly;
+    return { bonus: familyBonusFor(total), jps: residentJpsFor(total), room: this.ranch.free() > 0, generation: this.s.ranch.family.generation };
+  }
+  // The grown slime moves to the ranch and a new egg arrives: a plain egg, or (eggId) an egg from the Nursery
+  // (ready or still warming). See startNextEgg for what starts over.
+  moveToRanch(now = Date.now(), { eggId = null } = {}) {
+    const s = this.s, sl = s.slime, ranch = s.ranch;
+    if (!this.canMoveOut() || this.ranch.free() <= 0) return null;
+    if (eggId && !this.ranch.egg(eggId)) return null;
+    const total = s.totalJelly;
+    const bonus = familyBonusFor(total);
+    const resident = {
+      id: 'r' + now.toString(36) + Math.floor(Math.random() * 1e4).toString(36),
+      name: sl.name, form: sl.form || this.formCandidate(), traits: { ...sl.traits }, personality: { ...sl.personality },
+      bondXp: sl.bondXp, bondLevel: this.bondLevel(), favorite: sl.favorite, dislike: sl.dislike, tricks: { ...sl.tricks },
+      worn: { ...s.outfits.worn }, bornAt: sl.bornAt, movedAt: now, generation: ranch.family.generation,
+      runTotal: total, jps: residentJpsFor(total), happiness: 90, pearlT: 0.6, petAt: 0,
+      memories: s.memories.slice(-40),
+      lineage: { ...emptyLineage(), ...(sl.lineage || {}) },
+    };
+    ranch.residents.push(resident);
+    ranch.family.bonus += bonus;
+    ranch.family.generation++;
+    ranch.family.lifetime += total;
+    let gift = 0;
+    if (!ranch.gift) { ranch.gift = true; gift = RANCH.welcomeGift; this.ranch.addPearls(gift); }
+
+    const egg = this.startNextEgg(now, eggId);
+    const arrived = egg ? `${egg.parents[0].name} and ${egg.parents[1].name}'s egg is waiting on the cushion.` : 'A new egg arrived on the cushion.';
+    s.memories = [{ t: now, icon: '🏡', text: `${resident.name} moved to the ranch. ${arrived}` }];
+    return { resident, bonus, gift, egg };
+  }
+
+  // ---------- Finding a baby a new home ----------
+  // A slime that is not grown yet (Hatchling, Sprout, Rascal) can go to a family that will raise it. No pearls
+  // (so hatching and giving away can't be farmed), no Family Bonus and no ranch slot (it never lived on the ranch),
+  // the generation stays. Its jelly still counts toward the family's lifetime total. It sends postcards.
+  canRehome() { return this.s.phase === 'play' && this.stageIndex() < STAGES.length - 1; }
+  // The family that suits this baby best; a balanced baby goes to one that wants nothing in particular.
+  rehomeBuyer() {
+    const x = { traits: this.slime.traits };
+    let best = null, bestFit = -Infinity;
+    for (const b of BUYERS) {
+      const f = this.ranch.fit(x, b) + (b.want.length ? 0 : 1e-9);
+      if (f > bestFit) { bestFit = f; best = b; }
+    }
+    return best;
+  }
+  rehomeBaby(now = Date.now(), { eggId = null, buyerId = null } = {}) {
+    const s = this.s, sl = s.slime, R = s.ranch;
+    if (!this.canRehome()) return null;
+    if (eggId && !this.ranch.egg(eggId)) return null;
+    const buyer = buyerId ? BUYER_BY_ID[buyerId] : this.rehomeBuyer();
+    if (!buyer) return null;
+    const name = sl.name || 'Your slime', stage = this.stage(), jelly = s.totalJelly;
+    R.family.lifetime += jelly;   // all jelly ever made counts
+    R.placed.push({ name, form: null, buyer: buyer.id, at: now, cards: 0, lastCard: dayNumber(now), baby: true, stage: stage.id });
+    if (R.placed.length > 60) R.placed.shift();
+    const egg = this.startNextEgg(now, eggId);
+    const arrived = egg ? `${egg.parents[0].name} and ${egg.parents[1].name}'s egg is waiting on the cushion.` : 'A new egg arrived on the cushion.';
+    s.memories = [{ t: now, icon: '💌', text: `${name} went to live at ${buyer.name}, where they will be loved and looked after. ${arrived}` }];
+    return { buyer, name, stage, egg, jelly };
   }
 
   // ---------- Outfits ----------

@@ -3,16 +3,18 @@
 import * as THREE from 'three';
 import { Sim, createState, migrate } from './core/sim.js';
 import { Requests } from './core/requests.js';
-import { TUNING, FOODS, FOOD_BY_ID, HELPERS, HELPER_BY_ID, UPGRADE_BY_ID, STAGES, TRAITS, TRAIT_IDS, BOND, PERSONALITY_IDS, JAR_LEVELS, OUTFITS, OUTFIT_BY_ID, RANCH, BUYER_BY_ID } from './data/content.js';
+import { TUNING, FOODS, FOOD_BY_ID, HELPERS, HELPER_BY_ID, UPGRADE_BY_ID, STAGES, TRAITS, TRAIT_IDS, BOND, PERSONALITY_IDS, JAR_LEVELS, OUTFITS, OUTFIT_BY_ID, RANCH, BUYER_BY_ID, BREEDING, SPARK_BY_ID, FORM_BY_ID, PURE_LINE } from './data/content.js';
 import { fmt, fmtShort, fmtDuration } from './core/format.js';
 import { Stage, CUSHION_TOP } from './view/stage.js';
 import { SlimeAvatar } from './view/slime.js';
 import { FX } from './view/fx.js';
 import { HelperWorld } from './view/helpers3d.js';
 import { Egg } from './view/egg.js';
+import { addEggSpark } from './view/egg-spark.js';
 import { makeFood, renderIcons, FOOD_MAKERS, HELPER_MAKERS, OUTFIT_MAKERS } from './view/models.js';
 import { Sfx } from './audio/sfx.js';
 import { Hud, esc } from './ui/hud.js';
+import { ICON } from './ui/icons.js';
 import { Behaviors } from './behaviors.js';
 import { RanchView } from './view/ranch.js';
 import { Scenery } from './view/scenery.js';
@@ -47,12 +49,18 @@ export class Game {
     this.slime.setTraits(this.state.slime.traits);
     this.slime.size = this.slime.sizeTarget = this.sim.size();
     this.slime.setOutfits(this.state.outfits.worn);
-    if (this.state.slime.form) this.slime.setForm(this.state.slime.form.id);
+    if (this.state.slime.form) this.slime.setForm(this.state.slime.form.id, { pure: this.state.slime.form.pure });
     this.formFxT = 1;
+    this.timeSkip = 0;   // test clock: advance() moves the Nursery's egg timers along with game time
+    // debug only (#debug): Nursery eggs are ready at once and parents don't rest; remembered on this device, not in the save
+    this.debugInstant = DEBUG && (() => { try { return localStorage.getItem('slimekin.debug.instantEggs') === '1'; } catch { return false; } })();
     this.ranch = new RanchView(this.scene, { quality: this.resolvedQuality() });
     this.ranch.setTheme(this.stage.dark, this.stage.palette.floor);
-    this.stage.onTheme = (dark, p) => { this.ranch.setTheme(dark, p.floor); this.scenery.setTheme(dark); };
+    this.stage.onTheme = (dark, p) => { this.ranch.setTheme(dark, p.floor); this.scenery.setTheme(dark); this.eggSpark && this.eggSpark.setNight(dark); };
     this.ranch.sync(this.state.ranch?.residents || []);
+    this.ranchPage = null;   // 'nursery' while the Nursery panel is open
+    this.nurseryT = 0;
+    this.syncNursery();
     this.helpers3d = new HelperWorld(this.scene, this.fx);
     this.helpers3d.sync(this.state.helpers);
     this.hud = new Hud(this);
@@ -125,6 +133,8 @@ export class Game {
 
     this.applySettings();
     this.setupPhase();
+    this.instantEggs();
+    document.getElementById('eggAlt').addEventListener('click', () => this.openNursery());
     this.after(2.5, () => this.checkPostcards());
     if (this.state.ranch.justMoved) { const j = this.state.ranch.justMoved; delete this.state.ranch.justMoved; this.after(1.4, () => this.showMovedIn(j)); }
     this.bindInput();
@@ -179,6 +189,10 @@ export class Game {
 
   applySettings() {
     const s = this.state.settings;
+    // background: the meadow, or the classic plain nursery (only the slime to look at)
+    if (s.scene !== 'classic' && s.scene !== 'meadow') s.scene = 'meadow';
+    this.scenery.setEnabled(s.scene === 'meadow');
+    this.stage.setClassic(s.scene === 'classic');
     this.sfx.setPlayOnSilent(!!s.soundOnSilent);
     this.sfx.setSound(s.sound);
     this.sfx.setMusic(s.music);
@@ -196,13 +210,11 @@ export class Game {
   setupPhase() {
     const st = this.state;
     if (st.phase === 'egg') {
-      this.egg = new Egg();
-      this.egg.group.position.y = SLIME_Y;
-      this.egg.setWarmth(st.egg.warmth);
-      this.scene.add(this.egg.group);
+      this.makeEggView();
       this.slime.root.visible = false;
       this.slime.visible = false;
       document.getElementById('eggHint').hidden = false;
+      this.eggWarming = !this.sim.eggReady(this.nowMs());
       this.updateEggHint();
       this.hud.setPhase('egg');
     } else {
@@ -212,28 +224,86 @@ export class Game {
     }
   }
 
+  // the egg on the cushion as you see it: a bred egg has its parents' spot colors (and a twinkle for a family spark)
+  makeEggView() {
+    if (this.egg) {
+      this.scene.remove(this.egg.group);
+      this.egg.mesh.geometry.dispose(); this.egg.mat.dispose(); this.egg.tex.dispose();
+    }
+    const lin = this.state.slime.lineage || {};
+    this.egg = new Egg({ colors: lin.parents?.length ? this.eggColors(lin.bias) : null });
+    this.eggSpark = lin.spark ? addEggSpark(this.egg, { night: this.stage.dark }) : null;
+    this.egg.group.position.y = SLIME_Y;
+    this.egg.setWarmth(this.state.egg.warmth);
+    this.scene.add(this.egg.group);
+  }
+
+  // The hint under the egg. A Nursery egg chosen while still warming finishes on the cushion: the hint counts down
+  // and the bar shows the time; taps wait until it is ready.
   updateEggHint() {
-    const w = this.state.egg.warmth;
-    document.getElementById('eggWarm').style.width = Math.round(w * 100) + '%';
-    const t = w <= 0 ? 'Tap the egg to keep it warm' : w < 0.4 ? 'It likes that. Keep going' : w < 0.8 ? 'It is getting warmer...' : 'Almost there!';
-    document.getElementById('eggText').textContent = t;
+    const w = this.state.egg.warmth, now = this.nowMs();
+    const warming = !this.sim.eggReady(now);
+    const set = (id, text) => { const el = document.getElementById(id); if (el.textContent !== text) el.textContent = text; };
+    document.getElementById('eggHint').classList.toggle('warming', warming);
+    if (warming) {
+      const left = this.sim.eggSecondsLeft(now);
+      document.getElementById('eggWarm').style.width = Math.round(100 * (1 - Math.min(1, left / (BREEDING.readyHours * 3600)))) + '%';
+      set('eggTitle', 'Still warming');
+      set('eggText', `Ready in ${fmtDuration(left)}. It can finish warming right here.`);
+    } else {
+      document.getElementById('eggWarm').style.width = Math.round(w * 100) + '%';
+      set('eggTitle', "Something's wiggling");
+      set('eggText', w <= 0 ? 'Tap the egg to keep it warm' : w < 0.4 ? 'It likes that. Keep going' : w < 0.8 ? 'It is getting warmer...' : 'Almost there!');
+    }
+    // a gentle way to a Nursery egg instead (before this one hatches)
+    const alt = document.getElementById('eggAlt'), show = this.sim.ranch.eggs().length > 0 && !this.hatching;
+    if (alt.hidden === show) alt.hidden = !show;
+  }
+  // once a second while the egg waits: the countdown, and a little sparkle the moment a warming egg is ready
+  updateEggWait(dt) {
+    this.eggWaitT = (this.eggWaitT ?? 0) - dt;
+    if (this.eggWaitT > 0) return;
+    this.eggWaitT = 1;
+    const warming = !this.sim.eggReady(this.nowMs());
+    if (this.eggWarming && !warming && this.egg && !this.hatching) {
+      this.egg.tap();
+      this.fx.emit('sparkles', this.egg.group.position.clone().add(new THREE.Vector3(0, 0.9, 0)), { count: 12, color: '#ffe7a8' });
+      this.sfx.sparkle();
+      if (this.view !== 'ranch') this.hud.toast('<b>The egg is ready!</b>Tap it to keep it warm.', 'love', 3200);
+    }
+    this.eggWarming = warming;
+    this.updateEggHint();
   }
 
   tapEgg(point) {
     if (this.hatching) return;
     const st = this.state;
-    st.egg.warmth = Math.min(1, st.egg.warmth + 0.2);
+    const r = this.sim.warmEgg(this.nowMs());
+    if (!r) return;
+    if (!r.ok) {
+      // still warming: a small "not yet" shake, no warmth
+      this.egg.notYet();
+      this.sfx.bounce();
+      if (this.time - (this.notYetT ?? -99) > 2.5) {
+        this.notYetT = this.time;
+        this.hud.toast(`<b>Not yet!</b>This egg is still warming. Ready in ${fmtDuration(r.left)}.`, '', 2600);
+      }
+      this.updateEggHint();
+      return;
+    }
     this.egg.tap();
     this.egg.setWarmth(st.egg.warmth);
     if (st.egg.warmth > 0.3) this.sfx.crack(); else this.sfx.bounce();
     this.fx.emit('sparkles', point, { count: 5, color: '#ffe7a8' });
     this.updateEggHint();
     this.saveNow();
-    if (st.egg.warmth >= 1) this.hatch();
+    if (r.hatch) this.hatch();
   }
 
   hatch() {
     this.hatching = true;
+    this.hud.setSheet('closed', false);
+    this.hud.updateEggRanch();   // the Ranch tab goes away until the baby has a name
     this.egg.wobV += 14;
     this.after(0.25, () => { this.egg.wobV -= 18; this.sfx.crack(); });
     this.after(0.55, () => { this.egg.wobV += 18; this.sfx.crack(); });
@@ -251,7 +321,9 @@ export class Game {
       this.slime.hop(6);
       this.state.slime.bornAt = Date.now();
       this.state.phase = 'naming';
-      this.sim.remember('🥚', 'Hatched from a warm, spotty egg.', 'hatch');
+      const lin = this.state.slime.lineage || {};
+      const from = lin.parents?.length ? `Hatched from ${lin.parents[0].name} and ${lin.parents[1].name}'s egg.${lin.spark ? ' The egg twinkled with a family spark.' : ''}` : 'Hatched from a warm, spotty egg.';
+      this.sim.remember('🥚', from, 'hatch');
       this.flash({ eyes: 'sleep', mouth: 'o' }, 0.9);
       this.lookOverride = { target: new THREE.Vector3(-3, 1, 2), until: this.time + 2.0 };
       this.after(1.3, () => { this.lookOverride = { target: new THREE.Vector3(3, 1.2, 2), until: this.time + 0.7 }; this.sfx.question(); });
@@ -262,6 +334,8 @@ export class Game {
   }
 
   askName() {
+    const lin = this.state.slime.lineage || {};
+    const parents = lin.parents?.length ? `${esc(lin.parents[0].name)} and ${esc(lin.parents[1].name)}` : null;
     this.hud.showNaming(name => {
       const st = this.state;
       st.slime.name = name;
@@ -276,7 +350,7 @@ export class Game {
       this.after(0.4, () => this.hud.say(`${name}!`, 1800));
       this.saveNow(true);
       this.layoutChanged();
-    });
+    }, parents ? { title: `${parents}'s baby hatched!`, text: `They take after their parents a little. What will you call them?` } : {});
   }
 
   rename(name) {
@@ -401,12 +475,15 @@ export class Game {
     else if (this.view === 'ranch') this.leaveRanch(false);
   }
 
+  // (also while an egg waits on the cushion: the family's ranch keeps going and can be visited)
   goRanch() {
-    if (this.view === 'ranch' || this.state.phase !== 'play' || this.departing) return;
+    const phase = this.state.phase;
+    if (this.view === 'ranch' || (phase !== 'play' && phase !== 'egg') || this.hatching || this.departing) return;
     this.view = 'ranch';
     this.ranch.visiting = true;
     this.ranch.grassLife = RANCH.grassLife;
     this.press = null; this.swipe = null;
+    if (this.hud.sheetState() === 'tall') this.hud.setSheet('normal', false);   // going to the ranch: the menu is back to normal
     document.body.classList.add('at-ranch');
     document.getElementById('ranchBar').hidden = false;
     this.hud.toggleEmotes(false);
@@ -429,15 +506,16 @@ export class Game {
     this.view = 'home';
     this.ranch.visiting = false;
     this.ranchFocus = null;
+    this.ranchPage = null;
     this.ranch.focusId = null;
     this.rpress = null;
     document.body.classList.remove('at-ranch');
     document.getElementById('ranchBar').hidden = true;
     this.stage.focus = null;
     if (selectTab && this.hud.tab === 'ranch') {
-      document.getElementById('panel').classList.remove('open');
+      this.hud.setSheet('closed', false);
       this.hud.selectTab('helpers');
-    }
+    } else if (this.hud.sheetState() === 'tall') this.hud.setSheet('normal', false);   // back home: the menu is back to normal
     this.layoutChanged();
   }
 
@@ -446,13 +524,15 @@ export class Game {
     if (this.view !== 'ranch' || !f) return;
     const aspect = innerWidth / innerHeight;
     let fov = null;
-    if (this.ranchFocus) fov = this.ranch.cameraNear(this.ranchFocus, aspect, f.pos, f.look);
+    if (this.ranchPage === 'nursery' && !this.ranchFocus) fov = this.ranch.cameraNursery(aspect, f.pos, f.look);
+    else if (this.ranchFocus) fov = this.ranch.cameraNear(this.ranchFocus, aspect, f.pos, f.look);
     if (fov === null) { if (this.ranchFocus) this.focusResident(null); fov = this.ranch.cameraFor(aspect, f.pos, f.look); }
     f.fov = fov;
   }
 
   focusResident(id) {
     if (id && this.view !== 'ranch') this.hud.openTab('ranch');
+    if (id) this.ranchPage = null;
     this.ranchFocus = id || null;
     this.ranch.focusId = this.ranchFocus;
     const x = id && this.sim.ranch.resident(id);
@@ -479,6 +559,7 @@ export class Game {
     if (!hit) return;
     if (hit.type === 'pearl') { this.pickRanchPearl(hit.pearl); rp.done = true; }
     else if (hit.type === 'basket') { this.collectBasket(); rp.done = true; }
+    else if (hit.type === 'nursery') { this.openNursery(); rp.done = true; }
     else if (hit.type === 'slime') {
       if (this.ranchFocus === hit.id) this.petResident(hit.id);
       else { this.focusResident(hit.id); rp.done = true; }
@@ -502,7 +583,7 @@ export class Game {
     this.rpress = null;
     if (cancel || rp.done) return;
     const tap = Math.hypot(e.clientX - rp.x0, e.clientY - rp.y0) < 10 && this.time - rp.t < 0.6;
-    if (tap && (!rp.hit || rp.hit.type === 'ranch') && this.ranchFocus) this.focusResident(null);
+    if (tap && (!rp.hit || rp.hit.type === 'ranch') && (this.ranchFocus || this.ranchPage)) { this.ranchPage = null; this.focusResident(null); }
   }
 
   petResident(id, stroke = false) {
@@ -570,6 +651,127 @@ export class Game {
     this.saveNow(true);
   }
 
+  // ---------- the Nursery (breeding) ----------
+  // Wall clock for egg timers; advance() (tests) moves it along with game time.
+  nowMs() { return Date.now() + this.timeSkip; }
+  // Spot colors for a bred egg: what its parents passed on (their strongest snack colors).
+  eggColors(bias) {
+    const top = TRAIT_IDS.map(k => [k, bias?.[k] || 0]).filter(e => e[1] > 1).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k]) => TRAITS[k].color);
+    return top.length ? [...top, '#fff1c9'] : null;
+  }
+  syncNursery() {
+    const rr = this.sim.ranch, now = this.nowMs();
+    this.ranch.setNursery(rr.eggs().map(e => ({ id: e.id, spark: !!e.spark, colors: this.eggColors(e.bias), ready: rr.eggReady(e, now) })));
+  }
+  openNursery() {
+    if ((this.state.phase !== 'play' && this.state.phase !== 'egg') || this.hatching) return;
+    if (this.view !== 'ranch') this.hud.openTab('ranch');
+    if (this.view !== 'ranch') return;
+    if (this.ranchFocus) this.focusResident(null);
+    this.ranchPage = 'nursery';
+    document.getElementById('body-ranch').scrollTop = 0;
+    document.getElementById('ranchHint').textContent = 'The Nursery. Pick two parents below. Tap the grass to step back.';
+    this.hud.openTab('ranch');
+    this.hud.renderRanch(true);
+    this.sfx.mii();
+  }
+  closeNursery() {
+    this.ranchPage = null;
+    document.getElementById('body-ranch').scrollTop = 0;
+    document.getElementById('ranchHint').textContent = 'Tap a slime to visit it. Drag to look around.';
+    this.hud.renderRanch(true);
+  }
+  breed(aId, bId) {
+    this.sfx.unlock();
+    const rr = this.sim.ranch;
+    const r = rr.breed(aId, bId, this.nowMs());
+    if (!r) { this.sfx.error(); this.hud.renderRanch(true); return null; }
+    this.instantEggs();
+    const [p, q] = r.egg.parents;
+    this.sfx.buy(); this.after(0.3, () => this.sfx.sparkle());
+    for (const id of [aId, bId]) { const v = this.ranch.resident(id); if (v) { v.av.hop(5); v.happyT = 2.4; } }
+    this.syncNursery();
+    const nest = this.ranch.nest.getWorldPosition(new THREE.Vector3());
+    this.fx.emit('hearts', nest.clone().add(new THREE.Vector3(0, 0.5, 0)), { count: 6 });
+    if (r.egg.spark) {
+      this.fx.emit('sparkles', nest.clone().add(new THREE.Vector3(0, 0.4, 0)), { count: 14, color: '#ffe08a' });
+      this.remember('✦', `${p.name} and ${q.name} made an egg that twinkles. They share a family spark!`, 'sparkegg-' + r.egg.spark);
+      this.hud.toast(`<b>A twinkly egg!</b>${esc(p.name)} and ${esc(q.name)} share a family spark. Something special could hatch, if the baby is raised just right.`, 'love', 5200);
+    } else {
+      this.remember('🥚', `${p.name} and ${q.name} made an egg together in the Nursery.`);
+      const when = this.state.phase === 'egg' ? 'You can put it on the cushion instead of the egg there now.' : `Choose it when ${esc(this.Name)} moves to the ranch.`;
+      this.hud.toast(`<b>A new egg in the Nursery</b>${esc(p.name)} and ${esc(q.name)}'s egg is ${this.debugInstant ? 'ready now (debug: instant eggs)' : `ready in ${fmtDuration(BREEDING.readyHours * 3600)}`}. ${when}`, 'love', 4600);
+    }
+    this.hud.nurseryPick = [];
+    this.hud.renderRanch(true);
+    this.saveNow(true);
+    return r;
+  }
+  giveEgg(id) {
+    const e = this.sim.ranch.egg(id);
+    if (!e) return;
+    const names = `${esc(e.parents[0].name)} and ${esc(e.parents[1].name)}`;
+    this.hud.openModal(`<h2>Give the egg to a neighbor?</h2><p>A kind family down the road would love to raise ${names}'s egg. It frees a spot in the nest. You don't get pearls back.</p>
+      <div class="actions"><button class="btn" id="geNo">Keep it</button><button class="btn primary" id="geYes">Give it</button></div>`, {
+      onOpen: card => {
+        card.querySelector('#geNo').addEventListener('click', () => this.hud.closeModal());
+        card.querySelector('#geYes').addEventListener('click', () => {
+          this.hud.closeModal();
+          if (!this.sim.ranch.giveEgg(id)) return;
+          this.remember('💌', `${e.parents[0].name} and ${e.parents[1].name}'s egg went to a neighbor family who will love the baby.`);
+          this.hud.toast(`<b>Off to a loving home</b>The neighbors promised to send pictures.`, 'love', 3600);
+          this.sfx.sparkle();
+          this.syncNursery();
+          this.hud.renderRanch(true);
+          this.saveNow(true);
+        });
+      },
+    });
+  }
+
+  // ---------- the egg on the cushion: a Nursery egg can take its place before it hatches ----------
+  askCushion(id) {
+    const rr = this.sim.ranch, e = rr.egg(id);
+    if (!e || this.state.phase !== 'egg' || this.hatching) return;
+    const sw = this.sim.cushionSwap(id);
+    const names = `${esc(e.parents[0].name)} and ${esc(e.parents[1].name)}`;
+    const left = rr.eggSecondsLeft(e, this.nowMs());
+    const there = sw.old ? `${esc(sw.old.parents[0].name)} and ${esc(sw.old.parents[1].name)}'s egg (on the cushion now)` : 'The egg there now';
+    const goes = sw.oldTo === 'nursery' ? 'will go back to the Nursery' : 'will go to a neighbor family who will love the baby';
+    this.hud.openModal(`<h2>Put ${names}'s egg on the cushion?</h2>
+      <p>${there} ${goes}.${left > 0 ? ` ${names}'s egg is still warming: ready in ${fmtDuration(left)}. It can finish warming on the cushion.` : ''}</p>
+      <div class="actions"><button class="btn" id="cuNo">Not now</button><button class="btn primary" id="cuYes">Put it on the cushion</button></div>`, {
+      onOpen: card => {
+        card.querySelector('#cuNo').addEventListener('click', () => this.hud.closeModal());
+        card.querySelector('#cuYes').addEventListener('click', () => { this.hud.closeModal(); this.swapEgg(id); });
+      },
+    });
+  }
+  swapEgg(id) {
+    this.sfx.unlock();
+    const r = this.sim.swapCushionEgg(id, this.nowMs());
+    if (!r) { this.sfx.error(); this.hud.renderRanch(true); return; }
+    const [p, q] = r.egg.parents;
+    const old = r.old ? `${r.old.parents[0].name} and ${r.old.parents[1].name}'s egg` : 'The plain egg';
+    const was = r.oldTo === 'nursery' ? `${old} went back to the Nursery.` : `${old} went to a neighbor family who will love the baby.`;
+    this.remember('🥚', `${p.name} and ${q.name}'s egg went on the cushion. ${was}`);
+    this.makeEggView();
+    this.eggWarming = !this.sim.eggReady(this.nowMs());
+    this.updateEggHint();
+    this.syncNursery();
+    this.hud.renderRanch(true);
+    this.saveNow(true);
+    // home, to see it on the cushion
+    this.leaveRanch();
+    this.hud.toast(`<b>${esc(p.name)} and ${esc(q.name)}'s egg is on the cushion</b>${esc(was)}`, 'love', 4200);
+    this.after(0.6, () => {
+      if (!this.egg) return;
+      this.egg.tap();
+      this.fx.emit('sparkles', this.egg.group.position.clone().add(new THREE.Vector3(0, 0.9, 0)), { count: 14, color: r.egg.spark ? '#ffe08a' : '#ffe7a8' });
+      this.sfx.sparkle();
+    });
+  }
+
   // ---------- moving to the ranch (a new generation) ----------
   askMoveOut() {
     const sim = this.sim;
@@ -580,29 +782,74 @@ export class Game {
       this.hud.showSimple('The ranch is full', `<p>There's room for ${R.slots} slimes. Buy more room with pearls, or find one of your ranch slimes a new home first.</p>`, 'OK');
       return;
     }
+    const eggs = sim.ranch.eggs();
+    const choice = this.eggChoiceHtml();
     this.hud.openModal(`<h2>Move ${name} to the ranch?</h2>
-      <p>${name} will live on the hill behind the cushion, making jelly and pearls, and you can visit any time. A new egg arrives and you raise a new baby.</p>
+      <p>${name} will live on the hill behind the cushion, making jelly and pearls, and you can visit any time. ${eggs.length ? 'Then an egg goes on the cushion' : 'A new egg arrives'} and you raise a new baby.</p>
+      ${choice}
       <div class="card"><b>Family Bonus +${pv.bonus.toFixed(1)}%</b><span class="sub">to all jelly, forever. It adds up with every generation. Playing longer first makes it bigger.</span></div>
       <div class="card"><b>You keep</b><span class="sub">Pearls, the ranch, outfits, combos you found and secrets. ${name}'s journal goes with them.</span><b>Starts over</b><span class="sub">Jelly, helpers, upgrades and the Jelly Jar.</span></div>
       <div class="actions"><button class="btn" id="mvNo">Not yet</button><button class="btn primary" id="mvYes">Move to the ranch</button></div>`, {
       onOpen: card => {
+        const pick = this.bindEggChoice(card);
         card.querySelector('#mvNo').addEventListener('click', () => this.hud.closeModal());
-        card.querySelector('#mvYes').addEventListener('click', () => { this.hud.closeModal(); this.moveOut(); });
+        card.querySelector('#mvYes').addEventListener('click', () => { this.hud.closeModal(); this.moveOut(pick() || null); });
       },
     });
   }
 
-  moveOut() {
+  // "Which egg comes next?": a plain egg, or any egg waiting in the Nursery. One still warming can be chosen too:
+  // it goes on the cushion and finishes warming there.
+  eggChoiceHtml() {
+    const rr = this.sim.ranch, now = this.nowMs(), eggs = rr.eggs();
+    if (!eggs.length) return '';
+    return `<div class="sec-title">Which egg comes next?</div><div class="egg-choice" role="radiogroup" aria-label="Which egg comes next">
+      <button class="card choice" role="radio" aria-checked="true" data-egg=""><span class="egg-ic" aria-hidden="true"></span><span><b>A new egg</b><span class="sub">A brand-new slime, all its own.</span></span></button>` +
+      eggs.map(e => {
+        const ready = rr.eggReady(e, now), [p, q] = e.parents;
+        const cols = this.eggColors(e.bias) || [];
+        const kind = e.spark ? 'It twinkles: a family spark!' : e.pure ? `Both parents are ${esc(FORM_BY_ID[e.pure]?.name || 'the same')}s.` : 'Takes after its parents a little.';
+        const note = ready ? kind : `Still warming: ready in ${fmtDuration(rr.eggSecondsLeft(e, now))}, it can finish on the cushion.${e.spark ? ' It twinkles!' : ''}`;
+        return `<button class="card choice${e.spark ? ' spark' : ''}${ready ? '' : ' warming'}" role="radio" aria-checked="false" data-egg="${e.id}"><span class="egg-ic${e.spark ? ' spark' : ''}" style="--a:${cols[0] || '#9eefd3'};--b:${cols[1] || '#ffc2dc'}" aria-hidden="true"></span><span><b>${esc(p.name)} and ${esc(q.name)}'s egg</b><span class="sub">${note}</span></span></button>`;
+      }).join('') + '</div>';
+  }
+  // returns a function that reads the chosen egg id ('' = a plain egg)
+  bindEggChoice(card) {
+    let eggId = '';
+    for (const b of card.querySelectorAll('.choice')) b.addEventListener('click', () => {
+      eggId = b.dataset.egg;
+      for (const o of card.querySelectorAll('.choice')) o.setAttribute('aria-checked', String(o === b));
+      this.sfx.plip();
+    });
+    return () => eggId;
+  }
+
+  moveOut(eggId = null) {
     if (this.departing || !this.sim.canMoveOut()) return;
+    this.depart({ eggId, say: "I'll be on the hill! ♥" });
+  }
+
+  // The goodbye: hearts, a hop away (to the hill, or for a baby a wave and hops off to the side, toward its new
+  // family), a white fade, then the rule runs and the page reloads into the egg on the cushion.
+  depart({ eggId = null, buyerId = null, say }) {
     this.leaveRanch();
-    this.departing = { t: 0, z: 0, hopT: 0.4 };
+    // the goodbye happens in view: a menu still open (the Slime tab) closes first
+    if (window.matchMedia('(max-width: 860px)').matches && this.hud.sheetState() !== 'closed') this.hud.setSheet('closed');
+    const baby = !!buyerId;
+    this.departing = { t: 0, z: 0, x: 0, hopT: 0.4, side: baby };
     const name = this.Name;
     this.press = null;
     this.flash({ eyes: 'happy', mouth: 'grin', blush: 1 }, 3);
     this.sfx.mii();
-    this.hud.say("I'll be on the hill! ♥", 2200);
+    this.hud.say(say, 2200);
     this.fx.emit('hearts', this.slime.headTopWorld(this.v1), { count: 10 });
-    this.after(1.2, () => { this.slime.spin(); this.slime.hop(6); this.sfx.whee ? this.sfx.whee() : this.sfx.sparkle(); });
+    if (baby) {
+      // a goodbye wave, looking toward where its new family waits
+      this.slime.nub('wave', new THREE.Vector3(0.9, 0.32, 0.3), 0.46, { wave: 0.45, snap: 3 });
+      this.after(1.7, () => this.slime.nubIn('wave'));
+      this.lookOverride = { target: new THREE.Vector3(6, 1.2, 2), until: this.time + 6 };
+    }
+    this.after(1.2, () => { if (!baby) this.slime.spin(); this.slime.hop(6); this.sfx.whee ? this.sfx.whee() : this.sfx.sparkle(); });
     this.after(2.2, () => { this.departing.go = true; });
     this.after(4.2, () => {
       const fade = document.createElement('div');
@@ -611,9 +858,16 @@ export class Game {
       requestAnimationFrame(() => fade.classList.add('on'));
     });
     this.after(5.3, async () => {
-      const r = this.sim.moveToRanch();
-      if (!r) { location.reload(); return; }
-      this.state.ranch.justMoved = { name, form: r.resident.form?.name || '', bonus: r.bonus, gift: r.gift };
+      const eggOf = egg => egg ? { parents: egg.parents.map(p => p.name), spark: !!egg.spark } : null;
+      if (baby) {
+        const r = this.sim.rehomeBaby(this.nowMs(), { eggId, buyerId });
+        if (!r) { location.reload(); return; }
+        this.state.ranch.justMoved = { baby: true, name, buyer: r.buyer.name, egg: eggOf(r.egg) };
+      } else {
+        const r = this.sim.moveToRanch(this.nowMs(), { eggId });
+        if (!r) { location.reload(); return; }
+        this.state.ranch.justMoved = { name, form: r.resident.form?.name || '', bonus: r.bonus, gift: r.gift, egg: eggOf(r.egg) };
+      }
       this.saveNow(false);
       try { await Promise.race([this.store.saveCloud(this.serialize()), new Promise(res => setTimeout(res, 2500))]); } catch { /* ignore */ }
       this.resetting = true;
@@ -628,6 +882,12 @@ export class Game {
     if (!d.go) return;
     d.hopT -= dt;
     if (d.hopT <= 0 && this.slime.hopY <= 0) { this.slime.hop(5); d.hopT = 0.35; this.sfx.boing ? this.sfx.boing() : null; }
+    if (d.side) {
+      // a baby hops off to the side, toward its new family (off the cushion just as the fade starts)
+      d.x += dt * 1.5;
+      this.slime.root.position.x = d.x;
+      return;
+    }
     d.z -= dt * 2.6;
     this.slime.root.position.z = d.z;
     this.slime.root.position.x = Math.sin(d.t * 2) * 0.2;
@@ -636,13 +896,48 @@ export class Game {
 
   showMovedIn(j) {
     const R = this.state.ranch;
+    const left = this.sim.eggSecondsLeft(this.nowMs());
+    const warmIt = left > 0 ? `It is still warming: ready in ${fmtDuration(left)}. It can finish warming right there.` : 'Tap it to keep it warm.';
+    const eggLine = j.egg ? `<p>And look: ${esc(j.egg.parents[0])} and ${esc(j.egg.parents[1])}'s egg is on the cushion${j.egg.spark ? ', twinkling' : ''}. ${warmIt}</p>` : '<p>And look: a new egg arrived. Tap it to keep it warm.</p>';
+    if (j.baby) {
+      this.hud.showSimple(`${esc(j.name)} has a new home!`, `<p>${esc(j.name)} went to live at ${esc(j.buyer)}, where they will be loved and looked after. Watch for postcards!</p>${eggLine}`, 'Hello, little egg!');
+      this.saveNow(true);
+      return;
+    }
     const others = R.residents.length - 1;
     let body = `<p>${esc(j.name)} is settling in on the hill behind the cushion${others > 0 ? `, with ${others} other slime${others === 1 ? '' : 's'}` : ''}. Open the Ranch tab to visit.</p>`;
     body += `<div class="card"><b>Family Bonus +${j.bonus.toFixed(1)}%</b><span class="sub">Now +${R.family.bonus.toFixed(1)}% to all jelly, forever. This is generation ${R.family.generation}.</span></div>`;
     if (j.gift) body += `<div class="card"><b><i class="pearl"></i> ${j.gift} pearls</b><span class="sub">${esc(j.name)} found these on the way. Ranch slimes make pearls over time: spend them on more room and a bigger Pearl Basket.</span></div>`;
-    body += '<p>And look: a new egg arrived. Tap it to keep it warm.</p>';
+    body += eggLine;
     this.hud.showSimple(`${esc(j.name)} moved to the ranch!`, body, 'Hello, little egg!');
     this.saveNow(true);
+  }
+
+  // ---------- finding a baby a new home ----------
+  // Not grown yet (Hatchling, Sprout, Rascal): a kind family raises them. No pearls, no Family Bonus, no ranch slot;
+  // the same egg choice as moving out comes next.
+  askRehome() {
+    const sim = this.sim;
+    if (!sim.canRehome() || this.departing) return;
+    const buyer = sim.rehomeBuyer();
+    const name = esc(this.Name);
+    const choice = this.eggChoiceHtml();
+    this.hud.openModal(`<h2>A new home for ${name}?</h2>
+      <p><b>${esc(buyer.name)}</b> would love to raise ${name}. ${name} will be loved and looked after there, and will send you postcards about growing up.</p>
+      ${choice || '<p>Then a new egg arrives on the cushion, and you raise a new baby.</p>'}
+      <div class="card"><b>No pearls for a baby</b><span class="sub">Only grown-up slimes bring pearls and a Family Bonus. ${name} won't live on the ranch.</span></div>
+      <div class="card"><b>You keep</b><span class="sub">Pearls, the ranch, outfits, combos you found and secrets.</span><b>Starts over</b><span class="sub">Jelly, helpers, upgrades and the Jelly Jar.</span></div>
+      <div class="actions"><button class="btn" id="rhNo">Keep ${name}</button><button class="btn primary" id="rhYes">Find a new home</button></div>`, {
+      onOpen: card => {
+        const pick = this.bindEggChoice(card);
+        card.querySelector('#rhNo').addEventListener('click', () => this.hud.closeModal());
+        card.querySelector('#rhYes').addEventListener('click', () => { this.hud.closeModal(); this.rehome(pick() || null, buyer.id); });
+      },
+    });
+  }
+  rehome(eggId, buyerId) {
+    if (this.departing || !this.sim.canRehome()) return;
+    this.depart({ eggId, buyerId, say: "Bye-bye! I'll write to you! ♥" });
   }
 
   // ---------- new homes and auctions ----------
@@ -753,7 +1048,7 @@ export class Game {
     const cards = this.sim.ranch.postcards();
     cards.forEach((c, i) => this.after(i * 3.5, () => {
       this.remember('💌', `A postcard from ${c.name} at ${c.buyer}: "${c.text}"`);
-      this.hud.toast(`<b>Postcard from ${esc(c.name)}</b>"${esc(c.text)}" (+${c.pearls} pearls tucked inside)`, 'love', 5200);
+      this.hud.toast(`<b>Postcard from ${esc(c.name)}</b>"${esc(c.text)}"${c.pearls > 0 ? ` (+${c.pearls} pearls tucked inside)` : ''}`, 'love', 5200);
       this.sfx.sparkle();
     }));
     if (cards.length) this.markDirty(true);
@@ -790,6 +1085,7 @@ export class Game {
     this.lastInteract = this.time;
     const st = this.state;
     if (st.phase === 'egg') {
+      if (this.view === 'ranch') { if (!this.hud.modalOpen) this.ranchDown(e); return; }
       const h = this.egg && this.egg.hit(this.raycaster);
       if (h) this.tapEgg(h.point);
       return;
@@ -873,7 +1169,7 @@ export class Game {
   onKey(e) {
     const tag = (e.target && e.target.tagName) || '';
     if (tag === 'INPUT' || tag === 'TEXTAREA' || this.hud.modalOpen) return;
-    if (this.state.phase === 'egg' && (e.key === ' ' || e.key === 'Enter') && this.egg && e.target === this.canvas) {
+    if (this.state.phase === 'egg' && this.view !== 'ranch' && (e.key === ' ' || e.key === 'Enter') && this.egg && e.target === this.canvas) {
       e.preventDefault();
       this.sfx.unlock();
       this.tapEgg(this.egg.group.position.clone().add(new THREE.Vector3(0, 0.8, 0.5)));
@@ -1313,7 +1609,7 @@ export class Game {
     const st = STAGES[r.stageAfter];
     const name = this.Name;
     this.sfx.voice = st.voice;
-    if (r.form) this.slime.setForm(r.form.id);
+    if (r.form) this.slime.setForm(r.form.id, { pure: r.form.pure });
     this.slime.pulseGlow(1.4);
     this.slime.spin();
     this.slime.hop(6.5);
@@ -1324,12 +1620,26 @@ export class Game {
     this.sfx.levelUp();
     this.remember('⭐', `${name} grew into a ${st.name}!`, 'stage-' + st.id);
     if (r.form) this.remember('⭐', `${name} settled into ${an(r.form.name)}. ${r.form.blurb}`, 'form');
+    const lin = this.state.slime.lineage || {};
+    const parents = lin.parents?.length ? `${lin.parents[0].name} and ${lin.parents[1].name}` : 'its parents';
+    if (r.form?.spark) {
+      this.remember('✦', `The family spark came true! ${name} became ${an(r.form.name)}, something only ${parents} could pass on.`, 'spark-' + r.form.spark);
+      this.after(2.4, () => { this.fx.emit('prism', this.slime.headTopWorld(this.v1).clone(), { count: 24, speed: 2 }); this.sfx.combo(); });
+    } else if (r.nearMiss) {
+      this.remember('✦', `${name} carried a family spark but grew into ${an(r.form.name)}. Clue: ${r.nearMiss.clue}`, 'nearmiss');
+      this.after(4.5, () => this.hud.toast(`<b>So close!</b>${esc(name)} had a family spark from ${esc(parents)}. Clue for next time: ${esc(r.nearMiss.clue)}`, 'combo', 6500));
+    } else if (r.form?.pure) {
+      this.remember('✦', `${name} grew up just like ${parents}: ${an(r.form.name)}.`, 'pure');
+    }
     const foods = FOODS.filter(f => f.unlock === st.id);
     let body = `<p>${esc(st.blurb)}</p><div class="unlocks">`;
     body += `<div class="unlock"><span style="font-size:22px;width:34px;text-align:center">x${st.boop}</span>Boops now give ${st.boop} base jelly</div>`;
     for (const f of foods) body += `<div class="unlock">${this.hud.icon(f.id)}New snack: ${esc(f.name)}</div>`;
     body += '</div>';
-    if (r.form) body = `<p>Everything you shared shaped who ${esc(name)} became.</p><div class="card"><span class="form-name">${esc(r.form.name)}</span><span class="sub">${esc(r.form.blurb)}</span></div>` + body;
+    const extra = r.form?.spark ? `<span class="sub spark-line">${ICON.sparkle}A family spark! Only ${esc(parents)} could pass this on.</span>`
+      : r.form?.pure ? `<span class="sub spark-line">${ICON.sparkle}${esc(PURE_LINE.note)}</span>`
+      : r.nearMiss ? `<span class="sub">${esc(name)} carried a family spark, but grew up a little differently. The Journal kept a clue.</span>` : '';
+    if (r.form) body = `<p>Everything you shared shaped who ${esc(name)} became.</p><div class="card"><span class="form-name">${esc(r.form.name)}</span><span class="sub">${esc(r.form.blurb)}</span>${extra}</div>` + body;
     else if (r.stageAfter >= 1) body += '<p>Snacks cost more now, since bigger slimes eat bigger portions.</p>';
     this.after(1.6, () => this.hud.showSimple(r.form ? `${esc(name)} is all grown up!` : `${esc(name)} is now a ${esc(st.name)}!`, body, 'Yay!'));
     this.saveNow(true);
@@ -1613,13 +1923,16 @@ export class Game {
     const debug = DEBUG ? `<div class="sec-title">Debug</div><div class="actions">
       <button class="btn" data-dbg="jelly">+10K jelly</button><button class="btn" data-dbg="mega">+10M jelly</button>
       <button class="btn" data-dbg="grow">+Growth</button><button class="btn" data-dbg="needs">Fill needs</button>
-      <button class="btn" data-dbg="glim">Glimmer</button><button class="btn" data-dbg="req">Request</button><button class="btn" data-dbg="bond">+Bond</button></div>` : '';
+      <button class="btn" data-dbg="glim">Glimmer</button><button class="btn" data-dbg="req">Request</button><button class="btn" data-dbg="bond">+Bond</button>
+      <button class="btn" data-dbg="tera">+1T jelly</button><button class="btn" data-dbg="pearls">+100 pearls</button>
+      <button class="btn" data-dbg="instant" aria-pressed="${this.debugInstant}">Instant eggs: ${this.debugInstant ? 'On' : 'Off'}</button></div>` : '';
     this.hud.openModal(`<h2>Settings</h2>
       <div class="setting"><span>Sound</span>${seg('sound', [[true, 'On'], [false, 'Off']])}</div>
       <div class="setting"><span>Music box lullaby</span>${seg('music', [[true, 'On'], [false, 'Off']])}</div>
       <div class="setting"><span>Happy hum while petting</span>${seg('purr', [[true, 'On'], [false, 'Off']])}</div>
       ${navigator.audioSession ? `<div class="setting"><span>Sound when phone is on silent</span>${seg('soundOnSilent', [[true, 'On'], [false, 'Off']])}</div>` : ''}
       <div class="setting"><span>Sound check<br><span class="sub" id="audioStatus">${esc(this.sfx.status())}</span></span><button class="btn small" id="testSound">Test sound</button></div>
+      <div class="setting"><span>Background<br><span class="sub">Classic hides the meadow and the ranch, so it's just your slime.</span></span>${seg('scene', [['meadow', 'Meadow'], ['classic', 'Classic']])}</div>
       <div class="setting"><span>Motion</span>${seg('reducedMotion', [[false, 'Full'], [true, 'Reduced']])}</div>
       <div class="setting"><span>Graphics</span>${seg('quality', [['auto', 'Auto'], ['high', 'High'], ['low', 'Low']])}</div>
       <div class="setting"><span>Speed meter</span>${seg('showFps', [[false, 'Off'], [true, 'On']])}</div>
@@ -1725,7 +2038,7 @@ export class Game {
   // Test helper: run the game forward without drawing every frame.
   advance(sec, step = 1 / 30) {
     this.noRender = true;
-    for (let t = 0; t < sec; t += step) this.update(step);
+    for (let t = 0; t < sec; t += step) { this.timeSkip += step * 1000; this.update(step); }
     this.noRender = false;
   }
 
@@ -1740,7 +2053,7 @@ export class Game {
         const before = i;
         s.growth = next.minGrowth + 1;
         const r = { stageBefore: before, stageAfter: this.sim.stageIndex(), form: null };
-        if (r.stageAfter === STAGES.length - 1) { r.form = this.sim.formCandidate(); s.form = r.form; }
+        if (r.stageAfter === STAGES.length - 1) { const res = this.sim.settleForm(); r.form = res.form; r.nearMiss = res.nearMiss || null; s.form = r.form; }
         this.hud.closeModal();
         this.stageUp(r);
       }
@@ -1749,6 +2062,26 @@ export class Game {
     if (k === 'glim') { this.hud.closeModal(); this.spawnGlimmer(); }
     if (k === 'req') { this.hud.closeModal(); this.state.tutorial = Math.max(3, this.state.tutorial); this.requests.timer = 0; }
     if (k === 'bond') { const b = this.sim.addBond(60); if (b) this.onBondUp(b); }
+    if (k === 'pearls') { this.sim.ranch.addPearls(100); this.hud.renderRanch(true); }
+    if (k === 'tera') this.sim.addJelly(1e12);
+    if (k === 'instant') {
+      this.debugInstant = !this.debugInstant;
+      try { localStorage.setItem('slimekin.debug.instantEggs', this.debugInstant ? '1' : '0'); } catch { /* private mode */ }
+      this.instantEggs();
+      this.openSettings();
+    }
+  }
+  // Debug "Instant eggs": every waiting egg (and the egg on the cushion) is ready now and no parent is resting.
+  instantEggs() {
+    if (!DEBUG || !this.debugInstant) return;
+    const rr = this.sim.ranch, now = this.nowMs(), ce = this.state.egg;
+    for (const e of rr.eggs()) e.readyAt = Math.min(e.readyAt, now);
+    if (ce.readyAt) { ce.readyAt = Math.min(ce.readyAt, now); if (ce.bred) ce.bred.readyAt = Math.min(ce.bred.readyAt, now); }
+    if (this.state.phase === 'egg') this.updateEggHint();
+    for (const x of this.state.ranch.residents) x.bredDay = null;
+    this.syncNursery();
+    this.hud.renderRanch(true);
+    this.markDirty(true);
   }
 
   // ---------- theme / layout ----------
@@ -1782,9 +2115,12 @@ export class Game {
     let x = 0, y = 0, zoom = 1;
     const mobileTop = window.matchMedia('(max-width: 860px)').matches;
     this.topLimit = mobileTop ? document.querySelector('.top').getBoundingClientRect().bottom : 0;
-    if (this.state.phase === 'play') {
+    if (this.state.phase === 'play' || this.view === 'ranch') {
       const mobile = window.matchMedia('(max-width: 860px)').matches;
-      const panel = document.getElementById('panel').getBoundingClientRect();
+      const panelEl = document.getElementById('panel');
+      // a stretched (tall) menu covers most of the screen on purpose: keep the scene where it was behind it
+      if (mobile && panelEl.classList.contains('tall')) return;
+      const panel = panelEl.getBoundingClientRect();
       const top = document.querySelector('.top').getBoundingClientRect();
       const tray = document.getElementById(this.view === 'ranch' ? 'ranchBar' : 'tray').getBoundingClientRect();
       if (!mobile) {
@@ -2084,6 +2420,10 @@ export class Game {
       }
       this.sfx.setMusicWanted(st.helpers.musicbox > 0);
       this.updateSave(dt);
+    } else if (st.phase === 'egg') {
+      this.updateEggWait(dt);
+      this.hud.updateEggPhase(dt);
+      this.updateSave(dt);   // the ranch keeps going while the egg waits
     }
     if (this.egg) {
       this.egg.update(dt, this.scene);
@@ -2111,6 +2451,10 @@ export class Game {
       },
     });
     this.updateRanch(dt);
+    this.nurseryT -= dt;
+    if (this.nurseryT <= 0) { this.nurseryT = 1; this.syncNursery(); }
+    // classic background: the ranch only shows while you're over there (or flying there and back)
+    this.ranch.group.visible = this.state.settings.scene !== 'classic' || this.view === 'ranch' || this.stage.camPos.z < 3;
     this.ranch.update(dt, this.stage.camera);
     this.scenery.update(dt);
     this.fx.update(dt);

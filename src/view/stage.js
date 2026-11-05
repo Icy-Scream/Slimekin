@@ -21,6 +21,13 @@ const PALETTES = {
   },
 };
 
+// The classic look (a setting): the original plain nursery with nothing in the background, so the
+// slime is the only thing to look at. These replace the meadow colors and haze.
+const CLASSIC = {
+  light: { sky: ['#cfe3f7', '#f3dbe4'], fog: '#f2d3d6', floor: '#e9bdb6', hemi: ['#fff3ee', '#f2c3b5', 0.7], fogNear: 14, fogFar: 40 },
+  dark: { sky: ['#0d0b24', '#2a2047'], fog: '#2a2047', floor: '#3a2d58', fogNear: 14, fogFar: 40 },
+};
+
 // Sky dome: horizon color matches the fog, so the floor melts into the sky.
 function paintSky(geo, top, horizon) {
   const pos = geo.attributes.position;
@@ -169,12 +176,20 @@ export class Stage {
     this.setTheme(false);
   }
 
+  setClassic(on) {
+    if (this.classic === !!on) return;
+    this.classic = !!on;
+    this.setTheme(!!this.dark);
+  }
+
   setTheme(dark) {
-    const p = dark ? PALETTES.dark : PALETTES.light;
+    const base = dark ? PALETTES.dark : PALETTES.light;
+    const p = this.classic ? { ...base, ...CLASSIC[dark ? 'dark' : 'light'] } : base;
+    this.fogNear = p.fogNear || 18; this.fogFar = p.fogFar || 58;
     this.dark = dark;
     this.palette = p;
     paintSky(this.skyGeo, p.sky[0], p.fog);
-    this.scene.fog = new THREE.Fog(p.fog, 18, 58);
+    this.scene.fog = new THREE.Fog(p.fog, this.fogNear, this.fogFar);
     this.floorMat.color.set(p.floor);
     this.onTheme && this.onTheme(dark, p);
     if (this.rugMat.map) this.rugMat.map.dispose();
@@ -219,10 +234,10 @@ export class Stage {
       this.camPos.lerp(this._fp.copy(f.pos).add(this._fo.set(tx * 2, ty * 2, 0)), 1 - Math.exp(-dt * 2.2));
       this.camLook.lerp(f.look, 1 - Math.exp(-dt * 2.6));
     }
-    const fogFar = this.focus ? 80 : 58;
+    const fogFar = this.focus ? 80 : this.fogFar;
     if (this.scene.fog && Math.abs(this.scene.fog.far - fogFar) > 0.1) {
       this.scene.fog.far += (fogFar - this.scene.fog.far) * (1 - Math.exp(-dt * 2));
-      this.scene.fog.near = 18 + (this.scene.fog.far - 58) * 0.6;
+      this.scene.fog.near = this.fogNear + (this.scene.fog.far - this.fogFar) * 0.6;
     }
     // zoom out when a phone menu covers most of the screen, so the slime still fits above it
     this.zoom += ((this.focus ? 1 : this.fitZoom) - this.zoom) * (1 - Math.exp(-dt * 5));

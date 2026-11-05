@@ -3,6 +3,8 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { SlimeAvatar } from './slime.js';
+import { Egg } from './egg.js';
+import { addEggSpark } from './egg-spark.js';
 
 export const RANCH_POS = new THREE.Vector3(0, 0, -24);
 export const RANCH_SCALE = 0.8;  // the whole ranch is built in local units and shrunk a little
@@ -18,15 +20,18 @@ const PAL = {
     grass: ['#a8de80', '#93cf6c', '#b9e893'], side: '#98cf74', tuft: ['#86c95f', '#73b950', '#a3db82'],
     wood: '#f2d1a2', barn: '#ff9fa0', roof: '#b97480', trim: '#fff7f0', pond: '#8fd6ff', rim: '#f6e3bd',
     trunk: '#b58060', leaves: ['#8fd36f', '#ffbad3', '#a7e38b', '#ffd59a'], flowers: ['#ff9cc4', '#fff4a8', '#ffffff', '#d4b8ff', '#ffc08a'],
-    stone: '#f3e4cc', pondGlow: 0.12,
+    stone: '#f3e4cc', pondGlow: 0.12, nursery: '#ffe7a6', nurseryRoof: '#8fcfc0', straw: '#e8c47a', windowGlow: 0,
   },
   night: {
     grass: ['#4f7d73', '#446e66', '#5a8a7f'], side: '#46736a', tuft: ['#3f6b62', '#365e57', '#4d7d72'],
     wood: '#a98f86', barn: '#b9708a', roof: '#6e4a63', trim: '#d8cde6', pond: '#3d5fa8', rim: '#8e86a8',
     trunk: '#6f5562', leaves: ['#4f7f6c', '#a0709a', '#5b8a73', '#9c8670'], flowers: ['#d38ab5', '#e8e0a0', '#e6e6ff', '#a995e0', '#d9a07a'],
-    stone: '#9a90aa', pondGlow: 0.3,
+    stone: '#9a90aa', pondGlow: 0.3, nursery: '#bfa98a', nurseryRoof: '#4f7f7a', straw: '#9c8a6a', windowGlow: 0.9,
   },
 };
+// The Nursery: a little cottage with a straw nest out front where bred eggs wait (front left of the meadow,
+// clear of the barn, the pond, the trees, the gate path and the Pearl Basket).
+const NURSERY = { x: -2.7, z: 3.1, rot: 0.7 };
 
 function canvasTex(w, h, draw) {
   const c = document.createElement('canvas');
@@ -97,11 +102,13 @@ function sparkTexture() {
   return SPARK_TEX;
 }
 
-// Blocked spots on the meadow (barn, pond, trees, basket).
+// Blocked spots on the meadow (barn, pond, trees, basket, Nursery).
 const OBSTACLES = [
   { x: -3.8, z: -3.0, r: 1.7 }, { x: 3.5, z: -1.2, r: 1.6 },
   { x: -0.8, z: -5.6, r: 0.8 }, { x: 2.4, z: -5.0, r: 0.8 }, { x: 5.2, z: -3.4, r: 0.7 }, { x: -5.6, z: 0.6, r: 0.7 },
-  { x: 2.3, z: 5.0, r: 0.8 },
+  { x: 2.3, z: 5.0, r: 0.8 }, { x: NURSERY.x, z: NURSERY.z, r: 1.35 },
+  // the Nursery's front yard stays clear, so the close-up camera can see the nest
+  { x: NURSERY.x + Math.sin(NURSERY.rot + 0.25) * 2.2, z: NURSERY.z + Math.cos(NURSERY.rot + 0.25) * 2.2, r: 1.0 },
 ];
 const blocked = (x, z, pad = 0) => OBSTACLES.some(o => (x - o.x) ** 2 + (z - o.z) ** 2 < (o.r + pad) ** 2) || x * x + z * z > ROAM * ROAM;
 
@@ -331,6 +338,83 @@ export class RanchView {
     this.basketHit.position.y = 0.25;
     basket.add(this.basketHit);
     this.basketSparkle = 0;
+
+    this.buildNursery();
+  }
+
+  // The Nursery: a butter-yellow cottage with a mint roof, a heart window that glows at night, and a straw
+  // nest out front where bred eggs wait. Everything sits on a low stone step so nothing z-fights the grass.
+  buildNursery() {
+    const M = this.mats, g = this.group;
+    const std = (k, o = {}) => (M[k] = new THREE.MeshStandardMaterial({ roughness: 0.8, ...o }));
+    std('nursery', { roughness: 0.75 }); std('nurseryRoof', { roughness: 0.6 }); std('straw', { roughness: 1 });
+    const hut = new THREE.Group();
+    const step = new THREE.Mesh(new THREE.CylinderGeometry(1.05, 1.1, 0.08, 28), M.stone);
+    step.scale.set(1, 1, 0.82); step.position.y = 0.04;
+    const walls = new THREE.Mesh(new THREE.BoxGeometry(1.25, 0.82, 0.95), M.nursery);
+    walls.position.y = 0.08 + 0.41;
+    const roofShape = new THREE.Shape([new THREE.Vector2(-0.82, 0), new THREE.Vector2(0.82, 0), new THREE.Vector2(0, 0.62)]);
+    const roof = new THREE.Mesh(new THREE.ExtrudeGeometry(roofShape, { depth: 1.15, bevelEnabled: true, bevelThickness: 0.05, bevelSize: 0.05, bevelSegments: 2 }), M.nurseryRoof);
+    roof.position.set(0, 0.88, -0.575);
+    const gable = new THREE.Mesh(new THREE.ShapeGeometry(new THREE.Shape([new THREE.Vector2(-0.62, 0), new THREE.Vector2(0.62, 0), new THREE.Vector2(0, 0.47)])), M.nursery);
+    gable.position.set(0, 0.9, 0.476);
+    // an arched door with a trim frame
+    const arch = (w, h) => { const s = new THREE.Shape(); s.moveTo(-w / 2, 0); s.lineTo(w / 2, 0); s.lineTo(w / 2, h - w / 2); s.absarc(0, h - w / 2, w / 2, 0, Math.PI, false); s.lineTo(-w / 2, 0); return s; };
+    const frame = new THREE.Mesh(new THREE.ShapeGeometry(arch(0.46, 0.6), 12), M.trim);
+    frame.position.set(-0.22, 0.08, 0.477);
+    const door = new THREE.Mesh(new THREE.ShapeGeometry(arch(0.36, 0.53), 12), M.nurseryRoof);
+    door.position.set(-0.22, 0.08, 0.479);
+    // round window with a heart; it glows warm at night
+    const heartTex = canvasTex(128, 128, (x, w, h) => {
+      x.fillStyle = '#fff4dc'; x.fillRect(0, 0, w, h);
+      x.fillStyle = '#ff8fb0';
+      x.beginPath(); x.moveTo(64, 98); x.bezierCurveTo(10, 62, 30, 18, 64, 44); x.bezierCurveTo(98, 18, 118, 62, 64, 98); x.fill();
+    });
+    M.window = new THREE.MeshStandardMaterial({ map: heartTex, emissiveMap: heartTex, emissive: '#ffd08a', emissiveIntensity: 0, roughness: 0.5 });
+    const win = new THREE.Mesh(new THREE.CircleGeometry(0.15, 24), M.window);
+    win.position.set(0.3, 0.6, 0.478);
+    const winRim = new THREE.Mesh(new THREE.RingGeometry(0.15, 0.19, 24), M.trim);
+    winRim.position.set(0.3, 0.6, 0.477);
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(0.78, 0.2), new THREE.MeshStandardMaterial({ map: signTexture('Nursery'), roughness: 0.8 }));
+    sign.position.set(0, 1.06, 0.482);
+    hut.add(step, walls, roof, gable, frame, door, win, winRim, sign);
+    // the nest: a straw ring with a soft bed inside, beside the door
+    const nest = new THREE.Group();
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.11, 10, 28), M.straw);
+    ring.rotation.x = Math.PI / 2; ring.scale.set(1.25, 1, 0.75); ring.position.y = 0.1;
+    const bed = new THREE.Mesh(new THREE.CylinderGeometry(0.44, 0.48, 0.08, 24), M.straw);
+    bed.scale.set(1.2, 1, 1); bed.position.y = 0.06;
+    nest.add(bed, ring);
+    nest.position.set(0.38, 0.02, 0.95);
+    hut.add(nest);
+    this.nest = nest;
+    hut.position.set(NURSERY.x, RANCH_TOP, NURSERY.z);
+    hut.rotation.y = NURSERY.rot;
+    g.add(hut);
+    this.nursery = hut;
+    this.nurseryHit = new THREE.Mesh(new THREE.BoxGeometry(1.9, 1.5, 2.3), new THREE.MeshBasicMaterial({ visible: false }));
+    this.nurseryHit.position.set(0.1, 0.72, 0.4);
+    hut.add(this.nurseryHit);
+    this.nestEggs = new Map();
+  }
+
+  // Show the eggs waiting in the Nursery in the nest (two spots). eggs: [{ id, spark, colors }]
+  setNursery(eggs) {
+    const keep = new Set(eggs.map(e => e.id));
+    for (const [id, n] of this.nestEggs) if (!keep.has(id)) { n.spark && n.spark.dispose(); this.nest.remove(n.egg.group); this.nestEggs.delete(id); }
+    eggs.forEach((e, i) => {
+      let n = this.nestEggs.get(e.id);
+      if (!n) {
+        const egg = new Egg({ colors: e.colors });
+        egg.group.scale.setScalar(0.28);
+        egg.group.rotation.y = -0.5 + i * 0.9;
+        this.nest.add(egg.group);
+        n = { egg, spark: e.spark ? addEggSpark(egg, { night: this.dark }) : null };
+        this.nestEggs.set(e.id, n);
+      }
+      n.egg.group.position.set(eggs.length > 1 ? (i ? 0.17 : -0.17) : 0, 0.07, i ? -0.04 : 0.04);
+      n.ready = !!e.ready;
+    });
   }
 
   setTheme(dark, floor = dark ? '#3a2d58' : '#e9bdb6') {
@@ -348,10 +432,12 @@ export class RanchView {
     const fc = p.flowers.map(x => new THREE.Color(x));
     this.flowerIdx.forEach((k, i) => this.flowers.setColorAt(i, fc[k]));
     this.flowers.instanceColor.needsUpdate = true;
-    for (const k of ['wood', 'barn', 'roof', 'trim', 'pond', 'rim', 'trunk', 'stone']) M[k].color.set(p[k]);
+    for (const k of ['wood', 'barn', 'roof', 'trim', 'pond', 'rim', 'trunk', 'stone', 'nursery', 'nurseryRoof', 'straw']) M[k].color.set(p[k]);
     M.pond.emissive.set(p.pond).multiplyScalar(p.pondGlow);
+    M.window.emissiveIntensity = p.windowGlow;
     for (const cn of this.canopies) cn.mat.color.set(p.leaves[cn.ci]);
     for (const r of this.residents.values()) r.av.cap.on = dark && r.state === 'nap';
+    for (const n of this.nestEggs.values()) n.spark && n.spark.setNight(dark);
   }
 
   setName(text) {
@@ -372,7 +458,7 @@ export class RanchView {
       const av = new SlimeAvatar({ quality: this.quality, lite: true });
       av.setTraits(d.traits || {});
       av.color.copy(av.targetColor);
-      if (d.form) av.setForm(d.form.id);
+      if (d.form) av.setForm(d.form.id, { pure: d.form.pure });
       if (d.worn) av.setOutfits(d.worn);
       av.size = av.sizeTarget = 0.86;
       const holder = new THREE.Group();
@@ -452,6 +538,8 @@ export class RanchView {
     for (const r of this.residents.values()) { const h = r.av.hit(raycaster); if (h) hits.push({ type: 'slime', id: r.id, point: h.point, d: h.distance }); }
     const b = raycaster.intersectObject(this.basketHit, false)[0];
     if (b) hits.push({ type: 'basket', d: b.distance });
+    const nh = raycaster.intersectObject(this.nurseryHit, false)[0];
+    if (nh) hits.push({ type: 'nursery', d: nh.distance + 0.5 });
     if (!hits.length) {
       const h = raycaster.intersectObject(this.hitHill, false)[0];
       if (h) hits.push({ type: 'ranch', point: h.point, d: h.distance });
@@ -489,10 +577,26 @@ export class RanchView {
     return portrait ? 40 : 30;
   }
 
+  // close-up camera on the Nursery: in front of the cottage, a little to the side, so the door, the sign
+  // and the nest all show; the game centers the look point in the free part of the screen
+  cameraNursery(aspect, outPos, outLook) {
+    const p = this.nursery.getWorldPosition(this.v);
+    const portrait = aspect < 0.9;
+    const a = NURSERY.rot + 0.25, d = portrait ? 5.6 : 4.4;
+    outLook.set(p.x + Math.sin(NURSERY.rot) * 0.35, p.y + 0.45, p.z + Math.cos(NURSERY.rot) * 0.35);
+    outPos.set(outLook.x + Math.sin(a) * d, outLook.y + (portrait ? 2.4 : 1.8), outLook.z + Math.cos(a) * d);
+    return portrait ? 38 : 30;
+  }
+
   // ---------- frame ----------
   update(dt, camera) {
     this.time += dt;
     const t = this.time;
+    for (const n of this.nestEggs.values()) {
+      // a ready egg gives a little wiggle now and then
+      if (n.ready && Math.sin(t * 1.7 + n.egg.time) > 0.995) n.egg.wobV += 2.5;
+      n.egg.update(dt, this.scene);
+    }
     // far away: think and animate at a lower rate
     let step = dt;
     if (!this.visiting) {

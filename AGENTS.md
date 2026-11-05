@@ -49,6 +49,10 @@ it up the next time it is opened online (sometimes it takes two opens). Never ed
 
 ## Gotchas (learned the hard way)
 
+- The meadow (grass, hills, clouds, flowers, trees, moon) is `src/view/scenery.js`. Settings → Background →
+  Classic turns it off (`settings.scene`), restores the plain floor and sky, and hides the ranch hill unless you
+  are visiting it. Anything new in the home scene's background should respect that setting.
+
 - In `SlimeAvatar`, `this.look` is the **eye gaze** vector; the grown-up form look is `this.form`.
 - Things inside the transmissive slime body (snacks in the belly, Hearth's heart, gems) are drawn
   as overlays with `depthTest: false`. Ranch residents hide theirs unless you are visiting.
@@ -61,11 +65,24 @@ it up the next time it is opened online (sometimes it takes two opens). Never ed
 - Anything that sits on the ranch grass needs a small lift or it z-fights with the ground.
 - The hill in the background is deliberately **not** tappable (it interrupted booping). The ranch
   opens only from the Ranch tab or the pearl counter.
+- Breeding uses seeded dice (`core/random.js`): an egg's inheritance is fixed when it is made, so
+  reopening the game never rerolls it. Egg timers use the wall clock; `g.advance()` moves a test clock
+  (`g.timeSkip`) along so tests can wait out the Nursery.
+- A new spark form is one `SPARK_FORMS` entry in `content.js` plus one `FORM_LOOKS['spark:<id>']` look.
 
 ## Testing
 
 - `node tools/smoke-test.cjs` plays through hatch → Settled → ranch → move out in a headless
   phone-sized browser (setup steps are at the top of the file). Screenshots go to `tools/out/`.
+- The browser tests use `tools/browser-kit.cjs`: their own dev server on a free loopback port, fully
+  offline (three.js from node_modules, every other outside request aborted and logged), a deadline on
+  every step (`page.evaluate` has none of its own) and timestamped progress. A stuck step fails with a
+  note on what the browser was doing: a busy `gpu-process` means software WebGL is just slow on a loaded
+  machine; everything asleep means a stall. Run browser tests one at a time on a busy box, and not from
+  inside a service that has a memory limit: when that group goes over its limit, the system throttles
+  every process in it and the browser stalls with all its processes asleep (no frames, `page.evaluate`
+  never answers, the reload never reaches "load"). The kit warns at the start when there is less than about
+  1 GB left under the limit, and a failure says when the system throttled the group.
 - Useful debug hooks (with `#debug`): `g.advance(seconds)` fast-forwards the game, `g.debug('grow' |
   'jelly' | 'mega' | 'bond' | 'glim' | 'req' | 'needs')`, `g.tapEgg(...)`, `g.hud.closeModal()`,
   `g.slime.setForm(id)`, `g.ranch.sync([...])`, `g.focusResident(id)`.
@@ -73,7 +90,16 @@ it up the next time it is opened online (sometimes it takes two opens). Never ed
   take a screenshot (or a few) before measuring layout after an animation.
 - Touch gestures: use CDP `Input.dispatchTouchEvent` (Playwright's tap alone can't drag).
 - Economy: `node tools/economy-sim.mjs 12 quiet` (engaged), add `casual`, `spam`, or `gen2=1e9`.
-  Spamming must never beat normal play. Targets are in the README.
+  Spamming must never beat normal play. Targets are in the README. `bred` makes the gen-2 baby from a
+  Nursery egg.
+- Playtest fixes: `node tools/playtest-smoke.cjs` (menu sheet drags with real touch events, warming egg at
+  move-out, swapping the cushion egg, a baby's new home; `--only sheet,egg,swap,rehome`, `--dpr 1 --quick`).
+- Breeding: `node tools/breeding-test.mjs` (plain node: caps, seeds, sparks, Pure, cooldowns, old saves
+  from `tools/fixtures/`), and `node tools/breeding-smoke.cjs` (headless play-through from an old save,
+  screenshots in `tools/out/breeding/`). `g.debug('pearls')` adds 100 pearls.
+
+UI work: `UI-CHANGES.md` lists every on-screen element the breeding core and the playtest fixes added or changed. Its last section
+("UI pass 1") lists the drawn icon set in `src/ui/icons.js`: use it instead of emoji or text glyphs for new UI.
 
 ## How the owner likes to work
 
@@ -88,17 +114,16 @@ it up the next time it is opened online (sometimes it takes two opens). Never ed
 
 Done: alive pass (gestures, emotes, tricks, secrets), economy (Jelly Jar, upgrades, outfits), iPhone
 web app, 22 grown-up form looks, ranch + pearls + prestige + new homes + auctions, anti-spam and
-slower bond, swipe-to-close menu, movable notifications.
+slower bond, swipe-to-close menu, movable notifications, breeding core (Nursery, capped inheritance,
+choosing the next egg at move-out, four spark forms, Pure versions of all 22 forms, family tree).
 
 Next, in this order (agreed with the owner):
 
-1. **Breeding**: a Nursery building on the ranch. Two residents make an egg; the baby leans toward
-   its parents' traits (capped, per the design doc). Some parent pairs give the egg a "family spark":
-   raised on the right snacks it becomes a breeding-only form. First four to build (samples first):
-   S'more Slime (Hearth × Marshmallow), Honeycomb Slime (Nectar × Candy), Campfire Slime (Hearth ×
-   Root), Storm Slime (Aurora × Volt). Later: Opal (Geode × Aurora), Fairy Ring (Root × Nectar),
-   Pop Rocks (Candy × Volt), Pure versions (same form × same form), rare Sparkle (~1/50), Golden
-   (~1/500) and Ghost (hatches at night) variants, Royal crown after three generations of one line.
+1. **More breeding**: the core is built (the Nursery, family sparks for S'more, Honeycomb, Campfire
+   and Storm, Pure versions). Next: signature moves for every slime, more spark forms (Opal = Geode ×
+   Aurora, Fairy Ring = Root × Nectar, Pop Rocks = Candy × Volt...; samples first), rewards for rare
+   breeds, rare Sparkle (~1/50), Golden (~1/500) and Ghost (hatches at night) variants, Royal crown
+   after three generations of one line.
 2. **Training Center** (Bounce, Speed, Sturdy, Smarts, Charm; costs pearls and time) and **trips**
    (send a resident away for hours; it brings back pearls, a rare snack, a souvenir and a story).
 3. **Contests** (Beauty Show, Slime Sprint, Bounce-Off) and then **Slime Sumo battles** (cozy,

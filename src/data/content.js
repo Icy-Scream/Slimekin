@@ -194,6 +194,9 @@ export const PAIR_FORMS = {
   'mineral+sweet':  { name: 'Toffee Guardian',  blurb: 'Sturdy and loyal, with a soft center.' },
 };
 export const GENERALIST_FORM = { name: 'Marshmallow Slime', blurb: 'Soft, round and balanced. A little bit of everything.' };
+// Every grown-up form by id (the 22 the diet can give).
+export const FORM_BY_ID = { ...PURE_FORMS, ...PAIR_FORMS, mochi: GENERALIST_FORM };
+export const FORM_IDS = Object.keys(FORM_BY_ID);
 
 export const NAME_IDEAS = ['Mochi', 'Puddle', 'Gloop', 'Bean', 'Jellybean', 'Pudding', 'Wobbles', 'Boba', 'Dumpling',
   'Squish', 'Gumdrop', 'Tofu', 'Marble', 'Noodle', 'Pip', 'Dewdrop', 'Blip', 'Muffin', 'Plum', 'Biscuit'];
@@ -280,15 +283,63 @@ export const RANCH = {
 // Buyers for placement and auctions. "want" lists traits that make a slime a good fit;
 // an empty list prefers well-rounded slimes.
 export const BUYERS = [
-  { id: 'bakery',    name: 'Sugarvale Bakery',       want: ['sweet', 'heat'],    line: 'needs a warm helper to keep the ovens cozy.', card: 'They let me nap next to the oven. Everything smells like cookies!' },
-  { id: 'garden',    name: 'Willowbend Gardens',     want: ['nature'],           line: 'is looking for a friend for the greenhouse.', card: 'I sat in the tomato patch all day. The bees say hi.' },
-  { id: 'mine',      name: 'Pebblepeak Mine',        want: ['mineral'],          line: 'wants a sturdy partner who loves rocks.',     card: 'I found a shiny rock! I am keeping it forever.' },
-  { id: 'observe',   name: 'Starlight Observatory',  want: ['prism', 'spark'],   line: 'needs someone to light up the telescope dome.', card: 'We counted 300 stars last night. I counted 4, then fell asleep.' },
-  { id: 'windmill',  name: 'Breezy Windmill',        want: ['spark'],            line: 'needs a zippy friend to keep the lights on.',  card: 'I spin with the windmill blades sometimes. Wheee!' },
-  { id: 'cafe',      name: 'Puddle Café',            want: ['sweet'],            line: 'wants a greeter that makes guests smile.',     card: 'A little kid gave me a sprinkle today. Best day.' },
-  { id: 'school',    name: 'Little Sprouts School',  want: [],                   line: 'would love a gentle class pet.',               card: 'The kids drew me! I look like a potato. I love it.' },
-  { id: 'springs',   name: 'Mistwater Hot Springs',  want: ['heat', 'nature'],   line: 'wants a cozy companion for the warm pools.',  card: 'I soaked so long I got extra squishy.' },
-  { id: 'museum',    name: 'Glimmer Museum',         want: ['prism', 'mineral'], line: 'wants a sparkly star for the gem hall.',       card: 'People stare at me like I am a famous painting.' },
-  { id: 'festival',  name: 'Summer Festival Crew',   want: ['heat', 'spark'],    line: 'needs help with the fireworks show.',          card: 'BOOM! Pop! Sparkle! (I was very brave.)' },
+  { id: 'bakery',    name: 'Sugarvale Bakery',       want: ['sweet', 'heat'],    line: 'needs a warm helper to keep the ovens cozy.', card: 'They let me nap next to the oven. Everything smells like cookies!', babyCard: 'I helped stir the cookie dough! Mostly I sat in the flour.' },
+  { id: 'garden',    name: 'Willowbend Gardens',     want: ['nature'],           line: 'is looking for a friend for the greenhouse.', card: 'I sat in the tomato patch all day. The bees say hi.', babyCard: 'The snails and I had a slow race. We both won.' },
+  { id: 'mine',      name: 'Pebblepeak Mine',        want: ['mineral'],          line: 'wants a sturdy partner who loves rocks.',     card: 'I found a shiny rock! I am keeping it forever.', babyCard: 'I found a tiny pebble. It is my pet now.' },
+  { id: 'observe',   name: 'Starlight Observatory',  want: ['prism', 'spark'],   line: 'needs someone to light up the telescope dome.', card: 'We counted 300 stars last night. I counted 4, then fell asleep.', babyCard: 'I saw a shooting star and made a wish for you.' },
+  { id: 'windmill',  name: 'Breezy Windmill',        want: ['spark'],            line: 'needs a zippy friend to keep the lights on.',  card: 'I spin with the windmill blades sometimes. Wheee!', babyCard: 'I can spin around three times without falling over!' },
+  { id: 'cafe',      name: 'Puddle Café',            want: ['sweet'],            line: 'wants a greeter that makes guests smile.',     card: 'A little kid gave me a sprinkle today. Best day.', babyCard: 'I wiggle hello at the door. Everyone waves back!' },
+  { id: 'school',    name: 'Little Sprouts School',  want: [],                   line: 'would love a gentle class pet.',               card: 'The kids drew me! I look like a potato. I love it.', babyCard: 'I learned to hop on one side! The kids clap every time.' },
+  { id: 'springs',   name: 'Mistwater Hot Springs',  want: ['heat', 'nature'],   line: 'wants a cozy companion for the warm pools.',  card: 'I soaked so long I got extra squishy.', babyCard: 'I had my first warm bath and fell asleep in it.' },
+  { id: 'museum',    name: 'Glimmer Museum',         want: ['prism', 'mineral'], line: 'wants a sparkly star for the gem hall.',       card: 'People stare at me like I am a famous painting.', babyCard: 'I sat very still on a velvet pillow. People think I am art.' },
+  { id: 'festival',  name: 'Summer Festival Crew',   want: ['heat', 'spark'],    line: 'needs help with the fireworks show.',          card: 'BOOM! Pop! Sparkle! (I was very brave.)', babyCard: 'I watched the fireworks from a cozy blanket. So sparkly!' },
 ];
 export const BUYER_BY_ID = Object.fromEntries(BUYERS.map(b => [b.id, b]));
+
+// ---------- Breeding: the Nursery on the ranch ----------
+// Two ranch slimes make an egg together. The baby takes after its parents a little (a capped head start
+// in the snacks they were raised on, a small nudge to its temperament, maybe the same favorite snack);
+// how you raise it still decides who it becomes. Not inherited: form, bond, tricks, outfits, value.
+export const BREEDING = {
+  cost: 25,             // pearls for one egg
+  readyHours: 1,        // an egg is ready after this long (real time, so it counts while the game is closed)
+  maxEggs: 2,           // eggs waiting in the Nursery at once
+  // each resident can be a parent once per (local) calendar day
+  // Inheritance per trait channel (per the design doc): 35% from each parent (its share of that channel,
+  // 0..1), 20% from how much both parents share it, 10% seeded wobble (-0.5..0.5), minus a concentration
+  // penalty; the result is clamped to the cap and turned into trait points with the range below.
+  range: 140,           // the typical mature channel range: trait points of the top channel at Settled (measured, see tools/breeding-test.mjs)
+  cap: 0.22,            // per-channel cap as a share of that range: at most about 31 points of head start in one channel
+  totalCap: 0.4,        // all channels together: at most 56 points, so care always decides the form
+  weights: { parent: 0.35, compat: 0.2, variation: 0.1 },
+  regress: 0.5,         // concentration: a family line that keeps leaning the same way has its cap shrink (up to half)
+  personalityPull: 0.2, // temperament starts this share of the way toward the parents' average...
+  personalityCap: 5,    // ...but at most 5 points
+  favoriteChance: 0.5,  // chance the baby's favorite snack is one of its parents' favorites
+};
+
+// Family sparks: some pairs of parent forms (order does not matter) always lay a spark egg. A spark baby
+// whose two strongest traits come out as the recipe (about evenly, the way a normal slime gets a two-trait
+// form) grows into the spark form; otherwise it settles into its normal form and the Journal keeps a clue.
+// Adding one later = one entry here plus one look in view/forms.js (FORM_LOOKS[look]).
+export const SPARK_FORMS = [
+  { id: 'smore', name: "S'more Slime", parents: ['heat+sweet', 'mochi'], recipe: ['sweet', 'heat'], look: 'spark:smore', icon: '🍫', color: '#e9a35a',
+    blurb: 'Toasty outside, gooey inside. Happiest by a campfire.',
+    hint: 'Something cozy and warm, with something soft and round...', clue: 'Raise the baby on sweet and warm snacks, about evenly.' },
+  { id: 'honeycomb', name: 'Honeycomb Slime', parents: ['nature+sweet', 'sweet'], recipe: ['sweet', 'nature'], look: 'spark:honeycomb', icon: '🍯', color: '#ffbf2e',
+    blurb: 'Sweet as honey and busy as a bee. Shares with everyone.',
+    hint: 'Where the flower garden meets the candy jar...', clue: 'Raise the baby on sweet and leafy snacks, about evenly.' },
+  { id: 'campfire', name: 'Campfire Slime', parents: ['heat+sweet', 'mineral+nature'], recipe: ['heat', 'nature'], look: 'spark:campfire', icon: '🔥', color: '#ff9a3c',
+    blurb: 'A warm little fire that everyone gathers around for stories.',
+    hint: 'Something cozy and warm, with something rooted in the ground...', clue: 'Raise the baby on warm and leafy snacks, about evenly.' },
+  { id: 'storm', name: 'Storm Slime', parents: ['prism+spark', 'spark'], recipe: ['spark', 'prism'], look: 'spark:storm', icon: '🌈', color: '#9fc8ff',
+    blurb: 'A happy little raincloud. After every sprinkle comes a rainbow.',
+    hint: 'Colored lights and crackles in the same sky...', clue: 'Raise the baby on zippy and prismatic snacks, about evenly.' },
+];
+export const SPARK_BY_ID = Object.fromEntries(SPARK_FORMS.map(s => [s.id, s]));
+
+// Pure: both parents had the same form, and the baby grows into that form too.
+export const PURE_LINE = {
+  name: formName => `Pure ${formName}`,
+  note: 'Same form as both parents: a pure family line.',
+};

@@ -91,6 +91,12 @@ button { font: inherit; color: inherit; }
   display: grid; grid-template-columns: minmax(0, 1fr) var(--panel-w); grid-template-rows: auto 1fr auto; column-gap: 18px;
 }
 #ui.egg .panel, #ui.egg .tray-wrap, #ui.egg .top { display: none; }
+/* while an egg waits on the cushion, a family with a ranch can still visit it: only the Ranch tab shows */
+#ui.egg.has-ranch .panel { display: flex; }
+#ui.egg .tab:not([data-tab="ranch"]) { display: none; }
+#ui.egg .tabs { grid-template-columns: minmax(0, 1fr); }
+body.at-ranch #ui.egg .tray-wrap { display: flex; }
+body.at-ranch .egg-hint { display: none !important; }
 .top { grid-column: 1; grid-row: 1; display: grid; grid-template-columns: minmax(0, 290px) 1fr minmax(0, 290px); align-items: start; gap: 12px; }
 .tray-wrap { grid-column: 1; grid-row: 3; display: flex; flex-direction: column; align-items: center; gap: 10px; min-width: 0; }
 
@@ -350,6 +356,7 @@ button { font: inherit; color: inherit; }
 .btn.small { flex: none; padding: 8px 14px; font-size: 13.5px; }
 .btn.danger { background: var(--berry); color: #fff; border-color: transparent; }
 .btn:hover { filter: brightness(1.04); }
+.btn:disabled { opacity: .5; cursor: default; filter: none; }
 .name-input { display: flex; gap: 8px; }
 .name-input input { flex: 1; min-width: 0; font: inherit; font-family: var(--display); font-weight: 600; font-size: 22px; padding: 10px 14px; border-radius: 16px; border: 2px solid var(--edge); background: var(--bg); color: var(--ink); }
 .name-input input:focus { outline: none; border-color: var(--gel); }
@@ -369,7 +376,11 @@ button { font: inherit; color: inherit; }
 .egg-hint p { margin: 0; font-weight: 800; font-size: 15px; color: var(--ink-2); text-shadow: 0 1px 0 var(--panel-strong); }
 .egg-hint .warm { width: 180px; height: 10px; border-radius: 99px; background: var(--chip); border: 1.5px solid var(--edge); overflow: hidden; }
 .egg-hint .warm i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--honey), var(--berry)); transition: width .25s; }
+/* a Nursery egg finishing warming on the cushion: the bar shows the time, in calm colors */
+.egg-hint.warming .warm i { background: linear-gradient(90deg, #b9d4f2, #efd9f5); }
 .egg-hint[hidden] { display: none !important; }
+.egg-hint .egg-alt { pointer-events: auto; min-height: 44px; padding: 8px 12px; font-size: 14px; text-shadow: 0 1px 0 var(--panel-strong); }
+.egg-acts { display: flex; flex-wrap: wrap; gap: 8px; }
 
 /* ---------- mid-size screens ---------- */
 @media (max-width: 1240px) {
@@ -398,6 +409,54 @@ body.at-ranch .tray, body.at-ranch .tray-top, body.at-ranch #giggle, body.at-ran
 .big-num { display: flex; align-items: center; gap: 8px; font-family: var(--display); font-weight: 700; font-size: 28px; line-height: 1; font-variant-numeric: tabular-nums; }
 .offer { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; align-items: center; text-align: left; }
 .offer .fit { color: var(--berry); letter-spacing: 2px; font-size: 12px; }
+/* nursery */
+.parent-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.parent-pick { position: relative; min-height: 58px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 1px; padding: 9px 28px 9px 12px; border-radius: var(--r-md); border: 1.5px solid var(--edge); background: var(--panel-strong); text-align: left; cursor: pointer; font: inherit; color: var(--ink); min-width: 0; }
+.parent-pick b { font-family: var(--display); font-size: 15px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.parent-pick[aria-pressed="true"] { border-color: var(--berry); background: color-mix(in srgb, var(--berry) 10%, var(--panel-strong)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--berry) 22%, transparent); }
+.parent-pick[aria-pressed="true"]::after { content: '♥'; position: absolute; top: 7px; right: 10px; color: var(--berry); font-size: 15px; }
+.parent-pick:disabled { opacity: .55; cursor: default; }
+.egg-card .btn, #breedBtn, .nursery-card .btn { min-height: 44px; }
+.egg-card .btn.small { align-self: flex-start; }
+.egg-row { display: flex; gap: 12px; align-items: center; }
+.egg-row b { display: block; }
+.egg-ic { position: relative; width: 32px; height: 40px; flex: none; border-radius: 50% 50% 46% 46% / 60% 60% 40% 40%;
+  background: radial-gradient(circle at 30% 35%, var(--a, #9eefd3) 0 14%, transparent 15%), radial-gradient(circle at 70% 56%, var(--b, #ffc2dc) 0 12%, transparent 13%),
+    radial-gradient(circle at 40% 78%, var(--a, #9eefd3) 0 10%, transparent 11%), radial-gradient(circle at 66% 22%, var(--b, #ffc2dc) 0 8%, transparent 9%), #fff7ea;
+  box-shadow: inset -3px -4px 6px rgba(120, 90, 110, .2), 0 2px 4px rgba(120, 80, 140, .22); }
+.egg-ic.spark::after { content: '✦'; position: absolute; top: -9px; right: -10px; color: #ffb400; font-size: 18px; line-height: 1; text-shadow: 0 0 6px rgba(255, 214, 110, .95); animation: twinkle 1.8s ease-in-out infinite; }
+@keyframes twinkle { 50% { transform: scale(1.3) rotate(20deg); opacity: .75; } }
+.spark-line { color: #b87400; font-weight: 800; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .spark-line { color: #ffd36a; } }
+:root[data-theme="dark"] .spark-line { color: #ffd36a; }
+.egg-choice { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+.card.choice { flex-direction: row; align-items: center; gap: 12px; text-align: left; cursor: pointer; font: inherit; color: var(--ink); min-height: 58px; }
+.card.choice > span:last-child { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.card.choice[aria-checked="true"] { border-color: var(--gel); box-shadow: 0 0 0 3px color-mix(in srgb, var(--gel) 25%, transparent); }
+.card.choice:disabled { opacity: .55; cursor: default; }
+/* journal: family tree */
+.journal-seg { align-self: center; flex: none; }
+.journal-seg button { min-height: 44px; padding: 8px 18px; font-size: 13.5px; }
+#nurseryBack { min-height: 44px; padding: 10px 6px; align-self: center; }
+.tree { align-items: center; text-align: center; gap: 4px; }
+.tree-parents { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; }
+.tree-node { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; flex: 0 1 140px; padding: 8px 6px; border-radius: var(--r-md); background: var(--chip); }
+.tree-node b { font-family: var(--display); font-size: 15px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tree-node.me { flex: none; width: min(190px, 70%); background: color-mix(in srgb, var(--gel) 16%, transparent); border: 1.5px solid color-mix(in srgb, var(--gel) 40%, transparent); }
+.tree-node.me b { font-size: 17px; }
+.tree-node.unknown { background: transparent; border: 1.5px dashed var(--edge); }
+.tree-heart { color: var(--berry); font-size: 18px; flex: none; }
+.tree-line { width: 2px; height: 16px; background: var(--edge); border-radius: 2px; }
+.tree-note { margin-top: 4px; }
+.blob { position: relative; display: grid; place-items: center; width: 34px; height: 28px; border-radius: 50% 50% 44% 44% / 62% 62% 38% 38%; background: var(--c, #9fe6c6);
+  box-shadow: inset -3px -4px 6px rgba(80, 50, 90, .18), inset 3px 3px 5px rgba(255, 255, 255, .5); }
+.blob i { font-style: normal; font-size: 15px; line-height: 1; }
+.blob.silhouette { background: color-mix(in srgb, var(--ink-2) 55%, transparent); box-shadow: none; }
+.blob.silhouette i { color: var(--panel-strong); font-weight: 800; font-family: var(--display); }
+.tree-node.unknown .blob { background: transparent; border: 1.5px dashed var(--ink-2); box-shadow: none; }
+.tree-node.pure .blob, .tree-node.spark .blob { box-shadow: 0 0 0 3px color-mix(in srgb, #ffd36a 55%, transparent), inset -3px -4px 6px rgba(80, 50, 90, .18); }
+.spark-entry .pair { width: 38px; justify-content: center; }
+.pure-badge { --c: #c99a2e; }
 .bids { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
 .bid { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-radius: 14px; background: var(--chip); font-weight: 700; transition: background .2s, transform .2s; }
 .bid.lead { background: color-mix(in srgb, var(--gel) 22%, transparent); transform: scale(1.02); }
@@ -424,6 +483,9 @@ body.at-ranch .tray, body.at-ranch .tray-top, body.at-ranch #giggle, body.at-ran
   .panel.open .sheet-grip { display: flex; justify-content: center; align-items: center; flex: none; height: 18px; margin-bottom: -6px; touch-action: none; cursor: grab; }
   .sheet-grip i { width: 40px; height: 5px; border-radius: 99px; background: var(--ink-2); opacity: .35; }
   body.at-ranch .panel.open { height: min(44%, 400px); }
+  /* stretched up: the sheet top stops just under the top HUD bar (--sheet-tall is measured in hud.js) */
+  body .panel.open.tall, body.at-ranch .panel.open.tall { height: var(--sheet-tall, 88%); }
+  .panel.instant { transition: none; }
   .ranch-bar { width: 100%; box-sizing: border-box; }
   .tabs { border-bottom: 0; border-top: 1.5px solid var(--edge); box-sizing: border-box; height: var(--tabbar); align-content: center; }
   .panel:not(.open) .tab[aria-selected="true"] { background: none; box-shadow: none; color: var(--ink-2); }
@@ -437,6 +499,7 @@ body.at-ranch .tray, body.at-ranch .tray-top, body.at-ranch #giggle, body.at-ran
   .food { width: 70px; }
   .food img { width: 40px; height: 40px; }
   .toasts { top: calc(env(safe-area-inset-top, 0px) + 128px); }
+  #ui.egg.has-ranch ~ .egg-hint { bottom: calc(var(--tab-pad) + var(--tabbar) + 18px); }
 }
 @media (max-width: 480px) {
   .emotes { gap: 5px; }
@@ -538,14 +601,15 @@ body.at-ranch .tray, body.at-ranch .tray-top, body.at-ranch #giggle, body.at-ran
     <div class="tab-body" id="body-journal" hidden></div>
     <div class="tab-body" id="body-slime" hidden></div>
     <div class="tab-body" id="body-ranch" hidden></div>
-    <div class="sheet-grip" id="sheetGrip" aria-label="Swipe down to close"><i></i></div>
+    <div class="sheet-grip" id="sheetGrip" aria-label="Drag up to see more, down to close"><i></i></div>
   </aside>
 </div>
 
 <div class="egg-hint" id="eggHint" hidden>
-  <h1>Something's wiggling</h1>
+  <h1 id="eggTitle">Something's wiggling</h1>
   <p id="eggText">Tap the egg to keep it warm</p>
   <div class="warm"><i id="eggWarm"></i></div>
+  <button class="link-btn egg-alt" id="eggAlt" hidden>Want a Nursery egg instead? Open the Nursery</button>
 </div>
 
 <div class="fps" id="fpsMeter" hidden></div>
