@@ -8,7 +8,10 @@
   },
   "scripts": {
     "build": "node ../tools/build-ios.mjs",
-    "check": "node ../tools/check-ios-www.mjs"
+    "check": "node ../tools/check-ios-www.mjs",
+    "patch-ios": "node tools/patch-ios.mjs",
+    "check-ios": "node tools/check-ios.mjs",
+    "ios": "npm run build && npm run patch-ios && npx cap sync ios && npm run check-ios"
   },
   "dependencies": {
     "@capacitor/core": "8.6.0",
