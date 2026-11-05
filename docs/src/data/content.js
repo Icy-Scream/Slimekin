@@ -278,6 +278,10 @@ export const RANCH = {
   welcomeGift: 10,           // pearls for the very first move-in
   grassLife: 120,            // seconds a dropped pearl waits in the grass before rolling into the basket
   postcardDays: 7,           // placed slimes send postcards for a week
+  // Family Bonus (percent) = bonusPercent * cbrt(family lifetime jelly / bonusJelly): all the jelly every slime in the
+  // family ever made (plus an old save's hidden head start, family.legacy), recomputed at each move-out.
+  bonusPercent: 5,
+  bonusJelly: 1e7,
 };
 
 // Buyers for placement and auctions. "want" lists traits that make a slime a good fit;
@@ -342,4 +346,86 @@ export const SPARK_BY_ID = Object.fromEntries(SPARK_FORMS.map(s => [s.id, s]));
 export const PURE_LINE = {
   name: formName => `Pure ${formName}`,
   note: 'Same form as both parents: a pure family line.',
+};
+
+// ---------- The jelly loop: medals, heirlooms, Moving Day ----------
+// Slime medals: a step every x10 of a slime's own jelly (s.totalJelly while you raise it, runTotal for a ranch
+// resident), earned live while you raise it. Every grown (Settled) slime has at least the Ribbon; the jelly steps
+// start once it is grown (jelly it made before still counts). Never inherited. Ranch perks: `pearls` multiplies the
+// pearls it makes, `offers` adds to what buyers pay (new homes and auctions). Icons are placeholders (emoji).
+export const MEDALS = [
+  { id: 'ribbon',   name: 'Grown-Up Ribbon', title: 'the Grown-Up Ribbon', icon: '🎀', jelly: 0,    pearls: 1,    offers: 0 },
+  { id: 'bronze',   name: 'Bronze',          title: 'BRONZE',              icon: '🥉', jelly: 1e9,  pearls: 1.1,  offers: 0.05 },
+  { id: 'silver',   name: 'Silver',          title: 'SILVER',              icon: '🥈', jelly: 1e10, pearls: 1.2,  offers: 0.10 },
+  { id: 'gold',     name: 'Gold',            title: 'GOLD',                icon: '🥇', jelly: 1e11, pearls: 1.35, offers: 0.20 },
+  { id: 'platinum', name: 'Platinum',        title: 'PLATINUM',            icon: '💠', jelly: 1e12, pearls: 1.5,  offers: 0.30 },
+  { id: 'emerald',  name: 'Emerald',         title: 'EMERALD',             icon: '💚', jelly: 1e13, pearls: 1.75, offers: 0.45 },
+  { id: 'diamond',  name: 'Diamond',         title: 'DIAMOND',             icon: '💎', jelly: 1e14, pearls: 2,    offers: 0.60 },
+  { id: 'obsidian', name: 'Obsidian',        title: 'OBSIDIAN',            icon: '🌑', jelly: 1e15, pearls: 2.5,  offers: 0.80 },
+  { id: 'nova',     name: 'Nova',            title: 'NOVA',                icon: '🌟', jelly: 1e16, pearls: 3,    offers: 1.00 },
+];
+export const MEDAL_BY_ID = Object.fromEntries(MEDALS.map(m => [m.id, m]));
+
+// Heirlooms: family treasures bought with jelly (spending never changes the jelly a slime made, the family lifetime
+// or the Family Bonus). Owned ones stay through every move-out and baby new home, and help every slime after.
+// fx keys (multipliers multiply with each other and with medal perks):
+//   startHelpers  helpers every new egg's slime starts with        foodPrice  x snack prices
+//   glimmerMult   x Lucky Glimmer rewards (sim fx.glimmerMult)       keepJar    the Jelly Jar keeps its level
+//   ranchPearls   x pearls ranch slimes make                         eggTime    x how long a new Nursery egg warms
+//   happyDecay    x how fast ranch happiness fades (live and away)   buyerPay   x what buyers pay (homes, auctions)
+// `where`: where it will live in the world (the in-world objects are not built yet: placeholder icons only).
+// buyable: false = shown, not for sale yet (`soon` says why).
+export const HEIRLOOMS = [
+  { id: 'toybox',   name: 'Toy Box',              icon: '🧸', price: 1e7,  where: 'in the nursery corner',
+    effect: 'Every new egg starts with 10 Tickle Feathers and 5 Bubble Wands.', fx: { startHelpers: { feather: 10, bubbles: 5 } } },
+  { id: 'cookietin', name: "Grandma's Cookie Tin", icon: '🍪', price: 1e8,  where: 'on the nursery shelf',
+    effect: 'Snacks cost 20% less.', fx: { foodPrice: 0.8 } },
+  { id: 'clover',   name: 'Pressed Clover',       icon: '🍀', price: 1e9,  where: 'in a frame on the wall',
+    effect: 'Lucky Glimmers give twice as much.', fx: { glimmerMult: 2 } },
+  { id: 'jarlid',   name: 'Golden Jar Lid',       icon: '🫙', price: 1e10, where: 'on the Jelly Jar',
+    effect: 'The Jelly Jar keeps its size when a slime moves out (what is inside still starts over).', fx: { keepJar: true } },
+  { id: 'lanterns', name: 'Ranch Lanterns',       icon: '🏮', price: 1e11, where: 'along the ranch fence',
+    effect: 'Ranch slimes make 25% more pearls.', fx: { ranchPearls: 1.25 } },
+  { id: 'quilt',    name: 'Patchwork Quilt',      icon: '🧵', price: 1e12, where: 'in the Nursery',
+    effect: 'New Nursery eggs are ready twice as fast.', fx: { eggTime: 0.5 } },
+  { id: 'portrait', name: 'Family Portrait',      icon: '🖼️', price: 1e13, where: 'on the nursery wall',
+    effect: "Ranch slimes' happiness fades half as fast.", fx: { happyDecay: 0.5 } },
+  { id: 'statue',   name: 'Family Statue',        icon: '🗿', price: 1e14, where: 'on the ranch hill',
+    effect: 'Buyers pay 25% more pearls (new homes and auctions).', fx: { buyerPay: 1.25 } },
+  { id: 'wishstar', name: 'Wishing Star',         icon: '⭐', price: 1e15, where: 'over the ranch at night',
+    effect: 'Rare eggs twice as likely.', fx: {}, buyable: false, soon: 'Arrives with rare eggs.' },
+];
+export const HEIRLOOM_BY_ID = Object.fromEntries(HEIRLOOMS.map(h => [h.id, h]));
+// The Heirlooms tab: a placeholder icon key (memIcon), no text label; `glow` while a new heirloom is affordable.
+export const HEIRLOOM_TAB = { icon: '🧰', label: 'Heirlooms', showNext: 3 };
+
+// Moving Day signs: a grown slime shows, in its own way, that it is ready to leave the nest. No text, no numbers:
+// the player learns to read their slime. Underneath: R = (1 + Family Bonus after moving out / 100) /
+// (1 + Family Bonus now / 100), i.e. how much faster the next baby's jelly would grow. Only while Settled.
+//   levels: from `at` (R) up; `every` = [min, max] seconds of play at home between two signs (rare -> frequent);
+//           `bundle` = chance a sign also brings the tiny travel bundle by the cushion (very ready only).
+//   signs:  one per personality lean (the slider farthest from the middle, and which end). `dur` seconds; the
+//           other numbers are each sign's own tuning (turn: how far it turns toward the ranch hill, in radians;
+//           go: how far it moves, in world units; hops...). The ranch hill is straight behind the cushion.
+export const MOVING_DAY = {
+  levels: [
+    { id: 'restless',  at: 1.5, every: [300, 480] },
+    { id: 'ready',     at: 2,   every: [110, 190] },
+    { id: 'veryReady', at: 3,   every: [50, 100], bundle: 0.4 },
+  ],
+  firstDelay: [25, 50],        // seconds after loading (or after getting restless) before the first sign
+  bundleSeconds: 45,           // how long the travel bundle stays by the cushion
+  signs: {
+    curious:     { lean: ['curious', 'high'], dur: 4.2, turn: 2.0, wiggles: 2 },                 // gazes at the hill, wiggles toward it
+    familiar:    { lean: ['curious', 'low'],  dur: 4.4, pats: 3, turn: 1.5 },                    // tidies its cushion, then glances at the hill
+    bold:        { lean: ['bold', 'high'],    dur: 4.6, hops: 3, go: 0.55, turn: 1.2 },          // practice hops toward the edge, puffs up
+    shy:         { lean: ['bold', 'low'],     dur: 4.2, turn: 1.7, go: 0.4 },                    // peeks at the hill, hides toward you
+    playful:     { lean: ['playful', 'high'], dur: 4.2, hops: 2, hop: 8, turn: 1.9 },            // bounces high, stretches toward the hill
+    mellow:      { lean: ['playful', 'low'],  dur: 6.0, turn: 2.6 },                             // sits facing the hill, swaying slowly
+    cuddly:      { lean: ['cuddly', 'high'],  dur: 4.4, go: 0.45 },                              // brings you its favorite snack to share
+    independent: { lean: ['cuddly', 'low'],   dur: 5.6, go: 0.75 },                              // wanders a little farther, exploring
+    patient:     { lean: ['patient', 'high'], dur: 5.0, turn: 1.8 },                             // hums a slow, different tune at the hill
+    impulsive:   { lean: ['patient', 'low'],  dur: 3.6, go: 0.85, turn: 2.8 },                   // a zoomie toward the hill, then back
+  },
+  clue: 'Grown slimes sometimes dream of the ranch. Watch where they look.',
 };

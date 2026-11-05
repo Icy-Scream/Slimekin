@@ -3,17 +3,20 @@
 import {
   FOODS, FOOD_BY_ID, HELPERS, STAGES, TRAITS, TRAIT_IDS, BOND, PERSONALITY, PERSONALITY_IDS, COMBOS, NAME_IDEAS,
   EMOTES, SECRETS, TRICK_LEARNED, JAR_LEVELS, OUTFITS, OUTFIT_BY_ID, RANCH, BUYER_BY_ID,
-  BREEDING, SPARK_FORMS, SPARK_BY_ID, FORM_BY_ID, FORM_IDS, PURE_LINE,
+  BREEDING, SPARK_FORMS, SPARK_BY_ID, FORM_BY_ID, FORM_IDS, PURE_LINE, MEDALS, HEIRLOOMS, HEIRLOOM_TAB, MOVING_DAY,
 } from '../data/content.js';
 import { fmt, fmtShort, fmtRate, fmtDuration } from '../core/format.js';
 import { ICON, memIcon, slimeArt, slimeUnknown } from './icons.js';
+import { nextMedal, residentMedal } from '../core/medals.js';
 
 const DROP = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.2c3.7 4.6 6.6 8.4 6.6 12a6.6 6.6 0 0 1-13.2 0c0-3.6 2.9-7.4 6.6-12z"/></svg>';
 const DICE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm2.5 3a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm9 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM12 10.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM7.5 15a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm9 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z"/></svg>';
+// the gold chest from the approved 7th-tab layout check: the Heirlooms tab's placeholder until the UI branch draws one
+const CHEST = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10a6 6 0 0 1 6-6h6a6 6 0 0 1 6 6v1H3z" fill="#e0a526"/><rect x="3" y="11" width="18" height="9" rx="2" fill="#f2c14e"/><rect x="3" y="10" width="18" height="2.4" fill="#b7791f"/><rect x="10.5" y="10" width="3" height="5" rx="1" fill="#8a5a12"/></svg>';
 const FALLBACK = { cookie: '🍪', chili: '🌶️', iron: '🔩', moss: '🌿', berry: '🫐', crystal: '💎', feather: '🪶', bubbles: '🫧', garden: '🌱', slimeling: '💧', musicbox: '🎶', lamp: '🌙', fountain: '⛲', observatory: '🔭' };
 
-const GROUP_OF = { helpers: 'shop', upgrades: 'shop', outfits: 'outfits', slime: 'me', journal: 'me', ranch: 'ranch' };
-const GROUP_TAB = { shop: 'tab-shop', outfits: 'tab-outfits', me: 'tab-slime', ranch: 'tab-ranch' };
+const GROUP_OF = { helpers: 'shop', upgrades: 'shop', outfits: 'outfits', slime: 'me', journal: 'me', ranch: 'ranch', heirlooms: 'heirlooms' };
+const GROUP_TAB = { shop: 'tab-shop', outfits: 'tab-outfits', me: 'tab-slime', ranch: 'tab-ranch', heirlooms: 'tab-heirlooms' };
 const SUB_ID = { helpers: 'tab-helpers', upgrades: 'tab-upgrades', slime: 'sub-slime', journal: 'tab-journal' };
 
 export const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -32,6 +35,7 @@ export class Hud {
     this.sayEl = null;
     this.floats = 0;
     this.modalOpen = false;
+    this.mountJellyLoop();   // (before bindTabs: it adds the Heirlooms tab)
     this.bindTabs();
     this.$('settingsBtn').addEventListener('click', () => this.g.openSettings());
     this.$('emoteBtn').addEventListener('click', () => this.toggleEmotes());
@@ -81,6 +85,69 @@ export class Hud {
   icon(id, alt = '') {
     if (this.icons[id]) return `<img src="${this.icons[id]}" alt="${esc(alt)}" draggable="false">`;
     return `<span style="font-size:30px;line-height:1" aria-hidden="true">${FALLBACK[id] || '•'}</span>`;
+  }
+
+  // ---------- jelly loop: the medal badge by the name and the Heirlooms tab ----------
+  // Elements are made here (stable ids/classes, listed in UI-CHANGES.md) so the HUD and tab-bar markup in index.html
+  // stays as is (the UI branch rewrites it).
+  mountJellyLoop() {
+    const badge = document.createElement('span');
+    badge.className = 'medal-badge';
+    badge.id = 'medalBadge';
+    badge.hidden = true;
+    this.$('nameBtn').insertAdjacentElement('afterend', badge);
+    // ===== Heirlooms tab: ONE block (button + its CSS + its page body). =====
+    // Its own tab after the four (group 'heirlooms'): the placeholder chest icon (HEIRLOOM_TAB.icon through memIcon; until
+    // the UI branch draws that key it shows the gold chest from the approved layout check), no text label, in a fixed
+    // 44 px last column of the tab bar (44 px: the smallest comfortable tap target).
+    // `.glow` while an heirloom you don't own just became affordable (stops once the page is opened).
+    // The page itself does not care how it is reached: selectTab('heirlooms') / openTab('heirlooms'), renderHeirlooms().
+    const css = document.createElement('style');
+    css.id = 'heirloomTabCss';
+    css.textContent = `
+      #panel .tabs { grid-template-columns: repeat(4, minmax(0, 1fr)) 44px; }
+      .tab.tab-chest { display: grid; place-items: center; padding-left: 0; padding-right: 0; }
+      .tab-chest .chest-ic { display: grid; place-items: center; font-size: 21px; line-height: 1; opacity: .8; transition: transform .2s, filter .3s, opacity .2s; }
+      .tab-chest .chest-ic svg { width: 24px; height: 24px; }
+      .tab-chest[aria-selected="true"] .chest-ic { opacity: 1; transform: translateY(-1px) scale(1.08); }
+      .tab-chest.glow .chest-ic { opacity: 1; animation: chest-glow 2.2s ease-in-out infinite; }
+      @keyframes chest-glow { 0%, 100% { filter: drop-shadow(0 0 2px rgba(255, 196, 64, .55)); } 50% { filter: drop-shadow(0 0 7px rgba(255, 196, 64, .95)); transform: scale(1.08); } }`;
+    document.head.appendChild(css);
+    const tab = document.createElement('button');
+    tab.className = 'tab tab-chest';
+    tab.id = 'tab-heirlooms';
+    tab.dataset.tab = 'heirlooms';
+    tab.dataset.group = 'heirlooms';
+    tab.setAttribute('role', 'tab');
+    tab.setAttribute('aria-selected', 'false');
+    tab.setAttribute('aria-label', HEIRLOOM_TAB.label);
+    tab.title = HEIRLOOM_TAB.label;
+    tab.innerHTML = `<span class="chest-ic" aria-hidden="true">${memIcon(HEIRLOOM_TAB.icon, CHEST)}</span><span class="dot" hidden></span>`;
+    this.$('panel').querySelector('.tabs').appendChild(tab);
+    const body = document.createElement('div');
+    body.className = 'tab-body';
+    body.id = 'body-heirlooms';
+    body.hidden = true;
+    this.$('body-ranch').insertAdjacentElement('afterend', body);
+    body.addEventListener('click', e => { const b = e.target.closest('button[data-buy]'); if (b && !b.disabled) this.g.buyHeirloom(b.dataset.buy); });
+    // ===== end of the Heirlooms tab block =====
+  }
+  // A small medal badge (placeholder emoji icon from content.js, drawn through memIcon so the UI branch can swap it).
+  medalChip(m, cls = '') {
+    if (!m) return '';
+    const label = m.id === 'ribbon' ? m.name : `${m.name} medal`;
+    return `<span class="medal-badge${cls ? ' ' + cls : ''}" role="img" aria-label="${esc(label)}" title="${esc(label)}">${memIcon(m.icon, esc(m.icon))}</span>`;
+  }
+  // The HUD badge next to the slime's name: the medal its last ceremony played for.
+  updateMedalBadge() {
+    const el = this.$('medalBadge'), m = this.g.sim.medalShown(), key = m ? m.id : '';
+    if (!el || el.dataset.m === key) return;
+    el.dataset.m = key;
+    el.hidden = !m;
+    el.innerHTML = m ? memIcon(m.icon, esc(m.icon)) : '';
+    const label = m ? (m.id === 'ribbon' ? m.name : `${m.name} medal`) : '';
+    el.title = label;
+    if (m) { el.setAttribute('role', 'img'); el.setAttribute('aria-label', label); }
   }
 
   setIcons(icons) {
@@ -156,13 +223,14 @@ export class Hud {
     }
     this.$('subtabs').hidden = !anySeg;
     this.clearDot(t);
-    for (const id of ['helpers', 'upgrades', 'outfits', 'journal', 'slime', 'ranch']) this.$('body-' + id).hidden = id !== t;
+    for (const id of ['helpers', 'upgrades', 'outfits', 'journal', 'slime', 'ranch', 'heirlooms']) this.$('body-' + id).hidden = id !== t;
     if (t === 'ranch') { this.ranchKey = ''; this.renderRanch(); }
     this.g.onTab && this.g.onTab(t);
     if (t === 'outfits') { this.outfitKey = ''; this.renderOutfits(); }
     if (t === 'journal') { this.journalKey = ''; this.renderJournal(); }
     if (t === 'slime') this.renderSlime();
     if (t === 'upgrades') { this.upgradeKey = ''; this.renderUpgrades(); }
+    if (t === 'heirlooms') { this.heirloomKey = ''; this.renderHeirlooms(); }
   }
   openTab(t) {
     const mobile = window.matchMedia('(max-width: 860px)').matches;
@@ -303,7 +371,10 @@ export class Hud {
       const html = unlocked ? `${DROP}${fmtShort(price)}` : `${stageName}`;
       if (el.price.dataset.v !== html) { el.price.innerHTML = html; el.price.dataset.v = html; }
       const title = unlocked ? `${f.name}: ${f.blurb} Drag onto your slime, or tap to toss it.` : `${f.name}: unlocks when your slime becomes a ${stageName}.`;
-      if (el.b.title !== title) { el.b.title = title; el.b.setAttribute('aria-label', `${f.name}, ${unlocked ? fmt(price) + ' jelly' : 'locked'}`); }
+      if (el.b.title !== title) el.b.title = title;
+      // (the label carries the price, which changes with the stage and the Cookie Tin)
+      const label = `${f.name}, ${unlocked ? fmt(price) + ' jelly' : 'locked'}`;
+      if (el.b.getAttribute('aria-label') !== label) el.b.setAttribute('aria-label', label);
     }
   }
   shakeFood(id) {
@@ -451,6 +522,41 @@ export class Hud {
     for (const b of body.querySelectorAll('.outfit:not(.owned)')) b.classList.toggle('poor', !sim.canAfford(OUTFIT_BY_ID[b.dataset.id].cost));
   }
 
+  // ---------- the Heirlooms page (its own tab; see mountJellyLoop) ----------
+  // Owned ones say where they live; the next few unowned show price, effect and Buy; the rest are silhouettes.
+  renderHeirlooms(force = false) {
+    const sim = this.g.sim, st = this.g.state, H = st.heirlooms;
+    if (this.tab === 'heirlooms' && this.panelVisible() && sim.markHeirloomsSeen()) this.g.markDirty(false);
+    const next = HEIRLOOMS.filter(h => !H.owned.includes(h.id)).slice(0, HEIRLOOM_TAB.showNext).map(h => h.id);
+    const key = H.owned.join(',') + '|' + next.map(id => id + (sim.canBuyHeirloom(id).ok ? '+' : '-')).join(',');
+    const body = this.$('body-heirlooms');
+    if (!force && key === this.heirloomKey) return;
+    this.heirloomKey = key;
+    let html = `<div class="card heirloom-intro"><span class="form-name">Heirlooms</span><span class="sub">Family treasures, bought with jelly. They stay forever and help every slime after this one. Spending jelly never lowers the Family Bonus: it counts all the jelly your family ever made.</span></div>`;
+    for (const h of HEIRLOOMS) {
+      const ic = (cls = '') => `<span class="hl-ic${cls}" aria-hidden="true">${memIcon(h.icon, esc(h.icon))}</span>`;
+      if (H.owned.includes(h.id)) {
+        html += `<div class="card heirloom owned" data-id="${h.id}">${ic()}<div class="hl-txt"><b>${esc(h.name)}</b><span class="sub">${esc(h.effect)}</span><span class="sub hl-where">Lives ${esc(h.where)}</span></div></div>`;
+      } else if (next.includes(h.id)) {
+        const ok = sim.canBuyHeirloom(h.id).ok;
+        const act = h.buyable === false ? `<span class="sub hl-soon">${esc(h.soon || 'Not for sale yet.')}</span>`
+          : `<button class="btn${ok ? ' primary' : ''} hl-buy" data-buy="${h.id}" ${ok ? '' : 'disabled'} aria-label="Buy the ${esc(h.name)} for ${fmt(h.price)} jelly">Buy <span class="cost${ok ? '' : ' poor'}">${DROP}${fmtShort(h.price)}</span></button>`;
+        html += `<div class="card heirloom next${ok ? ' can' : ''}" data-id="${h.id}">${ic()}<div class="hl-txt"><b>${esc(h.name)}</b><span class="sub">${esc(h.effect)}</span><span class="sub hl-where">Will live ${esc(h.where)}</span>${act}</div></div>`;
+      } else {
+        html += `<div class="card heirloom unknown" data-id="${h.id}">${ic(' sil')}<div class="hl-txt"><b>???</b><span class="sub">A family treasure still to find.</span></div></div>`;
+      }
+    }
+    body.innerHTML = html;
+  }
+  // The chest glows while an heirloom you don't own has just become affordable; looking at the page stops it.
+  updateHeirloomTab() {
+    const sim = this.g.sim, onPage = this.tab === 'heirlooms' && this.panelVisible();
+    if (onPage) this.renderHeirlooms();
+    const glow = !onPage && sim.newlyAffordableHeirlooms().length > 0;
+    const t = this.$('tab-heirlooms');
+    if (t.classList.contains('glow') !== glow) t.classList.toggle('glow', glow);
+  }
+
   pourJelly(rect, amt) {
     const target = this.$('jellyCount').getBoundingClientRect();
     const tx = target.left + target.width / 2, ty = target.top + target.height / 2;
@@ -505,6 +611,10 @@ export class Hud {
       if (st.secrets.includes(sd.id)) html += `<div class="combo secret"><span class="pair"><span class="sx">${ICON.sparkle}</span></span><span class="cn">${esc(sd.name)}</span><span class="ce">${esc(sd.text)}</span></div>`;
       else html += `<div class="combo unknown"><span class="pair"><span class="sx">?</span></span><span class="cn">${esc(sd.clue)}</span><span class="ce">Not found yet</span></div>`;
     }
+    // one vague Moving Day clue, like the secrets, once the family has had a grown-up slime
+    if (sim.stageIndex() === STAGES.length - 1 || R.residents.length || R.family.generation > 1) {
+      html += `<div class="sec-title">Something to watch for</div><div class="combo unknown moving-day-clue"><span class="pair"><span class="sx">?</span></span><span class="cn">${esc(MOVING_DAY.clue)}</span><span class="ce">A clue</span></div>`;
+    }
     html += '<div class="sec-title">Memories</div>';
     const born = st.slime.bornAt || st.createdAt;
     const mems = [...st.memories].reverse();
@@ -541,18 +651,20 @@ export class Hud {
       const ks = id.split('+').filter(k => TRAITS[k]);
       return slimeArt(ks.length ? ks.map(k => TRAITS[k].color) : '#fbeef4', motif);
     };
-    const node = (name, formName, cls = '', formId = null) => `<div class="tree-node ${cls}">${cls.includes('unknown') ? slimeUnknown() : formArt(formId)}<b>${esc(name)}</b><span class="sub">${esc(formName)}</span></div>`;
+    const node = (name, formName, cls = '', formId = null, medal = null) => `<div class="tree-node ${cls}">${cls.includes('unknown') ? slimeUnknown() : formArt(formId)}<b>${esc(name)}${medal ? ' ' + this.medalChip(medal) : ''}</b><span class="sub">${esc(formName)}</span></div>`;
+    // a parent still on the ranch shows its medal (one that moved away is not known here)
+    const parentMedal = p => { const x = R.residents.find(r => r.id === p.id); return x ? residentMedal(x) : null; };
     const me = s.name || 'Your slime';
     const myForm = s.form ? s.form.name : st.phase === 'egg' ? 'Still an egg' : `${g.sim.stage().name}, still growing`;
     let html = `<div class="sec-title">${esc(me)}'s family</div><div class="card tree">`;
     if (lin.parents?.length === 2) {
       const [p, q] = lin.parents;
-      html += `<div class="tree-parents">${node(p.name, p.form.name, 'parent', p.form.id)}<span class="tree-heart" aria-hidden="true">${ICON.heart}</span>${node(q.name, q.form.name, 'parent', q.form.id)}</div>
+      html += `<div class="tree-parents">${node(p.name, p.form.name, 'parent', p.form.id, parentMedal(p))}<span class="tree-heart" aria-hidden="true">${ICON.heart}</span>${node(q.name, q.form.name, 'parent', q.form.id, parentMedal(q))}</div>
         <div class="tree-line" aria-hidden="true"></div>`;
     } else {
       html += `<div class="tree-parents">${node('?', 'A plain egg', 'parent unknown')}</div><div class="tree-line" aria-hidden="true"></div>`;
     }
-    html += node(me, myForm, 'me' + (s.form?.pure ? ' pure' : '') + (s.form?.spark ? ' spark' : ''), s.form?.id || (st.phase === 'egg' ? null : 'mochi'));
+    html += node(me, myForm, 'me' + (s.form?.pure ? ' pure' : '') + (s.form?.spark ? ' spark' : ''), s.form?.id || (st.phase === 'egg' ? null : 'mochi'), st.phase === 'play' ? g.sim.medalShown() : null);
     html += `<span class="sub tree-note">Generation ${R.family.generation} of your family.${lin.line > 1 ? ` ${esc(me)} is number ${lin.line} in its family line.` : ' The first of a new family line.'}</span>`;
     if (lin.spark) html += `<span class="sub spark-line">${ICON.sparkle}${esc(me)} carries a family spark.</span>`;
     if (lin.pure && FORM_BY_ID[lin.pure]) html += `<span class="sub">Both parents were ${esc(FORM_BY_ID[lin.pure].name)}s.</span>`;
@@ -579,7 +691,7 @@ export class Hud {
     const fams = R.residents.filter(x => x.lineage?.parents?.length === 2);
     if (fams.length) {
       html += '<div class="sec-title">Families on the ranch</div><div class="card">';
-      html += fams.map(x => `<div class="row-between"><span><b>${esc(x.name)}</b> <span class="sub">${esc(x.form?.name || '')}</span></span><span class="sub">${esc(x.lineage.parents[0].name)} × ${esc(x.lineage.parents[1].name)}</span></div>`).join('');
+      html += fams.map(x => `<div class="row-between"><span><b>${esc(x.name)}</b> ${this.medalChip(residentMedal(x))} <span class="sub">${esc(x.form?.name || '')}</span></span><span class="sub">${esc(x.lineage.parents[0].name)} × ${esc(x.lineage.parents[1].name)}</span></div>`).join('');
       html += '</div>';
     }
     return html;
@@ -598,7 +710,7 @@ export class Hud {
 
     if (s.form) {
       html += `<div class="card"><span class="sub">Settled form</span><span class="form-name">${esc(s.form.name)}</span><span class="sub">${esc(s.form.blurb)}</span></div>`;
-      if (sim.canMoveOut()) html += `<div class="card"><b>Ready for the ranch</b><span class="sub">${name} is all grown up. Moving to the ranch starts a new generation and adds a Family Bonus of +${sim.moveOutPreview().bonus.toFixed(1)}% to all jelly, forever.</span><button class="btn" id="slimeMoveOut">Tell me more</button></div>`;
+      if (sim.canMoveOut()) html += `<div class="card"><b>Ready for the ranch</b><span class="sub">${name} is all grown up. Moving to the ranch starts a new generation and raises the Family Bonus by +${sim.moveOutPreview().bonus.toFixed(1)}% to all jelly, forever. The bonus grows from all the jelly your family has ever made.</span><button class="btn" id="slimeMoveOut">Tell me more</button></div>`;
     } else if (si >= 2) {
       const f = sim.formCandidate();
       const sp = s.lineage?.spark && SPARK_BY_ID[s.lineage.spark];
@@ -606,6 +718,20 @@ export class Hud {
       html += `<div class="card"><span class="sub">Looks like ${name} is becoming</span><span class="form-name">${esc(f.name)}?</span><span class="sub">${esc(f.blurb)} Still changing until they settle.</span>${stirring}</div>`;
     } else {
       html += `<div class="card"><span class="sub">Becoming</span><span class="form-name">Too young to tell</span><span class="sub">What ${name} eats now shapes the slime they grow into.</span></div>`;
+    }
+    // medals: the one its ceremony played for, and the next step (a medal every x10 of its own jelly)
+    {
+      const m = sim.medalShown(), nx = m ? nextMedal(m) : MEDALS[0];
+      if (m) {
+        html += `<div class="card medal-card"><div class="row-between"><span class="medal-row">${this.medalChip(m, 'big')}<b>${esc(m.id === 'ribbon' ? m.name : `${m.name} medal`)}</b></span><span class="sub">${MEDALS.indexOf(m) + 1} of ${MEDALS.length}</span></div>`;
+        if (nx) {
+          const k = Math.max(0, Math.min(1, (st.totalJelly - m.jelly) / (nx.jelly - m.jelly)));
+          html += `<div class="meter"><i style="width:${(k * 100).toFixed(1)}%"></i></div><span class="sub">Next: ${esc(nx.name)} at ${fmtShort(nx.jelly)} of ${name}'s own jelly (${fmtShort(st.totalJelly)} so far).</span>`;
+        } else html += `<span class="sub">The very top of the ladder. Wow!</span>`;
+        html += `<span class="sub">On the ranch, ${m.id === 'ribbon' ? 'every medal after this one makes more pearls and gets better offers.' : `this medal makes pearls x${m.pearls} and buyers pay +${Math.round(m.offers * 100)}%.`}</span></div>`;
+      } else if (si >= 1) {
+        html += `<div class="card medal-card"><span class="sub">Medals</span><span class="sub">When ${name} is all grown up they get the Grown-Up Ribbon, then a medal every time their own jelly grows ten times bigger, from Bronze (${fmtShort(MEDALS[1].jelly)}) to Nova (${fmtShort(MEDALS[MEDALS.length - 1].jelly)}).</span></div>`;
+      }
     }
     // not grown yet: a kind family can raise them (no pearls and no Family Bonus for a baby)
     if (sim.canRehome()) {
@@ -718,8 +844,10 @@ export class Hud {
       const lean = PERSONALITY_IDS.map(id => [id, x.personality?.[id] ?? 50]).sort((a, b) => Math.abs(b[1] - 50) - Math.abs(a[1] - 50)).slice(0, 2)
         .map(([id, v]) => (v >= 50 ? PERSONALITY[id].high : PERSONALITY[id].low)).join(', ');
       html += `<button class="link-btn" id="ranchBack">← All ranch slimes</button>`;
-      html += `<div class="card"><div class="row-between"><span class="form-name">${esc(x.name)}</span><span class="sub">Generation ${x.generation}</span></div>
+      const xm = residentMedal(x);
+      html += `<div class="card"><div class="row-between"><span class="form-name">${esc(x.name)} ${this.medalChip(xm)}</span><span class="sub">Generation ${x.generation}</span></div>
         <b>${esc(x.form?.name || 'Slime')}</b><span class="sub">${esc(x.form?.blurb || '')}</span>
+        <span class="sub medal-line">${esc(xm.id === 'ribbon' ? 'Grown-Up Ribbon' : `${xm.name} medal: pearls x${xm.pearls}, buyers pay +${Math.round(xm.offers * 100)}%`)} (${fmtShort(x.runTotal || 0)} jelly made growing up).</span>
         <div class="row-between"><span class="sub">${happyWord(x.happiness)}</span><span class="sub">${Math.round(x.happiness)}%</span></div><div class="meter"><i style="width:${x.happiness.toFixed(0)}%;background:linear-gradient(90deg,#ffb0c8,var(--berry))"></i></div>
         <span class="sub">Tap or stroke ${esc(x.name)} to pet them. Happy slimes make pearls faster.</span>
         ${x.lineage?.parents?.length ? `<span class="sub">Child of ${esc(x.lineage.parents[0].name)} (${esc(x.lineage.parents[0].form.name)}) and ${esc(x.lineage.parents[1].name)} (${esc(x.lineage.parents[1].form.name)}).</span>` : ''}</div>`;
@@ -736,15 +864,15 @@ export class Hud {
       html += `<button class="link-btn" id="ranchHome">← Back home</button>`;
       html += `<div class="card"><div class="row-between"><span class="form-name">Slime Ranch</span><span class="sub">Generation ${R.family.generation}</span></div>
         <div class="big-num"><i class="pearl big"></i>${fmt(R.pearls)}<span class="sub">pearls</span></div>
-        <span class="sub">${R.family.bonus > 0 ? `Family Bonus: <b>+${R.family.bonus.toFixed(1)}%</b> to all jelly, forever.` : 'Every slime that moves here adds a Family Bonus to all your jelly, forever.'}</span>
+        <span class="sub">${R.family.bonus > 0 ? `Family Bonus: <b>+${R.family.bonus.toFixed(1)}%</b> to all jelly, forever. It grows from all the jelly your family has ever made.` : 'Every slime that moves here grows a Family Bonus on all your jelly, forever, from all the jelly your family has ever made.'}</span>
         ${R.residents.length ? `<span class="sub">The ranch makes <b>${fmtRate(sim.ranchJps())}</b> jelly a second and about <b>${rr.pearlsPerHour().toFixed(1)}</b> pearls an hour.</span>` : ''}</div>`;
       const name = esc(st.slime.name || 'Your slime');
       if (canMove) {
         const pv = sim.moveOutPreview();
-        html += `<div class="card"><b>${name} is all grown up</b><span class="sub">Moving to the ranch starts a new generation with a new egg. ${name} adds <b>+${pv.bonus.toFixed(1)}%</b> Family Bonus and makes ${fmtRate(pv.jps * (1 + (R.family.bonus + pv.bonus) / 100))} jelly a second plus pearls on the ranch. The longer you play first, the bigger the bonus.</span>
+        html += `<div class="card"><b>${name} is all grown up</b><span class="sub">Moving to the ranch starts a new generation with a new egg. The Family Bonus goes up <b>+${pv.bonus.toFixed(1)}%</b>, and ${name} makes ${fmtRate(pv.jps * (1 + pv.bonusAfter / 100))} jelly a second plus pearls on the ranch. The bonus grows from all the jelly your family has ever made.</span>
           <button class="btn primary" id="moveOutBtn">${pv.room ? `Move ${name} to the ranch` : 'The ranch is full'}</button></div>`;
       } else if (!R.residents.length && !eggPhase) {
-        html += `<div class="card"><b>Nobody lives here yet</b><span class="sub">When ${name} is all grown up (Settled), they can move to the ranch. They keep making jelly and pearls, you raise a new baby, and every generation adds a Family Bonus to all your jelly.</span></div>`;
+        html += `<div class="card"><b>Nobody lives here yet</b><span class="sub">When ${name} is all grown up (Settled), they can move to the ranch. They keep making jelly and pearls, you raise a new baby, and the Family Bonus on all your jelly grows from all the jelly your family makes.</span></div>`;
       }
       if (R.residents.length || rr.eggs().length) {
         const n = rr.eggs().length;
@@ -763,7 +891,7 @@ export class Hud {
       if (R.residents.length) {
         html += `<div class="sec-title">Living here · ${R.residents.length} of ${R.slots}</div>`;
         for (const x of R.residents) {
-          html += `<div class="card res"><span class="nm">${esc(x.name)}</span><span class="sub">Gen ${x.generation}</span>
+          html += `<div class="card res"><span class="nm">${esc(x.name)} ${this.medalChip(residentMedal(x))}</span><span class="sub">Gen ${x.generation}</span>
             <span class="sub">${esc(x.form?.name || 'Slime')}</span><span class="sub">${fmtRate(x.jps * fm)} jelly/s</span>
             <div class="meter" title="Happiness"><i style="width:${x.happiness.toFixed(0)}%"></i></div><span class="sub">${happyWord(x.happiness)}</span>
             <div class="acts"><button class="btn small" data-act="visit" data-id="${x.id}">Visit</button><button class="btn small" data-act="place" data-id="${x.id}">New home</button><button class="btn small" data-act="auction" data-id="${x.id}">Auction</button></div></div>`;
@@ -801,14 +929,14 @@ export class Hud {
     let html = `<button class="link-btn" id="nurseryBack">← Back to the ranch</button>`;
     html += `<div class="card"><div class="row-between"><span class="form-name">Nursery</span><span class="sub"><i class="pearl"></i> ${fmt(R.pearls)} pearls</span></div>
       <span class="sub">Two ranch slimes can make an egg together. The baby takes after them a little, but how you raise it decides who it becomes.</span>
-      <span class="sub">An egg costs <b>${BREEDING.cost} pearls</b> and is ready in ${fmtDuration(BREEDING.readyHours * 3600)} (even while the game is closed). Each slime can be a parent once a day.</span>
+      <span class="sub">An egg costs <b>${BREEDING.cost} pearls</b> and is ready in ${fmtDuration(rr.newEggSeconds())} (even while the game is closed). Each slime can be a parent once a day.</span>
       ${eggPhase ? '<span class="sub"><b>An egg is waiting on the cushion at home.</b> Before it hatches, you can put a Nursery egg there instead, even one that is still warming.</span>' : ''}</div>`;
     html += `<div class="sec-title">Waiting eggs <span class="count">${eggs.length} of ${BREEDING.maxEggs}</span></div>`;
     if (!eggs.length) html += '<p class="sub">No eggs yet. Pick two parents below.</p>';
     for (const e of eggs) {
       const left = rr.eggSecondsLeft(e, now), ready = left <= 0, [p, q] = e.parents;
       const cols = g.eggColors(e.bias) || [];
-      const done = 1 - left / (BREEDING.readyHours * 3600);
+      const done = 1 - left / rr.eggWarmSeconds(e);
       html += `<div class="card egg-card${e.spark ? ' spark' : ''}"><div class="egg-row"><span class="egg-ic${e.spark ? ' spark' : ''}" style="--a:${cols[0] || '#9eefd3'};--b:${cols[1] || '#ffc2dc'}" aria-hidden="true"></span>
         <div><b>${pname(p)} and ${pname(q)}'s egg</b><span class="sub">${ready ? (eggPhase ? 'Ready!' : `Ready! Choose it when ${cur} moves to the ranch.`) : `Ready in ${fmtDuration(left)}${eggPhase ? ' (it can finish warming on the cushion)' : ''}`}</span></div></div>
         ${ready ? '' : `<div class="meter"><i style="width:${(done * 100).toFixed(0)}%"></i></div>`}
@@ -902,6 +1030,7 @@ export class Hud {
       this.slowT = 0.25;
       const nb = this.$('nameBtn');
       if (nb.textContent !== (s.name || 'Slime')) nb.textContent = s.name || 'Slime';
+      this.updateMedalBadge();
       this.$('stagePill').textContent = sim.stage().name;
       this.$('bondTitle').textContent = BOND[sim.bondLevel()].title;
       this.$('bondBtn').title = `Bond: ${BOND[sim.bondLevel()].title} (level ${sim.bondLevel() + 1})`;
@@ -918,6 +1047,7 @@ export class Hud {
       }
       if (this.tab === 'journal' && this.panelVisible()) this.renderJournal();
       if (this.tab === 'outfits' && this.panelVisible()) this.renderOutfits();
+      this.updateHeirloomTab();
       this.slimeT = (this.slimeT || 0) - 0.25;
       if (this.tab === 'slime' && this.panelVisible() && this.slimeT <= 0 && !this.panelPress) { this.slimeT = 1; this.renderSlime(); }
       this.renderBuffs();

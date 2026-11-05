@@ -3,6 +3,8 @@
 import { RANCH, BUYERS, BUYER_BY_ID, TRAIT_IDS, BREEDING, SPARK_BY_ID } from '../data/content.js';
 import { rng } from './random.js';
 import { makeEgg, sparkFor, pureFor, emptyLineage } from './breeding.js';
+import { residentMedal } from './medals.js';
+import { heirloomMult } from './heirlooms.js';
 
 export function createRanch() {
   return {
@@ -11,7 +13,10 @@ export function createRanch() {
     pearls: 0,
     totalPearls: 0,
     basket: { level: 0, stored: 0 },
-    family: { bonus: 0, generation: 1, lifetime: 0 },
+    // bonus: the Family Bonus (percent) every other system reads; lifetime: all jelly the family ever made;
+    // legacy: an old save's hidden head start (extra lifetime jelly that reproduces the bonus it had before the
+    // lifetime rule). bonus = familyBonusFor(lifetime + legacy), recomputed at each move-out; it never goes down.
+    family: { bonus: 0, generation: 1, lifetime: 0, legacy: 0 },
     placed: [],
     gift: false,
     lastVisit: 0,
@@ -28,6 +33,11 @@ export function migrateRanch(saved) {
   const out = { ...fresh, ...saved };
   out.basket = { ...fresh.basket, ...(saved.basket || {}) };
   out.family = { ...fresh.family, ...(saved.family || {}) };
+  const num = v => (Number.isFinite(+v) && +v > 0 ? +v : 0);
+  for (const k of ['bonus', 'lifetime']) out.family[k] = num(out.family[k]);
+  // Family Legacy: a save from before the lifetime rule keeps its Family Bonus exactly. The extra lifetime jelly
+  // that gives that bonus becomes a hidden head start, so every later move-out still raises it. Filled once.
+  if (!Number.isFinite(saved.family?.legacy)) out.family.legacy = legacyFor(out.family.bonus, out.family.lifetime);
   if (!Array.isArray(out.residents)) out.residents = [];
   if (!Array.isArray(out.placed)) out.placed = [];
   out.nursery = { ...fresh.nursery, ...(saved.nursery || {}) };
@@ -44,8 +54,12 @@ export function migrateRanch(saved) {
   return out;
 }
 
-// Permanent Family Bonus (percent) earned by a generation, from all the jelly it made.
-export const familyBonusFor = total => 5 * Math.cbrt(Math.max(0, total) / 1e7);
+// Family Bonus (percent) from all the jelly the family ever made (Family Legacy: the lifetime rule).
+export const familyBonusFor = total => RANCH.bonusPercent * Math.cbrt(Math.max(0, total) / RANCH.bonusJelly);
+// The extra lifetime jelly that makes familyBonusFor(lifetime + legacy) equal an old save's bonus (0 if the
+// lifetime alone already gives at least that much).
+export const legacyFor = (bonus, lifetime) =>
+  bonus > familyBonusFor(lifetime) ? Math.max(0, RANCH.bonusJelly * (bonus / RANCH.bonusPercent) ** 3 - lifetime) : 0;
 // Steady jelly a resident makes on the ranch, from all the jelly it made while it was growing up.
 export const residentJpsFor = total => Math.round(4 * 2 ** Math.max(0, Math.log10(Math.max(1, total)) - 4));
 
@@ -59,11 +73,22 @@ export class Ranch {
   free() { return this.r.slots - this.r.residents.length; }
   basketCap() { return RANCH.basket[this.r.basket.level].cap; }
   familyMult() { return 1 + this.r.family.bonus / 100; }
+  // The Family Bonus the lifetime rule gives, with `extra` jelly added to the family's lifetime (e.g. the jelly of
+  // the slime that is about to move out). The stored bonus only changes at a move-out.
+  familyBonusWith(extra = 0) { const f = this.r.family; return familyBonusFor((f.lifetime || 0) + (f.legacy || 0) + Math.max(0, extra || 0)); }
   jps() { let t = 0; for (const x of this.r.residents) t += x.jps || 0; return t; }
 
   happyMult(x) { return 0.4 + 0.6 * x.happiness / 100; }
+  // Medal perks (core/medals.js, MEDALS in content.js): a resident's medal makes more pearls and fetches better
+  // offers. Old residents get theirs from runTotal (nothing new is saved for residents). Heirlooms multiply on top:
+  // Ranch Lanterns (pearls), Family Statue (what buyers pay).
+  medal(x) { return residentMedal(x); }
+  pearlMult(x) { return this.medal(x).pearls * heirloomMult(this.s, 'ranchPearls'); }
+  offerMult(x) { return (1 + this.medal(x).offers) * heirloomMult(this.s, 'buyerPay'); }
+  // happiness lost per hour (the Family Portrait halves it)
+  happyDecay() { return RANCH.happyDecayPerHour * heirloomMult(this.s, 'happyDecay'); }
   // pearls per second for one resident
-  pearlRate(x) { return this.happyMult(x) * (1 + 0.05 * (x.bondLevel || 0)) / (RANCH.pearlMinutes * 60); }
+  pearlRate(x) { return this.happyMult(x) * (1 + 0.05 * (x.bondLevel || 0)) * this.pearlMult(x) / (RANCH.pearlMinutes * 60); }
   pearlsPerHour() { let t = 0; for (const x of this.r.residents) t += this.pearlRate(x) * 3600; return t; }
 
   // Live tick. A new pearl counts as in the basket right away (on screen it pops out into the grass
@@ -71,7 +96,7 @@ export class Ranch {
   // Production pauses while the basket is full.
   tick(dt) {
     const made = [];
-    const decay = RANCH.happyDecayPerHour / 3600 * dt;
+    const decay = this.happyDecay() / 3600 * dt;
     for (const x of this.r.residents) {
       x.happiness = Math.max(0, x.happiness - decay);
       if (this.r.basket.stored >= this.basketCap()) continue;
@@ -94,7 +119,7 @@ export class Ranch {
     let made = 0;
     for (const x of this.r.residents) {
       const before = x.happiness;
-      x.happiness = Math.max(0, x.happiness - RANCH.happyDecayPerHour / 3600 * seconds);
+      x.happiness = Math.max(0, x.happiness - this.happyDecay() / 3600 * seconds);
       const avg = { ...x, happiness: (before + x.happiness) / 2 };
       const t = (x.pearlT || 0) + this.pearlRate(avg) * seconds;
       made += Math.floor(t);
@@ -152,6 +177,7 @@ export class Ranch {
     const a = this.resident(aId), b = this.resident(bId), n = this.r.nursery;
     this.spend(BREEDING.cost);
     const egg = makeEgg(a, b, { now, id: `e${now.toString(36)}-${n.made}` });
+    egg.readyAt = now + (egg.readyAt - now) * heirloomMult(this.s, 'eggTime');   // the Patchwork Quilt
     n.made++;
     n.eggs.push(egg);
     a.bredDay = b.bredDay = dayNumber(now);
@@ -159,6 +185,10 @@ export class Ranch {
     return { egg, cost: BREEDING.cost };
   }
   eggReady(egg, now = Date.now()) { return !!egg && now >= egg.readyAt; }
+  // how long this egg warms in all (eggs made with the Patchwork Quilt warm faster)
+  eggWarmSeconds(egg) { return egg && egg.laidAt > 0 && egg.readyAt > egg.laidAt ? (egg.readyAt - egg.laidAt) / 1000 : BREEDING.readyHours * 3600; }
+  // how long a new egg would warm now
+  newEggSeconds() { return BREEDING.readyHours * 3600 * heirloomMult(this.s, 'eggTime'); }
   eggSecondsLeft(egg, now = Date.now()) { return Math.max(0, (egg.readyAt - now) / 1000); }
   // A ready egg leaves the Nursery to start the next generation (early: one still warming may leave too; it
   // finishes warming on the cushion).
@@ -226,7 +256,7 @@ export class Ranch {
     while (picks.length < 3 && pool.length) picks.push(pool.splice(Math.floor(rand() * pool.length), 1)[0]);
     return picks.map(b => {
       const f = this.fit(x, b);
-      return { buyer: b.id, name: b.name, line: b.line, fit: f, pearls: Math.max(5, Math.round(this.value(x) * f * (0.95 + rand() * 0.1))) };
+      return { buyer: b.id, name: b.name, line: b.line, fit: f, pearls: Math.max(5, Math.round(this.value(x) * f * (0.95 + rand() * 0.1) * this.offerMult(x))) };
     }).sort((a, b) => b.pearls - a.pearls);
   }
   place(id, buyerId, now = Date.now()) {
@@ -265,7 +295,11 @@ export class Ranch {
       leader = challenger; price = next;
       steps.push({ buyer: leader.buyer, name: leader.name, price });
     }
-    return { bidders, opening, steps, winner: leader, price: leader ? price : 0 };
+    // medal perk: the same bidding, every price scaled (a Ribbon slime's auction is exactly as before)
+    const m = this.offerMult(x), up = n => (m === 1 ? n : Math.round(n * m));
+    for (const b of bidders) b.max = up(b.max);
+    for (const s of steps) s.price = up(s.price);
+    return { bidders, opening: up(opening), steps, winner: leader, price: leader ? up(price) : 0 };
   }
   sellAtAuction(id, now = Date.now()) {
     const x = this.resident(id);
