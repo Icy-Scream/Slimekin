@@ -125,8 +125,9 @@ Please try each one on the iPhone and send back what you see:
 - Nothing hides behind the Dynamic Island or the home bar at the bottom.
 - Turn the phone sideways: the game stays upright.
 - Pet by dragging on the slime; swipe the menu sheet up and down.
-- Sound: the first tap starts it. Try with the silent switch on and off (and the game's Settings option "Sound when
-  phone is on silent", if it shows).
+- Sound: the first tap starts it. In a new game the Settings option "Sound when phone is on silent" (if it shows)
+  starts **Off**: with the silent switch on, the game is quiet. Turn that option **On** and it plays even on silent.
+  Try both, and with the silent switch off.
 - Haptics: each boop gives a small, soft tap. Does it feel gentle?
 - Settings > **Copy save code**, then **Load a save code** and paste it back.
 - Force-quit the app (swipe it away) and open it again: the slime is still there.
