@@ -12,6 +12,7 @@ import { HelperWorld } from './view/helpers3d.js';
 import { Egg } from './view/egg.js';
 import { addEggSpark } from './view/egg-spark.js';
 import { setMedalPin } from './view/medal-pin.js';
+import { heirloomFlag } from './core/heirlooms.js';
 import { makeFood, renderIcons, FOOD_MAKERS, HELPER_MAKERS, OUTFIT_MAKERS } from './view/models.js';
 import { Sfx } from './audio/sfx.js';
 import { Hud, esc } from './ui/hud.js';
@@ -786,18 +787,31 @@ export class Game {
     }
     const eggs = sim.ranch.eggs();
     const choice = this.eggChoiceHtml();
+    // the medal it takes to the ranch, the Family Bonus now -> after, and any jelly that would stay behind
+    const m = sim.medal(), left = Math.floor(this.state.jelly);
+    const medalHtml = m ? `<div class="card mv-medal"><span class="medal-row">${this.hud.medalChip(m, 'big')}<b>${name} takes ${m.id === 'ribbon' ? 'the Grown-Up Ribbon' : `the ${esc(m.name)} medal`}</b></span><span class="sub">${m.id === 'ribbon' ? 'Every grown slime gets one.' : `On the ranch it makes pearls x${m.pearls} and buyers pay +${Math.round(m.offers * 100)}%.`}</span></div>` : '';
+    const leftHtml = left >= 1 ? `<div class="card mv-leftover"><b>You still have ${fmtShort(left)} jelly.</b><span class="sub">It stays behind when ${name} moves out. Visit the Heirlooms first?</span><button class="btn" id="mvHeirlooms">Visit the Heirlooms</button></div>` : '';
     this.hud.openModal(`<h2>Move ${name} to the ranch?</h2>
       <p>${name} will live on the hill behind the cushion, making jelly and pearls, and you can visit any time. ${eggs.length ? 'Then an egg goes on the cushion' : 'A new egg arrives'} and you raise a new baby.</p>
+      ${medalHtml}
       ${choice}
-      <div class="card"><b>Family Bonus +${pv.bonus.toFixed(1)}%</b><span class="sub">to all jelly, forever. It grows from all the jelly your family has ever made, so every bit ${name} makes counts.</span></div>
-      <div class="card"><b>You keep</b><span class="sub">Pearls, the ranch, outfits, combos you found and secrets. ${name}'s journal goes with them.</span><b>Starts over</b><span class="sub">Jelly, helpers, upgrades and the Jelly Jar.</span></div>
+      <div class="card mv-bonus"><b>Family Bonus +${pv.bonusNow.toFixed(1)}% → +${pv.bonusAfter.toFixed(1)}%</b><span class="sub">to all jelly, forever. It grows from all the jelly your family has ever made, so every bit ${name} makes counts.</span></div>
+      ${leftHtml}
+      ${this.keepHtml(name, true)}
       <div class="actions"><button class="btn" id="mvNo">Not yet</button><button class="btn primary" id="mvYes">Move to the ranch</button></div>`, {
       onOpen: card => {
         const pick = this.bindEggChoice(card);
         card.querySelector('#mvNo').addEventListener('click', () => this.hud.closeModal());
         card.querySelector('#mvYes').addEventListener('click', () => { this.hud.closeModal(); this.moveOut(pick() || null); });
+        // (the move-out can be started again from the Slime or Ranch tab afterwards)
+        card.querySelector('#mvHeirlooms')?.addEventListener('click', () => { this.hud.closeModal(); this.leaveRanch(false); this.hud.openTab('heirlooms'); });
       },
     });
+  }
+  // What stays and what starts over at a move-out or a baby's new home (heirlooms stay; the Golden Jar Lid keeps the jar).
+  keepHtml(name, journal) {
+    const jar = heirloomFlag(this.state, 'keepJar') ? 'what is in the Jelly Jar (the Golden Jar Lid keeps its size)' : 'the Jelly Jar';
+    return `<div class="card"><b>You keep</b><span class="sub">Pearls, the ranch, heirlooms, outfits, combos you found and secrets.${journal ? ` ${name}'s journal goes with them.` : ''}</span><b>Starts over</b><span class="sub">Jelly, helpers, upgrades and ${jar}.</span></div>`;
   }
 
   // "Which egg comes next?": a plain egg, or any egg waiting in the Nursery. One still warming can be chosen too:
@@ -928,7 +942,7 @@ export class Game {
       <p><b>${esc(buyer.name)}</b> would love to raise ${name}. ${name} will be loved and looked after there, and will send you postcards about growing up.</p>
       ${choice || '<p>Then a new egg arrives on the cushion, and you raise a new baby.</p>'}
       <div class="card"><b>No pearls for a baby</b><span class="sub">Only grown-up slimes bring pearls and a Family Bonus. ${name} won't live on the ranch.</span></div>
-      <div class="card"><b>You keep</b><span class="sub">Pearls, the ranch, outfits, combos you found and secrets.</span><b>Starts over</b><span class="sub">Jelly, helpers, upgrades and the Jelly Jar.</span></div>
+      ${this.keepHtml(name, false)}
       <div class="actions"><button class="btn" id="rhNo">Keep ${name}</button><button class="btn primary" id="rhYes">Find a new home</button></div>`, {
       onOpen: card => {
         const pick = this.bindEggChoice(card);
