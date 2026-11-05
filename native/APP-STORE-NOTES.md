@@ -78,12 +78,11 @@ From Apple's "Screenshot specifications" page (read 2026-11-05):
 >
 > The ranch, the Nursery (breeding), medals and heirlooms open once a slime grows up, after about 45 to 60 minutes of
 > play. To see them at once: after naming the first slime, open Settings (the gear at the end of the name bar, top
-> left), tap "Load a save code",
-> paste the code from the attached file and tap Load. A second-generation baby appears, and the family's first
+> left), tap "Load a save code", paste the code from the attached file and tap Load. A second-generation baby appears, and the family's first
 > slime, Juniper, lives grown up on the ranch (Ranch tab; the Nursery needs two ranch slimes).
 
-Attach `review/reviewer-save-code.txt` (one line, `SLIMEKIN1:...`, 3,242 characters: too long for the Notes field
-together with the text above). It is the test save `tools/fixtures/main-gen2.json` (the slime Pebble, second
+Attach `review/reviewer-save-code.txt` as a file (one line, `SLIMEKIN1:...`, 3,242 characters; long, so attach it
+rather than pasting it into Notes). It is the test save `tools/fixtures/main-gen2.json` (the slime Pebble, second
 generation, a young baby; Juniper, a grown Hearth Slime, on the ranch; 22 pearls), encoded the way the game's "Copy
 save code" does it. A save with two ranch slimes (to show breeding at once) can be made the same way: say if wanted.
 
