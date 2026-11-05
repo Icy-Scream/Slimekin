@@ -6,6 +6,7 @@ import {
   BREEDING, SPARK_FORMS, SPARK_BY_ID, FORM_BY_ID, FORM_IDS, PURE_LINE,
 } from '../data/content.js';
 import { fmt, fmtShort, fmtRate, fmtDuration } from '../core/format.js';
+import { ICON, memIcon, slimeArt, slimeUnknown } from './icons.js';
 
 const DROP = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.2c3.7 4.6 6.6 8.4 6.6 12a6.6 6.6 0 0 1-13.2 0c0-3.6 2.9-7.4 6.6-12z"/></svg>';
 const DICE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm2.5 3a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm9 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM12 10.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM7.5 15a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm9 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z"/></svg>';
@@ -448,7 +449,7 @@ export class Hud {
     }
     html += `<div class="sec-title">Secrets <span class="count">${st.secrets.length} of ${SECRETS.length}</span></div><p class="sub">Hidden things your slime does. Each clue hints at one.</p>`;
     for (const sd of SECRETS) {
-      if (st.secrets.includes(sd.id)) html += `<div class="combo secret"><span class="pair"><span class="sx">✦</span></span><span class="cn">${esc(sd.name)}</span><span class="ce">${esc(sd.text)}</span></div>`;
+      if (st.secrets.includes(sd.id)) html += `<div class="combo secret"><span class="pair"><span class="sx">${ICON.sparkle}</span></span><span class="cn">${esc(sd.name)}</span><span class="ce">${esc(sd.text)}</span></div>`;
       else html += `<div class="combo unknown"><span class="pair"><span class="sx">?</span></span><span class="cn">${esc(sd.clue)}</span><span class="ce">Not found yet</span></div>`;
     }
     html += '<div class="sec-title">Memories</div>';
@@ -461,7 +462,7 @@ export class Hud {
       if (day !== lastDay) { html += `<div class="mem-day">Day ${day}</div>`; lastDay = day; }
       const d = new Date(m.t);
       const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-      const ic = this.icons[m.icon] ? `<img src="${this.icons[m.icon]}" alt="">` : esc(m.icon || '•');
+      const ic = this.icons[m.icon] ? `<img src="${this.icons[m.icon]}" alt="">` : memIcon(m.icon, esc(m.icon || '•'));
       html += `<div class="mem"><span class="ic">${ic}</span><div>${esc(m.text)}<time>${time}</time></div></div>`;
     }
     this.$('body-journal').innerHTML = html;
@@ -479,29 +480,28 @@ export class Hud {
   // per the design doc's knowledge states), Pure forms raised, and the families living on the ranch.
   familyTreeHtml() {
     const g = this.g, st = g.state, R = st.ranch, s = st.slime, lin = s.lineage || {};
-    // a little colored blob per form: spark forms have their own color, the others use their snack colors
-    const formColor = id => {
-      if (!id) return null;
+    // the same form colors as a drawn slime (pair forms split into their two snack colors)
+    const formArt = (id, motif) => {
+      if (!id) return slimeArt('#bfeedd');
       const sp = SPARK_FORMS.find(x => x.look === id);
-      if (sp) return sp.color;
+      if (sp) return slimeArt(sp.color, sp.id);
       const ks = id.split('+').filter(k => TRAITS[k]);
-      if (ks.length === 2) return `linear-gradient(135deg, ${TRAITS[ks[0]].color} 0 50%, ${TRAITS[ks[1]].color} 50%)`;
-      return ks.length ? TRAITS[ks[0]].color : '#fbeef4';
+      return slimeArt(ks.length ? ks.map(k => TRAITS[k].color) : '#fbeef4', motif);
     };
-    const node = (name, formName, cls = '', color = null) => `<div class="tree-node ${cls}"><span class="blob" style="${color ? `--c:${color}` : ''}" aria-hidden="true"></span><b>${esc(name)}</b><span class="sub">${esc(formName)}</span></div>`;
+    const node = (name, formName, cls = '', formId = null) => `<div class="tree-node ${cls}">${cls.includes('unknown') ? slimeUnknown() : formArt(formId)}<b>${esc(name)}</b><span class="sub">${esc(formName)}</span></div>`;
     const me = s.name || 'Your slime';
     const myForm = s.form ? s.form.name : st.phase === 'egg' ? 'Still an egg' : `${g.sim.stage().name}, still growing`;
     let html = `<div class="sec-title">${esc(me)}'s family</div><div class="card tree">`;
     if (lin.parents?.length === 2) {
       const [p, q] = lin.parents;
-      html += `<div class="tree-parents">${node(p.name, p.form.name, 'parent', formColor(p.form.id))}<span class="tree-heart" aria-hidden="true">♥</span>${node(q.name, q.form.name, 'parent', formColor(q.form.id))}</div>
+      html += `<div class="tree-parents">${node(p.name, p.form.name, 'parent', p.form.id)}<span class="tree-heart" aria-hidden="true">${ICON.heart}</span>${node(q.name, q.form.name, 'parent', q.form.id)}</div>
         <div class="tree-line" aria-hidden="true"></div>`;
     } else {
       html += `<div class="tree-parents">${node('?', 'A plain egg', 'parent unknown')}</div><div class="tree-line" aria-hidden="true"></div>`;
     }
-    html += node(me, myForm, 'me' + (s.form?.pure ? ' pure' : '') + (s.form?.spark ? ' spark' : ''), formColor(s.form?.id));
+    html += node(me, myForm, 'me' + (s.form?.pure ? ' pure' : '') + (s.form?.spark ? ' spark' : ''), s.form?.id || (st.phase === 'egg' ? null : 'mochi'));
     html += `<span class="sub tree-note">Generation ${R.family.generation} of your family.${lin.line > 1 ? ` ${esc(me)} is number ${lin.line} in its family line.` : ' The first of a new family line.'}</span>`;
-    if (lin.spark) html += `<span class="sub spark-line">✦ ${esc(me)} carries a family spark.</span>`;
+    if (lin.spark) html += `<span class="sub spark-line">${ICON.sparkle}${esc(me)} carries a family spark.</span>`;
     if (lin.pure && FORM_BY_ID[lin.pure]) html += `<span class="sub">Both parents were ${esc(FORM_BY_ID[lin.pure].name)}s.</span>`;
     html += '</div>';
 
@@ -511,18 +511,18 @@ export class Hud {
       const k = R.sparks[x.id];
       const [fa, fb] = x.parents.map(id => FORM_BY_ID[id]?.name || '?');
       if (k === 'understood') {
-        html += `<div class="combo spark-entry"><span class="pair"><span class="blob" style="--c:${x.color}" aria-hidden="true"><i>${x.icon}</i></span></span><span class="cn">${esc(x.name)}</span>
+        html += `<div class="combo spark-entry"><span class="pair">${slimeArt(x.color, x.id)}</span><span class="cn">${esc(x.name)}</span>
           <span class="ce">${esc(x.blurb)} ${esc(fa)} × ${esc(fb)}, raised on ${x.recipe.map(t => esc(TRAITS[t].name)).join(' + ')} snacks.</span></div>`;
       } else if (k === 'observed') {
         const misses = R.nearMiss[x.id] || 0;
-        html += `<div class="combo unknown spark-entry"><span class="pair"><span class="blob silhouette" aria-hidden="true"><i>?</i></span></span><span class="cn">A spark between ${esc(fa)} and ${esc(fb)}</span>
+        html += `<div class="combo unknown spark-entry"><span class="pair">${slimeUnknown()}</span><span class="cn">A spark between ${esc(fa)} and ${esc(fb)}</span>
           <span class="ce">${misses ? `Clue: ${esc(x.clue)} (${misses} near miss${misses === 1 ? '' : 'es'} so far)` : 'Seen in an egg. Their baby needs to be raised just right: try different snacks!'}</span></div>`;
       } else {
-        html += `<div class="combo unknown spark-entry"><span class="pair"><span class="blob silhouette" aria-hidden="true"><i>?</i></span></span><span class="cn">${esc(x.hint)}</span><span class="ce">Not found yet</span></div>`;
+        html += `<div class="combo unknown spark-entry"><span class="pair">${slimeUnknown()}</span><span class="cn">${esc(x.hint)}</span><span class="ce">Not found yet</span></div>`;
       }
     }
     html += `<div class="sec-title">Pure forms <span class="count">${R.pures.length} of ${FORM_IDS.length}</span></div><p class="sub">Two parents of the same form, and a baby raised the same way, make a Pure version.</p>`;
-    html += R.pures.length ? `<div class="badges">${R.pures.map(id => `<span class="badge pure-badge">✦ ${esc(PURE_LINE.name(FORM_BY_ID[id].name))}</span>`).join('')}</div>` : '<p class="empty">None yet.</p>';
+    html += R.pures.length ? `<div class="badges">${R.pures.map(id => `<span class="badge pure-badge">${ICON.sparkle}${esc(PURE_LINE.name(FORM_BY_ID[id].name))}</span>`).join('')}</div>` : '<p class="empty">None yet.</p>';
     const fams = R.residents.filter(x => x.lineage?.parents?.length === 2);
     if (fams.length) {
       html += '<div class="sec-title">Families on the ranch</div><div class="card">';
@@ -549,7 +549,7 @@ export class Hud {
     } else if (si >= 2) {
       const f = sim.formCandidate();
       const sp = s.lineage?.spark && SPARK_BY_ID[s.lineage.spark];
-      const stirring = sp && f.id === [...sp.recipe].sort().join('+') ? `<span class="sub spark-line">✦ Something sparkly is stirring inside ${name}...</span>` : '';
+      const stirring = sp && f.id === [...sp.recipe].sort().join('+') ? `<span class="sub spark-line">${ICON.sparkle}Something sparkly is stirring inside ${name}...</span>` : '';
       html += `<div class="card"><span class="sub">Looks like ${name} is becoming</span><span class="form-name">${esc(f.name)}?</span><span class="sub">${esc(f.blurb)} Still changing until they settle.</span>${stirring}</div>`;
     } else {
       html += `<div class="card"><span class="sub">Becoming</span><span class="form-name">Too young to tell</span><span class="sub">What ${name} eats now shapes the slime they grow into.</span></div>`;
@@ -567,7 +567,7 @@ export class Hud {
       html += `<div class="card"><span class="sub">Family</span><b>Child of ${esc(p.name)} and ${esc(q.name)}</b><span class="sub">${esc(p.form.name)} × ${esc(q.form.name)}.${leaned.length ? ` ${name} started out a little ${esc(leaned.join(' and ').toLowerCase())}, like them.` : ''}</span>`;
       const sp = lin.spark && SPARK_BY_ID[lin.spark];
       if (sp && !s.form) {
-        html += `<span class="sub spark-line">✦ A family spark glows in ${name}. Raised just right, they could grow into something only ${esc(p.name)} and ${esc(q.name)} can pass on.</span>`;
+        html += `<span class="sub spark-line">${ICON.sparkle}A family spark glows in ${name}. Raised just right, they could grow into something only ${esc(p.name)} and ${esc(q.name)} can pass on.</span>`;
         // the clue comes after a near miss (or once the form is known); before that, finding it is the fun
         if (st.ranch.nearMiss[sp.id] || st.ranch.sparks[sp.id] === 'understood') html += `<span class="sub">Journal clue: ${esc(sp.clue)}</span>`;
       }
@@ -677,7 +677,7 @@ export class Hud {
         <div class="stat"><div class="k">Favorite snack</div><div class="v">${esc(FOOD_BY_ID[x.favorite]?.name || '?')}</div></div></div>`;
       if (lean) html += `<p class="sub">Personality: ${esc(lean)}. Bond: ${esc(BOND[x.bondLevel || 0].title)}.</p>`;
       const mem = (x.memories || []).slice(-6).reverse();
-      if (mem.length) html += `<div class="sec-title">${esc(x.name)}'s story</div><div class="card">` + mem.map(m => `<div class="sub">${m.icon} ${esc(m.text)}</div>`).join('') + '</div>';
+      if (mem.length) html += `<div class="sec-title">${esc(x.name)}'s story</div><div class="card">` + mem.map(m => `<div class="sub mem-line">${memIcon(m.icon, esc(m.icon || ''))} <span>${esc(m.text)}</span></div>`).join('') + '</div>';
       html += `<div class="res"><div class="acts"><button class="btn" data-act="place" data-id="${x.id}">Find a new home</button><button class="btn" data-act="auction" data-id="${x.id}">Auction</button></div></div>`;
     } else {
       html += `<button class="link-btn" id="ranchHome">← Back home</button>`;
@@ -759,7 +759,7 @@ export class Hud {
       html += `<div class="card egg-card${e.spark ? ' spark' : ''}"><div class="egg-row"><span class="egg-ic${e.spark ? ' spark' : ''}" style="--a:${cols[0] || '#9eefd3'};--b:${cols[1] || '#ffc2dc'}" aria-hidden="true"></span>
         <div><b>${pname(p)} and ${pname(q)}'s egg</b><span class="sub">${ready ? (eggPhase ? 'Ready!' : `Ready! Choose it when ${cur} moves to the ranch.`) : `Ready in ${fmtDuration(left)}${eggPhase ? ' (it can finish warming on the cushion)' : ''}`}</span></div></div>
         ${ready ? '' : `<div class="meter"><i style="width:${(done * 100).toFixed(0)}%"></i></div>`}
-        ${e.spark ? `<span class="sub spark-line">✦ It twinkles! ${pname(p)} and ${pname(q)} share a family spark.</span>` : ''}
+        ${e.spark ? `<span class="sub spark-line">${ICON.sparkle}It twinkles! ${pname(p)} and ${pname(q)} share a family spark.</span>` : ''}
         ${e.pure ? `<span class="sub">Both parents are ${esc(FORM_BY_ID[e.pure].name)}s. Raised the same way, the baby becomes a ${esc(PURE_LINE.name(FORM_BY_ID[e.pure].name))}.</span>` : ''}
         <div class="egg-acts">${eggPhase ? `<button class="btn small primary" data-act="cushion" data-egg="${e.id}">Put on the cushion</button>` : ''}<button class="btn small" data-act="giveEgg" data-egg="${e.id}">Give to a neighbor</button></div></div>`;
     }
@@ -779,7 +779,7 @@ export class Hud {
       if (c && c.ok) {
         const [a, b] = pick.map(id => rr.resident(id));
         msg = `${pname(a)} and ${pname(b)} would make a lovely egg.`;
-        if (c.spark && R.sparks[c.spark]) msg += ` <span class="spark-line">✦ They share a family spark!</span>`;
+        if (c.spark && R.sparks[c.spark]) msg += ` <span class="spark-line">${ICON.sparkle}They share a family spark!</span>`;
         if (c.pure) msg += ` Both are ${esc(FORM_BY_ID[c.pure].name)}s: their baby could be a ${esc(PURE_LINE.name(FORM_BY_ID[c.pure].name))}.`;
       }
       html += `<p class="sub" id="breedMsg">${msg}</p><button class="btn primary" id="breedBtn" ${c && c.ok ? '' : 'disabled'}>Make an egg · <i class="pearl"></i> ${BREEDING.cost}</button>`;
@@ -847,7 +847,8 @@ export class Hud {
       if (nb.textContent !== (s.name || 'Slime')) nb.textContent = s.name || 'Slime';
       this.$('stagePill').textContent = sim.stage().name;
       this.$('bondTitle').textContent = BOND[sim.bondLevel()].title;
-      this.$('tab-slime').firstChild.textContent = s.name || 'Slime';
+      const tl = this.$('tab-slime').querySelector('.tl');
+      if (tl.textContent !== (s.name || 'Slime')) tl.textContent = s.name || 'Slime';
       this.updateTray();
       this.updateHelpers();
       const n = this.renderUpgrades();

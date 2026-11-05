@@ -14,8 +14,10 @@ import { addEggSpark } from './view/egg-spark.js';
 import { makeFood, renderIcons, FOOD_MAKERS, HELPER_MAKERS, OUTFIT_MAKERS } from './view/models.js';
 import { Sfx } from './audio/sfx.js';
 import { Hud, esc } from './ui/hud.js';
+import { ICON } from './ui/icons.js';
 import { Behaviors } from './behaviors.js';
 import { RanchView } from './view/ranch.js';
+import { Scenery } from './view/scenery.js';
 
 const SLIME_Y = CUSHION_TOP - 0.03;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -37,6 +39,8 @@ export class Game {
 
     this.stage = new Stage(canvas);
     this.scene = this.stage.scene;
+    this.scenery = new Scenery(this.scene, this.stage);
+    this.scenery.setTheme(this.stage.dark);
     this.fx = new FX(this.scene);
     this.fx.floor = CUSHION_TOP;
     this.slime = new SlimeAvatar({ quality: this.resolvedQuality() });
@@ -52,7 +56,7 @@ export class Game {
     this.debugInstant = DEBUG && (() => { try { return localStorage.getItem('slimekin.debug.instantEggs') === '1'; } catch { return false; } })();
     this.ranch = new RanchView(this.scene, { quality: this.resolvedQuality() });
     this.ranch.setTheme(this.stage.dark, this.stage.palette.floor);
-    this.stage.onTheme = (dark, p) => { this.ranch.setTheme(dark, p.floor); this.eggSpark && this.eggSpark.setNight(dark); };
+    this.stage.onTheme = (dark, p) => { this.ranch.setTheme(dark, p.floor); this.scenery.setTheme(dark); this.eggSpark && this.eggSpark.setNight(dark); };
     this.ranch.sync(this.state.ranch?.residents || []);
     this.ranchPage = null;   // 'nursery' while the Nursery panel is open
     this.nurseryT = 0;
@@ -137,6 +141,8 @@ export class Game {
     this.watchTheme();
     this.resize();
     window.addEventListener('resize', () => this.resize());
+    // re-measure once the phone menu finishes sliding (the camera fits the slime into what's left)
+    document.getElementById('panel').addEventListener('transitionend', e => { if (e.propertyName === 'height') this.resize(); });
     document.addEventListener('visibilitychange', () => this.onVisibility());
     window.addEventListener('pagehide', () => this.saveNow(true));
 
@@ -183,6 +189,10 @@ export class Game {
 
   applySettings() {
     const s = this.state.settings;
+    // background: the meadow, or the classic plain nursery (only the slime to look at)
+    if (s.scene !== 'classic' && s.scene !== 'meadow') s.scene = 'meadow';
+    this.scenery.setEnabled(s.scene === 'meadow');
+    this.stage.setClassic(s.scene === 'classic');
     this.sfx.setPlayOnSilent(!!s.soundOnSilent);
     this.sfx.setSound(s.sound);
     this.sfx.setMusic(s.music);
@@ -1626,8 +1636,8 @@ export class Game {
     body += `<div class="unlock"><span style="font-size:22px;width:34px;text-align:center">x${st.boop}</span>Boops now give ${st.boop} base jelly</div>`;
     for (const f of foods) body += `<div class="unlock">${this.hud.icon(f.id)}New snack: ${esc(f.name)}</div>`;
     body += '</div>';
-    const extra = r.form?.spark ? `<span class="sub spark-line">✦ A family spark! Only ${esc(parents)} could pass this on.</span>`
-      : r.form?.pure ? `<span class="sub spark-line">✦ ${esc(PURE_LINE.note)}</span>`
+    const extra = r.form?.spark ? `<span class="sub spark-line">${ICON.sparkle}A family spark! Only ${esc(parents)} could pass this on.</span>`
+      : r.form?.pure ? `<span class="sub spark-line">${ICON.sparkle}${esc(PURE_LINE.note)}</span>`
       : r.nearMiss ? `<span class="sub">${esc(name)} carried a family spark, but grew up a little differently. The Journal kept a clue.</span>` : '';
     if (r.form) body = `<p>Everything you shared shaped who ${esc(name)} became.</p><div class="card"><span class="form-name">${esc(r.form.name)}</span><span class="sub">${esc(r.form.blurb)}</span>${extra}</div>` + body;
     else if (r.stageAfter >= 1) body += '<p>Snacks cost more now, since bigger slimes eat bigger portions.</p>';
@@ -1922,6 +1932,7 @@ export class Game {
       <div class="setting"><span>Happy hum while petting</span>${seg('purr', [[true, 'On'], [false, 'Off']])}</div>
       ${navigator.audioSession ? `<div class="setting"><span>Sound when phone is on silent</span>${seg('soundOnSilent', [[true, 'On'], [false, 'Off']])}</div>` : ''}
       <div class="setting"><span>Sound check<br><span class="sub" id="audioStatus">${esc(this.sfx.status())}</span></span><button class="btn small" id="testSound">Test sound</button></div>
+      <div class="setting"><span>Background<br><span class="sub">Classic hides the meadow and the ranch, so it's just your slime.</span></span>${seg('scene', [['meadow', 'Meadow'], ['classic', 'Classic']])}</div>
       <div class="setting"><span>Motion</span>${seg('reducedMotion', [[false, 'Full'], [true, 'Reduced']])}</div>
       <div class="setting"><span>Graphics</span>${seg('quality', [['auto', 'Auto'], ['high', 'High'], ['low', 'Low']])}</div>
       <div class="setting"><span>Speed meter</span>${seg('showFps', [[false, 'Off'], [true, 'On']])}</div>
@@ -2101,7 +2112,7 @@ export class Game {
 
   computeViewGoal() {
     const w = innerWidth, h = innerHeight;
-    let x = 0, y = 0;
+    let x = 0, y = 0, zoom = 1;
     const mobileTop = window.matchMedia('(max-width: 860px)').matches;
     this.topLimit = mobileTop ? document.querySelector('.top').getBoundingClientRect().bottom : 0;
     if (this.state.phase === 'play' || this.view === 'ranch') {
@@ -2120,8 +2131,11 @@ export class Game {
         const bottom = Math.min(tray.top, panel.top);
         const free = (top.bottom + bottom) / 2;
         y = h / 2 - free;
+        // a tall menu leaves little room: zoom out so the slime still fits above it
+        zoom = Math.max(1, Math.min(2.3, (h * 0.4) / Math.max(80, bottom - top.bottom)));
       }
     }
+    this.stage.fitZoom = zoom;
     this.viewGoal.set(x, y);
   }
 
@@ -2439,7 +2453,10 @@ export class Game {
     this.updateRanch(dt);
     this.nurseryT -= dt;
     if (this.nurseryT <= 0) { this.nurseryT = 1; this.syncNursery(); }
+    // classic background: the ranch only shows while you're over there (or flying there and back)
+    this.ranch.group.visible = this.state.settings.scene !== 'classic' || this.view === 'ranch' || this.stage.camPos.z < 3;
     this.ranch.update(dt, this.stage.camera);
+    this.scenery.update(dt);
     this.fx.update(dt);
 
     // smooth view offset toward the free area of the screen

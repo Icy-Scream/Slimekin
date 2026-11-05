@@ -42,7 +42,7 @@ export const memIcon = (emoji, fallback) => MEM[emoji] || fallback;
 
 // A little slime drawing for the family tree and the spark-form list. motif adds the spark form's mark.
 const MOTIF = {
-  smore: '<rect x="11.5" y="1.6" width="13" height="7.6" rx="2.6" fill="#fffaf2" stroke="#e8d6bd" stroke-width=".8"/><path d="M11.8 6.4h12.4" stroke="#f0c69a" stroke-width="1.2"/><rect x="6.8" y="16.6" width="22.4" height="3.6" rx="1.6" fill="#7a4a2e" opacity=".85"/>',
+  smore: '<rect x="11.4" y="7" width="13.2" height="3.2" rx="1.2" fill="#7a4a2e"/><rect x="12.2" y=".8" width="11.6" height="6.8" rx="2.6" fill="#fffaf2" stroke="#e8d6bd" stroke-width=".8"/><path d="M12.6 5h10.8" stroke="#f0c69a" stroke-width="1.1"/>',
   honeycomb: '<g fill="none" stroke="#c98a10" stroke-width="1" opacity=".75"><path d="M10.6 14.6l2.2-1.3 2.2 1.3v2.5l-2.2 1.3-2.2-1.3zM15 14.6l2.2-1.3 2.2 1.3v2.5l-2.2 1.3-2.2-1.3zM19.4 14.6l2.2-1.3 2.2 1.3v2.5l-2.2 1.3-2.2-1.3z"/></g><path d="M25.6 10.4c0 2 .8 3 .8 4.2a1 1 0 0 1-2 0c0-1.2.8-2.2 1.2-4.2z" fill="#ffb800"/>',
   campfire: '<path d="M18 .8c2.6 2.6 4 4.6 4 6.8a4 4 0 0 1-8 0c0-1.4.8-2.6 1.6-3.6.2 1.2.8 1.8 1.4 1.8 0-2 .4-3.4 1-5z" fill="#ff8a2a"/><path d="M18 4.2c1.2 1.4 1.8 2.4 1.8 3.4a1.8 1.8 0 0 1-3.6 0c0-1 .8-2 1.8-3.4z" fill="#ffe066"/>',
   storm: '<path d="M10.6 7.2a3.4 3.4 0 0 1 4.6-3.2 4.4 4.4 0 0 1 8.2 1.4 2.9 2.9 0 0 1 .2 5.8H11.4a2.4 2.4 0 0 1-.8-4z" fill="#eef4ff" stroke="#b9c8e8" stroke-width=".8"/><path d="M19 10.4l-2.4 3.6h2.2l-1.6 3.2" stroke="#ffd23f" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
