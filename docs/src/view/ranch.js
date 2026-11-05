@@ -3,6 +3,8 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { SlimeAvatar } from './slime.js';
+import { setMedalPin } from './medal-pin.js';
+import { residentMedal } from '../core/medals.js';
 import { Egg } from './egg.js';
 import { addEggSpark } from './egg-spark.js';
 
@@ -460,6 +462,7 @@ export class RanchView {
       av.color.copy(av.targetColor);
       if (d.form) av.setForm(d.form.id, { pure: d.form.pure });
       if (d.worn) av.setOutfits(d.worn);
+      setMedalPin(av, residentMedal(d));
       av.size = av.sizeTarget = 0.86;
       const holder = new THREE.Group();
       holder.add(av.root);

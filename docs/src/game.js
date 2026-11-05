@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { Sim, createState, migrate } from './core/sim.js';
 import { Requests } from './core/requests.js';
-import { TUNING, FOODS, FOOD_BY_ID, HELPERS, HELPER_BY_ID, UPGRADE_BY_ID, STAGES, TRAITS, TRAIT_IDS, BOND, PERSONALITY_IDS, JAR_LEVELS, OUTFITS, OUTFIT_BY_ID, RANCH, BUYER_BY_ID, BREEDING, SPARK_BY_ID, FORM_BY_ID, PURE_LINE } from './data/content.js';
+import { TUNING, FOODS, FOOD_BY_ID, HELPERS, HELPER_BY_ID, UPGRADE_BY_ID, STAGES, TRAITS, TRAIT_IDS, BOND, PERSONALITY, PERSONALITY_IDS, JAR_LEVELS, OUTFITS, OUTFIT_BY_ID, RANCH, BUYER_BY_ID, BREEDING, SPARK_BY_ID, FORM_BY_ID, PURE_LINE, MOVING_DAY } from './data/content.js';
 import { fmt, fmtShort, fmtDuration } from './core/format.js';
 import { Stage, CUSHION_TOP } from './view/stage.js';
 import { SlimeAvatar } from './view/slime.js';
@@ -11,11 +11,15 @@ import { FX } from './view/fx.js';
 import { HelperWorld } from './view/helpers3d.js';
 import { Egg } from './view/egg.js';
 import { addEggSpark } from './view/egg-spark.js';
+import { setMedalPin } from './view/medal-pin.js';
+import { heirloomFlag } from './core/heirlooms.js';
 import { makeFood, renderIcons, FOOD_MAKERS, HELPER_MAKERS, OUTFIT_MAKERS } from './view/models.js';
 import { Sfx } from './audio/sfx.js';
 import { Hud, esc } from './ui/hud.js';
-import { ICON } from './ui/icons.js';
+import { ICON, memIcon } from './ui/icons.js';
 import { Behaviors } from './behaviors.js';
+import { MovingDay } from './moving-day.js';
+import { movingDayRatio, movingDayLevel } from './core/movingday.js';
 import { RanchView } from './view/ranch.js';
 import { Scenery } from './view/scenery.js';
 
@@ -50,6 +54,7 @@ export class Game {
     this.slime.size = this.slime.sizeTarget = this.sim.size();
     this.slime.setOutfits(this.state.outfits.worn);
     if (this.state.slime.form) this.slime.setForm(this.state.slime.form.id, { pure: this.state.slime.form.pure });
+    setMedalPin(this.slime, this.sim.medalShown());
     this.formFxT = 1;
     this.timeSkip = 0;   // test clock: advance() moves the Nursery's egg timers along with game time
     // debug only (#debug): Nursery eggs are ready at once and parents don't rest; remembered on this device, not in the save
@@ -65,6 +70,7 @@ export class Game {
     this.helpers3d.sync(this.state.helpers);
     this.hud = new Hud(this);
     this.behave = new Behaviors(this);
+    this.movingDay = new MovingDay(this);
     for (const b of this.state.slime.belly || []) {
       if (FOOD_BY_ID[b.id]) this.slime.addInner(b.id, { age: b.age || 0, life: b.life, settled: true });
     }
@@ -247,7 +253,7 @@ export class Game {
     document.getElementById('eggHint').classList.toggle('warming', warming);
     if (warming) {
       const left = this.sim.eggSecondsLeft(now);
-      document.getElementById('eggWarm').style.width = Math.round(100 * (1 - Math.min(1, left / (BREEDING.readyHours * 3600)))) + '%';
+      document.getElementById('eggWarm').style.width = Math.round(100 * (1 - Math.min(1, left / this.sim.ranch.eggWarmSeconds(this.state.egg.bred)))) + '%';
       set('eggTitle', 'Still warming');
       set('eggText', `Ready in ${fmtDuration(left)}. It can finish warming right here.`);
     } else {
@@ -700,7 +706,7 @@ export class Game {
     } else {
       this.remember('🥚', `${p.name} and ${q.name} made an egg together in the Nursery.`);
       const when = this.state.phase === 'egg' ? 'You can put it on the cushion instead of the egg there now.' : `Choose it when ${esc(this.Name)} moves to the ranch.`;
-      this.hud.toast(`<b>A new egg in the Nursery</b>${esc(p.name)} and ${esc(q.name)}'s egg is ${this.debugInstant ? 'ready now (debug: instant eggs)' : `ready in ${fmtDuration(BREEDING.readyHours * 3600)}`}. ${when}`, 'love', 4600);
+      this.hud.toast(`<b>A new egg in the Nursery</b>${esc(p.name)} and ${esc(q.name)}'s egg is ${this.debugInstant ? 'ready now (debug: instant eggs)' : `ready in ${fmtDuration(rr.eggWarmSeconds(r.egg))}`}. ${when}`, 'love', 4600);
     }
     this.hud.nurseryPick = [];
     this.hud.renderRanch(true);
@@ -784,18 +790,31 @@ export class Game {
     }
     const eggs = sim.ranch.eggs();
     const choice = this.eggChoiceHtml();
+    // the medal it takes to the ranch, the Family Bonus now -> after, and any jelly that would stay behind
+    const m = sim.medal(), left = Math.floor(this.state.jelly);
+    const medalHtml = m ? `<div class="card mv-medal"><span class="medal-row">${this.hud.medalChip(m, 'big')}<b>${name} takes ${m.id === 'ribbon' ? 'the Grown-Up Ribbon' : `the ${esc(m.name)} medal`}</b></span><span class="sub">${m.id === 'ribbon' ? 'Every grown slime gets one.' : `On the ranch it makes pearls x${m.pearls} and buyers pay +${Math.round(m.offers * 100)}%.`}</span></div>` : '';
+    const leftHtml = left >= 1 ? `<div class="card mv-leftover"><b>You still have ${fmtShort(left)} jelly.</b><span class="sub">It stays behind when ${name} moves out. Visit the Heirlooms first?</span><button class="btn" id="mvHeirlooms">Visit the Heirlooms</button></div>` : '';
     this.hud.openModal(`<h2>Move ${name} to the ranch?</h2>
       <p>${name} will live on the hill behind the cushion, making jelly and pearls, and you can visit any time. ${eggs.length ? 'Then an egg goes on the cushion' : 'A new egg arrives'} and you raise a new baby.</p>
+      ${medalHtml}
       ${choice}
-      <div class="card"><b>Family Bonus +${pv.bonus.toFixed(1)}%</b><span class="sub">to all jelly, forever. It adds up with every generation. Playing longer first makes it bigger.</span></div>
-      <div class="card"><b>You keep</b><span class="sub">Pearls, the ranch, outfits, combos you found and secrets. ${name}'s journal goes with them.</span><b>Starts over</b><span class="sub">Jelly, helpers, upgrades and the Jelly Jar.</span></div>
+      <div class="card mv-bonus"><b>Family Bonus +${pv.bonusNow.toFixed(1)}% → +${pv.bonusAfter.toFixed(1)}%</b><span class="sub">to all jelly, forever. It grows from all the jelly your family has ever made, so every bit ${name} makes counts.</span></div>
+      ${leftHtml}
+      ${this.keepHtml(name, true)}
       <div class="actions"><button class="btn" id="mvNo">Not yet</button><button class="btn primary" id="mvYes">Move to the ranch</button></div>`, {
       onOpen: card => {
         const pick = this.bindEggChoice(card);
         card.querySelector('#mvNo').addEventListener('click', () => this.hud.closeModal());
         card.querySelector('#mvYes').addEventListener('click', () => { this.hud.closeModal(); this.moveOut(pick() || null); });
+        // (the move-out can be started again from the Slime or Ranch tab afterwards)
+        card.querySelector('#mvHeirlooms')?.addEventListener('click', () => { this.hud.closeModal(); this.leaveRanch(false); this.hud.openTab('heirlooms'); });
       },
     });
+  }
+  // What stays and what starts over at a move-out or a baby's new home (heirlooms stay; the Golden Jar Lid keeps the jar).
+  keepHtml(name, journal) {
+    const jar = heirloomFlag(this.state, 'keepJar') ? 'what is in the Jelly Jar (the Golden Jar Lid keeps its size)' : 'the Jelly Jar';
+    return `<div class="card"><b>You keep</b><span class="sub">Pearls, the ranch, heirlooms, outfits, combos you found and secrets.${journal ? ` ${name}'s journal goes with them.` : ''}</span><b>Starts over</b><span class="sub">Jelly, helpers, upgrades and ${jar}.</span></div>`;
   }
 
   // "Which egg comes next?": a plain egg, or any egg waiting in the Nursery. One still warming can be chosen too:
@@ -836,6 +855,8 @@ export class Game {
     // the goodbye happens in view: a menu still open (the Slime tab) closes first
     if (window.matchMedia('(max-width: 860px)').matches && this.hud.sheetState() !== 'closed') this.hud.setSheet('closed');
     const baby = !!buyerId;
+    this.movingDay.stop();
+    this.slime.root.position.x = this.slime.root.position.z = 0;
     this.departing = { t: 0, z: 0, x: 0, hopT: 0.4, side: baby };
     const name = this.Name;
     this.press = null;
@@ -926,7 +947,7 @@ export class Game {
       <p><b>${esc(buyer.name)}</b> would love to raise ${name}. ${name} will be loved and looked after there, and will send you postcards about growing up.</p>
       ${choice || '<p>Then a new egg arrives on the cushion, and you raise a new baby.</p>'}
       <div class="card"><b>No pearls for a baby</b><span class="sub">Only grown-up slimes bring pearls and a Family Bonus. ${name} won't live on the ranch.</span></div>
-      <div class="card"><b>You keep</b><span class="sub">Pearls, the ranch, outfits, combos you found and secrets.</span><b>Starts over</b><span class="sub">Jelly, helpers, upgrades and the Jelly Jar.</span></div>
+      ${this.keepHtml(name, false)}
       <div class="actions"><button class="btn" id="rhNo">Keep ${name}</button><button class="btn primary" id="rhYes">Find a new home</button></div>`, {
       onOpen: card => {
         const pick = this.bindEggChoice(card);
@@ -1642,6 +1663,40 @@ export class Game {
     if (r.form) body = `<p>Everything you shared shaped who ${esc(name)} became.</p><div class="card"><span class="form-name">${esc(r.form.name)}</span><span class="sub">${esc(r.form.blurb)}</span>${extra}</div>` + body;
     else if (r.stageAfter >= 1) body += '<p>Snacks cost more now, since bigger slimes eat bigger portions.</p>';
     this.after(1.6, () => this.hud.showSimple(r.form ? `${esc(name)} is all grown up!` : `${esc(name)} is now a ${esc(st.name)}!`, body, 'Yay!'));
+    this.medalHold = this.time + 4;   // the Grown-Up Ribbon's ceremony waits for this card
+    this.saveNow(true);
+  }
+
+  // ---------- medals: earned live, a small ceremony once per medal per slime (also after a reload) ----------
+  // Waits for a calm moment at home: not asleep, not eating, no card open, not mid-goodbye.
+  updateMedals(dt) {
+    this.medalT = (this.medalT ?? 1) - dt;
+    if (this.medalT > 0) return;
+    this.medalT = 0.5;
+    if (this.view === 'ranch' || this.hud.modalOpen || this.sim.asleep || this.busy() || this.departing || this.hatching || this.time < (this.medalHold || 0)) return;
+    const got = this.sim.takeNewMedals();
+    if (got.length) this.medalCeremony(got);
+  }
+  medalCeremony(list) {
+    const m = list[list.length - 1], name = this.Name;
+    for (const x of list) {
+      this.remember(x.icon, x.id === 'ribbon' ? `${name} earned the Grown-Up Ribbon: all grown up!` : `${name} earned the ${x.name} medal: ${fmtShort(x.jelly)} jelly of their own.`, 'medal-' + x.id);
+    }
+    const head = this.slime.headTopWorld(this.v1).clone();
+    this.fx.emit('confetti', head, { count: 40 });
+    this.fx.emit('sparkles', head, { count: 16, speed: 2.4, color: '#ffe08a' });
+    this.slime.pulseGlow(1);
+    this.slime.hop(6);
+    this.after(0.35, () => this.slime.spin());
+    this.flash({ eyes: 'sparkle', mouth: 'grin', blush: 1 }, 2.2);
+    this.sfx.levelUp();
+    this.after(0.6, () => this.sfx.mii());
+    this.hud.say(`${m.icon}!`, 1800);
+    const perk = m.id === 'ribbon' ? 'All grown up. Every grown slime wears one.' : `${fmtShort(m.jelly)} jelly of their own! On the ranch: pearls x${m.pearls}, buyers pay +${Math.round(m.offers * 100)}%.`;
+    this.hud.toast(`<span class="medal-ic" aria-hidden="true">${memIcon(m.icon, esc(m.icon))}</span><b>${esc(name)} earned ${esc(m.title)}!</b>${esc(perk)}`, 'medal-toast', 5200);
+    this.hud.dot('slime');
+    this.hud.updateMedalBadge();
+    setMedalPin(this.slime, this.sim.medalShown());
     this.saveNow(true);
   }
 
@@ -1916,6 +1971,25 @@ export class Game {
     this.markDirty(true);
   }
 
+  // ---------- heirlooms ----------
+  buyHeirloom(id) {
+    this.sfx.unlock();
+    const h = this.sim.buyHeirloom(id);
+    if (!h) { this.sfx.error(); this.hud.renderHeirlooms(true); return null; }
+    this.sfx.buy();
+    this.after(0.25, () => this.sfx.sparkle());
+    this.remember(h.icon, `The family got the ${h.name}. It lives ${h.where}. ${h.effect}`, 'heirloom-' + h.id);
+    this.hud.toast(`<span class="medal-ic" aria-hidden="true">${memIcon(h.icon, esc(h.icon))}</span><b>${esc(h.name)}</b>${esc(h.effect)} It will live ${esc(h.where)}, for every slime in the family.`, 'medal-toast heirloom-toast', 5200);
+    if (this.state.phase === 'play' && !this.sim.asleep && this.view !== 'ranch') {
+      this.flash({ eyes: 'sparkle', mouth: 'open', blush: 0.9 }, 1.4);
+      this.slime.hop(4);
+      this.fx.emit('sparkles', this.slime.headTopWorld(this.v1), { count: 12, color: '#ffe08a' });
+    }
+    this.hud.renderHeirlooms(true);
+    this.saveNow(true);
+    return h;
+  }
+
   // ---------- settings ----------
   openSettings() {
     const st = this.state.settings;
@@ -1925,7 +1999,8 @@ export class Game {
       <button class="btn" data-dbg="grow">+Growth</button><button class="btn" data-dbg="needs">Fill needs</button>
       <button class="btn" data-dbg="glim">Glimmer</button><button class="btn" data-dbg="req">Request</button><button class="btn" data-dbg="bond">+Bond</button>
       <button class="btn" data-dbg="tera">+1T jelly</button><button class="btn" data-dbg="pearls">+100 pearls</button>
-      <button class="btn" data-dbg="instant" aria-pressed="${this.debugInstant}">Instant eggs: ${this.debugInstant ? 'On' : 'Off'}</button></div>` : '';
+      <button class="btn" data-dbg="instant" aria-pressed="${this.debugInstant}">Instant eggs: ${this.debugInstant ? 'On' : 'Off'}</button></div>
+      ${this.movingDayDebugHtml()}` : '';
     this.hud.openModal(`<h2>Settings</h2>
       <div class="setting"><span>Sound</span>${seg('sound', [[true, 'On'], [false, 'Off']])}</div>
       <div class="setting"><span>Music box lullaby</span>${seg('music', [[true, 'On'], [false, 'Off']])}</div>
@@ -2042,8 +2117,18 @@ export class Game {
     this.noRender = false;
   }
 
+  // Moving Day tester tools (#debug only): where this slime is, and one button per sign (plus the travel bundle).
+  movingDayDebugHtml() {
+    const R = movingDayRatio(this.state), lvl = movingDayLevel(R), mine = this.movingDay.signFor();
+    const name = id => { const [axis, end] = MOVING_DAY.signs[id].lean; return PERSONALITY[axis][end]; };
+    return `<div class="sec-title">Moving Day signs</div><p class="sub" id="mdStatus">R ${R ? R.toFixed(3) : '-'} (${lvl ? lvl.id : R ? 'not yet' : 'not grown up'}); levels at ${MOVING_DAY.levels.map(l => l.at).join(' / ')}. This slime's sign: ${esc(name(mine))}.${lvl ? ` Next sign in about ${Math.max(0, Math.round(this.movingDay.timer))} s of calm play.` : ''}</p>
+      <div class="actions md-debug">${Object.keys(MOVING_DAY.signs).map(id => `<button class="btn small" data-dbg="sign:${id}">${esc(name(id))}</button>`).join('')}<button class="btn small" data-dbg="bundle">Travel bundle</button></div>`;
+  }
+
   debug(k) {
     const s = this.state.slime;
+    if (k.startsWith('sign:')) { this.hud.closeModal(); if (this.sim.asleep) this.wakeUp('rested'); this.movingDay.play(k.slice(5), { forced: true }); return; }
+    if (k === 'bundle') { this.hud.closeModal(); this.movingDay.showBundle(); return; }
     if (k === 'jelly') this.sim.addJelly(10000);
     if (k === 'mega') this.sim.addJelly(1e7);
     if (k === 'grow') {
@@ -2222,7 +2307,7 @@ export class Game {
     this.idleT -= dt;
     if (this.idleT > 0) return;
     this.idleT = 4 + Math.random() * 6;
-    if (this.busy() || this.sim.asleep || this.sim.dizzy > 0 || this.press || this.bubbleGame || this.transient && this.transient.until > this.time) return;
+    if (this.busy() || this.sim.asleep || this.sim.dizzy > 0 || this.press || this.bubbleGame || this.transient && this.transient.until > this.time || this.movingDay.active) return;
     const p = s.personality;
     const bond = this.sim.bondLevel();
     const pointerNear = this.time - this.lastPointerMove < 2 && this.pointerWorld.distanceTo(this.slime.centerWorld(this.v1)) < 2.4;
@@ -2275,6 +2360,7 @@ export class Game {
     if (sim.dizzy > 0) { e.eyes = 'dizzy'; e.mouth = 'wavy'; e.blush = 0.2; e.sweat = true; e.brows = null; }
     if (sim.asleep) { e.eyes = 'sleep'; e.mouth = this.petActive ? 'cat' : 'o'; e.blush = this.petActive ? 0.8 : 0.4; e.mouthOpen = 0; e.brows = null; e.tears = false; }
     if (!sim.asleep) this.behave.applyExpression(e);
+    if (!sim.asleep) this.movingDay.applyExpression(e);
     if (this.transient && this.transient.until > this.time) Object.assign(e, this.transient.expr);
     if (this.eating || this.chompOpen > 0) e.mouthOpen = Math.max(e.mouthOpen, this.chompOpen);
     if (this.state.phase === 'egg') { e.eyes = 'sleep'; }
@@ -2318,6 +2404,7 @@ export class Game {
     sl.leanZ.target = lz;
     sl.roll.target = roll;
     this.behave.applyMotion();
+    this.movingDay.applyMotion();
     if (this.sim.asleep) { sl.breathAmp = 0.04; sl.breathRate = 1.3; }
     else if (this.sim.fever) { sl.breathAmp = 0.03; sl.breathRate = 5; }
     else { sl.breathAmp = 0.022; sl.breathRate = this.state.slime.energy < 25 ? 1.5 : 2.1; }
@@ -2327,7 +2414,8 @@ export class Game {
   // Nothing much happening: render at half rate to save battery.
   calm() {
     return this.state.phase === 'play' && this.time - this.lastInteract > 12 && this.time - this.lastPointerMove > 3 &&
-      !this.press && !this.held && !this.flying && !this.eating && !this.glimmer && !this.bubbleGame && this.fx.live.length < 6;
+      !this.press && !this.held && !this.flying && !this.eating && !this.glimmer && !this.bubbleGame && this.fx.live.length < 6 &&
+      !this.movingDay.active;   // a Moving Day sign moves the slime: full frame rate
   }
 
   // Watches for frames arriving late. Lowers graphics quality on "Auto" if the device keeps struggling.
@@ -2407,6 +2495,8 @@ export class Game {
       this.updateRequests(dt);
       this.updateIdle(dt);
       this.updateGlimmer(dt);
+      this.updateMedals(dt);
+      this.movingDay.update(dt);
       this.updateFormFx(dt);
       this.updateTutorial();
       if (this.bubbleGame) {

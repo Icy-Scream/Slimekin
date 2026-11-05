@@ -125,7 +125,7 @@ const SIGNS = ['curious', 'familiar', 'bold', 'shy', 'playful', 'mellow', 'cuddl
     await ev(() => { const g = window.slimekin; for (const t of document.querySelectorAll('.toast')) t.remove(); g.sim.addJelly(2e11); g.advance(1.2); for (const t of document.querySelectorAll('.toast')) t.held = true; });
     const gold = await ev(() => { const g = window.slimekin; return { shown: g.state.slime.medalShown, toast: [...document.querySelectorAll('.toast.medal-toast')].map(t => t.innerText).join(' / '), mem: g.state.memories.filter(m => /medal/.test(m.text)).map(m => m.text), badge: document.getElementById('medalBadge').textContent, badgeHidden: document.getElementById('medalBadge').hidden }; });
     check(gold.shown === 'gold' && /GOLD|Gold/.test(gold.toast) && gold.mem.length === 3, 'the Gold ceremony (Bronze, Silver, Gold: one ceremony, three Journal lines)', JSON.stringify(gold.toast));
-    check(!gold.badgeHidden, 'the HUD badge by the name shows the medal', gold.badge);
+    check(!gold.badgeHidden, 'the HUD badge by the name carries the medal (shown on wider screens; phones hide it in the compact pill)', gold.badge);
     await shot('04-medal-ceremony');
     // the Cookie Tin's effect where you see it: the snack tray (grown-up prices are big enough to show 20% off)
     const tray = await ev(() => { const g = window.slimekin, f = g.sim.stage().foodCost; g.advance(0.5); const el = g.hud.foodEls.chili; return { label: el.b.getAttribute('aria-label'), shown: el.price.textContent, full: Math.ceil(12 * f), tin: Math.ceil(12 * f * 0.8), price: g.sim.foodPrice('chili') }; });

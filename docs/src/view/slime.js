@@ -214,6 +214,7 @@ export class SlimeAvatar {
     this.leanZ = new Spring(80, 8);
     this.roll = new Spring(60, 7);
     this.yaw = 0; this.yawTarget = 0; this.spinLeft = 0;
+    this.turnYaw = 0; this.turnTarget = 0; this.turnRate = 3;   // an extra body turn the game can ask for (Moving Day signs)
     this.hopY = 0; this.hopV = 0;
     this.dents = [];
     this.wobble = 0;
@@ -484,6 +485,17 @@ export class SlimeAvatar {
       if (sp.align === 'up') it.obj.rotateZ(it.rot0.z);
       it.obj.scale.setScalar(pop);
     }
+  }
+
+  // A medal pin (view/medal-pin.js) sits on the chest, just outside the surface, like an outfit.
+  placePin() {
+    const p = this.medalPin;
+    if (!p) return;
+    const o = this._o, d = p.dir;
+    this.shape(d.x, d.y, d.z, Math.atan2(d.z, d.x), o);
+    const ny = o.y - CENTER_Y * (1 + this.sq.x);
+    const len = Math.sqrt(o.x * o.x + ny * ny + o.z * o.z) || 1;
+    p.sprite.position.set(o.x + o.x / len * p.off, o.y + ny / len * p.off, o.z + o.z / len * p.off);
   }
 
   buildShadow() {
@@ -891,7 +903,8 @@ export class SlimeAvatar {
       if (this.spinLeft <= 0) this.spinAcc = 0;
       spinAdd = (this.spinAcc || 0) * this.spinDir;
     }
-    this.root.rotation.y = this.yaw + spinAdd;
+    this.turnYaw += (this.turnTarget - this.turnYaw) * (1 - Math.exp(-dt * this.turnRate));
+    this.root.rotation.y = this.yaw + spinAdd + this.turnYaw;
     this.body.rotation.z = this.roll.x;
 
     const s = this.size;
@@ -1004,6 +1017,7 @@ export class SlimeAvatar {
     this.inner.scale.set(1 - this.sq.x * 0.45, 1 + this.sq.x, 1 - this.sq.x * 0.45);
     this.updateInner(dt);
     this.placeOutfits(dt);
+    this.placePin();
     const hatOn = !!this.outfit.head || this.cap.grow > 0.3;
     // head props hide under hats, except on spark forms (headKeep): there the hat sits on top
     const keepHead = !!(this.form && this.form.headKeep);

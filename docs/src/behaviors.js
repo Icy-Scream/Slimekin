@@ -524,7 +524,7 @@ export class Behaviors {
   // ---------- playing with the room ----------
   onTickle(pos, f) {
     const g = this.g;
-    if (g.sim.asleep || g.busy()) return false;
+    if (g.sim.asleep || g.busy() || g.movingDay.active) return false;
     if (Math.random() > 0.3 + this.s.personality.playful / 250) return false;
     const dir = g.slime.localDir(pos, this.v).clone();
     dir.y = Math.max(dir.y, 0.15);
@@ -672,7 +672,7 @@ export class Behaviors {
       if (this.rainbowT <= 0) { this.rainbowT = 0.3; g.fx.emit('sparkles', g.slime.centerWorld(this.v).add(new THREE.Vector3((Math.random() - 0.5) * 1.6, 0.5, 0.4)), { count: 2, rainbow: true }); }
     } else g.slime.colorOverride = null;
 
-    if (st.helpers.musicbox > 0 && !g.sim.asleep && !g.busy() && !p) {
+    if (st.helpers.musicbox > 0 && !g.sim.asleep && !g.busy() && !p && !g.movingDay.active) {
       this.danceBreakT -= dt;
       if (this.danceBreakT <= 0) {
         this.danceBreakT = 25 + Math.random() * 25;

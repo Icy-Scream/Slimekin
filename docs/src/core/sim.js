@@ -4,9 +4,12 @@ import {
   TUNING, STAGES, TRAIT_IDS, FOODS, FOOD_BY_ID, HELPERS, HELPER_BY_ID, HELPER_GROWTH,
   UPGRADES, UPGRADE_BY_ID, COMBOS, BOND, PERSONALITY_IDS, PURE_FORMS, PAIR_FORMS, GENERALIST_FORM,
   UPGRADE_RENAMES, JAR_LEVELS, OUTFITS, OUTFIT_BY_ID, TRICK_LEARNED, RANCH, BREEDING, BUYERS, BUYER_BY_ID,
+  MEDALS, MEDAL_BY_ID, HEIRLOOM_BY_ID,
 } from '../data/content.js';
-import { createRanch, migrateRanch, Ranch, familyBonusFor, residentJpsFor, dayNumber } from './ranch.js';
+import { createRanch, migrateRanch, Ranch, residentJpsFor, dayNumber } from './ranch.js';
 import { emptyLineage, applyEgg, resolveForm, eggFromLineage } from './breeding.js';
+import { medalFor, medalRank } from './medals.js';
+import { createHeirlooms, migrateHeirlooms, heirloomMult, heirloomFlag, startHelpers, forSale, ownsHeirloom } from './heirlooms.js';
 
 export const SAVE_VERSION = 1;
 
@@ -47,6 +50,7 @@ export function createState() {
       belly: [],
       tricks: {},
       lineage: emptyLineage(),   // where it came from (parents, family spark, Pure line); see core/breeding.js
+      medalShown: null,          // the last medal this slime's ceremony played for (id in MEDALS; null = none yet)
     },
     jelly: 0,
     totalJelly: 0,
@@ -64,6 +68,7 @@ export function createState() {
     tutorial: 0,
     settings: { sound: true, music: true, purr: true, soundOnSilent: true, reducedMotion: false, quality: 'auto', showFps: false },
     ranch: createRanch(),
+    heirlooms: createHeirlooms(),   // family treasures (core/heirlooms.js): they stay through every move-out
   };
 }
 
@@ -92,7 +97,14 @@ export function migrate(save) {
   if (!Array.isArray(out.slime.lineage.parents)) out.slime.lineage.parents = [];
   // a bred egg put on the cushion before the cushion remembered its egg: rebuild that egg from the baby's lineage
   if (out.phase === 'egg' && !out.egg.bred && out.slime.lineage.parents.length === 2) out.egg.bred = eggFromLineage(out.slime.lineage);
+  // medals: a save from before medals starts with the medal its slime already has, so no old ceremony replays
+  if (!('medalShown' in (save.slime || {}))) {
+    const grown = (out.slime.growth || 0) >= STAGES[STAGES.length - 1].minGrowth;
+    out.slime.medalShown = medalFor(out.totalJelly, out.phase === 'play' && grown)?.id || null;
+  }
+  if (out.slime.medalShown && !MEDAL_BY_ID[out.slime.medalShown]) out.slime.medalShown = null;
   out.ranch = migrateRanch(save.ranch);
+  out.heirlooms = migrateHeirlooms(save.heirlooms);
   out.v = SAVE_VERSION;
   return out;
 }
@@ -161,6 +173,7 @@ export class Sim {
         else fx[k] += v;
       }
     }
+    fx.glimmerMult *= heirloomMult(this.s, 'glimmerMult');   // Pressed Clover
     this.fx = fx;
   }
 
@@ -202,7 +215,7 @@ export class Sim {
   noDizzy() { return this.hasBuffFlag('noDizzy'); }
 
   helperCost(id, owned = this.s.helpers[id]) { return Math.ceil(HELPER_BY_ID[id].cost * Math.pow(HELPER_GROWTH, owned)); }
-  foodPrice(id) { return Math.ceil(FOOD_BY_ID[id].price * this.stage().foodCost); }
+  foodPrice(id) { return Math.ceil(FOOD_BY_ID[id].price * this.stage().foodCost * heirloomMult(this.s, 'foodPrice')); }
   foodUnlocked(id) {
     const need = STAGES.findIndex(st => st.id === FOOD_BY_ID[id].unlock);
     return this.stageIndex() >= need;
@@ -240,6 +253,19 @@ export class Sim {
     if (res.nearMiss) { this.ranch.learnSpark(res.nearMiss.spark, 'observed'); R.nearMiss[res.nearMiss.spark] = (R.nearMiss[res.nearMiss.spark] || 0) + 1; }
     if (res.pure && !R.pures.includes(res.pure)) R.pures.push(res.pure);
     return res;
+  }
+
+  // ---------- medals (core/medals.js) ----------
+  // The medal this slime has earned from its own jelly (null until it is grown up).
+  medal() { return medalFor(this.s.totalJelly, this.s.phase === 'play' && this.stageIndex() === STAGES.length - 1); }
+  // The medal its ceremony last played for (what the badges show).
+  medalShown() { return MEDAL_BY_ID[this.slime.medalShown] || null; }
+  // Medals reached since the last ceremony, oldest first; marks them as shown (once per medal per slime).
+  takeNewMedals() {
+    const cur = this.medal(), from = medalRank(this.slime.medalShown), to = medalRank(cur);
+    if (to <= from) return [];
+    this.slime.medalShown = cur.id;
+    return MEDALS.slice(from + 1, to + 1);
   }
 
   // ---------- memories ----------
@@ -527,8 +553,10 @@ export class Sim {
     if (egg) this.placeEgg(egg);
     s.jelly = 0;
     s.totalJelly = 0;
-    s.jar = fresh.jar;
+    // heirlooms: the Golden Jar Lid keeps the jar's size (not what is in it); the Toy Box gives the new slime helpers
+    s.jar = heirloomFlag(s, 'keepJar') ? { ...fresh.jar, level: s.jar.level } : fresh.jar;
     s.helpers = fresh.helpers;
+    for (const [id, n] of Object.entries(startHelpers(s))) if (id in s.helpers) s.helpers[id] = Math.max(s.helpers[id], n);
     s.upgrades = [];
     s.buffs = [];
     s.outfits.worn = { ...fresh.outfits.worn };
@@ -561,9 +589,13 @@ export class Sim {
 
   // ---------- Moving to the ranch (a new generation) ----------
   canMoveOut() { return this.s.phase === 'play' && this.stageIndex() === STAGES.length - 1; }
+  // Family Legacy: moving out recomputes the Family Bonus from all the jelly the family ever made (this slime's
+  // included). bonusNow -> bonusAfter; bonus = how much it goes up (never below 0).
   moveOutPreview() {
     const total = this.s.totalJelly;
-    return { bonus: familyBonusFor(total), jps: residentJpsFor(total), room: this.ranch.free() > 0, generation: this.s.ranch.family.generation };
+    const bonusNow = this.s.ranch.family.bonus;
+    const bonusAfter = Math.max(bonusNow, this.ranch.familyBonusWith(total));
+    return { bonus: bonusAfter - bonusNow, bonusNow, bonusAfter, jps: residentJpsFor(total), room: this.ranch.free() > 0, generation: this.s.ranch.family.generation };
   }
   // The grown slime moves to the ranch and a new egg arrives: a plain egg, or (eggId) an egg from the Nursery
   // (ready or still warming). See startNextEgg for what starts over.
@@ -572,7 +604,6 @@ export class Sim {
     if (!this.canMoveOut() || this.ranch.free() <= 0) return null;
     if (eggId && !this.ranch.egg(eggId)) return null;
     const total = s.totalJelly;
-    const bonus = familyBonusFor(total);
     const resident = {
       id: 'r' + now.toString(36) + Math.floor(Math.random() * 1e4).toString(36),
       name: sl.name, form: sl.form || this.formCandidate(), traits: { ...sl.traits }, personality: { ...sl.personality },
@@ -583,16 +614,19 @@ export class Sim {
       lineage: { ...emptyLineage(), ...(sl.lineage || {}) },
     };
     ranch.residents.push(resident);
-    ranch.family.bonus += bonus;
-    ranch.family.generation++;
+    // Family Legacy: the bonus comes from all the jelly the family ever made, so it is recomputed (never lowered)
+    const bonusBefore = ranch.family.bonus;
     ranch.family.lifetime += total;
+    ranch.family.bonus = Math.max(bonusBefore, this.ranch.familyBonusWith(0));
+    const bonus = ranch.family.bonus - bonusBefore;
+    ranch.family.generation++;
     let gift = 0;
     if (!ranch.gift) { ranch.gift = true; gift = RANCH.welcomeGift; this.ranch.addPearls(gift); }
 
     const egg = this.startNextEgg(now, eggId);
     const arrived = egg ? `${egg.parents[0].name} and ${egg.parents[1].name}'s egg is waiting on the cushion.` : 'A new egg arrived on the cushion.';
     s.memories = [{ t: now, icon: '🏡', text: `${resident.name} moved to the ranch. ${arrived}` }];
-    return { resident, bonus, gift, egg };
+    return { resident, bonus, bonusBefore, bonusAfter: ranch.family.bonus, gift, egg };
   }
 
   // ---------- Finding a baby a new home ----------
@@ -624,6 +658,35 @@ export class Sim {
     const arrived = egg ? `${egg.parents[0].name} and ${egg.parents[1].name}'s egg is waiting on the cushion.` : 'A new egg arrived on the cushion.';
     s.memories = [{ t: now, icon: '💌', text: `${name} went to live at ${buyer.name}, where they will be loved and looked after. ${arrived}` }];
     return { buyer, name, stage, egg, jelly };
+  }
+
+  // ---------- Heirlooms (core/heirlooms.js) ----------
+  // Bought with jelly in hand: never changes the jelly this slime made (totalJelly), the family lifetime or the bonus.
+  canBuyHeirloom(id) {
+    const h = HEIRLOOM_BY_ID[id];
+    if (!h) return { ok: false, reason: 'unknown' };
+    if (h.buyable === false) return { ok: false, reason: 'soon' };
+    if (ownsHeirloom(this.s, id)) return { ok: false, reason: 'owned' };
+    if (!this.canAfford(h.price)) return { ok: false, reason: 'poor' };
+    return { ok: true };
+  }
+  buyHeirloom(id) {
+    if (!this.canBuyHeirloom(id).ok) return null;
+    const h = HEIRLOOM_BY_ID[id];
+    this.s.jelly -= h.price;
+    this.s.heirlooms.owned.push(id);
+    if (!this.s.heirlooms.seen.includes(id)) this.s.heirlooms.seen.push(id);
+    this.recompute();
+    return h;
+  }
+  // Heirlooms that just became affordable and were not announced yet (the tab glows for them).
+  newlyAffordableHeirlooms() { return forSale(this.s).filter(h => this.canAfford(h.price) && !this.s.heirlooms.seen.includes(h.id)); }
+  // Opening the Heirlooms page: everything affordable now has been seen (the glow stops).
+  markHeirloomsSeen() {
+    const seen = this.s.heirlooms.seen;
+    let n = 0;
+    for (const h of this.newlyAffordableHeirlooms()) { seen.push(h.id); n++; }
+    return n;
   }
 
   // ---------- Outfits ----------
