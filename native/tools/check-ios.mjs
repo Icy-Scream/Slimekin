@@ -5,6 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
+import zlib from 'node:zlib';
 
 const native = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), '..');
 const app = path.join(native, 'ios', 'App');
@@ -117,6 +118,40 @@ check(iconSet.length === 1 && iconSet[0].size === '1024x1024' && iconSet[0].idio
 const png = iconSet[0] ? fs.readFileSync(path.join(iconDir, iconSet[0].filename)) : Buffer.alloc(0);
 check(png.length > 33 && png.readUInt32BE(16) === 1024 && png.readUInt32BE(20) === 1024 && [0, 2].includes(png[25]), 'app icon: 1024 x 1024 PNG without an alpha channel', png.length > 33 ? `color type ${png[25]}` : 'unreadable');
 check(fs.existsSync(path.join(native, 'assets', 'AppIcon-1024.png')) && png.equals(fs.readFileSync(path.join(native, 'assets', 'AppIcon-1024.png'))), 'app icon matches assets/AppIcon-1024.png');
+// Square corners: Apple rounds them. An icon rounded before export (with no alpha) has its corners filled with a flat
+// white or black; each 16 x 16 corner square must not be one flat white or black patch.
+const corners = iconCorners(png);
+check(corners.ok, 'app icon: square corners (no corner is a flat white or black patch)', corners.detail);
+
+// The four 16 x 16 corner squares of an 8-bit, non-interlaced grayscale or RGB PNG (zlib + the five PNG row filters).
+function iconCorners(buf) {
+  try {
+    const w = buf.readUInt32BE(16), h = buf.readUInt32BE(20), depth = buf[24], type = buf[25], interlace = buf[28];
+    if (depth !== 8 || ![0, 2].includes(type) || interlace !== 0) return { ok: false, detail: `cannot read pixels: bit depth ${depth}, color type ${type}, interlace ${interlace}` };
+    const idat = [];
+    for (let i = 8; i < buf.length;) { const n = buf.readUInt32BE(i), t = buf.toString('ascii', i + 4, i + 8); if (t === 'IDAT') idat.push(buf.subarray(i + 8, i + 8 + n)); i += 12 + n; }
+    const raw = zlib.inflateSync(Buffer.concat(idat));
+    const bpp = type === 2 ? 3 : 1, stride = w * bpp, px = Buffer.alloc(h * stride);
+    for (let y = 0; y < h; y++) {
+      const f = raw[y * (stride + 1)], src = y * (stride + 1) + 1, row = y * stride;
+      for (let x = 0; x < stride; x++) {
+        const a = x >= bpp ? px[row + x - bpp] : 0, b = y ? px[row - stride + x] : 0, c = x >= bpp && y ? px[row - stride + x - bpp] : 0;
+        const p = a + b - c, pa = Math.abs(p - a), pb = Math.abs(p - b), pc = Math.abs(p - c);
+        const pred = f === 0 ? 0 : f === 1 ? a : f === 2 ? b : f === 3 ? (a + b) >> 1 : (pa <= pb && pa <= pc ? a : pb <= pc ? b : c);
+        px[row + x] = (raw[src + x] + pred) & 255;
+      }
+    }
+    const rgb = (x, y) => { const o = y * stride + x * bpp; return bpp === 3 ? [px[o], px[o + 1], px[o + 2]] : [px[o], px[o], px[o]]; };
+    const flat = [];
+    for (const [cx, cy, name] of [[0, 0, 'top left'], [w - 16, 0, 'top right'], [0, h - 16, 'bottom left'], [w - 16, h - 16, 'bottom right']]) {
+      let white = true, black = true;
+      for (let y = cy; y < cy + 16; y++) for (let x = cx; x < cx + 16; x++) { const [r, g, b] = rgb(x, y); white &&= r > 247 && g > 247 && b > 247; black &&= r < 8 && g < 8 && b < 8; }
+      if (white || black) flat.push(`${name} ${white ? 'white' : 'black'}`);
+    }
+    const hex = (x, y) => rgb(x, y).map(v => v.toString(16).padStart(2, '0')).join('');
+    return { ok: !flat.length, detail: flat.length ? flat.join(', ') : `corners #${hex(0, 0)} #${hex(w - 1, 0)} #${hex(0, h - 1)} #${hex(w - 1, h - 1)}` };
+  } catch (e) { return { ok: false, detail: `cannot read pixels: ${e.message}` }; }
+}
 
 // ---------- nothing secret ----------
 const secrets = [];

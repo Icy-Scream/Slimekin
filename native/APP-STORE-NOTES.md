@@ -114,7 +114,9 @@ save code" does it. A save with two ranch slimes (to show breeding at once) can 
    publish the web build so the pages are live (privacy and support URLs: the web game's address followed by
    `privacy.html` and `support.html`).
 2. Final bundle id in `capacitor.config.json` (it cannot change after the app is created in App Store Connect).
-3. The app icon chosen from the samples (`assets/AppIcon-1024.png`; then `node tools/patch-ios.mjs`).
+3. App icon: done. `assets/AppIcon-1024.png` is icon B, the close-up of the happy mint slime (the captain's pick). To
+   change it: replace that file (1024 x 1024 PNG, no transparency, square corners) and run `node tools/patch-ios.mjs`;
+   `node tools/check-ios.mjs` checks all three.
 4. In App Store Connect, Pricing and Availability: decide whether the iPhone app may also be offered on Mac (Apple
    silicon) and Apple Vision Pro.
 5. Raise `build` in `app-version.json` for every upload.

@@ -121,6 +121,7 @@ Every time you upload a new build:
 Please try each one on the iPhone and send back what you see:
 
 - Airplane mode on: the app opens, the egg appears, the fonts look like the web game (round and bubbly).
+- The home screen icon: the happy mint slime close up, corners rounded by the iPhone. Does it read at that size?
 - Nothing hides behind the Dynamic Island or the home bar at the bottom.
 - Turn the phone sideways: the game stays upright.
 - Pet by dragging on the slime; swipe the menu sheet up and down.
