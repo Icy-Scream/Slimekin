@@ -22,11 +22,12 @@ import { MovingDay } from './moving-day.js';
 import { movingDayRatio, movingDayLevel } from './core/movingday.js';
 import { RanchView } from './view/ranch.js';
 import { Scenery } from './view/scenery.js';
+import { isNative, haptic } from './platform/index.js';
 
 const SLIME_Y = CUSHION_TOP - 0.03;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const ease = t => 1 - Math.pow(1 - clamp(t, 0, 1), 3);
-const DEBUG = location.hash === '#debug';
+const DEBUG = location.hash === '#debug' && !isNative;   // no debug tools in the iPhone app
 const an = w => (/^[aeiou]/i.test(w) ? 'an ' : 'a ') + w;
 
 export class Game {
@@ -1713,7 +1714,7 @@ export class Game {
 
   buzz(ms) {
     if (!this.state.settings.sound || this.reduced) return;
-    try { navigator.vibrate && navigator.vibrate(ms); } catch { /* not supported */ }
+    haptic(ms);   // web: navigator.vibrate as before; iPhone app: a light tap
   }
 
   // ---------- requests ----------

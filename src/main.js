@@ -1,10 +1,12 @@
 import { Game } from './game.js';
 import { SaveStore } from './core/save.js';
+import * as platform from './platform/index.js';
 
 let game = null;
 
 async function boot(hotData) {
-  const store = new SaveStore();
+  await platform.restoreSave();                          // iPhone app only: bring back a save iOS cleared (no-op on the web)
+  const store = platform.mirrorSaves(new SaveStore());   // iPhone app only: back up each local save (no-op on the web)
   let save = hotData && hotData.save ? hotData.save : store.loadLocal();
   let lateCloud = null;
   const connected = await store.connect(2500);
@@ -39,7 +41,7 @@ async function boot(hotData) {
       }
     });
   }
-  if (location.hash === '#debug') window.slimekin = game;
+  if (location.hash === '#debug' && !platform.isNative) window.slimekin = game;
 }
 
 // Stop iPhone pinch-zoom on the game (it fights with petting and pulling).
