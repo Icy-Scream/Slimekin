@@ -202,11 +202,62 @@ function musicBox() {
   return g;
 }
 
+// A puffy crescent moon (opening to the right), centered on its origin.
+function crescentGeo(R = 0.16, depth = 0.06) {
+  const r2 = R * 0.82, d = R * 0.55;
+  const x = (R * R - r2 * r2 + d * d) / (2 * d), y = Math.sqrt(Math.max(0, R * R - x * x));
+  const th = Math.atan2(y, x);
+  const s = new THREE.Shape();
+  s.absarc(0, 0, R, th, Math.PI * 2 - th, false);
+  s.absarc(d, 0, r2, Math.atan2(-y, x - d), Math.atan2(y, x - d), true);
+  const g = new THREE.ExtrudeGeometry(s, { depth, bevelEnabled: true, bevelThickness: R * 0.18, bevelSize: R * 0.14, bevelSegments: 3, curveSegments: 16 });
+  g.translate(-R * 0.15, 0, -depth / 2);
+  return g;
+}
+
+// The Moon Lamp's light: a glowing crescent with a little star in its curve, hanging from a short chain.
+// Its origin is the top of the chain (where it hangs from the hook).
+export function moonCharm(R = 0.15) {
+  const g = new THREE.Group();
+  const glow = { emissive: '#ffd970', emissiveIntensity: 0.75, roughness: 0.45 };
+  const moon = mesh(crescentGeo(R), std('#fff1bd', glow), 0, -0.16 - R, 0);
+  moon.rotation.z = 0.25;
+  g.add(moon);
+  const star = new THREE.Shape();
+  for (let i = 0; i < 10; i++) {
+    const a = Math.PI / 2 + i * Math.PI / 5, r = i % 2 ? R * 0.17 : R * 0.38;
+    i ? star.lineTo(Math.cos(a) * r, Math.sin(a) * r) : star.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+  }
+  const starGeo = new THREE.ExtrudeGeometry(star, { depth: 0.015, bevelEnabled: true, bevelThickness: 0.01, bevelSize: 0.008, bevelSegments: 1 });
+  g.add(mesh(starGeo, std('#ffe27a', { ...glow, emissive: '#ffcf40', emissiveIntensity: 0.7 }), R * 0.28, -0.16 - R * 1.12, 0));
+  g.add(mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.16, 4), std('#d9c9ff'), 0, -0.08, 0));
+  return g;
+}
+
+// The shop icon: the moon on the tip of its hook.
 export function moonLamp() {
   const g = new THREE.Group();
-  g.add(mesh(new THREE.SphereGeometry(0.14, 24, 16), std('#fff6d2', { emissive: '#ffe9a3', emissiveIntensity: 0.9, roughness: 0.4 })));
-  g.add(mesh(new THREE.CylinderGeometry(0.035, 0.05, 0.04, 12), std('#c8a7ff', { roughness: 0.5 }), 0, 0.15, 0));
-  g.add(mesh(new THREE.CylinderGeometry(0.003, 0.003, 0.3, 4), std('#c8a7ff'), 0, 0.31, 0));
+  const post = std('#b79cff', { roughness: 0.5 });
+  const hook = mesh(new THREE.TorusGeometry(0.12, 0.022, 8, 16, Math.PI / 2), post, -0.12, 0, 0);
+  g.add(hook);
+  g.add(mesh(new THREE.SphereGeometry(0.03, 10, 8), post, 0, 0, 0));
+  g.add(moonCharm());
+  return g;
+}
+
+// A Moon Lamp in the garden: a shepherd's-hook post planted in the grass with the moon hanging from the
+// hook (to the post's +x). userData.swing is the hanging part, pivoting at the hook's tip.
+export function moonLampPost(h = 1.45) {
+  const g = new THREE.Group();
+  const mat = std('#b79cff', { roughness: 0.5 });
+  g.add(mesh(new THREE.CylinderGeometry(0.022, 0.03, h, 8), mat, 0, h / 2, 0));
+  g.add(mesh(new THREE.CylinderGeometry(0.075, 0.09, 0.05, 14), mat, 0, 0.025, 0));
+  g.add(mesh(new THREE.TorusGeometry(0.12, 0.022, 8, 16, Math.PI), mat, 0.12, h, 0));
+  g.add(mesh(new THREE.SphereGeometry(0.03, 10, 8), mat, 0.24, h, 0));
+  const swing = moonCharm();
+  swing.position.set(0.24, h - 0.01, 0);
+  g.add(swing);
+  g.userData.swing = swing;
   return g;
 }
 

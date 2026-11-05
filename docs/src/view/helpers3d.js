@@ -1,7 +1,7 @@
 // Visible helpers around the habitat. Buying a helper adds something you can see.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { feather, planter, slimeling, moonLamp, fountain, rainbowArch, HELPER_MAKERS } from './models.js';
+import { feather, planter, slimeling, moonLampPost, rainbowArch, HELPER_MAKERS } from './models.js';
 
 const FEATHER_COLORS = ['#a98bff', '#ff8fbd', '#6fc4ff', '#ffbf47', '#7fd88f'];
 const SLIMELING_COLORS = ['#ffb3d1', '#ffd98a', '#a8d8ff', '#c9b3ff', '#a8f0c8', '#ffc4a3', '#e0b3ff', '#b3f0ec'];
@@ -20,6 +20,10 @@ function groundY(x, z) {
 }
 // a slimeling's body is centered on its origin, so lift it until its bottom touches the ground
 const PAL_LIFT = 0.125;
+// Moon Lamp posts, in the order they are bought: [x, z, post height]. The first pair frames the slime on a
+// phone; the others stand wider, at the cushion's sides (never right behind the slime, where the moons
+// would peek over its head). All are on the grass between the cushion and the planters.
+const LAMP_SPOTS = [[-1.37, -1.91, 1.45], [1.37, -1.91, 1.45], [-2.08, -1.2, 1.3], [2.08, -1.2, 1.3], [-2.45, -0.4, 1.2], [2.45, -0.4, 1.2]];
 
 // The prop limit: how many copies of a helper are drawn. Owning more still earns more; the scene just
 // stops adding copies. Low graphics (picked, or chosen by Auto on a struggling phone) shows fewer.
@@ -30,13 +34,16 @@ const SHOWN = {
 
 // Merge some meshes inside `parent` into one mesh colored per part (vertex colors): one draw call
 // instead of one per part. See-through parts are blended onto `under` so they look the same.
-function bake(parent, meshes, { roughness = 0.6, under = null } = {}) {
+function bake(parent, meshes, { roughness = 0.6, under = null, material = null } = {}) {
   let root = parent;
   while (root.parent) root = root.parent;
   root.updateMatrixWorld(true);
   const inv = parent.matrixWorld.clone().invert(), m4 = new THREE.Matrix4(), col = new THREE.Color();
+  const flat = meshes.some(m => !m.geometry.index);   // merging needs all indexed or none
   const geos = meshes.map(m => {
-    const g = m.geometry.clone();
+    let g = m.geometry.clone();
+    if (flat && g.index) g = g.toNonIndexed();
+    g.clearGroups();
     for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal') g.deleteAttribute(k);
     g.applyMatrix4(m4.multiplyMatrices(inv, m.matrixWorld));
     col.copy(m.material.color);
@@ -47,7 +54,7 @@ function bake(parent, meshes, { roughness = 0.6, under = null } = {}) {
     m.parent.remove(m);
     return g;
   });
-  const out = new THREE.Mesh(mergeGeometries(geos), new THREE.MeshStandardMaterial({ vertexColors: true, roughness }));
+  const out = new THREE.Mesh(mergeGeometries(geos), material || new THREE.MeshStandardMaterial({ vertexColors: true, roughness }));
   parent.add(out);
   return out;
 }
@@ -102,6 +109,12 @@ export class HelperWorld {
     this.sync(this.counts);
   }
 
+  // the lamps glow brighter at night
+  setNight(dark) {
+    this.night = dark;
+    for (const l of this.lamps) l.glow.material.opacity = dark ? 0.6 : 0.3;
+  }
+
   // drop the newest copies above the limit
   trim(list, n) {
     while (list.length > n) {
@@ -153,18 +166,23 @@ export class HelperWorld {
       this.popIn(obj, 1.5);
       this.slimelings.push({ obj, target: obj.position.clone(), hopT: rand(0, 1), hopping: false, from: new THREE.Vector3(), rest: rand(0.5, 2), cheer: 0 });
     }
-    // lamps floating in the back
+    // Moon Lamps: posts planted in the grass behind the cushion, the moon swaying under the hook
     while (this.lamps.length < want('lamp')) {
       const i = this.lamps.length;
-      const obj = moonLamp();
-      const side = i % 2 ? 1 : -1;
-      obj.position.set(side * (2.4 + Math.floor(i / 2) * 1.1), 3.1 + (i % 3) * 0.45, -3.2 - Math.floor(i / 2) * 1.2);
-      const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.55 }));
-      glow.scale.setScalar(0.7);
-      obj.add(glow);
+      const [x, z, h] = LAMP_SPOTS[i % LAMP_SPOTS.length];
+      const obj = moonLampPost(h);
+      const swing = obj.userData.swing;
+      bake(obj, obj.children.filter(c => c !== swing && c.isMesh), { roughness: 0.5 });
+      bake(swing, swing.children.filter(c => c.isMesh), { material: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.45, emissive: '#ffd970', emissiveIntensity: 0.55 }) });
+      obj.position.set(x, groundY(x, z), z);
+      obj.rotation.y = x < 0 ? 0.3 : Math.PI - 0.3;   // the hook leans in toward the slime
+      const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: this.night ? 0.6 : 0.3 }));
+      glow.scale.setScalar(0.75);
+      glow.position.y = -0.31;
+      swing.add(glow);
       this.group.add(obj);
-      this.popIn(obj, 1.2);
-      this.lamps.push({ obj, base: obj.position.clone(), phase: rand(0, 6) });
+      this.popIn(obj, 1);
+      this.lamps.push({ obj, swing, glow, phase: rand(0, 6) });
     }
     const single = (id, pos, rotY, scale) => {
       if ((helpers[id] || 0) > 0 && !this.singles[id]) {
@@ -358,8 +376,8 @@ export class HelperWorld {
     }
 
     for (const l of this.lamps) {
-      l.obj.position.y = l.base.y + Math.sin(t * 0.8 + l.phase) * 0.15;
-      l.obj.rotation.z = Math.sin(t * 0.6 + l.phase) * 0.08;
+      l.swing.rotation.z = Math.sin(t * 1.1 + l.phase) * 0.09;
+      l.swing.rotation.x = Math.sin(t * 0.7 + l.phase * 1.7) * 0.05;
     }
 
     const mb = this.singles.musicbox;

@@ -67,7 +67,7 @@ export const HELPERS = [
   { id: 'garden',      name: 'Snack Garden',    plural: 'Snack Gardens',    cost: 1100,   jps: 8,      blurb: 'Little planters that grow slime snacks.' },
   { id: 'slimeling',   name: 'Slimeling Pal',   plural: 'Slimeling Pals',   cost: 12000,  jps: 47,     blurb: 'A tiny friend who hops around and adores your slime.' },
   { id: 'musicbox',    name: 'Music Box',       plural: 'Music Boxes',      cost: 130000, jps: 260,    blurb: 'Plays a lullaby. Your slime sways along.' },
-  { id: 'lamp',        name: 'Moon Lamp',       plural: 'Moon Lamps',       cost: 1.4e6,  jps: 1400,   blurb: 'Floating lamps with a soft, cozy glow.' },
+  { id: 'lamp',        name: 'Moon Lamp',       plural: 'Moon Lamps',       cost: 1.4e6,  jps: 1400,   blurb: 'Moon lamps on garden posts, with a soft, cozy glow.' },
   { id: 'fountain',    name: 'Goo Fountain',    plural: 'Goo Fountains',    cost: 2e7,    jps: 7800,   blurb: 'Burbles pure jelly all day long.' },
   { id: 'observatory', name: 'Dream Telescope', plural: 'Dream Telescopes', cost: 3.3e8,  jps: 44000,  blurb: 'Catches falling dream-stars for your slime.' },
   { id: 'spa',         name: 'Slime Spa',       plural: 'Slime Spas',       cost: 2.4e10, jps: 260000, blurb: 'A warm, bubbly bath. Pure bliss for any slime.' },

@@ -61,12 +61,13 @@ export class Game {
     this.debugInstant = DEBUG && (() => { try { return localStorage.getItem('slimekin.debug.instantEggs') === '1'; } catch { return false; } })();
     this.ranch = new RanchView(this.scene, { quality: this.resolvedQuality() });
     this.ranch.setTheme(this.stage.dark, this.stage.palette.floor);
-    this.stage.onTheme = (dark, p) => { this.ranch.setTheme(dark, p.floor); this.scenery.setTheme(dark); this.eggSpark && this.eggSpark.setNight(dark); };
+    this.stage.onTheme = (dark, p) => { this.ranch.setTheme(dark, p.floor); this.scenery.setTheme(dark); this.eggSpark && this.eggSpark.setNight(dark); this.helpers3d && this.helpers3d.setNight(dark); };
     this.ranch.sync(this.state.ranch?.residents || []);
     this.ranchPage = null;   // 'nursery' while the Nursery panel is open
     this.nurseryT = 0;
     this.syncNursery();
     this.helpers3d = new HelperWorld(this.scene, this.fx);
+    this.helpers3d.setNight(this.stage.dark);
     this.helpers3d.sync(this.state.helpers);
     this.hud = new Hud(this);
     this.behave = new Behaviors(this);
