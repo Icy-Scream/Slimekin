@@ -185,6 +185,7 @@ const SIGNS = ['curious', 'familiar', 'bold', 'shy', 'playful', 'mellow', 'cuddl
     await calm();
     await ev(() => { const g = window.slimekin; g.advance(5); for (const t of document.querySelectorAll('.toast')) t.remove(); g.hud.closeModal(); g.advance(1); });
     // Willow's Ribbon in the family tree
+    await page.click('#tab-slime');   // UI pass 2: the Journal is a page inside your slime's tab
     await page.click('#tab-journal');
     await page.click('[data-jp="family"]');
     await ev(() => window.slimekin.advance(1));

@@ -49,6 +49,9 @@ it up the next time it is opened online (sometimes it takes two opens). Never ed
 
 ## Gotchas (learned the hard way)
 
+- The menu has four tabs (Shop = Helpers + Upgrades, Outfits, your slime = its page + the Journal, Ranch); the
+  pages keep their own names in code (`selectTab('journal')` etc.), see UI-CHANGES.md "UI pass 2". To reach the
+  Journal in a test, click `#tab-slime` first, then `#tab-journal`.
 - The meadow (grass, hills, clouds, flowers, trees, moon) is `src/view/scenery.js`. Settings → Background →
   Classic turns it off (`settings.scene`), restores the plain floor and sky, and hides the ranch hill unless you
   are visiting it. Anything new in the home scene's background should respect that setting.
