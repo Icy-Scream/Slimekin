@@ -322,7 +322,7 @@ const FIXTURE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'mai
       await page.fill('#slimeName', 'Clover'); await page.click('#nameOk');
       await calm();
       const after = await ev(() => ({ phase: window.slimekin.state.phase, ui: document.getElementById('ui').className, tabs: [...document.querySelectorAll('.tab')].filter(t => t.offsetParent).length }));
-      expect(after.phase === 'play' && !/has-ranch|egg/.test(after.ui) && after.tabs === 6, 'after hatching the menu is back to all six tabs', JSON.stringify(after));
+      expect(after.phase === 'play' && !/has-ranch|egg/.test(after.ui) && after.tabs === 4, 'after hatching the menu is back to all four tabs (Shop, Outfits, your slime, Ranch)', JSON.stringify(after));
     }
 
     // ---------- 4. find a baby a new home, and pick a Nursery egg ----------
