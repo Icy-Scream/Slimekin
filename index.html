@@ -546,8 +546,23 @@ body.at-ranch .tray, body.at-ranch .tray-top, body.at-ranch #giggle, body.at-ran
 .medal-badge.big { font-size: 24px; }
 #medalBadge { font-size: 18px; }
 .medal-row { display: inline-flex; align-items: center; gap: 8px; }
-.toast.medal-toast .medal-ic { display: block; font-size: 30px; line-height: 1.1; }
-.toast.medal-toast .medal-ic svg { width: 30px; height: 30px; }
+.toast.medal-toast { background: linear-gradient(120deg, #fff4d6, #ffe7f1 55%, #e4fbf2); color: #2c2142; border-color: transparent; }
+.toast .medal-ic { display: block; font-size: 30px; line-height: 1.1; }
+.toast .medal-ic svg { width: 30px; height: 30px; }
+/* the Heirlooms page (#body-heirlooms); the tab button and its CSS are made in hud.js mountJellyLoop() */
+.heirloom { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 10px; align-items: start; }
+.heirloom .hl-ic { font-size: 30px; line-height: 1.25; text-align: center; }
+.heirloom .hl-ic svg { width: 34px; height: 34px; }
+.heirloom .hl-txt { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.heirloom .hl-where { font-style: italic; }
+.heirloom .hl-soon { font-weight: 800; }
+.heirloom .hl-buy { flex: none; align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; margin-top: 3px; padding: 8px 8px 8px 14px; }
+.heirloom .hl-buy:disabled { cursor: default; opacity: .75; }
+.heirloom.owned { border-color: color-mix(in srgb, var(--honey) 60%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--honey) 16%, transparent); }
+.heirloom.unknown { border-style: dashed; background: transparent; }
+.heirloom .hl-ic.sil { filter: brightness(0) opacity(.3); }
+:root[data-theme="dark"] .heirloom .hl-ic.sil { filter: brightness(0) invert(1) opacity(.3); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .heirloom .hl-ic.sil { filter: brightness(0) invert(1) opacity(.3); } }
 /* bigger tap targets on touch screens */
 @media (pointer: coarse) {
   .icon-btn { width: 40px; height: 40px; }

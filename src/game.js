@@ -249,7 +249,7 @@ export class Game {
     document.getElementById('eggHint').classList.toggle('warming', warming);
     if (warming) {
       const left = this.sim.eggSecondsLeft(now);
-      document.getElementById('eggWarm').style.width = Math.round(100 * (1 - Math.min(1, left / (BREEDING.readyHours * 3600)))) + '%';
+      document.getElementById('eggWarm').style.width = Math.round(100 * (1 - Math.min(1, left / this.sim.ranch.eggWarmSeconds(this.state.egg.bred)))) + '%';
       set('eggTitle', 'Still warming');
       set('eggText', `Ready in ${fmtDuration(left)}. It can finish warming right here.`);
     } else {
@@ -702,7 +702,7 @@ export class Game {
     } else {
       this.remember('🥚', `${p.name} and ${q.name} made an egg together in the Nursery.`);
       const when = this.state.phase === 'egg' ? 'You can put it on the cushion instead of the egg there now.' : `Choose it when ${esc(this.Name)} moves to the ranch.`;
-      this.hud.toast(`<b>A new egg in the Nursery</b>${esc(p.name)} and ${esc(q.name)}'s egg is ${this.debugInstant ? 'ready now (debug: instant eggs)' : `ready in ${fmtDuration(BREEDING.readyHours * 3600)}`}. ${when}`, 'love', 4600);
+      this.hud.toast(`<b>A new egg in the Nursery</b>${esc(p.name)} and ${esc(q.name)}'s egg is ${this.debugInstant ? 'ready now (debug: instant eggs)' : `ready in ${fmtDuration(rr.eggWarmSeconds(r.egg))}`}. ${when}`, 'love', 4600);
     }
     this.hud.nurseryPick = [];
     this.hud.renderRanch(true);
@@ -1674,7 +1674,7 @@ export class Game {
     this.after(0.6, () => this.sfx.mii());
     this.hud.say(`${m.icon}!`, 1800);
     const perk = m.id === 'ribbon' ? 'All grown up. Every grown slime wears one.' : `${fmtShort(m.jelly)} jelly of their own! On the ranch: pearls x${m.pearls}, buyers pay +${Math.round(m.offers * 100)}%.`;
-    this.hud.toast(`<span class="medal-ic" aria-hidden="true">${memIcon(m.icon, esc(m.icon))}</span><b>${esc(name)} earned ${esc(m.title)}!</b>${esc(perk)}`, 'combo medal-toast', 5200);
+    this.hud.toast(`<span class="medal-ic" aria-hidden="true">${memIcon(m.icon, esc(m.icon))}</span><b>${esc(name)} earned ${esc(m.title)}!</b>${esc(perk)}`, 'medal-toast', 5200);
     this.hud.dot('slime');
     this.hud.updateMedalBadge();
     setMedalPin(this.slime, this.sim.medalShown());
@@ -1950,6 +1950,25 @@ export class Game {
     this.hud.toast(`<b>${esc(u.name)}</b>${esc(u.blurb)}`);
     this.hud.upgradeKey = '';
     this.markDirty(true);
+  }
+
+  // ---------- heirlooms ----------
+  buyHeirloom(id) {
+    this.sfx.unlock();
+    const h = this.sim.buyHeirloom(id);
+    if (!h) { this.sfx.error(); this.hud.renderHeirlooms(true); return null; }
+    this.sfx.buy();
+    this.after(0.25, () => this.sfx.sparkle());
+    this.remember(h.icon, `The family got the ${h.name}. It lives ${h.where}. ${h.effect}`, 'heirloom-' + h.id);
+    this.hud.toast(`<span class="medal-ic" aria-hidden="true">${memIcon(h.icon, esc(h.icon))}</span><b>${esc(h.name)}</b>${esc(h.effect)} It will live ${esc(h.where)}, for every slime in the family.`, 'medal-toast heirloom-toast', 5200);
+    if (this.state.phase === 'play' && !this.sim.asleep && this.view !== 'ranch') {
+      this.flash({ eyes: 'sparkle', mouth: 'open', blush: 0.9 }, 1.4);
+      this.slime.hop(4);
+      this.fx.emit('sparkles', this.slime.headTopWorld(this.v1), { count: 12, color: '#ffe08a' });
+    }
+    this.hud.renderHeirlooms(true);
+    this.saveNow(true);
+    return h;
   }
 
   // ---------- settings ----------

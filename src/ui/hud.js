@@ -3,7 +3,7 @@
 import {
   FOODS, FOOD_BY_ID, HELPERS, STAGES, TRAITS, TRAIT_IDS, BOND, PERSONALITY, PERSONALITY_IDS, COMBOS, NAME_IDEAS,
   EMOTES, SECRETS, TRICK_LEARNED, JAR_LEVELS, OUTFITS, OUTFIT_BY_ID, RANCH, BUYER_BY_ID,
-  BREEDING, SPARK_FORMS, SPARK_BY_ID, FORM_BY_ID, FORM_IDS, PURE_LINE, MEDALS,
+  BREEDING, SPARK_FORMS, SPARK_BY_ID, FORM_BY_ID, FORM_IDS, PURE_LINE, MEDALS, HEIRLOOMS, HEIRLOOM_TAB,
 } from '../data/content.js';
 import { fmt, fmtShort, fmtRate, fmtDuration } from '../core/format.js';
 import { ICON, memIcon, slimeArt, slimeUnknown } from './icons.js';
@@ -11,6 +11,8 @@ import { nextMedal, residentMedal } from '../core/medals.js';
 
 const DROP = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.2c3.7 4.6 6.6 8.4 6.6 12a6.6 6.6 0 0 1-13.2 0c0-3.6 2.9-7.4 6.6-12z"/></svg>';
 const DICE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm2.5 3a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm9 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM12 10.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM7.5 15a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm9 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z"/></svg>';
+// the gold chest from the approved 7th-tab layout check: the Heirlooms tab's placeholder until the UI branch draws one
+const CHEST = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10a6 6 0 0 1 6-6h6a6 6 0 0 1 6 6v1H3z" fill="#e0a526"/><rect x="3" y="11" width="18" height="9" rx="2" fill="#f2c14e"/><rect x="3" y="10" width="18" height="2.4" fill="#b7791f"/><rect x="10.5" y="10" width="3" height="5" rx="1" fill="#8a5a12"/></svg>';
 const FALLBACK = { cookie: '🍪', chili: '🌶️', iron: '🔩', moss: '🌿', berry: '🫐', crystal: '💎', feather: '🪶', bubbles: '🫧', garden: '🌱', slimeling: '💧', musicbox: '🎶', lamp: '🌙', fountain: '⛲', observatory: '🔭' };
 
 export const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -29,6 +31,7 @@ export class Hud {
     this.sayEl = null;
     this.floats = 0;
     this.modalOpen = false;
+    this.mountJellyLoop();   // (before bindTabs: it adds the Heirlooms tab)
     this.bindTabs();
     this.$('settingsBtn').addEventListener('click', () => this.g.openSettings());
     this.$('emoteBtn').addEventListener('click', () => this.toggleEmotes());
@@ -61,7 +64,6 @@ export class Hud {
     this.nurseryPick = [];
     this.pending = 0; this.pendingRate = 0;
     this.outfitKey = '';
-    this.mountJellyLoop();
     this.buildEmotes();
     this.setupSheetSwipe();
     this.setupToastDrag();
@@ -79,14 +81,48 @@ export class Hud {
     return `<span style="font-size:30px;line-height:1" aria-hidden="true">${FALLBACK[id] || '•'}</span>`;
   }
 
-  // ---------- jelly loop: medal badges (and, below, the Heirlooms tab) ----------
-  // Elements are made here (stable ids/classes, listed in UI-CHANGES.md) so the HUD markup in index.html stays as is.
+  // ---------- jelly loop: the medal badge by the name and the Heirlooms tab ----------
+  // Elements are made here (stable ids/classes, listed in UI-CHANGES.md) so the HUD and tab-bar markup in index.html
+  // stays as is (the UI branch rewrites it).
   mountJellyLoop() {
     const badge = document.createElement('span');
     badge.className = 'medal-badge';
     badge.id = 'medalBadge';
     badge.hidden = true;
     this.$('nameBtn').insertAdjacentElement('afterend', badge);
+    // ===== Heirlooms tab: ONE block (button + its CSS + its page body). =====
+    // A 7th tab: the placeholder chest icon (HEIRLOOM_TAB.icon through memIcon; until the UI branch draws that key it
+    // shows the gold chest from the approved layout check), no text label, in a fixed 36 px last column of the tab bar.
+    // `.glow` while an heirloom you don't own just became affordable (stops once the page is opened).
+    // The page itself does not care how it is reached: selectTab('heirlooms') / openTab('heirlooms'), renderHeirlooms().
+    const css = document.createElement('style');
+    css.id = 'heirloomTabCss';
+    css.textContent = `
+      #panel .tabs { grid-template-columns: repeat(6, minmax(0, 1fr)) 36px; }
+      .tab.tab-chest { display: grid; place-items: center; padding-left: 0; padding-right: 0; }
+      .tab-chest .chest-ic { display: grid; place-items: center; font-size: 21px; line-height: 1; opacity: .8; transition: transform .2s, filter .3s, opacity .2s; }
+      .tab-chest .chest-ic svg { width: 24px; height: 24px; }
+      .tab-chest[aria-selected="true"] .chest-ic { opacity: 1; transform: translateY(-1px) scale(1.08); }
+      .tab-chest.glow .chest-ic { opacity: 1; animation: chest-glow 2.2s ease-in-out infinite; }
+      @keyframes chest-glow { 0%, 100% { filter: drop-shadow(0 0 2px rgba(255, 196, 64, .55)); } 50% { filter: drop-shadow(0 0 7px rgba(255, 196, 64, .95)); transform: scale(1.08); } }`;
+    document.head.appendChild(css);
+    const tab = document.createElement('button');
+    tab.className = 'tab tab-chest';
+    tab.id = 'tab-heirlooms';
+    tab.dataset.tab = 'heirlooms';
+    tab.setAttribute('role', 'tab');
+    tab.setAttribute('aria-selected', 'false');
+    tab.setAttribute('aria-label', HEIRLOOM_TAB.label);
+    tab.title = HEIRLOOM_TAB.label;
+    tab.innerHTML = `<span class="chest-ic" aria-hidden="true">${memIcon(HEIRLOOM_TAB.icon, CHEST)}</span><span class="dot" hidden></span>`;
+    this.$('panel').querySelector('.tabs').appendChild(tab);
+    const body = document.createElement('div');
+    body.className = 'tab-body';
+    body.id = 'body-heirlooms';
+    body.hidden = true;
+    this.$('body-ranch').insertAdjacentElement('afterend', body);
+    body.addEventListener('click', e => { const b = e.target.closest('button[data-buy]'); if (b && !b.disabled) this.g.buyHeirloom(b.dataset.buy); });
+    // ===== end of the Heirlooms tab block =====
   }
   // A small medal badge (placeholder emoji icon from content.js, drawn through memIcon so the UI branch can swap it).
   medalChip(m, cls = '') {
@@ -163,13 +199,14 @@ export class Hud {
       btn.setAttribute('aria-selected', btn.dataset.tab === t ? 'true' : 'false');
       if (btn.dataset.tab === t) btn.querySelector('.dot').hidden = true;
     }
-    for (const id of ['helpers', 'upgrades', 'outfits', 'journal', 'slime', 'ranch']) this.$('body-' + id).hidden = id !== t;
+    for (const id of ['helpers', 'upgrades', 'outfits', 'journal', 'slime', 'ranch', 'heirlooms']) this.$('body-' + id).hidden = id !== t;
     if (t === 'ranch') { this.ranchKey = ''; this.renderRanch(); }
     this.g.onTab && this.g.onTab(t);
     if (t === 'outfits') { this.outfitKey = ''; this.renderOutfits(); }
     if (t === 'journal') { this.journalKey = ''; this.renderJournal(); }
     if (t === 'slime') this.renderSlime();
     if (t === 'upgrades') { this.upgradeKey = ''; this.renderUpgrades(); }
+    if (t === 'heirlooms') { this.heirloomKey = ''; this.renderHeirlooms(); }
   }
   openTab(t) {
     const mobile = window.matchMedia('(max-width: 860px)').matches;
@@ -425,6 +462,41 @@ export class Hud {
       }
     }
     for (const b of body.querySelectorAll('.outfit:not(.owned)')) b.classList.toggle('poor', !sim.canAfford(OUTFIT_BY_ID[b.dataset.id].cost));
+  }
+
+  // ---------- the Heirlooms page (its own tab; see mountJellyLoop) ----------
+  // Owned ones say where they live; the next few unowned show price, effect and Buy; the rest are silhouettes.
+  renderHeirlooms(force = false) {
+    const sim = this.g.sim, st = this.g.state, H = st.heirlooms;
+    if (this.tab === 'heirlooms' && this.panelVisible() && sim.markHeirloomsSeen()) this.g.markDirty(false);
+    const next = HEIRLOOMS.filter(h => !H.owned.includes(h.id)).slice(0, HEIRLOOM_TAB.showNext).map(h => h.id);
+    const key = H.owned.join(',') + '|' + next.map(id => id + (sim.canBuyHeirloom(id).ok ? '+' : '-')).join(',');
+    const body = this.$('body-heirlooms');
+    if (!force && key === this.heirloomKey) return;
+    this.heirloomKey = key;
+    let html = `<div class="card heirloom-intro"><span class="form-name">Heirlooms</span><span class="sub">Family treasures, bought with jelly. They stay forever and help every slime after this one. Spending jelly never lowers the Family Bonus: it counts all the jelly your family ever made.</span></div>`;
+    for (const h of HEIRLOOMS) {
+      const ic = (cls = '') => `<span class="hl-ic${cls}" aria-hidden="true">${memIcon(h.icon, esc(h.icon))}</span>`;
+      if (H.owned.includes(h.id)) {
+        html += `<div class="card heirloom owned" data-id="${h.id}">${ic()}<div class="hl-txt"><b>${esc(h.name)}</b><span class="sub">${esc(h.effect)}</span><span class="sub hl-where">Lives ${esc(h.where)}</span></div></div>`;
+      } else if (next.includes(h.id)) {
+        const ok = sim.canBuyHeirloom(h.id).ok;
+        const act = h.buyable === false ? `<span class="sub hl-soon">${esc(h.soon || 'Not for sale yet.')}</span>`
+          : `<button class="btn${ok ? ' primary' : ''} hl-buy" data-buy="${h.id}" ${ok ? '' : 'disabled'} aria-label="Buy the ${esc(h.name)} for ${fmt(h.price)} jelly">Buy <span class="cost${ok ? '' : ' poor'}">${DROP}${fmtShort(h.price)}</span></button>`;
+        html += `<div class="card heirloom next${ok ? ' can' : ''}" data-id="${h.id}">${ic()}<div class="hl-txt"><b>${esc(h.name)}</b><span class="sub">${esc(h.effect)}</span><span class="sub hl-where">Will live ${esc(h.where)}</span>${act}</div></div>`;
+      } else {
+        html += `<div class="card heirloom unknown" data-id="${h.id}">${ic(' sil')}<div class="hl-txt"><b>???</b><span class="sub">A family treasure still to find.</span></div></div>`;
+      }
+    }
+    body.innerHTML = html;
+  }
+  // The chest glows while an heirloom you don't own has just become affordable; looking at the page stops it.
+  updateHeirloomTab() {
+    const sim = this.g.sim, onPage = this.tab === 'heirlooms' && this.panelVisible();
+    if (onPage) this.renderHeirlooms();
+    const glow = !onPage && sim.newlyAffordableHeirlooms().length > 0;
+    const t = this.$('tab-heirlooms');
+    if (t.classList.contains('glow') !== glow) t.classList.toggle('glow', glow);
   }
 
   pourJelly(rect, amt) {
@@ -795,14 +867,14 @@ export class Hud {
     let html = `<button class="link-btn" id="nurseryBack">← Back to the ranch</button>`;
     html += `<div class="card"><div class="row-between"><span class="form-name">Nursery</span><span class="sub"><i class="pearl"></i> ${fmt(R.pearls)} pearls</span></div>
       <span class="sub">Two ranch slimes can make an egg together. The baby takes after them a little, but how you raise it decides who it becomes.</span>
-      <span class="sub">An egg costs <b>${BREEDING.cost} pearls</b> and is ready in ${fmtDuration(BREEDING.readyHours * 3600)} (even while the game is closed). Each slime can be a parent once a day.</span>
+      <span class="sub">An egg costs <b>${BREEDING.cost} pearls</b> and is ready in ${fmtDuration(rr.newEggSeconds())} (even while the game is closed). Each slime can be a parent once a day.</span>
       ${eggPhase ? '<span class="sub"><b>An egg is waiting on the cushion at home.</b> Before it hatches, you can put a Nursery egg there instead, even one that is still warming.</span>' : ''}</div>`;
     html += `<div class="sec-title">Waiting eggs <span class="count">${eggs.length} of ${BREEDING.maxEggs}</span></div>`;
     if (!eggs.length) html += '<p class="sub">No eggs yet. Pick two parents below.</p>';
     for (const e of eggs) {
       const left = rr.eggSecondsLeft(e, now), ready = left <= 0, [p, q] = e.parents;
       const cols = g.eggColors(e.bias) || [];
-      const done = 1 - left / (BREEDING.readyHours * 3600);
+      const done = 1 - left / rr.eggWarmSeconds(e);
       html += `<div class="card egg-card${e.spark ? ' spark' : ''}"><div class="egg-row"><span class="egg-ic${e.spark ? ' spark' : ''}" style="--a:${cols[0] || '#9eefd3'};--b:${cols[1] || '#ffc2dc'}" aria-hidden="true"></span>
         <div><b>${pname(p)} and ${pname(q)}'s egg</b><span class="sub">${ready ? (eggPhase ? 'Ready!' : `Ready! Choose it when ${cur} moves to the ranch.`) : `Ready in ${fmtDuration(left)}${eggPhase ? ' (it can finish warming on the cushion)' : ''}`}</span></div></div>
         ${ready ? '' : `<div class="meter"><i style="width:${(done * 100).toFixed(0)}%"></i></div>`}
@@ -906,6 +978,7 @@ export class Hud {
       }
       if (this.tab === 'journal' && this.panelVisible()) this.renderJournal();
       if (this.tab === 'outfits' && this.panelVisible()) this.renderOutfits();
+      this.updateHeirloomTab();
       this.slimeT = (this.slimeT || 0) - 0.25;
       if (this.tab === 'slime' && this.panelVisible() && this.slimeT <= 0 && !this.panelPress) { this.slimeT = 1; this.renderSlime(); }
       this.renderBuffs();
