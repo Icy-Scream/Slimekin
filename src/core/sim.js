@@ -5,7 +5,7 @@ import {
   UPGRADES, UPGRADE_BY_ID, COMBOS, BOND, PERSONALITY_IDS, PURE_FORMS, PAIR_FORMS, GENERALIST_FORM,
   UPGRADE_RENAMES, JAR_LEVELS, OUTFITS, OUTFIT_BY_ID, TRICK_LEARNED, RANCH, BREEDING, BUYERS, BUYER_BY_ID,
 } from '../data/content.js';
-import { createRanch, migrateRanch, Ranch, familyBonusFor, residentJpsFor, dayNumber } from './ranch.js';
+import { createRanch, migrateRanch, Ranch, residentJpsFor, dayNumber } from './ranch.js';
 import { emptyLineage, applyEgg, resolveForm, eggFromLineage } from './breeding.js';
 
 export const SAVE_VERSION = 1;
@@ -561,9 +561,13 @@ export class Sim {
 
   // ---------- Moving to the ranch (a new generation) ----------
   canMoveOut() { return this.s.phase === 'play' && this.stageIndex() === STAGES.length - 1; }
+  // Family Legacy: moving out recomputes the Family Bonus from all the jelly the family ever made (this slime's
+  // included). bonusNow -> bonusAfter; bonus = how much it goes up (never below 0).
   moveOutPreview() {
     const total = this.s.totalJelly;
-    return { bonus: familyBonusFor(total), jps: residentJpsFor(total), room: this.ranch.free() > 0, generation: this.s.ranch.family.generation };
+    const bonusNow = this.s.ranch.family.bonus;
+    const bonusAfter = Math.max(bonusNow, this.ranch.familyBonusWith(total));
+    return { bonus: bonusAfter - bonusNow, bonusNow, bonusAfter, jps: residentJpsFor(total), room: this.ranch.free() > 0, generation: this.s.ranch.family.generation };
   }
   // The grown slime moves to the ranch and a new egg arrives: a plain egg, or (eggId) an egg from the Nursery
   // (ready or still warming). See startNextEgg for what starts over.
@@ -572,7 +576,6 @@ export class Sim {
     if (!this.canMoveOut() || this.ranch.free() <= 0) return null;
     if (eggId && !this.ranch.egg(eggId)) return null;
     const total = s.totalJelly;
-    const bonus = familyBonusFor(total);
     const resident = {
       id: 'r' + now.toString(36) + Math.floor(Math.random() * 1e4).toString(36),
       name: sl.name, form: sl.form || this.formCandidate(), traits: { ...sl.traits }, personality: { ...sl.personality },
@@ -583,16 +586,19 @@ export class Sim {
       lineage: { ...emptyLineage(), ...(sl.lineage || {}) },
     };
     ranch.residents.push(resident);
-    ranch.family.bonus += bonus;
-    ranch.family.generation++;
+    // Family Legacy: the bonus comes from all the jelly the family ever made, so it is recomputed (never lowered)
+    const bonusBefore = ranch.family.bonus;
     ranch.family.lifetime += total;
+    ranch.family.bonus = Math.max(bonusBefore, this.ranch.familyBonusWith(0));
+    const bonus = ranch.family.bonus - bonusBefore;
+    ranch.family.generation++;
     let gift = 0;
     if (!ranch.gift) { ranch.gift = true; gift = RANCH.welcomeGift; this.ranch.addPearls(gift); }
 
     const egg = this.startNextEgg(now, eggId);
     const arrived = egg ? `${egg.parents[0].name} and ${egg.parents[1].name}'s egg is waiting on the cushion.` : 'A new egg arrived on the cushion.';
     s.memories = [{ t: now, icon: '🏡', text: `${resident.name} moved to the ranch. ${arrived}` }];
-    return { resident, bonus, gift, egg };
+    return { resident, bonus, bonusBefore, bonusAfter: ranch.family.bonus, gift, egg };
   }
 
   // ---------- Finding a baby a new home ----------

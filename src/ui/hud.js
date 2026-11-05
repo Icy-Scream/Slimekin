@@ -545,7 +545,7 @@ export class Hud {
 
     if (s.form) {
       html += `<div class="card"><span class="sub">Settled form</span><span class="form-name">${esc(s.form.name)}</span><span class="sub">${esc(s.form.blurb)}</span></div>`;
-      if (sim.canMoveOut()) html += `<div class="card"><b>Ready for the ranch</b><span class="sub">${name} is all grown up. Moving to the ranch starts a new generation and adds a Family Bonus of +${sim.moveOutPreview().bonus.toFixed(1)}% to all jelly, forever.</span><button class="btn" id="slimeMoveOut">Tell me more</button></div>`;
+      if (sim.canMoveOut()) html += `<div class="card"><b>Ready for the ranch</b><span class="sub">${name} is all grown up. Moving to the ranch starts a new generation and raises the Family Bonus by +${sim.moveOutPreview().bonus.toFixed(1)}% to all jelly, forever. The bonus grows from all the jelly your family has ever made.</span><button class="btn" id="slimeMoveOut">Tell me more</button></div>`;
     } else if (si >= 2) {
       const f = sim.formCandidate();
       const sp = s.lineage?.spark && SPARK_BY_ID[s.lineage.spark];
@@ -683,15 +683,15 @@ export class Hud {
       html += `<button class="link-btn" id="ranchHome">← Back home</button>`;
       html += `<div class="card"><div class="row-between"><span class="form-name">Slime Ranch</span><span class="sub">Generation ${R.family.generation}</span></div>
         <div class="big-num"><i class="pearl big"></i>${fmt(R.pearls)}<span class="sub">pearls</span></div>
-        <span class="sub">${R.family.bonus > 0 ? `Family Bonus: <b>+${R.family.bonus.toFixed(1)}%</b> to all jelly, forever.` : 'Every slime that moves here adds a Family Bonus to all your jelly, forever.'}</span>
+        <span class="sub">${R.family.bonus > 0 ? `Family Bonus: <b>+${R.family.bonus.toFixed(1)}%</b> to all jelly, forever. It grows from all the jelly your family has ever made.` : 'Every slime that moves here grows a Family Bonus on all your jelly, forever, from all the jelly your family has ever made.'}</span>
         ${R.residents.length ? `<span class="sub">The ranch makes <b>${fmtRate(sim.ranchJps())}</b> jelly a second and about <b>${rr.pearlsPerHour().toFixed(1)}</b> pearls an hour.</span>` : ''}</div>`;
       const name = esc(st.slime.name || 'Your slime');
       if (canMove) {
         const pv = sim.moveOutPreview();
-        html += `<div class="card"><b>${name} is all grown up</b><span class="sub">Moving to the ranch starts a new generation with a new egg. ${name} adds <b>+${pv.bonus.toFixed(1)}%</b> Family Bonus and makes ${fmtRate(pv.jps * (1 + (R.family.bonus + pv.bonus) / 100))} jelly a second plus pearls on the ranch. The longer you play first, the bigger the bonus.</span>
+        html += `<div class="card"><b>${name} is all grown up</b><span class="sub">Moving to the ranch starts a new generation with a new egg. The Family Bonus goes up <b>+${pv.bonus.toFixed(1)}%</b>, and ${name} makes ${fmtRate(pv.jps * (1 + pv.bonusAfter / 100))} jelly a second plus pearls on the ranch. The bonus grows from all the jelly your family has ever made.</span>
           <button class="btn primary" id="moveOutBtn">${pv.room ? `Move ${name} to the ranch` : 'The ranch is full'}</button></div>`;
       } else if (!R.residents.length && !eggPhase) {
-        html += `<div class="card"><b>Nobody lives here yet</b><span class="sub">When ${name} is all grown up (Settled), they can move to the ranch. They keep making jelly and pearls, you raise a new baby, and every generation adds a Family Bonus to all your jelly.</span></div>`;
+        html += `<div class="card"><b>Nobody lives here yet</b><span class="sub">When ${name} is all grown up (Settled), they can move to the ranch. They keep making jelly and pearls, you raise a new baby, and the Family Bonus on all your jelly grows from all the jelly your family makes.</span></div>`;
       }
       if (R.residents.length || rr.eggs().length) {
         const n = rr.eggs().length;

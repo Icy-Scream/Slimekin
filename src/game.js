@@ -787,7 +787,7 @@ export class Game {
     this.hud.openModal(`<h2>Move ${name} to the ranch?</h2>
       <p>${name} will live on the hill behind the cushion, making jelly and pearls, and you can visit any time. ${eggs.length ? 'Then an egg goes on the cushion' : 'A new egg arrives'} and you raise a new baby.</p>
       ${choice}
-      <div class="card"><b>Family Bonus +${pv.bonus.toFixed(1)}%</b><span class="sub">to all jelly, forever. It adds up with every generation. Playing longer first makes it bigger.</span></div>
+      <div class="card"><b>Family Bonus +${pv.bonus.toFixed(1)}%</b><span class="sub">to all jelly, forever. It grows from all the jelly your family has ever made, so every bit ${name} makes counts.</span></div>
       <div class="card"><b>You keep</b><span class="sub">Pearls, the ranch, outfits, combos you found and secrets. ${name}'s journal goes with them.</span><b>Starts over</b><span class="sub">Jelly, helpers, upgrades and the Jelly Jar.</span></div>
       <div class="actions"><button class="btn" id="mvNo">Not yet</button><button class="btn primary" id="mvYes">Move to the ranch</button></div>`, {
       onOpen: card => {

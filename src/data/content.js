@@ -278,6 +278,10 @@ export const RANCH = {
   welcomeGift: 10,           // pearls for the very first move-in
   grassLife: 120,            // seconds a dropped pearl waits in the grass before rolling into the basket
   postcardDays: 7,           // placed slimes send postcards for a week
+  // Family Bonus (percent) = bonusPercent * cbrt(family lifetime jelly / bonusJelly): all the jelly every slime in the
+  // family ever made (plus an old save's hidden head start, family.legacy), recomputed at each move-out.
+  bonusPercent: 5,
+  bonusJelly: 1e7,
 };
 
 // Buyers for placement and auctions. "want" lists traits that make a slime a good fit;

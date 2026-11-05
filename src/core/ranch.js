@@ -11,7 +11,10 @@ export function createRanch() {
     pearls: 0,
     totalPearls: 0,
     basket: { level: 0, stored: 0 },
-    family: { bonus: 0, generation: 1, lifetime: 0 },
+    // bonus: the Family Bonus (percent) every other system reads; lifetime: all jelly the family ever made;
+    // legacy: an old save's hidden head start (extra lifetime jelly that reproduces the bonus it had before the
+    // lifetime rule). bonus = familyBonusFor(lifetime + legacy), recomputed at each move-out; it never goes down.
+    family: { bonus: 0, generation: 1, lifetime: 0, legacy: 0 },
     placed: [],
     gift: false,
     lastVisit: 0,
@@ -28,6 +31,11 @@ export function migrateRanch(saved) {
   const out = { ...fresh, ...saved };
   out.basket = { ...fresh.basket, ...(saved.basket || {}) };
   out.family = { ...fresh.family, ...(saved.family || {}) };
+  const num = v => (Number.isFinite(+v) && +v > 0 ? +v : 0);
+  for (const k of ['bonus', 'lifetime']) out.family[k] = num(out.family[k]);
+  // Family Legacy: a save from before the lifetime rule keeps its Family Bonus exactly. The extra lifetime jelly
+  // that gives that bonus becomes a hidden head start, so every later move-out still raises it. Filled once.
+  if (!Number.isFinite(saved.family?.legacy)) out.family.legacy = legacyFor(out.family.bonus, out.family.lifetime);
   if (!Array.isArray(out.residents)) out.residents = [];
   if (!Array.isArray(out.placed)) out.placed = [];
   out.nursery = { ...fresh.nursery, ...(saved.nursery || {}) };
@@ -44,8 +52,12 @@ export function migrateRanch(saved) {
   return out;
 }
 
-// Permanent Family Bonus (percent) earned by a generation, from all the jelly it made.
-export const familyBonusFor = total => 5 * Math.cbrt(Math.max(0, total) / 1e7);
+// Family Bonus (percent) from all the jelly the family ever made (Family Legacy: the lifetime rule).
+export const familyBonusFor = total => RANCH.bonusPercent * Math.cbrt(Math.max(0, total) / RANCH.bonusJelly);
+// The extra lifetime jelly that makes familyBonusFor(lifetime + legacy) equal an old save's bonus (0 if the
+// lifetime alone already gives at least that much).
+export const legacyFor = (bonus, lifetime) =>
+  bonus > familyBonusFor(lifetime) ? Math.max(0, RANCH.bonusJelly * (bonus / RANCH.bonusPercent) ** 3 - lifetime) : 0;
 // Steady jelly a resident makes on the ranch, from all the jelly it made while it was growing up.
 export const residentJpsFor = total => Math.round(4 * 2 ** Math.max(0, Math.log10(Math.max(1, total)) - 4));
 
@@ -59,6 +71,9 @@ export class Ranch {
   free() { return this.r.slots - this.r.residents.length; }
   basketCap() { return RANCH.basket[this.r.basket.level].cap; }
   familyMult() { return 1 + this.r.family.bonus / 100; }
+  // The Family Bonus the lifetime rule gives, with `extra` jelly added to the family's lifetime (e.g. the jelly of
+  // the slime that is about to move out). The stored bonus only changes at a move-out.
+  familyBonusWith(extra = 0) { const f = this.r.family; return familyBonusFor((f.lifetime || 0) + (f.legacy || 0) + Math.max(0, extra || 0)); }
   jps() { let t = 0; for (const x of this.r.residents) t += x.jps || 0; return t; }
 
   happyMult(x) { return 0.4 + 0.6 * x.happiness / 100; }
