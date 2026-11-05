@@ -1,5 +1,6 @@
 // Visible helpers around the habitat. Buying a helper adds something you can see.
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { feather, planter, slimeling, moonLamp, fountain, rainbowArch, HELPER_MAKERS } from './models.js';
 
 const FEATHER_COLORS = ['#a98bff', '#ff8fbd', '#6fc4ff', '#ffbf47', '#7fd88f'];
@@ -20,6 +21,45 @@ function groundY(x, z) {
 // a slimeling's body is centered on its origin, so lift it until its bottom touches the ground
 const PAL_LIFT = 0.125;
 
+// The prop limit: how many copies of a helper are drawn. Owning more still earns more; the scene just
+// stops adding copies. Low graphics (picked, or chosen by Auto on a struggling phone) shows fewer.
+const SHOWN = {
+  high: { feather: 6, garden: 6, slimeling: 5, lamp: 6 },
+  low: { feather: 3, garden: 4, slimeling: 3, lamp: 3 },
+};
+
+// Merge some meshes inside `parent` into one mesh colored per part (vertex colors): one draw call
+// instead of one per part. See-through parts are blended onto `under` so they look the same.
+function bake(parent, meshes, { roughness = 0.6, under = null } = {}) {
+  let root = parent;
+  while (root.parent) root = root.parent;
+  root.updateMatrixWorld(true);
+  const inv = parent.matrixWorld.clone().invert(), m4 = new THREE.Matrix4(), col = new THREE.Color();
+  const geos = meshes.map(m => {
+    const g = m.geometry.clone();
+    for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal') g.deleteAttribute(k);
+    g.applyMatrix4(m4.multiplyMatrices(inv, m.matrixWorld));
+    col.copy(m.material.color);
+    if (m.material.transparent && under) col.lerpColors(under, m.material.color, m.material.opacity);
+    const n = g.attributes.position.count, c = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) col.toArray(c, i * 3);
+    g.setAttribute('color', new THREE.BufferAttribute(c, 3));
+    m.parent.remove(m);
+    return g;
+  });
+  const out = new THREE.Mesh(mergeGeometries(geos), new THREE.MeshStandardMaterial({ vertexColors: true, roughness }));
+  parent.add(out);
+  return out;
+}
+
+// free a removed copy's GPU memory (the shared glow texture stays)
+function dispose(obj) {
+  obj.traverse(o => {
+    if (o.geometry) o.geometry.dispose();
+    if (o.material) o.material.dispose();
+  });
+}
+
 export class HelperWorld {
   constructor(scene, fx) {
     this.scene = scene;
@@ -33,6 +73,7 @@ export class HelperWorld {
     this.lamps = [];
     this.singles = {};
     this.counts = {};
+    this.shown = SHOWN.high;
     this.bubbleTimer = 1;
     this.tickleTimer = 6;
     this.time = 0;
@@ -53,10 +94,31 @@ export class HelperWorld {
     obj.userData.popTarget = target;
   }
 
+  // 'high' or 'low' (the game's resolved graphics quality): fewer copies on low
+  setQuality(q) {
+    const next = SHOWN[q] || SHOWN.high;
+    if (next === this.shown) return;
+    this.shown = next;
+    this.sync(this.counts);
+  }
+
+  // drop the newest copies above the limit
+  trim(list, n) {
+    while (list.length > n) {
+      const x = list.pop();
+      this.group.remove(x.obj);
+      dispose(x.obj);
+    }
+  }
+
   sync(helpers) {
-    const want = (id, cap) => Math.min(cap, helpers[id] || 0);
+    const want = id => Math.min(this.shown[id], helpers[id] || 0);
+    this.trim(this.feathers, want('feather'));
+    this.trim(this.planters, want('garden'));
+    this.trim(this.slimelings, want('slimeling'));
+    this.trim(this.lamps, want('lamp'));
     // feathers
-    while (this.feathers.length < want('feather', 10)) {
+    while (this.feathers.length < want('feather')) {
       const i = this.feathers.length;
       const obj = feather(FEATHER_COLORS[i % FEATHER_COLORS.length]);
       this.group.add(obj);
@@ -64,9 +126,12 @@ export class HelperWorld {
       this.feathers.push({ obj, angle: rand(0, Math.PI * 2), speed: rand(0.25, 0.45) * (i % 2 ? 1 : -1), radius: rand(1.25, 1.75), height: rand(0.5, 1.4), phase: rand(0, 6), tickle: -1 });
     }
     // planters behind the cushion
-    while (this.planters.length < want('garden', 9)) {
+    while (this.planters.length < want('garden')) {
       const i = this.planters.length;
       const obj = planter(i);
+      const sprout = obj.userData.sprout;
+      bake(obj, obj.children.filter(c => c !== sprout && c.isMesh), { roughness: 0.7 });
+      bake(sprout, sprout.children.filter(c => c.isMesh), { roughness: 0.5 });
       const a = Math.PI + (i % 2 ? 1 : -1) * (0.35 + Math.floor(i / 2) * 0.32) + (i === 0 ? 0.35 : 0);
       const R = 2.75 + (i % 3) * 0.25;
       obj.position.set(Math.sin(a) * R, 0.18, Math.cos(a) * R);
@@ -76,9 +141,11 @@ export class HelperWorld {
       this.planters.push({ obj, phase: rand(0, 6) });
     }
     // slimeling pals (they sit on the floor around the cushion, never inside it)
-    while (this.slimelings.length < want('slimeling', 8)) {
+    while (this.slimelings.length < want('slimeling')) {
       const i = this.slimelings.length;
       const obj = slimeling(SLIMELING_COLORS[i % SLIMELING_COLORS.length]);
+      const body = obj.userData.body;
+      bake(obj, obj.children.filter(c => c !== body && c.isMesh), { roughness: 0.35, under: body.material.color });
       const a = rand(0, Math.PI * 2), R = rand(2.5, 3.4);
       obj.position.set(Math.sin(a) * R, 0, Math.cos(a) * R);
       obj.position.y = groundY(obj.position.x, obj.position.z) + PAL_LIFT;
@@ -87,7 +154,7 @@ export class HelperWorld {
       this.slimelings.push({ obj, target: obj.position.clone(), hopT: rand(0, 1), hopping: false, from: new THREE.Vector3(), rest: rand(0.5, 2), cheer: 0 });
     }
     // lamps floating in the back
-    while (this.lamps.length < want('lamp', 6)) {
+    while (this.lamps.length < want('lamp')) {
       const i = this.lamps.length;
       const obj = moonLamp();
       const side = i % 2 ? 1 : -1;

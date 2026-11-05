@@ -65,6 +65,9 @@ it up the next time it is opened online (sometimes it takes two opens). Never ed
   restarting a sound on every touch makes it click. The petting "hum" is one voice that only fades.
   Audio only unlocks on a finished tap (`touchend`/`click`).
 - Slimeling pals' bodies are centered on their origin: lift them by `PAL_LIFT` onto `groundY()`.
+- Prop limit: `SHOWN` in `src/view/helpers3d.js` caps how many copies of each helper are drawn (fewer on Low
+  graphics, also when Auto lowers quality); owning more still earns more. Planters' and pals' parts are merged
+  into one mesh each (`bake()`), and each cloud is one mesh: keep new props to a few draw calls.
 - Anything that sits on the ranch grass needs a small lift or it z-fights with the ground.
 - The hill in the background is deliberately **not** tappable (it interrupted booping). The ranch
   opens only from the Ranch tab or the pearl counter.

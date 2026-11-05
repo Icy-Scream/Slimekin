@@ -1,7 +1,7 @@
 // Offline cache for the home-screen app.
 // Game files: network first (always fresh when online), cache as backup for offline play.
 // Libraries and fonts from CDNs: cache first (their URLs never change).
-const VERSION = 'slimekin-202611052000';
+const VERSION = 'slimekin-202611052144';
 const CORE = ["./","index.html","manifest.webmanifest","src/audio/sfx.js","src/behaviors.js","src/core/breeding.js","src/core/format.js","src/core/heirlooms.js","src/core/medals.js","src/core/movingday.js","src/core/ranch.js","src/core/random.js","src/core/requests.js","src/core/save.js","src/core/sim.js","src/data/content.js","src/game.js","src/main.js","src/moving-day.js","src/ui/hud.js","src/ui/icons.js","src/view/egg-spark.js","src/view/egg.js","src/view/face.js","src/view/forms.js","src/view/fx.js","src/view/helpers3d.js","src/view/medal-pin.js","src/view/models.js","src/view/ranch.js","src/view/scenery.js","src/view/slime.js","src/view/stage.js","src/view/travel-bundle.js","icons/apple-touch-icon.png","icons/icon-192.png","icons/icon-512.png","icons/icon-maskable-512.png"];
 const CDN = ['cdn.jsdelivr.net', 'fonts.googleapis.com', 'fonts.gstatic.com'];
 
