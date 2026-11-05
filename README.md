@@ -76,6 +76,9 @@ Phone notes: swipe the menu down (or its grip bar) to close it; drag a notificat
 | A new home for a baby | A slime that is not grown yet can go to a family that will raise it ("Find ... a new home" in the Slime tab), then the next egg comes (plain or from the Nursery). No pearls and no Family Bonus for a baby; it sends postcards. |
 | Family sparks | Some parent pairs share a family spark: their egg twinkles, and a baby raised on the right snacks grows into a form only they can pass on: S'more (Hearth × Marshmallow), Honeycomb (Nectar × Candy), Campfire (Hearth × Root), Storm (Aurora × Volt). Raised differently, it grows into a normal form and the Journal keeps a clue. |
 | Pure slimes | Two parents of the same form, and a baby that grows up the same way, make a Pure version of any of the 22 forms: brighter colors, a soft shimmer and twinkling sparkles. |
+| Slime medals | A grown slime earns medals from the jelly it made itself: the Grown-Up Ribbon when it settles, then Bronze (1B), Silver, Gold, Platinum, Emerald, Diamond, Obsidian and Nova (10Q), every x10. Each one is a little ceremony and a Journal line; the medal shows by its name, on a small pin on its chest, on the ranch and in the family tree. On the ranch a medal makes more pearls (up to x3) and buyers pay more (up to +100%). |
+| Heirlooms | Family treasures bought with jelly in their own tab (the chest; it glows when a new one becomes affordable). They stay forever and help every slime after: starting helpers, cheaper snacks, bigger Glimmers, a jar that keeps its size, more pearls, faster Nursery eggs, happier ranch slimes, better offers. Spending jelly never lowers the Family Bonus. |
+| Moving Day signs | When moving out would make the next baby's jelly grow much faster, a grown slime starts showing it in its own way (a curious one gazes at the ranch hill, a cuddly one brings you a snack to share...). No text, no numbers, nothing happens if you ignore it; the Journal has one clue. |
 | Family tree | A Journal page with your slime, its two parents and its generation, the spark forms found (silhouettes for the ones not found yet, clues for the ones you have seen) and the Pure forms raised. |
 
 Saving: every few seconds to `localStorage`, and also to the player's private slot in the
@@ -120,8 +123,16 @@ tools/breeding-smoke.cjs  headless breeding play-through from an old save (Nurse
 tools/playtest-smoke.cjs  headless test of the playtest fixes: menu sheet drags (real touch), warming egg, egg swap, a baby's new home
 tools/browser-kit.cjs     shared setup for the browser tests (free port, offline, step deadlines, stall notes)
 tools/breeding-test.mjs   breeding rules check in plain node (caps, seeds, sparks, Pure, cooldowns, old saves, cushion egg, new homes)
+tools/jelly-loop-test.mjs jelly loop rules check in plain node (Family Bonus and old saves, medals, heirlooms, Moving Day)
+tools/jelly-loop-smoke.cjs headless jelly loop play-through from an old save (heirlooms, medals, move-out screen, every sign)
+src/core/medals.js    which medal a slime has (from the jelly it made)
+src/core/heirlooms.js heirloom effects over the save (multipliers, starting helpers)
+src/core/movingday.js the Moving Day ratio, its levels and which sign a slime shows
+src/moving-day.js     plays the Moving Day signs (built from what the slime already does) and the travel bundle
+src/view/medal-pin.js the small medal pin on a grown slime's chest (placeholder, drawn from the emoji)
 UI-CHANGES.md             every on-screen element the breeding work added or changed (for the UI branch)
-tools/fixtures/       old saves made with the code from before breeding (tools/fixtures/make-old-saves.mjs)
+tools/fixtures/       old saves made with the code from before breeding (tools/fixtures/make-old-saves.mjs) and from
+                      just before the jelly loop, plus the Moving Day tester save (tools/fixtures/make-jelly-loop-saves.mjs)
 tools/render-samples.cjs  renders looks day and night and builds labeled contact sheets
 AGENTS.md, CLAUDE.md  hand-off guide for coding agents (how it ships, how to test, gotchas, roadmap)
 ```
@@ -179,6 +190,20 @@ difference is the favorite snack it may inherit):
 ```bash
 node tools/economy-sim.mjs 4 casual quiet gen2=1e9 bred
 ```
+
+The jelly loop (all in `content.js`, checked by `node tools/jelly-loop-test.mjs`):
+
+| What | Where | Now |
+| --- | --- | --- |
+| Family Bonus | `RANCH.bonusPercent`, `RANCH.bonusJelly` | `5 * cbrt(family lifetime jelly / 1e7)` percent, recomputed at each move-out, never lower |
+| Medals | `MEDALS` | jelly steps (1B ... 10Q), ranch pearls x1 ... x3, buyer offers +0 ... +100% |
+| Heirlooms | `HEIRLOOMS` | price (10M ... 1Q), effect (`fx`), where it lives; `buyable: false` for ones not for sale yet |
+| Heirloom tab | `HEIRLOOM_TAB` | icon, how many unowned ones show their price (3) |
+| Moving Day | `MOVING_DAY.levels` | ratio steps 1.5 / 2 / 3 and seconds between signs at each (`every`), travel bundle chance |
+| Moving Day signs | `MOVING_DAY.signs` | one per personality lean: length, turn toward the hill, hops, distance |
+
+To try the Moving Day signs: open with `#debug`, Settings shows each sign's button and where this slime is; or load
+`tools/fixtures/moving-day-almost.json` (a slime just under "ready" that gets there after a few minutes of play).
 
 ## Not in this prototype (from the GDD, deliberately left for later)
 

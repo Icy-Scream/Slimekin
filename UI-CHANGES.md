@@ -136,3 +136,87 @@ What the UI pass restyled from the lists above, and what it added. Keep using th
   floor and sky (`stage.setClassic`), and the ranch hill only shows while visiting it.
 - Phones: when the menu is open at normal size the camera zooms out so the slime stays visible above it
   (`stage.fitZoom`, set in `game.computeViewGoal`; a tall sheet leaves the scene alone).
+
+## Jelly loop
+
+Everything below is new on the `jelly-loop` branch. New elements are made in JS (`src/ui/hud.js`
+`mountJellyLoop()`, `src/game.js`), so the HUD and tab-bar markup in `index.html` is unchanged; the CSS is one
+"jelly loop" block in `index.html` plus the Heirlooms tab's own `<style id="heirloomTabCss">`. Every new icon is a
+placeholder emoji in `content.js`, drawn through `memIcon(icon, esc(icon))`: give `memIcon` a drawing for that emoji
+and it shows everywhere without touching this code.
+
+### Placeholder emoji (in `content.js`)
+
+- Medals (`MEDALS[].icon`): 🎀 Grown-Up Ribbon, 🥉 Bronze, 🥈 Silver, 🥇 Gold, 💠 Platinum, 💚 Emerald, 💎 Diamond,
+  🌑 Obsidian, 🌟 Nova.
+- Heirlooms (`HEIRLOOMS[].icon`): 🧸 Toy Box, 🍪 Grandma's Cookie Tin, 🍀 Pressed Clover, 🫙 Golden Jar Lid,
+  🏮 Ranch Lanterns, 🧵 Patchwork Quilt, 🖼️ Family Portrait, 🗿 Family Statue, ⭐ Wishing Star.
+- The Heirlooms tab (`HEIRLOOM_TAB.icon`): 🧰. Until `memIcon` draws it, the tab shows the gold chest SVG from the
+  approved layout check (`CHEST` in `hud.js`).
+
+### Medal badges
+
+- `#medalBadge.medal-badge`: right after `#nameBtn` in the HUD; `hidden` until the slime has a medal.
+- `.medal-badge` (a `role="img"` span with an aria-label; `.big` on cards) also shows: on the Slime tab's
+  `.card.medal-card` (`.medal-row` badge + name, rank "N of 9", a `.meter` toward the next medal and the ranch perk;
+  before the slime is grown a preview card), the ranch resident page (next to the name, plus `.sub.medal-line`),
+  the ranch resident list (`.card.res .nm`), the family tree nodes (parents still on the ranch) and the Families list.
+- Ceremony: a toast `.toast.medal-toast` (`.medal-ic` icon, "{name} earned GOLD!", the ranch perk), with confetti,
+  a hop and a Journal memory (`medal-<id>`). The Ribbon waits for the grown-up card.
+- 3D pin (`src/view/medal-pin.js`, `setMedalPin(avatar, medal)`): a small canvas-texture disc on the chest, to the
+  viewer's right of the face (cream circle, orange ring, the emoji), at home and on ranch residents. Placeholder:
+  the drawing is in one function, `texture()`.
+
+### The Heirlooms tab and page
+
+- `#tab-heirlooms.tab.tab-chest` (`data-tab="heirlooms"`, aria-label "Heirlooms", no text label): appended as the
+  7th tab, in a fixed 36 px last column (`#panel .tabs { grid-template-columns: repeat(6, minmax(0, 1fr)) 36px }`).
+  The icon is `.chest-ic`; `.glow` (a soft gold pulse, `@keyframes chest-glow`) while an heirloom you don't own has
+  just become affordable; it stops when the page is opened. The whole tab is one commented block in
+  `mountJellyLoop()`; the page does not care how it is reached: `hud.selectTab('heirlooms')` /
+  `hud.openTab('heirlooms')`, rendered by `hud.renderHeirlooms()`.
+- `#body-heirlooms.tab-body`: `.card.heirloom-intro`, then one `.card.heirloom` per heirloom: `.owned` ("Lives
+  {where}"), `.next` (the next three unowned: effect, "Will live {where}", `button.hl-buy[data-buy=<id>]` with the
+  price, `.can` when affordable; the Wishing Star shows `.hl-soon` "Arrives with rare eggs." instead of a button) or
+  `.unknown` (dashed card, `.hl-ic.sil` silhouette, "???"). Parts: `.hl-ic`, `.hl-txt`, `.hl-where`.
+- Buying: a toast `.toast.medal-toast.heirloom-toast`, sparkles and a happy hop, a Journal memory (`heirloom-<id>`).
+
+### In-world heirloom objects (not built; for the UI project)
+
+Each heirloom's card says where it will live (`HEIRLOOMS[].where`); the effects already work without the objects:
+
+- Toy Box: in the nursery corner (by the cushion).
+- Grandma's Cookie Tin: on the nursery shelf.
+- Pressed Clover: in a frame on the wall.
+- Golden Jar Lid: on the Jelly Jar (the jar button under the jelly count).
+- Ranch Lanterns: along the ranch fence.
+- Patchwork Quilt: in the Nursery (the cottage on the ranch).
+- Family Portrait: on the nursery wall (the slimes of the family).
+- Family Statue: on the ranch hill (a gold statue of a slime you pick).
+- Wishing Star: over the ranch at night (when rare eggs exist).
+
+### Move-out modal
+
+- `.card.mv-medal` (first): the medal it takes (`.medal-badge.big`) and its ranch perk.
+- `.card.mv-bonus`: "Family Bonus +X% → +Y%" (now → after).
+- `.card.mv-leftover` (only with jelly left): "You still have 12.4B jelly. It stays behind when {name} moves out.
+  Visit the Heirlooms first?" and `#mvHeirlooms.btn` (closes the modal, opens the Heirlooms page; the move-out can
+  be started again).
+- "You keep" now lists heirlooms; with the Golden Jar Lid, "Starts over" says the jar keeps its size (also in the
+  baby's new home modal).
+
+### Moving Day signs (3D, no text)
+
+- The signs are slime behaviors only (turning toward the ranch hill, gaze, hops, little hands, hums, hearts, a
+  shared snack): `src/moving-day.js`. The slime may move up to about 0.85 units on the cushion and turn its body
+  (`SlimeAvatar.turnYaw`).
+- Travel bundle (`src/view/travel-bundle.js`, PLACEHOLDER): a pink polka-dot cloth sack on a stick, on the cushion's
+  back right edge, popping in and out; only at "very ready", now and then.
+- Journal (Notes page): a `.combo.unknown.moving-day-clue` row under "Something to watch for" once a slime is grown
+  up: "Grown slimes sometimes dream of the ranch. Watch where they look."
+
+### Debug only (`#debug`)
+
+- Settings: "Moving Day signs" with `#mdStatus` (the ratio, level and this slime's sign) and
+  `.actions.md-debug`: one `.btn.small[data-dbg="sign:<id>"]` per sign (labeled with the personality lean) and
+  `[data-dbg="bundle"]`.

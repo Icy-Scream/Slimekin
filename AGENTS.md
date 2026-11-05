@@ -69,6 +69,9 @@ it up the next time it is opened online (sometimes it takes two opens). Never ed
   reopening the game never rerolls it. Egg timers use the wall clock; `g.advance()` moves a test clock
   (`g.timeSkip`) along so tests can wait out the Nursery.
 - A new spark form is one `SPARK_FORMS` entry in `content.js` plus one `FORM_LOOKS['spark:<id>']` look.
+- The jelly loop rules: Family Bonus `familyBonusFor/legacyFor` in `core/ranch.js` (from `family.lifetime + family.legacy`,
+  never lower), medals `core/medals.js`, heirlooms `core/heirlooms.js` (+ `Sim.buyHeirloom`), Moving Day math
+  `core/movingday.js` and its signs `src/moving-day.js`; all numbers in `MEDALS`, `HEIRLOOMS`, `MOVING_DAY` in `content.js`.
 
 ## Testing
 
@@ -94,6 +97,8 @@ it up the next time it is opened online (sometimes it takes two opens). Never ed
   Nursery egg.
 - Playtest fixes: `node tools/playtest-smoke.cjs` (menu sheet drags with real touch events, warming egg at
   move-out, swapping the cushion egg, a baby's new home; `--only sheet,egg,swap,rehome`, `--dpr 1 --quick`).
+- Jelly loop: `node tools/jelly-loop-test.mjs` (plain node) and `node tools/jelly-loop-smoke.cjs` (headless, from an old save;
+  screenshots in `tools/out/jelly-loop/`). The Moving Day tester save is `tools/fixtures/moving-day-almost.json`.
 - Breeding: `node tools/breeding-test.mjs` (plain node: caps, seeds, sparks, Pure, cooldowns, old saves
   from `tools/fixtures/`), and `node tools/breeding-smoke.cjs` (headless play-through from an old save,
   screenshots in `tools/out/breeding/`). `g.debug('pearls')` adds 100 pearls.
