@@ -51,8 +51,10 @@ Two honest warnings first:
 4. Open the project in Xcode:
 
    ```
-   npx cap open ios
+   open ios/App/App.xcodeproj
    ```
+
+   (Or run the script as `bash mac-build.sh --open` next time: it opens Xcode at the end.)
 
 ## 3. First time in Xcode
 

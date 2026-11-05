@@ -47,11 +47,13 @@ step "Applying Slimekin's iPhone settings"
 node tools/patch-ios.mjs
 
 step "Copying the game into the Xcode project (npx cap sync ios)"
-npx cap sync ios
+# CI=1: Capacitor's command line tool sends usage statistics from an interactive Terminal unless told not to
+# (opt-out); in CI mode it sends nothing and changes no setting on this Mac.
+CI=1 npx cap sync ios
 
 step "Checking the Xcode project"
 node tools/check-ios.mjs --mac
 
 step "Done"
-echo "Next: open the project in Xcode with   npx cap open ios"
-if [ "${1:-}" = "--open" ]; then npx cap open ios; fi
+echo "Next: open the project in Xcode with   open ios/App/App.xcodeproj"
+if [ "${1:-}" = "--open" ]; then open ios/App/App.xcodeproj; fi
