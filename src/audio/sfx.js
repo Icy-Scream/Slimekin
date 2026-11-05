@@ -355,6 +355,11 @@ export class Sfx {
       this.tone({ f: NOTE(72 + n + off) * v * 0.9, dur: 0.3, delay: i * 0.24, vol: 0.08, vib: [6, 8], att: 0.04 });
     });
   }
+  // a slow, different little tune (a grown slime dreaming of the ranch); mid-range notes only (phone speakers)
+  dreamyHum() {
+    const v = this.voice * 0.9;
+    [0, 3, 7, 5, 3, 0].forEach((n, i) => this.tone({ f: NOTE(67 + n) * v, dur: 0.55, delay: i * 0.5, vol: 0.055, vib: [4, 5], att: 0.12 }));
+  }
   rainbow() {
     [60, 64, 67, 72, 76, 79, 84, 88].forEach((n, i) => this.tone({ type: 'triangle', f: NOTE(n), dur: 0.35, delay: i * 0.07, vol: 0.07 }));
   }

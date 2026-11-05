@@ -3,7 +3,7 @@
 import {
   FOODS, FOOD_BY_ID, HELPERS, STAGES, TRAITS, TRAIT_IDS, BOND, PERSONALITY, PERSONALITY_IDS, COMBOS, NAME_IDEAS,
   EMOTES, SECRETS, TRICK_LEARNED, JAR_LEVELS, OUTFITS, OUTFIT_BY_ID, RANCH, BUYER_BY_ID,
-  BREEDING, SPARK_FORMS, SPARK_BY_ID, FORM_BY_ID, FORM_IDS, PURE_LINE, MEDALS, HEIRLOOMS, HEIRLOOM_TAB,
+  BREEDING, SPARK_FORMS, SPARK_BY_ID, FORM_BY_ID, FORM_IDS, PURE_LINE, MEDALS, HEIRLOOMS, HEIRLOOM_TAB, MOVING_DAY,
 } from '../data/content.js';
 import { fmt, fmtShort, fmtRate, fmtDuration } from '../core/format.js';
 import { ICON, memIcon, slimeArt, slimeUnknown } from './icons.js';
@@ -316,7 +316,10 @@ export class Hud {
       const html = unlocked ? `${DROP}${fmtShort(price)}` : `${stageName}`;
       if (el.price.dataset.v !== html) { el.price.innerHTML = html; el.price.dataset.v = html; }
       const title = unlocked ? `${f.name}: ${f.blurb} Drag onto your slime, or tap to toss it.` : `${f.name}: unlocks when your slime becomes a ${stageName}.`;
-      if (el.b.title !== title) { el.b.title = title; el.b.setAttribute('aria-label', `${f.name}, ${unlocked ? fmt(price) + ' jelly' : 'locked'}`); }
+      if (el.b.title !== title) el.b.title = title;
+      // (the label carries the price, which changes with the stage and the Cookie Tin)
+      const label = `${f.name}, ${unlocked ? fmt(price) + ' jelly' : 'locked'}`;
+      if (el.b.getAttribute('aria-label') !== label) el.b.setAttribute('aria-label', label);
     }
   }
   shakeFood(id) {
@@ -552,6 +555,10 @@ export class Hud {
     for (const sd of SECRETS) {
       if (st.secrets.includes(sd.id)) html += `<div class="combo secret"><span class="pair"><span class="sx">${ICON.sparkle}</span></span><span class="cn">${esc(sd.name)}</span><span class="ce">${esc(sd.text)}</span></div>`;
       else html += `<div class="combo unknown"><span class="pair"><span class="sx">?</span></span><span class="cn">${esc(sd.clue)}</span><span class="ce">Not found yet</span></div>`;
+    }
+    // one vague Moving Day clue, like the secrets, once the family has had a grown-up slime
+    if (sim.stageIndex() === STAGES.length - 1 || R.residents.length || R.family.generation > 1) {
+      html += `<div class="sec-title">Something to watch for</div><div class="combo unknown moving-day-clue"><span class="pair"><span class="sx">?</span></span><span class="cn">${esc(MOVING_DAY.clue)}</span><span class="ce">A clue</span></div>`;
     }
     html += '<div class="sec-title">Memories</div>';
     const born = st.slime.bornAt || st.createdAt;

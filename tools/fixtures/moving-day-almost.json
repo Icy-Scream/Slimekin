@@ -1,0 +1,221 @@
+{
+ "note": "Moving Day tester: a Settled slime (Pip, generation 2) with the Moving Day ratio just under 2 (\"restless\"); it crosses \"ready\" after about 3 minutes of ordinary play (5 at most).",
+ "madeWith": "jelly-loop",
+ "save": {
+  "v": 1,
+  "createdAt": 1793861106000,
+  "savedAt": 1793879886000,
+  "phase": "play",
+  "egg": {
+   "warmth": 0,
+   "bred": null,
+   "readyAt": null
+  },
+  "slime": {
+   "name": "Pip",
+   "bornAt": 1793876622000,
+   "growth": 1631.6,
+   "tummy": 0,
+   "joy": 59.695259804308236,
+   "energy": 0.0825,
+   "traits": {
+    "sweet": 60.44979999999997,
+    "heat": 0,
+    "mineral": 12.447999999999999,
+    "nature": 80.4795,
+    "spark": 78.55949999999999,
+    "prism": 46.679999999999986
+   },
+   "personality": {
+    "curious": 62.200000000000024,
+    "patient": 58.5,
+    "playful": 90.00000000000068,
+    "cuddly": 54.99999999999997,
+    "bold": 50
+   },
+   "recent": {
+    "curious": 0.7445279326369573,
+    "patient": 0.5286291070184345,
+    "playful": 11.843332171131628,
+    "cuddly": 0.00007665176004544225,
+    "bold": 0
+   },
+   "bondXp": 32.801999999999595,
+   "favorite": "chili",
+   "dislike": "moss",
+   "knownFavorite": false,
+   "knownDislike": true,
+   "eaten": {
+    "cookie": 10,
+    "berry": 28,
+    "moss": 29,
+    "crystal": 17
+   },
+   "form": {
+    "name": "Marshmallow Slime",
+    "blurb": "Soft, round and balanced. A little bit of everything.",
+    "id": "mochi"
+   },
+   "belly": [],
+   "tricks": {},
+   "lineage": {
+    "line": 1,
+    "parents": [],
+    "spark": null,
+    "pure": null,
+    "egg": null,
+    "bias": null
+   },
+   "medalShown": "gold"
+  },
+  "jelly": 3000000000,
+  "totalJelly": 368842068744.6497,
+  "jar": {
+   "level": 0,
+   "stored": 0,
+   "lastFill": 0
+  },
+  "outfits": {
+   "owned": [],
+   "worn": {
+    "head": null,
+    "face": null,
+    "neck": null
+   },
+   "favorite": "beret",
+   "knownFavorite": false
+  },
+  "helpers": {
+   "feather": 138,
+   "bubbles": 125,
+   "garden": 108,
+   "slimeling": 91,
+   "musicbox": 74,
+   "lamp": 56,
+   "fountain": 37,
+   "observatory": 17,
+   "spa": 0,
+   "rainbow": 0
+  },
+  "upgrades": [],
+  "combos": [
+   "hearth"
+  ],
+  "buffs": [],
+  "memories": [
+   {
+    "t": 1793865762000,
+    "icon": "🏡",
+    "text": "Willow moved to the ranch. A new egg arrived on the cushion."
+   }
+  ],
+  "memKeys": [],
+  "secrets": [],
+  "lastMorning": null,
+  "stats": {
+   "boops": 1200,
+   "feeds": 212,
+   "petTime": 0,
+   "fevers": 0,
+   "dizzies": 0,
+   "naps": 0,
+   "glimmers": 0,
+   "requests": 0,
+   "playTime": 7920,
+   "visits": 1
+  },
+  "tutorial": 99,
+  "settings": {
+   "sound": true,
+   "music": true,
+   "purr": true,
+   "soundOnSilent": true,
+   "reducedMotion": false,
+   "quality": "auto",
+   "showFps": false
+  },
+  "ranch": {
+   "residents": [
+    {
+     "id": "rmw39cwk03xh",
+     "name": "Willow",
+     "form": {
+      "name": "Hearth Slime",
+      "blurb": "Gives off a cozy warmth. Everyone wants to sit nearby.",
+      "id": "heat+sweet"
+     },
+     "traits": {
+      "sweet": 169.39799999999997,
+      "heat": 168.414,
+      "mineral": 0,
+      "nature": 0,
+      "spark": 22.455199999999977,
+      "prism": 0
+     },
+     "personality": {
+      "curious": 48,
+      "patient": 57,
+      "playful": 64.00000000000068,
+      "cuddly": 64.19999999999982,
+      "bold": 91.39999999999976
+     },
+     "bondXp": 56.32799999999965,
+     "bondLevel": 2,
+     "favorite": "crystal",
+     "dislike": "iron",
+     "tricks": {},
+     "worn": {
+      "head": null,
+      "face": null,
+      "neck": null
+     },
+     "bornAt": 1793861106000,
+     "movedAt": 1793865762000,
+     "generation": 1,
+     "runTotal": 3000000000,
+     "jps": 178,
+     "happiness": 78,
+     "pearlT": 0.7260799999999996,
+     "petAt": 0,
+     "memories": [],
+     "lineage": {
+      "line": 1,
+      "parents": [],
+      "spark": null,
+      "pure": null,
+      "egg": null,
+      "bias": null
+     }
+    }
+   ],
+   "slots": 3,
+   "pearls": 22,
+   "totalPearls": 22,
+   "basket": {
+    "level": 0,
+    "stored": 0
+   },
+   "family": {
+    "bonus": 33.471647504108475,
+    "generation": 2,
+    "lifetime": 3000000000,
+    "legacy": 0
+   },
+   "placed": [],
+   "gift": true,
+   "lastVisit": 0,
+   "nursery": {
+    "eggs": [],
+    "made": 0,
+    "given": 0
+   },
+   "sparks": {},
+   "nearMiss": {},
+   "pures": []
+  },
+  "heirlooms": {
+   "owned": [],
+   "seen": []
+  }
+ }
+}

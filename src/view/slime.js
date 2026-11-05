@@ -214,6 +214,7 @@ export class SlimeAvatar {
     this.leanZ = new Spring(80, 8);
     this.roll = new Spring(60, 7);
     this.yaw = 0; this.yawTarget = 0; this.spinLeft = 0;
+    this.turnYaw = 0; this.turnTarget = 0; this.turnRate = 3;   // an extra body turn the game can ask for (Moving Day signs)
     this.hopY = 0; this.hopV = 0;
     this.dents = [];
     this.wobble = 0;
@@ -902,7 +903,8 @@ export class SlimeAvatar {
       if (this.spinLeft <= 0) this.spinAcc = 0;
       spinAdd = (this.spinAcc || 0) * this.spinDir;
     }
-    this.root.rotation.y = this.yaw + spinAdd;
+    this.turnYaw += (this.turnTarget - this.turnYaw) * (1 - Math.exp(-dt * this.turnRate));
+    this.root.rotation.y = this.yaw + spinAdd + this.turnYaw;
     this.body.rotation.z = this.roll.x;
 
     const s = this.size;

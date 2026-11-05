@@ -398,3 +398,34 @@ export const HEIRLOOMS = [
 export const HEIRLOOM_BY_ID = Object.fromEntries(HEIRLOOMS.map(h => [h.id, h]));
 // The Heirlooms tab: a placeholder icon key (memIcon), no text label; `glow` while a new heirloom is affordable.
 export const HEIRLOOM_TAB = { icon: '🧰', label: 'Heirlooms', showNext: 3 };
+
+// Moving Day signs: a grown slime shows, in its own way, that it is ready to leave the nest. No text, no numbers:
+// the player learns to read their slime. Underneath: R = (1 + Family Bonus after moving out / 100) /
+// (1 + Family Bonus now / 100), i.e. how much faster the next baby's jelly would grow. Only while Settled.
+//   levels: from `at` (R) up; `every` = [min, max] seconds of play at home between two signs (rare -> frequent);
+//           `bundle` = chance a sign also brings the tiny travel bundle by the cushion (very ready only).
+//   signs:  one per personality lean (the slider farthest from the middle, and which end). `dur` seconds; the
+//           other numbers are each sign's own tuning (turn: how far it turns toward the ranch hill, in radians;
+//           go: how far it moves, in world units; hops...). The ranch hill is straight behind the cushion.
+export const MOVING_DAY = {
+  levels: [
+    { id: 'restless',  at: 1.5, every: [300, 480] },
+    { id: 'ready',     at: 2,   every: [110, 190] },
+    { id: 'veryReady', at: 3,   every: [50, 100], bundle: 0.4 },
+  ],
+  firstDelay: [25, 50],        // seconds after loading (or after getting restless) before the first sign
+  bundleSeconds: 45,           // how long the travel bundle stays by the cushion
+  signs: {
+    curious:     { lean: ['curious', 'high'], dur: 4.2, turn: 2.0, wiggles: 2 },                 // gazes at the hill, wiggles toward it
+    familiar:    { lean: ['curious', 'low'],  dur: 4.4, pats: 3, turn: 1.5 },                    // tidies its cushion, then glances at the hill
+    bold:        { lean: ['bold', 'high'],    dur: 4.6, hops: 3, go: 0.55, turn: 1.2 },          // practice hops toward the edge, puffs up
+    shy:         { lean: ['bold', 'low'],     dur: 4.2, turn: 1.7, go: 0.4 },                    // peeks at the hill, hides toward you
+    playful:     { lean: ['playful', 'high'], dur: 4.2, hops: 2, hop: 8, turn: 1.9 },            // bounces high, stretches toward the hill
+    mellow:      { lean: ['playful', 'low'],  dur: 6.0, turn: 2.6 },                             // sits facing the hill, swaying slowly
+    cuddly:      { lean: ['cuddly', 'high'],  dur: 4.4, go: 0.45 },                              // brings you its favorite snack to share
+    independent: { lean: ['cuddly', 'low'],   dur: 5.6, go: 0.75 },                              // wanders a little farther, exploring
+    patient:     { lean: ['patient', 'high'], dur: 5.0, turn: 1.8 },                             // hums a slow, different tune at the hill
+    impulsive:   { lean: ['patient', 'low'],  dur: 3.6, go: 0.85, turn: 2.8 },                   // a zoomie toward the hill, then back
+  },
+  clue: 'Grown slimes sometimes dream of the ranch. Watch where they look.',
+};

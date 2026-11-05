@@ -1,0 +1,365 @@
+{
+ "note": "Save from just before the jelly loop, RUSHED: six slimes moved out as soon as grown up (2B each); a big old Family Bonus.",
+ "madeWith": "828f3b9 (before the jelly loop)",
+ "save": {
+  "v": 1,
+  "createdAt": 1793823556000,
+  "savedAt": 1793861106000,
+  "phase": "play",
+  "egg": {
+   "warmth": 0,
+   "bred": null,
+   "readyAt": null
+  },
+  "slime": {
+   "name": "Gale",
+   "bornAt": 1793861066000,
+   "growth": 46,
+   "tummy": 82.5,
+   "joy": 96.27258119300508,
+   "energy": 100,
+   "traits": {
+    "sweet": 17.219999999999995,
+    "heat": 0,
+    "mineral": 0,
+    "nature": 0,
+    "spark": 0,
+    "prism": 0
+   },
+   "personality": {
+    "curious": 55,
+    "patient": 43,
+    "playful": 56,
+    "cuddly": 47.499999999999986,
+    "bold": 45
+   },
+   "recent": {
+    "curious": 1.7561908618411193,
+    "patient": 0,
+    "playful": 0,
+    "cuddly": 1.3550301857984721,
+    "bold": 0
+   },
+   "bondXp": 6.1200000000000045,
+   "favorite": "cookie",
+   "dislike": "berry",
+   "knownFavorite": true,
+   "knownDislike": false,
+   "eaten": {
+    "cookie": 5
+   },
+   "form": null,
+   "belly": [],
+   "tricks": {},
+   "lineage": {
+    "line": 1,
+    "parents": [],
+    "spark": null,
+    "pure": null,
+    "egg": null,
+    "bias": null
+   }
+  },
+  "jelly": 52223.625789909565,
+  "totalJelly": 52223.625789909565,
+  "jar": {
+   "level": 0,
+   "stored": 0,
+   "lastFill": 0
+  },
+  "outfits": {
+   "owned": [],
+   "worn": {
+    "head": null,
+    "face": null,
+    "neck": null
+   },
+   "favorite": "glasses",
+   "knownFavorite": false
+  },
+  "helpers": {
+   "feather": 0,
+   "bubbles": 0,
+   "garden": 0,
+   "slimeling": 0,
+   "musicbox": 0,
+   "lamp": 0,
+   "fountain": 0,
+   "observatory": 0,
+   "spa": 0,
+   "rainbow": 0
+  },
+  "upgrades": [],
+  "combos": [
+   "hearth"
+  ],
+  "buffs": [],
+  "memories": [
+   {
+    "t": 1793859206000,
+    "icon": "🏡",
+    "text": "Fern moved to the ranch. A new egg arrived on the cushion."
+   }
+  ],
+  "memKeys": [],
+  "secrets": [],
+  "lastMorning": null,
+  "stats": {
+   "boops": 3600,
+   "feeds": 605,
+   "petTime": 0,
+   "fevers": 0,
+   "dizzies": 0,
+   "naps": 0,
+   "glimmers": 0,
+   "requests": 0,
+   "playTime": 26390,
+   "visits": 1
+  },
+  "tutorial": 0,
+  "settings": {
+   "sound": true,
+   "music": true,
+   "purr": true,
+   "soundOnSilent": true,
+   "reducedMotion": false,
+   "quality": "auto",
+   "showFps": false
+  },
+  "ranch": {
+   "residents": [
+    {
+     "id": "rmw2xwqlc408",
+     "name": "Dune",
+     "form": {
+      "name": "Hearth Slime",
+      "blurb": "Gives off a cozy warmth. Everyone wants to sit nearby.",
+      "id": "heat+sweet"
+     },
+     "traits": {
+      "sweet": 99.75000000000001,
+      "heat": 99.75000000000001,
+      "mineral": 99.06750000000001,
+      "nature": 0,
+      "spark": 13.30000000000001,
+      "prism": 0
+     },
+     "personality": {
+      "curious": 49,
+      "patient": 60.1999999999999,
+      "playful": 65.00000000000068,
+      "cuddly": 61.1999999999999,
+      "bold": 77.39999999999989
+     },
+     "bondXp": 46.49099999999968,
+     "bondLevel": 1,
+     "favorite": "crystal",
+     "dislike": "berry",
+     "tricks": {},
+     "worn": {
+      "head": null,
+      "face": null,
+      "neck": null
+     },
+     "bornAt": 1793842055000,
+     "movedAt": 1793846532000,
+     "generation": 4,
+     "runTotal": 2000000000,
+     "jps": 158,
+     "happiness": 84,
+     "pearlT": 0.40859999999999985,
+     "petAt": 0,
+     "memories": [
+      {
+       "t": 1793840195000,
+       "icon": "🏡",
+       "text": "Cedar moved to the ranch. A new egg arrived on the cushion."
+      }
+     ],
+     "lineage": {
+      "line": 1,
+      "parents": [],
+      "spark": null,
+      "pure": null,
+      "egg": null,
+      "bias": null
+     }
+    },
+    {
+     "id": "rmw31ok944b2",
+     "name": "Elm",
+     "form": {
+      "name": "Hearth Slime",
+      "blurb": "Gives off a cozy warmth. Everyone wants to sit nearby.",
+      "id": "heat+sweet"
+     },
+     "traits": {
+      "sweet": 99.75000000000001,
+      "heat": 99.75000000000001,
+      "mineral": 99.06750000000001,
+      "nature": 0,
+      "spark": 13.30000000000001,
+      "prism": 0
+     },
+     "personality": {
+      "curious": 50,
+      "patient": 58.1999999999999,
+      "playful": 75.00000000000068,
+      "cuddly": 64.1999999999999,
+      "bold": 74.39999999999992
+     },
+     "bondXp": 46.49099999999968,
+     "bondLevel": 1,
+     "favorite": "moss",
+     "dislike": "berry",
+     "tricks": {},
+     "worn": {
+      "head": null,
+      "face": null,
+      "neck": null
+     },
+     "bornAt": 1793848392000,
+     "movedAt": 1793852869000,
+     "generation": 5,
+     "runTotal": 2000000000,
+     "jps": 158,
+     "happiness": 86,
+     "pearlT": 0.4975999999999998,
+     "petAt": 0,
+     "memories": [
+      {
+       "t": 1793846532000,
+       "icon": "🏡",
+       "text": "Dune moved to the ranch. A new egg arrived on the cushion."
+      }
+     ],
+     "lineage": {
+      "line": 1,
+      "parents": [],
+      "spark": null,
+      "pure": null,
+      "egg": null,
+      "bias": null
+     }
+    },
+    {
+     "id": "rmw35gdww5x8",
+     "name": "Fern",
+     "form": {
+      "name": "Hearth Slime",
+      "blurb": "Gives off a cozy warmth. Everyone wants to sit nearby.",
+      "id": "heat+sweet"
+     },
+     "traits": {
+      "sweet": 99.75000000000001,
+      "heat": 99.75000000000001,
+      "mineral": 99.06750000000001,
+      "nature": 0,
+      "spark": 13.30000000000001,
+      "prism": 0
+     },
+     "personality": {
+      "curious": 63,
+      "patient": 59.1999999999999,
+      "playful": 63.00000000000068,
+      "cuddly": 59.1999999999999,
+      "bold": 64.40000000000005
+     },
+     "bondXp": 46.49099999999968,
+     "bondLevel": 1,
+     "favorite": "berry",
+     "dislike": "crystal",
+     "tricks": {},
+     "worn": {
+      "head": null,
+      "face": null,
+      "neck": null
+     },
+     "bornAt": 1793854729000,
+     "movedAt": 1793859206000,
+     "generation": 6,
+     "runTotal": 2000000000,
+     "jps": 158,
+     "happiness": 88,
+     "pearlT": 0.5613999999999999,
+     "petAt": 0,
+     "memories": [
+      {
+       "t": 1793852869000,
+       "icon": "🏡",
+       "text": "Elm moved to the ranch. A new egg arrived on the cushion."
+      }
+     ],
+     "lineage": {
+      "line": 1,
+      "parents": [],
+      "spark": null,
+      "pure": null,
+      "egg": null,
+      "bias": null
+     }
+    }
+   ],
+   "slots": 3,
+   "pearls": 181,
+   "totalPearls": 181,
+   "basket": {
+    "level": 0,
+    "stored": 0
+   },
+   "family": {
+    "bonus": 175.44106429277196,
+    "generation": 7,
+    "lifetime": 12000000000
+   },
+   "placed": [
+    {
+     "name": "Ash",
+     "form": {
+      "name": "Hearth Slime",
+      "blurb": "Gives off a cozy warmth. Everyone wants to sit nearby.",
+      "id": "heat+sweet"
+     },
+     "buyer": "school",
+     "at": 1793846532000,
+     "cards": 0,
+     "lastCard": 20762
+    },
+    {
+     "name": "Birch",
+     "form": {
+      "name": "Hearth Slime",
+      "blurb": "Gives off a cozy warmth. Everyone wants to sit nearby.",
+      "id": "heat+sweet"
+     },
+     "buyer": "school",
+     "at": 1793852869000,
+     "cards": 0,
+     "lastCard": 20762
+    },
+    {
+     "name": "Cedar",
+     "form": {
+      "name": "Hearth Slime",
+      "blurb": "Gives off a cozy warmth. Everyone wants to sit nearby.",
+      "id": "heat+sweet"
+     },
+     "buyer": "school",
+     "at": 1793859206000,
+     "cards": 0,
+     "lastCard": 20762
+    }
+   ],
+   "gift": true,
+   "lastVisit": 0,
+   "nursery": {
+    "eggs": [],
+    "made": 0,
+    "given": 0
+   },
+   "sparks": {},
+   "nearMiss": {},
+   "pures": []
+  }
+ }
+}

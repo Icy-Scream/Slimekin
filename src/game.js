@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { Sim, createState, migrate } from './core/sim.js';
 import { Requests } from './core/requests.js';
-import { TUNING, FOODS, FOOD_BY_ID, HELPERS, HELPER_BY_ID, UPGRADE_BY_ID, STAGES, TRAITS, TRAIT_IDS, BOND, PERSONALITY_IDS, JAR_LEVELS, OUTFITS, OUTFIT_BY_ID, RANCH, BUYER_BY_ID, BREEDING, SPARK_BY_ID, FORM_BY_ID, PURE_LINE } from './data/content.js';
+import { TUNING, FOODS, FOOD_BY_ID, HELPERS, HELPER_BY_ID, UPGRADE_BY_ID, STAGES, TRAITS, TRAIT_IDS, BOND, PERSONALITY, PERSONALITY_IDS, JAR_LEVELS, OUTFITS, OUTFIT_BY_ID, RANCH, BUYER_BY_ID, BREEDING, SPARK_BY_ID, FORM_BY_ID, PURE_LINE, MOVING_DAY } from './data/content.js';
 import { fmt, fmtShort, fmtDuration } from './core/format.js';
 import { Stage, CUSHION_TOP } from './view/stage.js';
 import { SlimeAvatar } from './view/slime.js';
@@ -18,6 +18,8 @@ import { Sfx } from './audio/sfx.js';
 import { Hud, esc } from './ui/hud.js';
 import { ICON, memIcon } from './ui/icons.js';
 import { Behaviors } from './behaviors.js';
+import { MovingDay } from './moving-day.js';
+import { movingDayRatio, movingDayLevel } from './core/movingday.js';
 import { RanchView } from './view/ranch.js';
 import { Scenery } from './view/scenery.js';
 
@@ -68,6 +70,7 @@ export class Game {
     this.helpers3d.sync(this.state.helpers);
     this.hud = new Hud(this);
     this.behave = new Behaviors(this);
+    this.movingDay = new MovingDay(this);
     for (const b of this.state.slime.belly || []) {
       if (FOOD_BY_ID[b.id]) this.slime.addInner(b.id, { age: b.age || 0, life: b.life, settled: true });
     }
@@ -852,6 +855,8 @@ export class Game {
     // the goodbye happens in view: a menu still open (the Slime tab) closes first
     if (window.matchMedia('(max-width: 860px)').matches && this.hud.sheetState() !== 'closed') this.hud.setSheet('closed');
     const baby = !!buyerId;
+    this.movingDay.stop();
+    this.slime.root.position.x = this.slime.root.position.z = 0;
     this.departing = { t: 0, z: 0, x: 0, hopT: 0.4, side: baby };
     const name = this.Name;
     this.press = null;
@@ -1994,7 +1999,8 @@ export class Game {
       <button class="btn" data-dbg="grow">+Growth</button><button class="btn" data-dbg="needs">Fill needs</button>
       <button class="btn" data-dbg="glim">Glimmer</button><button class="btn" data-dbg="req">Request</button><button class="btn" data-dbg="bond">+Bond</button>
       <button class="btn" data-dbg="tera">+1T jelly</button><button class="btn" data-dbg="pearls">+100 pearls</button>
-      <button class="btn" data-dbg="instant" aria-pressed="${this.debugInstant}">Instant eggs: ${this.debugInstant ? 'On' : 'Off'}</button></div>` : '';
+      <button class="btn" data-dbg="instant" aria-pressed="${this.debugInstant}">Instant eggs: ${this.debugInstant ? 'On' : 'Off'}</button></div>
+      ${this.movingDayDebugHtml()}` : '';
     this.hud.openModal(`<h2>Settings</h2>
       <div class="setting"><span>Sound</span>${seg('sound', [[true, 'On'], [false, 'Off']])}</div>
       <div class="setting"><span>Music box lullaby</span>${seg('music', [[true, 'On'], [false, 'Off']])}</div>
@@ -2111,8 +2117,18 @@ export class Game {
     this.noRender = false;
   }
 
+  // Moving Day tester tools (#debug only): where this slime is, and one button per sign (plus the travel bundle).
+  movingDayDebugHtml() {
+    const R = movingDayRatio(this.state), lvl = movingDayLevel(R), mine = this.movingDay.signFor();
+    const name = id => { const [axis, end] = MOVING_DAY.signs[id].lean; return PERSONALITY[axis][end]; };
+    return `<div class="sec-title">Moving Day signs</div><p class="sub" id="mdStatus">R ${R ? R.toFixed(3) : '-'} (${lvl ? lvl.id : R ? 'not yet' : 'not grown up'}); levels at ${MOVING_DAY.levels.map(l => l.at).join(' / ')}. This slime's sign: ${esc(name(mine))}.${lvl ? ` Next sign in about ${Math.max(0, Math.round(this.movingDay.timer))} s of calm play.` : ''}</p>
+      <div class="actions md-debug">${Object.keys(MOVING_DAY.signs).map(id => `<button class="btn small" data-dbg="sign:${id}">${esc(name(id))}</button>`).join('')}<button class="btn small" data-dbg="bundle">Travel bundle</button></div>`;
+  }
+
   debug(k) {
     const s = this.state.slime;
+    if (k.startsWith('sign:')) { this.hud.closeModal(); if (this.sim.asleep) this.wakeUp('rested'); this.movingDay.play(k.slice(5), { forced: true }); return; }
+    if (k === 'bundle') { this.hud.closeModal(); this.movingDay.showBundle(); return; }
     if (k === 'jelly') this.sim.addJelly(10000);
     if (k === 'mega') this.sim.addJelly(1e7);
     if (k === 'grow') {
@@ -2291,7 +2307,7 @@ export class Game {
     this.idleT -= dt;
     if (this.idleT > 0) return;
     this.idleT = 4 + Math.random() * 6;
-    if (this.busy() || this.sim.asleep || this.sim.dizzy > 0 || this.press || this.bubbleGame || this.transient && this.transient.until > this.time) return;
+    if (this.busy() || this.sim.asleep || this.sim.dizzy > 0 || this.press || this.bubbleGame || this.transient && this.transient.until > this.time || this.movingDay.active) return;
     const p = s.personality;
     const bond = this.sim.bondLevel();
     const pointerNear = this.time - this.lastPointerMove < 2 && this.pointerWorld.distanceTo(this.slime.centerWorld(this.v1)) < 2.4;
@@ -2344,6 +2360,7 @@ export class Game {
     if (sim.dizzy > 0) { e.eyes = 'dizzy'; e.mouth = 'wavy'; e.blush = 0.2; e.sweat = true; e.brows = null; }
     if (sim.asleep) { e.eyes = 'sleep'; e.mouth = this.petActive ? 'cat' : 'o'; e.blush = this.petActive ? 0.8 : 0.4; e.mouthOpen = 0; e.brows = null; e.tears = false; }
     if (!sim.asleep) this.behave.applyExpression(e);
+    if (!sim.asleep) this.movingDay.applyExpression(e);
     if (this.transient && this.transient.until > this.time) Object.assign(e, this.transient.expr);
     if (this.eating || this.chompOpen > 0) e.mouthOpen = Math.max(e.mouthOpen, this.chompOpen);
     if (this.state.phase === 'egg') { e.eyes = 'sleep'; }
@@ -2387,6 +2404,7 @@ export class Game {
     sl.leanZ.target = lz;
     sl.roll.target = roll;
     this.behave.applyMotion();
+    this.movingDay.applyMotion();
     if (this.sim.asleep) { sl.breathAmp = 0.04; sl.breathRate = 1.3; }
     else if (this.sim.fever) { sl.breathAmp = 0.03; sl.breathRate = 5; }
     else { sl.breathAmp = 0.022; sl.breathRate = this.state.slime.energy < 25 ? 1.5 : 2.1; }
@@ -2396,7 +2414,8 @@ export class Game {
   // Nothing much happening: render at half rate to save battery.
   calm() {
     return this.state.phase === 'play' && this.time - this.lastInteract > 12 && this.time - this.lastPointerMove > 3 &&
-      !this.press && !this.held && !this.flying && !this.eating && !this.glimmer && !this.bubbleGame && this.fx.live.length < 6;
+      !this.press && !this.held && !this.flying && !this.eating && !this.glimmer && !this.bubbleGame && this.fx.live.length < 6 &&
+      !this.movingDay.active;   // a Moving Day sign moves the slime: full frame rate
   }
 
   // Watches for frames arriving late. Lowers graphics quality on "Auto" if the device keeps struggling.
@@ -2477,6 +2496,7 @@ export class Game {
       this.updateIdle(dt);
       this.updateGlimmer(dt);
       this.updateMedals(dt);
+      this.movingDay.update(dt);
       this.updateFormFx(dt);
       this.updateTutorial();
       if (this.bubbleGame) {
