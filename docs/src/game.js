@@ -206,6 +206,7 @@ export class Game {
     this.reduced = s.reducedMotion || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     this.fx.reduced = this.reduced;
     this.slime.setQuality(this.resolvedQuality());
+    this.helpers3d.setQuality(this.resolvedQuality());
     if (s.quality === 'low') this.stage.setPixelRatio(1);
     else if (s.quality === 'high') this.stage.setPixelRatio(2);
     else this.stage.setPixelRatio(this.perf.level >= 1 ? 1.25 : 2);

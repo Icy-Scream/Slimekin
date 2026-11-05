@@ -143,11 +143,11 @@ export class Scenery {
     }
     g.add(this.tufts);
 
-    const petal = new THREE.SphereGeometry(0.06, 8, 6); petal.scale(1, 0.35, 0.6);
+    const petal = new THREE.SphereGeometry(0.06, 7, 4); petal.scale(1, 0.35, 0.6);
     const parts = [];
     for (let k = 0; k < 5; k++) { const pg = petal.clone(); pg.translate(0.07, 0, 0); pg.rotateY(k / 5 * TAU); parts.push(pg); }
     const flowerGeo = mergeGeometries(parts); flowerGeo.translate(0, 0.16, 0);
-    const midGeo = new THREE.SphereGeometry(0.04, 8, 6); midGeo.translate(0, 0.17, 0);
+    const midGeo = new THREE.SphereGeometry(0.04, 7, 5); midGeo.translate(0, 0.17, 0);
     const stemGeo = new THREE.CylinderGeometry(0.008, 0.01, 0.16, 4); stemGeo.translate(0, 0.08, 0);
     this.flowerMat = new THREE.MeshStandardMaterial({ roughness: 0.6 });
     this.flowerMidMat = new THREE.MeshStandardMaterial({ color: '#ffd23f', roughness: 0.6 });
@@ -175,13 +175,16 @@ export class Scenery {
     for (let i = 0; i < 7; i++) {
       const c = new THREE.Group();
       const n = 4 + Math.floor(rnd() * 3);
+      // the puffs of one cloud are merged into one mesh (one draw call per cloud)
+      const puffs = [];
       for (let k = 0; k < n; k++) {
-        const m = new THREE.Mesh(puffGeo, this.cloudMat);
         const s = k === 0 ? 1.6 : 0.8 + rnd() * 0.7;
-        m.position.set((k - n / 2) * 1.3 + rnd() * 0.4, (k === 0 ? 0.4 : 0) + rnd() * 0.5, rnd() * 0.6);
-        m.scale.set(s * 1.2, s * 0.8, s);
-        c.add(m);
+        const pg = puffGeo.clone();
+        pg.scale(s * 1.2, s * 0.8, s);
+        pg.translate((k - n / 2) * 1.3 + rnd() * 0.4, (k === 0 ? 0.4 : 0) + rnd() * 0.5, rnd() * 0.6);
+        puffs.push(pg);
       }
+      c.add(new THREE.Mesh(mergeGeometries(puffs), this.cloudMat));
       const z = -62 - rnd() * 14;
       c.position.set(-45 + i * 15 + rnd() * 6, 7 + rnd() * 4.5, z);
       c.scale.setScalar(1 + rnd() * 0.6);

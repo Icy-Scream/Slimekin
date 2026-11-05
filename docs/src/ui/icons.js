@@ -38,7 +38,51 @@ const MEM = {
   '☀️': svg('<circle cx="12" cy="12" r="5" fill="#ffc53d"/><g stroke="#ffb020" stroke-width="2" stroke-linecap="round"><path d="M12 2.4v2.4M12 19.2v2.4M2.4 12h2.4M19.2 12h2.4M5.2 5.2l1.7 1.7M17.1 17.1l1.7 1.7M5.2 18.8l1.7-1.7M17.1 6.9l1.7-1.7"/></g>'),
   '⏳': ICON.hourglass,
 };
-export const memIcon = (emoji, fallback) => MEM[emoji] || fallback;
+// ---------- medals (MEDALS in content.js): a ribbon, a metal disc and an emblem; higher medals get gems ----------
+let medalN = 0;
+const STAR5 = 'M12 9.6l1.5 3.1 3.4.4-2.5 2.3.7 3.3-3.1-1.7-3.1 1.7.7-3.3-2.5-2.3 3.4-.4z';
+const GEM = 'M9.2 12.4h5.6l1.9 2.2-4.7 5-4.7-5z';
+function medal({ rib = ['#6fa8ff', '#4f86e0'], rim, face, emblem, rays = '' }) {
+  const id = 'md' + (++medalN);
+  return `<svg class="gi medal" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><defs><radialGradient id="${id}" cx="36%" cy="32%" r="78%"><stop offset="0" stop-color="${face[0]}"/><stop offset="1" stop-color="${face[1]}"/></radialGradient></defs>
+    ${rays}<path d="M6.6 1h4.2l2.6 8h-4.2z" fill="${rib[0]}"/><path d="M17.4 1h-4.2l-2.6 8h4.2z" fill="${rib[1]}"/>
+    <circle cx="12" cy="15" r="7.6" fill="url(#${id})" stroke="${rim}" stroke-width="1.3"/><circle cx="12" cy="15" r="5.6" fill="none" stroke="${rim}" stroke-width=".6" opacity=".55"/>
+    ${emblem}<path d="M7.6 12.4a5 5 0 0 1 3-2.6" stroke="#fff" stroke-width="1.2" fill="none" stroke-linecap="round" opacity=".75"/></svg>`;
+}
+const MEDAL_ART = {
+  // the Grown-Up Ribbon: a pink rosette with two tails
+  '🎀': () => `<svg class="gi medal" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8.4 13.6l-3 8.6 3-1.2 1.6 2.6 2-8.6zM15.6 13.6l3 8.6-3-1.2-1.6 2.6-2-8.6z" fill="#f25c8a"/>
+    <g fill="#ff9cc0">${Array.from({ length: 10 }, (_, i) => { const a = i / 10 * Math.PI * 2; return `<circle cx="${(12 + Math.cos(a) * 6).toFixed(2)}" cy="${(10 + Math.sin(a) * 6).toFixed(2)}" r="2.6"/>`; }).join('')}</g>
+    <circle cx="12" cy="10" r="6" fill="#ffc2d8"/><circle cx="12" cy="10" r="3.6" fill="#f25c8a"/><path d="${STAR5}" fill="#fff" transform="translate(12 10) scale(.5) translate(-12 -14.4)"/></svg>`,
+  '🥉': () => medal({ rim: '#9a5426', face: ['#f6c08c', '#b8692f'], emblem: `<path d="${STAR5}" fill="#fff1df" opacity=".9"/>` }),
+  '🥈': () => medal({ rib: ['#ff9cc0', '#f2709c'], rim: '#7f8ba0', face: ['#ffffff', '#a9b4c4'], emblem: `<path d="${STAR5}" fill="#fff" opacity=".95"/>` }),
+  '🥇': () => medal({ rib: ['#ff6f7d', '#e04a5c'], rim: '#c88a0e', face: ['#fff4b0', '#f0ae1c'], emblem: `<path d="${STAR5}" fill="#fff9dc"/>` }),
+  '💠': () => medal({ rib: ['#b49cff', '#8f74ea'], rim: '#7d8fb4', face: ['#f8fbff', '#c4d1ea'], emblem: `<path d="${P.sparkle}" fill="#8fb8ff" transform="translate(12 15) scale(.42) translate(-12 -12)"/>` }),
+  '💚': () => medal({ rib: ['#5fd6a0', '#2fb07a'], rim: '#c88a0e', face: ['#fff4b0', '#f0ae1c'], emblem: `<path d="${GEM}" fill="#2fc47f" stroke="#1b8a58" stroke-width=".6" stroke-linejoin="round"/><path d="M9.2 12.4h5.6l-2.8 7.2z" fill="#7fe8b8" opacity=".7"/>` }),
+  '💎': () => medal({ rib: ['#8fd4ff', '#5ab4f0'], rim: '#8aa4c8', face: ['#ffffff', '#cfe6ff'], emblem: `<path d="${GEM}" fill="#bfe8ff" stroke="#5aa8e0" stroke-width=".6" stroke-linejoin="round"/><path d="M9.2 12.4h5.6l-2.8 7.2z" fill="#fff" opacity=".8"/>` }),
+  '🌑': () => medal({ rib: ['#7a5cc8', '#4b3690'], rim: '#9a7ae8', face: ['#5a4a80', '#191230'], emblem: `<path d="${GEM}" fill="#b48cff" stroke="#e0ccff" stroke-width=".5" stroke-linejoin="round"/><path d="M9.2 12.4h5.6l-2.8 7.2z" fill="#e6d8ff" opacity=".55"/>` }),
+  '🌟': () => medal({ rib: ['#ff9cc0', '#9b7cf0'], rim: '#f0a020', face: ['#fff8d0', '#ff9ec4'],
+    rays: `<g fill="#ffd36a" opacity=".85">${Array.from({ length: 8 }, (_, i) => `<path d="M12 4.6l1 3.4h-2z" transform="rotate(${i * 45} 12 15)"/>`).join('')}</g>`,
+    emblem: `<path d="${P.sparkle}" fill="#fff" transform="translate(12 15) scale(.5) translate(-12 -12)"/>` }),
+};
+
+// ---------- heirlooms (HEIRLOOMS in content.js); the Golden Jar Lid and the Wishing Star reuse the jar and star ----------
+const HEIRLOOM_ART = {
+  '🧸': svg('<rect x="3" y="10.4" width="18" height="10.4" rx="2" fill="#ffb8c8"/><rect x="3" y="10.4" width="18" height="3.2" rx="1.4" fill="#f590ac"/><circle cx="8.6" cy="7" r="2" fill="#c98a5a"/><circle cx="15.4" cy="7" r="2" fill="#c98a5a"/><circle cx="12" cy="8.4" r="3.8" fill="#d99a68"/><circle cx="10.6" cy="8" r=".6" fill="#3a2a20"/><circle cx="13.4" cy="8" r=".6" fill="#3a2a20"/><circle cx="12" cy="9.6" r=".8" fill="#3a2a20"/><path d="M8 16.6h8" stroke="#fff" stroke-width="1.4" stroke-linecap="round" opacity=".7"/>'),
+  '🍪': svg('<ellipse cx="12" cy="17.6" rx="8.6" ry="3.2" fill="#4f86e0"/><rect x="3.4" y="10.4" width="17.2" height="7.2" fill="#6fa8ff"/><ellipse cx="12" cy="10.4" rx="8.6" ry="3.2" fill="#9cc6ff"/><path d="M5 13.6h14" stroke="#fff" stroke-width="1" stroke-dasharray="1.4 1.4" opacity=".8"/><circle cx="12" cy="8.6" r="3.6" fill="#e0a25e"/><circle cx="10.8" cy="8" r=".6" fill="#6b3f24"/><circle cx="13.2" cy="8.4" r=".55" fill="#6b3f24"/><circle cx="12" cy="9.8" r=".5" fill="#6b3f24"/>'),
+  '🍀': svg(`<rect x="3" y="3" width="18" height="18" rx="2" fill="#d9a46b"/><rect x="5.2" y="5.2" width="13.6" height="13.6" rx="1" fill="#fbf4e4"/><g fill="#4fbf62">${[0, 90, 180, 270].map(r => `<path d="M12 12c-2.6-2.6-2-4.4-.6-4.4.4 0 .6.2.6.6 0-.4.2-.6.6-.6 1.4 0 2 1.8-.6 4.4z" transform="rotate(${r} 12 12)"/>`).join('')}</g><path d="M12 12.4q.6 2.6 2.4 4.2" stroke="#3a9a4a" stroke-width=".9" fill="none" stroke-linecap="round"/>`),
+  '🏮': svg('<path d="M12 1.4v2.4" stroke="#8a6a50" stroke-width="1.2"/><rect x="9" y="3.6" width="6" height="1.8" rx=".6" fill="#8a4a2e"/><ellipse cx="12" cy="12" rx="6.6" ry="6.8" fill="#ff8a4a"/><path d="M8.6 6.6c-1.4 3-1.4 7.8 0 10.8M15.4 6.6c1.4 3 1.4 7.8 0 10.8M12 5.2v13.6" stroke="#e0632a" stroke-width=".9" fill="none"/><ellipse cx="12" cy="12" rx="3.4" ry="4.4" fill="#ffd36a" opacity=".55"/><rect x="9" y="18.6" width="6" height="1.8" rx=".6" fill="#8a4a2e"/><path d="M12 20.4v2.2" stroke="#ffb020" stroke-width="1.2" stroke-linecap="round"/>'),
+  '🧵': svg('<rect x="3" y="3" width="18" height="18" rx="2.4" fill="#fff"/><rect x="3" y="3" width="9" height="9" rx="2" fill="#ffb3cc"/><rect x="12" y="3" width="9" height="9" rx="2" fill="#a8dcff"/><rect x="3" y="12" width="9" height="9" rx="2" fill="#ffe08a"/><rect x="12" y="12" width="9" height="9" rx="2" fill="#b6efc9"/><path d="M12 3.6v16.8M3.6 12h16.8" stroke="#fff" stroke-width="1.2" stroke-dasharray="1.4 1.2"/><path d="M12 9.6c-1.6-1.1-2.2-1.9-2.2-2.7a1.1 1.1 0 0 1 2.2-.3 1.1 1.1 0 0 1 2.2.3c0 .8-.6 1.6-2.2 2.7z" fill="#f2577f" transform="translate(-4.5 0)"/>'),
+  '🖼️': svg('<rect x="2.6" y="4" width="18.8" height="16" rx="1.6" fill="#e0b05c"/><rect x="4.8" y="6.2" width="14.4" height="11.6" rx=".8" fill="#fde9f1"/><path d="M7.4 16.6c0-2.6 1.4-4.6 3.2-4.6s3.2 2 3.2 4.6z" fill="#7fe0bf"/><path d="M12.6 16.6c0-2 1.1-3.6 2.4-3.6s2.4 1.6 2.4 3.6z" fill="#ffb3cc"/><circle cx="9.6" cy="14.6" r=".45" fill="#2a1f3d"/><circle cx="11.6" cy="14.6" r=".45" fill="#2a1f3d"/><circle cx="14.4" cy="15" r=".4" fill="#2a1f3d"/><circle cx="15.8" cy="15" r=".4" fill="#2a1f3d"/>'),
+  '🗿': svg('<rect x="5" y="17.4" width="14" height="4" rx="1" fill="#c9b8a8"/><rect x="6.6" y="15.4" width="10.8" height="2.4" rx=".8" fill="#ddd0c2"/><path d="M12 4.4c3.8 0 6.4 3.4 6.4 7 0 2.4-1.6 4-3.6 4H9.2c-2 0-3.6-1.6-3.6-4 0-3.6 2.6-7 6.4-7z" fill="#f0b830" stroke="#c88a0e" stroke-width="1"/><path d="M8.6 8.8a3.8 3.8 0 0 1 2.4-2.2" stroke="#fff4b8" stroke-width="1.3" fill="none" stroke-linecap="round"/><circle cx="10.2" cy="11" r=".7" fill="#8a5a0a"/><circle cx="13.8" cy="11" r=".7" fill="#8a5a0a"/><path d="M11 12.8q1 .8 2 0" stroke="#8a5a0a" stroke-width=".8" fill="none" stroke-linecap="round"/>'),
+};
+Object.assign(MEM, MEDAL_ART, HEIRLOOM_ART);
+
+// memIcon(emoji): the drawing for a Journal / medal / heirloom emoji (a fresh copy for drawings with their own
+// gradients), or the fallback for an emoji with no drawing yet.
+export const memIcon = (emoji, fallback) => { const v = MEM[emoji]; return typeof v === 'function' ? v() : (v || fallback); };
+// The same drawing as a standalone SVG document (for canvas textures such as the medal pin), or null.
+export const iconSvgDoc = emoji => { const v = memIcon(emoji, null); return v ? v.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" ') : null; };
 
 // A little slime drawing for the family tree and the spark-form list. motif adds the spark form's mark.
 const MOTIF = {

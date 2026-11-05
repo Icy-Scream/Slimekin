@@ -178,10 +178,9 @@ and it shows everywhere without touching this code.
 
 ### Medal badges
 
-- `#medalBadge.medal-badge`: right after `#nameBtn` in the HUD; `hidden` until the slime has a medal. Hidden on phones
-  (<= 860 px) by `.slime-card #medalBadge { display: none }`: in UI pass 2's compact pill it squeezed the name to one
-  letter. The UI pass can find it a better place (the name is already cut to "Clo..." for a 6-letter name at 393 px
-  without it).
+- `#medalBadge.medal-badge`: right after `#nameBtn` in the HUD; `hidden` until the slime has a medal. On phones
+  (<= 860 px) it was hidden at first (it squeezed the name in UI pass 2's compact pill); UI pass 3 shows it at 17 px
+  and shortens the jelly rate line to make room.
 - `.medal-badge` (a `role="img"` span with an aria-label; `.big` on cards) also shows: on the Slime tab's
   `.card.medal-card` (`.medal-row` badge + name, rank "N of 9", a `.meter` toward the next medal and the ranch perk;
   before the slime is grown a preview card), the ranch resident page (next to the name, plus `.sub.medal-line`),
@@ -246,3 +245,19 @@ Each heirloom's card says where it will live (`HEIRLOOMS[].where`); the effects 
 - Settings: "Moving Day signs" with `#mdStatus` (the ratio, level and this slime's sign) and
   `.actions.md-debug`: one `.btn.small[data-dbg="sign:<id>"]` per sign (labeled with the personality lean) and
   `[data-dbg="bundle"]`.
+
+## UI pass 3 (medals and heirlooms drawn)
+
+The jelly loop's placeholder emoji now have drawings. Nothing in `content.js` changed: the emoji stay as keys, and
+`memIcon()` in `src/ui/icons.js` turns them into art everywhere they show.
+
+- Medals (`MEDAL_ART` in `icons.js`): a ribbon V and a shaded disc with an emblem, one look per tier: 🎀 a pink
+  rosette, 🥉 bronze, 🥈 silver, 🥇 gold (star), 💠 platinum, 💚 emerald (gem), 💎 diamond (gem), 🌑 obsidian
+  (crescent), 🌟 nova (rays). Each is a function so every copy gets its own gradient ids; `memIcon` calls it.
+- Heirlooms (`HEIRLOOM_ART`): 🧸 toy box, 🍪 cookie tin, 🍀 framed clover, 🏮 lantern, 🧵 quilt, 🖼️ portrait,
+  🗿 gold statue. 🫙 Golden Jar Lid and ⭐ Wishing Star use the jar and star already in `MEM`.
+- `iconSvgDoc(emoji)`: the same drawing as a standalone 128 px SVG document, for canvas textures.
+- 3D pin (`src/view/medal-pin.js`): `texture()` now draws the medal SVG (with a soft shadow) instead of the cream
+  disc with an emoji; the old disc is the fallback until the image loads. The sprite is a bit bigger (0.34).
+- Phone pill: `#medalBadge` shows again at 17 px next to the name (it was hidden on phones). To make room, the jelly
+  rate under the count is shorter on phones: "2.08M /sec" (and "· zzz" while asleep) instead of "jelly per second".

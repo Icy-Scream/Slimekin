@@ -994,7 +994,9 @@ export class Hud {
       if (showPearls) { const t = fmt(R.pearls); if (this.$('pearlCount').textContent !== t) this.$('pearlCount').textContent = t; }
       this.updateBasketBtn();
       const jps = sim.jps();
-      this.$('jps').textContent = `${fmtRate(jps)} jelly per second${sim.asleep ? ' · dreaming' : ''}`;
+      // phones: a short label, so the top row has room for the name and its medal
+      const jt = innerWidth < 560 ? `${fmtRate(jps)} /sec${sim.asleep ? ' · zzz' : ''}` : `${fmtRate(jps)} jelly per second${sim.asleep ? ' · dreaming' : ''}`;
+      if (this.$('jps').textContent !== jt) this.$('jps').textContent = jt;
       // need rings (stroke length out of 100) and the bond heart (fills up toward the next level)
       this.$('tummyFill').style.strokeDasharray = `${s.tummy.toFixed(1)} 100`;
       this.$('joyFill').style.strokeDasharray = `${s.joy.toFixed(1)} 100`;
