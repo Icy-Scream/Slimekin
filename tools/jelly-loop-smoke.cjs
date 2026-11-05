@@ -39,9 +39,10 @@ const SIGNS = ['curious', 'familiar', 'bold', 'shy', 'playful', 'mellow', 'cuddl
     const ev = (fn, a, ms) => kit.ev(fn, a, ms);
     const setTheme = async dark => { await ev(d => document.documentElement.setAttribute('data-theme', d ? 'dark' : 'light'), dark); await page.waitForTimeout(300); await ev(() => window.slimekin.advance(0.25)); };
     // Headless Chrome only advances CSS transitions when it draws, so screenshots double as "settle".
-    const shot = async (name, { night = !QUICK } = {}) => {
+    const shot = async (name, { night = !QUICK, before = null } = {}) => {
       for (const dark of night ? [false, true] : [false]) {
         await setTheme(dark);
+        if (before) await before(dark);
         for (let i = 0; i < 2; i++) {
           await ev(() => { const s = window.slimekin.slime; s.blinkT = 99; s.blinkPhase = -1; s.blink = 0; });
           await page.waitForTimeout(250);
@@ -94,20 +95,24 @@ const SIGNS = ['curious', 'familiar', 'bold', 'shy', 'playful', 'mellow', 'cuddl
     const page0 = await ev(() => ({ glow: document.getElementById('tab-heirlooms').classList.contains('glow'), cards: [...document.querySelectorAll('#body-heirlooms .heirloom')].map(c => c.className.replace('card heirloom ', '') + ':' + c.dataset.id), buys: document.querySelectorAll('#body-heirlooms button[data-buy]').length }));
     check(!page0.glow && page0.buys === 3 && page0.cards.filter(c => c.startsWith('unknown')).length === 6, 'the page: next three with Buy, six silhouettes; opening it stops the glow', page0.cards.join(' '));
     await shot('02-heirlooms-page');
+    await ev(() => { document.querySelector('#body-heirlooms .heirloom.unknown:last-child').scrollIntoView({ block: 'end' }); window.slimekin.advance(0.3); });
+    await shot('02b-heirlooms-silhouettes');
+    await ev(() => { document.getElementById('body-heirlooms').scrollIntoView({ block: 'start' }); document.querySelector('#body-heirlooms .heirloom').scrollIntoView({ block: 'center' }); });
     // the Buy button's click handler buys at once, so the jelly made can be compared in the same moment
     const buy = await ev(() => {
       const g = window.slimekin, before = { total: g.state.totalJelly, jelly: g.state.jelly, fam: JSON.stringify(g.state.ranch.family), after: g.sim.moveOutPreview().bonusAfter };
       document.querySelector('button[data-buy="cookietin"]').click();
+      for (const t of document.querySelectorAll('.toast')) t.held = true;   // (screenshots below are slow)
       const same = g.state.totalJelly === before.total && JSON.stringify(g.state.ranch.family) === before.fam && g.sim.moveOutPreview().bonusAfter === before.after;
       return { same, spent: before.jelly - g.state.jelly };
     });
     check(buy.same && buy.spent === 1e8, 'buying spends jelly (100M) and does not change the jelly made or the Family Bonus', JSON.stringify(buy));
     await ev(() => window.slimekin.advance(1));
-    await page.click('button[data-buy="toybox"]');
-    await ev(() => window.slimekin.advance(1));
+    await ev(() => { document.querySelector('button[data-buy="toybox"]').click(); for (const t of document.querySelectorAll('.toast')) t.held = true; window.slimekin.advance(1); });
     const bought = await ev(() => { const g = window.slimekin; return { owned: g.state.heirlooms.owned, owned1: document.querySelectorAll('#body-heirlooms .heirloom.owned').length, mem: g.state.memories.filter(m => /got the/.test(m.text)).length }; });
     check(bought.owned.join(',') === 'cookietin,toybox' && bought.owned1 === 2 && bought.mem === 2, 'bought the Cookie Tin and the Toy Box (owned cards, Journal lines)', bought.owned.join(','));
     await shot('03-heirlooms-bought');
+    await ev(() => { for (const t of document.querySelectorAll('.toast')) t.remove(); });
 
     // ---------- 3. medals: the Ribbon when grown up, then Gold; the badges ----------
     mark('3. medals');
@@ -117,7 +122,7 @@ const SIGNS = ['curious', 'familiar', 'bold', 'shy', 'playful', 'mellow', 'cuddl
     await ev(() => { const g = window.slimekin; g.hud.closeModal(); g.advance(5); });
     const rib = await ev(() => ({ shown: window.slimekin.state.slime.medalShown, toast: [...document.querySelectorAll('.toast.medal-toast')].map(t => t.innerText).join(' / ') }));
     check(rib.shown === 'ribbon' && /Ribbon/.test(rib.toast), 'the Grown-Up Ribbon ceremony after the grown-up card', JSON.stringify(rib.toast));
-    await ev(() => { const g = window.slimekin; for (const t of document.querySelectorAll('.toast')) t.remove(); g.sim.addJelly(2e11); g.advance(1.2); });
+    await ev(() => { const g = window.slimekin; for (const t of document.querySelectorAll('.toast')) t.remove(); g.sim.addJelly(2e11); g.advance(1.2); for (const t of document.querySelectorAll('.toast')) t.held = true; });
     const gold = await ev(() => { const g = window.slimekin; return { shown: g.state.slime.medalShown, toast: [...document.querySelectorAll('.toast.medal-toast')].map(t => t.innerText).join(' / '), mem: g.state.memories.filter(m => /medal/.test(m.text)).map(m => m.text), badge: document.getElementById('medalBadge').textContent, badgeHidden: document.getElementById('medalBadge').hidden }; });
     check(gold.shown === 'gold' && /GOLD|Gold/.test(gold.toast) && gold.mem.length === 3, 'the Gold ceremony (Bronze, Silver, Gold: one ceremony, three Journal lines)', JSON.stringify(gold.toast));
     check(!gold.badgeHidden, 'the HUD badge by the name shows the medal', gold.badge);
@@ -205,7 +210,8 @@ const SIGNS = ['curious', 'familiar', 'bold', 'shy', 'playful', 'mellow', 'cuddl
       const dur = await ev(() => { const g = window.slimekin, a = g.movingDay.active; return a ? a.def.dur : 0; });
       check(dur > 0, `sign "${id}" plays from its debug button`);
       await ev(d => window.slimekin.advance(d * 0.4), dur);
-      await shot(`11-sign-${id}`);
+      // screenshots are slow and the game runs on meanwhile: the night shot plays the sign again from the start
+      await shot(`11-sign-${id}`, { before: async dark => { if (dark) await ev(({ id, d }) => { const g = window.slimekin; g.debug('sign:' + id); g.advance(d * 0.4); }, { id, d: dur }); } });
       const end = await ev(d => { const g = window.slimekin; g.advance(d + 1.5); const p = g.slime.root.position; return { active: !!g.movingDay.active, x: p.x, z: p.z, turn: g.slime.turnYaw }; }, dur);
       check(!end.active && Math.abs(end.x) < 0.02 && Math.abs(end.z) < 0.02 && Math.abs(end.turn) < 0.05, `sign "${id}" ends with the slime back on its cushion`, JSON.stringify(end));
     }
