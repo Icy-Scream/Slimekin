@@ -3,6 +3,7 @@
 import { RANCH, BUYERS, BUYER_BY_ID, TRAIT_IDS, BREEDING, SPARK_BY_ID } from '../data/content.js';
 import { rng } from './random.js';
 import { makeEgg, sparkFor, pureFor, emptyLineage } from './breeding.js';
+import { residentMedal } from './medals.js';
 
 export function createRanch() {
   return {
@@ -77,8 +78,13 @@ export class Ranch {
   jps() { let t = 0; for (const x of this.r.residents) t += x.jps || 0; return t; }
 
   happyMult(x) { return 0.4 + 0.6 * x.happiness / 100; }
+  // Medal perks (core/medals.js, MEDALS in content.js): a resident's medal makes more pearls and fetches better
+  // offers. Old residents get theirs from runTotal (nothing new is saved for residents).
+  medal(x) { return residentMedal(x); }
+  pearlMult(x) { return this.medal(x).pearls; }
+  offerMult(x) { return 1 + this.medal(x).offers; }
   // pearls per second for one resident
-  pearlRate(x) { return this.happyMult(x) * (1 + 0.05 * (x.bondLevel || 0)) / (RANCH.pearlMinutes * 60); }
+  pearlRate(x) { return this.happyMult(x) * (1 + 0.05 * (x.bondLevel || 0)) * this.pearlMult(x) / (RANCH.pearlMinutes * 60); }
   pearlsPerHour() { let t = 0; for (const x of this.r.residents) t += this.pearlRate(x) * 3600; return t; }
 
   // Live tick. A new pearl counts as in the basket right away (on screen it pops out into the grass
@@ -241,7 +247,7 @@ export class Ranch {
     while (picks.length < 3 && pool.length) picks.push(pool.splice(Math.floor(rand() * pool.length), 1)[0]);
     return picks.map(b => {
       const f = this.fit(x, b);
-      return { buyer: b.id, name: b.name, line: b.line, fit: f, pearls: Math.max(5, Math.round(this.value(x) * f * (0.95 + rand() * 0.1))) };
+      return { buyer: b.id, name: b.name, line: b.line, fit: f, pearls: Math.max(5, Math.round(this.value(x) * f * (0.95 + rand() * 0.1) * this.offerMult(x))) };
     }).sort((a, b) => b.pearls - a.pearls);
   }
   place(id, buyerId, now = Date.now()) {
@@ -280,7 +286,11 @@ export class Ranch {
       leader = challenger; price = next;
       steps.push({ buyer: leader.buyer, name: leader.name, price });
     }
-    return { bidders, opening, steps, winner: leader, price: leader ? price : 0 };
+    // medal perk: the same bidding, every price scaled (a Ribbon slime's auction is exactly as before)
+    const m = this.offerMult(x), up = n => (m === 1 ? n : Math.round(n * m));
+    for (const b of bidders) b.max = up(b.max);
+    for (const s of steps) s.price = up(s.price);
+    return { bidders, opening: up(opening), steps, winner: leader, price: leader ? up(price) : 0 };
   }
   sellAtAuction(id, now = Date.now()) {
     const x = this.resident(id);

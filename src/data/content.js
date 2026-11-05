@@ -347,3 +347,21 @@ export const PURE_LINE = {
   name: formName => `Pure ${formName}`,
   note: 'Same form as both parents: a pure family line.',
 };
+
+// ---------- The jelly loop: medals, heirlooms, Moving Day ----------
+// Slime medals: a step every x10 of a slime's own jelly (s.totalJelly while you raise it, runTotal for a ranch
+// resident), earned live while you raise it. Every grown (Settled) slime has at least the Ribbon; the jelly steps
+// start once it is grown (jelly it made before still counts). Never inherited. Ranch perks: `pearls` multiplies the
+// pearls it makes, `offers` adds to what buyers pay (new homes and auctions). Icons are placeholders (emoji).
+export const MEDALS = [
+  { id: 'ribbon',   name: 'Grown-Up Ribbon', title: 'the Grown-Up Ribbon', icon: '🎀', jelly: 0,    pearls: 1,    offers: 0 },
+  { id: 'bronze',   name: 'Bronze',          title: 'BRONZE',              icon: '🥉', jelly: 1e9,  pearls: 1.1,  offers: 0.05 },
+  { id: 'silver',   name: 'Silver',          title: 'SILVER',              icon: '🥈', jelly: 1e10, pearls: 1.2,  offers: 0.10 },
+  { id: 'gold',     name: 'Gold',            title: 'GOLD',                icon: '🥇', jelly: 1e11, pearls: 1.35, offers: 0.20 },
+  { id: 'platinum', name: 'Platinum',        title: 'PLATINUM',            icon: '💠', jelly: 1e12, pearls: 1.5,  offers: 0.30 },
+  { id: 'emerald',  name: 'Emerald',         title: 'EMERALD',             icon: '💚', jelly: 1e13, pearls: 1.75, offers: 0.45 },
+  { id: 'diamond',  name: 'Diamond',         title: 'DIAMOND',             icon: '💎', jelly: 1e14, pearls: 2,    offers: 0.60 },
+  { id: 'obsidian', name: 'Obsidian',        title: 'OBSIDIAN',            icon: '🌑', jelly: 1e15, pearls: 2.5,  offers: 0.80 },
+  { id: 'nova',     name: 'Nova',            title: 'NOVA',                icon: '🌟', jelly: 1e16, pearls: 3,    offers: 1.00 },
+];
+export const MEDAL_BY_ID = Object.fromEntries(MEDALS.map(m => [m.id, m]));
