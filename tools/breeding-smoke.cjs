@@ -228,6 +228,7 @@ const FIXTURE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'mai
 
     // ---------- 9. the family tree in the Journal ----------
     mark('9. the family tree');
+    await page.click('#tab-slime');     // your slime's tab: the Journal is its second page (toggle at the top)
     await page.click('#tab-journal');
     await page.click('[data-jp="family"]');
     await ev(() => window.slimekin.advance(1));

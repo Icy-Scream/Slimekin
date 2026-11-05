@@ -12,6 +12,10 @@ const DROP = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.2c3.7 4
 const DICE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm2.5 3a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm9 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM12 10.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM7.5 15a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm9 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z"/></svg>';
 const FALLBACK = { cookie: '🍪', chili: '🌶️', iron: '🔩', moss: '🌿', berry: '🫐', crystal: '💎', feather: '🪶', bubbles: '🫧', garden: '🌱', slimeling: '💧', musicbox: '🎶', lamp: '🌙', fountain: '⛲', observatory: '🔭' };
 
+const GROUP_OF = { helpers: 'shop', upgrades: 'shop', outfits: 'outfits', slime: 'me', journal: 'me', ranch: 'ranch' };
+const GROUP_TAB = { shop: 'tab-shop', outfits: 'tab-outfits', me: 'tab-slime', ranch: 'tab-ranch' };
+const SUB_ID = { helpers: 'tab-helpers', upgrades: 'tab-upgrades', slime: 'sub-slime', journal: 'tab-journal' };
+
 export const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 export class Hud {
@@ -64,6 +68,8 @@ export class Hud {
     this.setupSheetSwipe();
     this.setupToastDrag();
     this.$('nameBtn').addEventListener('click', () => { if (this.g.state.phase === 'play') this.g.behave.answerName(); });
+    // the bond heart and the need rings open your slime's page with all the details
+    for (const id of ['bondBtn', 'needTummy', 'needJoy', 'needEnergy']) this.$(id).addEventListener('click', () => { if (this.g.state.phase === 'play') this.openTab('slime'); });
     this.$('modal').addEventListener('pointerdown', e => {
       if (e.target === this.$('modal') && this.modalDismiss) this.closeModal();
     });
@@ -112,13 +118,18 @@ export class Hud {
   }
 
   // ---------- tabs / panel ----------
+  // Four tabs on the menu bar; Shop (Helpers + Upgrades) and your slime's tab (its page + the Journal)
+  // switch between their two pages with a toggle at the top of the sheet. The pages keep their own names
+  // (this.tab is 'helpers', 'upgrades', 'outfits', 'slime', 'journal' or 'ranch').
   bindTabs() {
     const panel = this.$('panel');
+    this.lastPage = { shop: 'helpers', me: 'slime' };
     for (const btn of panel.querySelectorAll('.tab')) {
       btn.addEventListener('click', () => {
-        const t = btn.dataset.tab;
+        const group = btn.dataset.group;
+        const t = this.lastPage[group] || btn.dataset.tab;
         const mobile = window.matchMedia('(max-width: 860px)').matches;
-        if (mobile && panel.classList.contains('open') && this.tab === t) {
+        if (mobile && panel.classList.contains('open') && GROUP_OF[this.tab] === group) {
           this.setSheet('closed', false);
         } else {
           if (mobile && !panel.classList.contains('open')) this.setSheet('normal', false);   // always opens at its normal size
@@ -127,13 +138,24 @@ export class Hud {
         this.g.layoutChanged();
       });
     }
+    for (const b of panel.querySelectorAll('.subseg .sub')) {
+      b.addEventListener('click', () => { if (this.tab !== b.dataset.tab) { this.selectTab(b.dataset.tab); this.g.layoutChanged(); } });
+    }
   }
   selectTab(t) {
     this.tab = t;
-    for (const btn of this.$('panel').querySelectorAll('.tab')) {
-      btn.setAttribute('aria-selected', btn.dataset.tab === t ? 'true' : 'false');
-      if (btn.dataset.tab === t) btn.querySelector('.dot').hidden = true;
+    const group = GROUP_OF[t];
+    if (this.lastPage && (group === 'shop' || group === 'me')) this.lastPage[group] = t;
+    for (const btn of this.$('panel').querySelectorAll('.tab')) btn.setAttribute('aria-selected', btn.dataset.group === group ? 'true' : 'false');
+    let anySeg = false;
+    for (const seg of this.$('panel').querySelectorAll('.subseg')) {
+      const on = seg.dataset.group === group;
+      seg.hidden = !on;
+      anySeg = anySeg || on;
+      for (const b of seg.querySelectorAll('.sub')) b.setAttribute('aria-pressed', b.dataset.tab === t ? 'true' : 'false');
     }
+    this.$('subtabs').hidden = !anySeg;
+    this.clearDot(t);
     for (const id of ['helpers', 'upgrades', 'outfits', 'journal', 'slime', 'ranch']) this.$('body-' + id).hidden = id !== t;
     if (t === 'ranch') { this.ranchKey = ''; this.renderRanch(); }
     this.g.onTab && this.g.onTab(t);
@@ -148,11 +170,42 @@ export class Hud {
     this.selectTab(t);
     this.g.layoutChanged();
   }
+  // a red dot for a page shows on its toggle button and on its group's tab
   dot(tab) {
     if (this.tab === tab && this.panelVisible()) return;
-    const b = this.$('tab-' + tab);
-    if (b) b.querySelector('.dot').hidden = false;
+    const sub = SUB_ID[tab] && this.$(SUB_ID[tab]);
+    if (sub) sub.querySelector('.dot').hidden = false;
+    const g = this.$(GROUP_TAB[GROUP_OF[tab]]);
+    if (g) g.querySelector('.dot').hidden = false;
   }
+  clearDot(tab) {
+    const sub = SUB_ID[tab] && this.$(SUB_ID[tab]);
+    if (sub) sub.querySelector('.dot').hidden = true;
+    const group = GROUP_OF[tab];
+    const g = this.$(GROUP_TAB[group]);
+    const others = Object.keys(GROUP_OF).filter(k => GROUP_OF[k] === group && k !== tab && SUB_ID[k] && !this.$(SUB_ID[k]).querySelector('.dot').hidden);
+    if (g && !others.length) g.querySelector('.dot').hidden = true;
+  }
+
+  // A small bubble by the slime while one of its needs is low (the most urgent one).
+  updateNeedBubble(s, sim) {
+    const g = this.g;
+    const sheetUp = window.matchMedia('(max-width: 860px)').matches && this.$('panel').classList.contains('open');   // the rings show it then
+    const k = g.state.phase !== 'play' || sim.asleep || g.view === 'ranch' || g.departing || sheetUp ? null
+      : s.tummy < 20 ? 'tummy' : s.energy < 15 ? 'energy' : s.joy < 30 ? 'joy' : null;
+    if (k === this.needKey) return;
+    this.needKey = k;
+    if (this.needEl) { this.needEl.remove(); this.needEl = null; }
+    if (!k) return;
+    const el = document.createElement('div');
+    el.className = 'say need-say ' + k;
+    const icon = this.$('need' + k[0].toUpperCase() + k.slice(1)).querySelector('.nic').outerHTML;
+    el.innerHTML = icon + ({ tummy: 'Hungry!', energy: 'Sleepy...', joy: 'Lonely...' })[k];
+    el.style.visibility = 'hidden';
+    this.$('bubbleLayer').appendChild(el);
+    this.needEl = el;
+  }
+
   panelVisible() {
     const mobile = window.matchMedia('(max-width: 860px)').matches;
     return !mobile || this.$('panel').classList.contains('open');
@@ -814,16 +867,20 @@ export class Hud {
       this.updateBasketBtn();
       const jps = sim.jps();
       this.$('jps').textContent = `${fmtRate(jps)} jelly per second${sim.asleep ? ' · dreaming' : ''}`;
-      this.$('tummyFill').style.width = s.tummy.toFixed(1) + '%';
-      this.$('joyFill').style.width = s.joy.toFixed(1) + '%';
-      this.$('energyFill').style.width = s.energy.toFixed(1) + '%';
+      // need rings (stroke length out of 100) and the bond heart (fills up toward the next level)
+      this.$('tummyFill').style.strokeDasharray = `${s.tummy.toFixed(1)} 100`;
+      this.$('joyFill').style.strokeDasharray = `${s.joy.toFixed(1)} 100`;
+      this.$('energyFill').style.strokeDasharray = `${s.energy.toFixed(1)} 100`;
       this.$('needTummy').classList.toggle('low', s.tummy < 20);
       this.$('needJoy').classList.toggle('low', s.joy < 30);
       this.$('needEnergy').classList.toggle('low', s.energy < 15);
       this.$('needTummy').title = `Tummy ${Math.round(s.tummy)}%`;
       this.$('needJoy').title = `Joy ${Math.round(s.joy)}% · jelly x${sim.moodMult().toFixed(2)}`;
       this.$('needEnergy').title = `Energy ${Math.round(s.energy)}%`;
-      this.$('bondFill').style.width = (sim.bondProgress() * 100).toFixed(1) + '%';
+      this.$('bondFill').setAttribute('y', (24 - 24 * (0.12 + 0.76 * sim.bondProgress())).toFixed(2));
+      const lv = String(sim.bondLevel() + 1);
+      if (this.$('bondLv').textContent !== lv) this.$('bondLv').textContent = lv;
+      this.updateNeedBubble(s, sim);
 
       // giggle meter
       const gg = this.$('giggle');
@@ -847,8 +904,11 @@ export class Hud {
       if (nb.textContent !== (s.name || 'Slime')) nb.textContent = s.name || 'Slime';
       this.$('stagePill').textContent = sim.stage().name;
       this.$('bondTitle').textContent = BOND[sim.bondLevel()].title;
-      const tl = this.$('tab-slime').querySelector('.tl');
-      if (tl.textContent !== (s.name || 'Slime')) tl.textContent = s.name || 'Slime';
+      this.$('bondBtn').title = `Bond: ${BOND[sim.bondLevel()].title} (level ${sim.bondLevel() + 1})`;
+      for (const id of ['tab-slime', 'sub-slime']) {
+        const tl = this.$(id).querySelector('.tl');
+        if (tl.textContent !== (s.name || 'Slime')) tl.textContent = s.name || 'Slime';
+      }
       this.updateTray();
       this.updateHelpers();
       const n = this.renderUpgrades();
@@ -951,6 +1011,10 @@ export class Hud {
     };
     place(this.askEl, 14);
     place(this.sayEl, this.askEl && !this.askEl.classList.contains('below') ? (this.askEl.offsetHeight + 26) : 14);
+    if (this.needEl) {
+      if (this.askEl || this.sayEl) this.needEl.style.visibility = 'hidden';
+      else place(this.needEl, 14);
+    }
   }
 
   floatText(x, y, text, cls = '', color) {

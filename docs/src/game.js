@@ -393,7 +393,7 @@ export class Game {
     if (st.jar.stored > 0) {
       jarHtml = `<div class="card"><div class="row-between"><b>Jelly Jar</b><span class="sub">Level ${st.jar.level + 1}</span></div>
         <span class="form-name">${fmt(st.jar.stored)} jelly</span>
-        <span class="sub">Your helpers kept working and the jar caught ${Math.round(lvl.rate * 100)}% of it${jar.full ? `, until it filled up after ${lvl.hours} hours` : ''}.${jar.full && JAR_LEVELS[st.jar.level + 1] ? ' A bigger jar (in Upgrades) catches more.' : ''}</span></div>`;
+        <span class="sub">Your helpers kept working and the jar caught ${Math.round(lvl.rate * 100)}% of it${jar.full ? `, until it filled up after ${lvl.hours} hours` : ''}.${jar.full && JAR_LEVELS[st.jar.level + 1] ? ' A bigger jar (Shop → Upgrades) catches more.' : ''}</span></div>`;
     }
     let ranchHtml = '';
     if (this.ranchAway && this.ranchAway.pearls > 0) {
@@ -2211,8 +2211,8 @@ export class Game {
     else if (st.tutorial === 0) hint = `Boop ${name} to collect jelly`;
     else if (st.tutorial === 1) hint = st.jelly >= this.sim.foodPrice('cookie') ? `${name} looks hungry. Drag a Cookie onto them, or tap it` : `Boop a little more to afford a Cookie`;
     else if (st.tutorial === 2) hint = `Hold and stroke ${name} to pet them`;
-    else if (st.tutorial === 3) hint = st.jelly >= HELPERS[0].cost ? (mobile ? 'Open Helpers below and buy a Tickle Feather' : 'Buy a Tickle Feather in Helpers') : `Save ${HELPERS[0].cost} jelly for your first helper`;
-    else if (st.slime.tummy < 15 && !this.sim.asleep) hint = `${name} is hungry`;
+    else if (st.tutorial === 3) hint = st.jelly >= HELPERS[0].cost ? (mobile ? 'Open the Shop below and buy a Tickle Feather' : 'Buy a Tickle Feather in the Shop') : `Save ${HELPERS[0].cost} jelly for your first helper`;
+    // (a low tummy shows as the "Hungry!" bubble by the slime and a pulsing ring, no hint needed)
     else if (this.sim.asleep) hint = `${name} is napping. Helpers gather extra dream jelly`;
     this.hud.setHint(hint);
   }

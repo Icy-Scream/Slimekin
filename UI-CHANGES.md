@@ -136,3 +136,25 @@ What the UI pass restyled from the lists above, and what it added. Keep using th
   floor and sky (`stage.setClassic`), and the ranch hill only shows while visiting it.
 - Phones: when the menu is open at normal size the camera zooms out so the slime stays visible above it
   (`stage.fitZoom`, set in `game.computeViewGoal`; a tall sheet leaves the scene alone).
+
+## UI pass 2 (status pill, four tabs)
+
+- **Top-left status** is one slim pill (`.slime-card`): the name (`#nameBtn`, tapping it still calls the slime), the
+  stage pill (wider screens only), the bond heart `#bondBtn` (fills toward the next level via `#bondFill`, the clip
+  rect's `y`; the level number is `#bondLv`, the title stays in `#bondTitle` for screen readers), three need rings
+  `#needTummy` / `#needJoy` / `#needEnergy` (`.need` buttons; the colored arc is `#tummyFill` etc. with
+  `pathLength="100"`, so `stroke-dasharray: <value> 100`; `.low` pulses), then the emote (wider screens) and settings
+  buttons. Tapping the heart or a ring opens your slime's page.
+- **Need bubble**: while a need is low (tummy < 20, energy < 15, joy < 30; the most urgent one) a bubble with its icon
+  says "Hungry!", "Sleepy..." or "Lonely..." by the slime (`.say.need-say`, `hud.updateNeedBubble`). Hidden while
+  asleep, at the ranch, while something else is being said, and while the phone menu is open. The old
+  "{name} is hungry" hint is gone (the bubble replaces it).
+- **Menu tabs**: four tabs, `#tab-shop` (Helpers + Upgrades), `#tab-outfits`, `#tab-slime` (your slime's page +
+  the Journal; its label is the slime's name) and `#tab-ranch`. Each tab has `data-group` (`shop`, `outfits`, `me`,
+  `ranch`). Tabs with two pages show a toggle at the top of the sheet (`#subtabs`, `.subseg[data-group]`, buttons
+  `#tab-helpers`, `#tab-upgrades`, `#sub-slime`, `#tab-journal` with `aria-pressed`). Pages keep their names:
+  `hud.tab` / `selectTab()` / `openTab()` / `dot()` still take `helpers`, `upgrades`, `outfits`, `slime`,
+  `journal`, `ranch`. A page's red dot shows on its toggle button and on its group's tab. Each group remembers the
+  last page it showed.
+- Tests: to reach the Journal, open your slime's tab first (`#tab-slime`), then `#tab-journal`
+  (`tools/breeding-smoke.cjs` does this now).
