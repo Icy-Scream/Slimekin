@@ -7,7 +7,8 @@
 //   app icon                    assets/AppIcon-1024.png (1024 x 1024, no transparency; Apple rounds the corners)
 //   iPhone only, portrait only, iOS 17.0, no encryption export paperwork (ITSAppUsesNonExemptEncryption = false),
 //   UIRequiredDeviceCapabilities arm64, a launch screen in the game's boot colors (light #f3e6ee, dark #17132e),
-//   the privacy manifest (PrivacyInfo.xcprivacy: Preferences uses UserDefaults, reason CA92.1), no signing team.
+//   the privacy manifest (PrivacyInfo.xcprivacy: Preferences uses UserDefaults, reason CA92.1). The signing team is
+//   not touched (set it in Xcode; it never goes into git).
 // Only text edits of Info.plist, the Xcode project file, the launch screen, the asset catalog and the privacy
 // manifest; no Swift or Objective-C. Every edit checks it found what it expected and stops loudly otherwise.
 // tools/check-ios.mjs reads everything back.
@@ -91,7 +92,8 @@ setting('TARGETED_DEVICE_FAMILY', '1', { min: 2 });   // 1 = iPhone
 setting('MARKETING_VERSION', version, { min: 2 });
 setting('CURRENT_PROJECT_VERSION', String(build), { min: 2 });
 setting('PRODUCT_BUNDLE_IDENTIFIER', appId, { min: 2 });
-pbx = pbx.replace(/\n\t+DEVELOPMENT_TEAM = [^;\n]*;/g, '');   // the captain picks his team in Xcode; never in git
+// DEVELOPMENT_TEAM is left alone: the captain picks his team in Xcode on his Mac, and running this again must not undo
+// that. In git it stays empty (tools/check-ios.mjs fails on a team unless run with --mac).
 
 // ---------- Xcode project: the privacy manifest as a resource of the App target ----------
 const FREF = '5D1A1EC0FFEE00000000A001', BREF = '5D1A1EC0FFEE00000000A002';

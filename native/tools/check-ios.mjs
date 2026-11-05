@@ -1,6 +1,7 @@
 // Reads the iPhone project back and checks every setting Slimekin needs (run after tools/patch-ios.mjs; mac-build.sh
 // runs both). Fails (exit 1) and lists what is wrong.
-//   node tools/check-ios.mjs            (from native/)
+//   node tools/check-ios.mjs            (from native/; before a commit: the signing team must be empty)
+//   node tools/check-ios.mjs --mac      (on the captain's Mac, where Xcode has his team set: that is allowed there)
 import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
@@ -84,7 +85,10 @@ all('TARGETED_DEVICE_FAMILY', '1');
 all('MARKETING_VERSION', ver.version);
 all('CURRENT_PROJECT_VERSION', String(ver.build));
 all('PRODUCT_BUNDLE_IDENTIFIER', config.appId);
-check(settings('DEVELOPMENT_TEAM').every(v => v === ''), 'DEVELOPMENT_TEAM empty (the captain sets his team in Xcode)', JSON.stringify(settings('DEVELOPMENT_TEAM')));
+const MAC = process.argv.includes('--mac');
+const teams = settings('DEVELOPMENT_TEAM').filter(v => v !== '');
+if (MAC && teams.length) passed.push('signing team set in Xcode (fine on the Mac; never commit it)');
+else check(teams.length === 0, 'DEVELOPMENT_TEAM empty (the captain sets his team in Xcode; it never goes into git)', JSON.stringify(teams));
 check(settings('CODE_SIGN_STYLE').every(v => v === 'Automatic'), 'signing is automatic');
 for (const k of ['SUPPORTS_MACCATALYST', 'SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD', 'SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD']) check(settings(k).every(v => v === 'NO'), `${k} not turned on`, JSON.stringify(settings(k)));
 const ids = [...pbx.matchAll(/\n\t\t([0-9A-F]{24}) (?:\/\*[^*]*\*\/ )?= \{/g)].map(m => m[1]);
