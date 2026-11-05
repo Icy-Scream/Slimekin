@@ -11,6 +11,7 @@ import { FX } from './view/fx.js';
 import { HelperWorld } from './view/helpers3d.js';
 import { Egg } from './view/egg.js';
 import { addEggSpark } from './view/egg-spark.js';
+import { setMedalPin } from './view/medal-pin.js';
 import { makeFood, renderIcons, FOOD_MAKERS, HELPER_MAKERS, OUTFIT_MAKERS } from './view/models.js';
 import { Sfx } from './audio/sfx.js';
 import { Hud, esc } from './ui/hud.js';
@@ -50,6 +51,7 @@ export class Game {
     this.slime.size = this.slime.sizeTarget = this.sim.size();
     this.slime.setOutfits(this.state.outfits.worn);
     if (this.state.slime.form) this.slime.setForm(this.state.slime.form.id, { pure: this.state.slime.form.pure });
+    setMedalPin(this.slime, this.sim.medalShown());
     this.formFxT = 1;
     this.timeSkip = 0;   // test clock: advance() moves the Nursery's egg timers along with game time
     // debug only (#debug): Nursery eggs are ready at once and parents don't rest; remembered on this device, not in the save
@@ -1675,6 +1677,7 @@ export class Game {
     this.hud.toast(`<span class="medal-ic" aria-hidden="true">${memIcon(m.icon, esc(m.icon))}</span><b>${esc(name)} earned ${esc(m.title)}!</b>${esc(perk)}`, 'combo medal-toast', 5200);
     this.hud.dot('slime');
     this.hud.updateMedalBadge();
+    setMedalPin(this.slime, this.sim.medalShown());
     this.saveNow(true);
   }
 
