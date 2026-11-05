@@ -132,8 +132,19 @@ Please try each one on the iPhone and send back what you see:
 - Force-quit the app (swipe it away) and open it again: the slime is still there.
 - Play for ten minutes: is the phone warm? Is it smooth?
 - Opening the app in light and in dark mode: the launch color, then the game. Any white or black flash?
-- For the store: in Xcode pick the **iPhone 17 Pro Max** simulator, Run, then in the Simulator **File > Save Screen**
-  (it saves at 1320 x 2868, the size the App Store needs).
+- For the store, two sets of the same screens, to be safe (turn off the Speed meter first):
+  1. At the top of Xcode, where you pick the device to run on, choose the **Pro** of the newest iPhone family
+     (for example **iPhone 18 Pro**; if Xcode has no 18, **iPhone 17 Pro**). Run.
+  2. Go to a nice screen and take a screenshot: in Xcode 27, click the **Screenshot** button below the phone in
+     **Device Hub** (in older Xcode, the Simulator app: **File > Save Screen**). It lands on your Desktop.
+  3. Do the same screens on the **Pro Max** of that family (iPhone 18 Pro Max or iPhone 17 Pro Max).
+  4. Check the sizes: click a file in Finder, press Command-I, and look at **Dimensions** under More Info. The Pro
+     gives **1206 x 2622** (the size Apple requires), the Pro Max **1320 x 2868** (the larger, optional size). A
+     different size: send back the simulator's name and the size.
+  5. Open each one in Preview, **File > Export**, Format **JPEG** (Apple refuses pictures with transparency; a JPEG
+     has none). In App Store Connect the Pro set goes under the medium display size (Apple's page calls it "iPhone
+     with Dynamic Island (medium display)"; the screen may say 6.3-inch) and the Pro Max set under the large display
+     size (may say 6.9-inch).
 
 ## If something goes wrong: the five likeliest errors
 

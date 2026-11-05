@@ -57,15 +57,25 @@ and makes no network connections. App Store Connect then skips the export compli
 
 ## Screenshots
 
-From Apple's "Screenshot specifications" page (read 2026-11-05):
+From Apple's "Screenshot specifications" page in App Store Connect Help (read again 2026-11-05, 18:10 UTC):
 
-- Required for an iPhone app: **iPhone with Dynamic Island (large display)**, portrait 1320 x 2868, 1290 x 2796 or
-  1260 x 2736. If those are not given, "iPhone with Face ID (large display)" 1284 x 2778 or 1242 x 2688 is required
-  instead. At least 1, up to 10 per size, PNG or JPEG.
-- Optional: "medium display" 1206 x 2622 or 1179 x 2556 (iPhone 17 Pro and others); Apple scales the large ones if
-  they are missing.
-- How: Xcode Simulator, "iPhone 17 Pro Max", run the app, File > Save Screen (saves at the device's full size,
-  1320 x 2868). Turn off the Speed meter and any debug options first.
+- Required: "To submit your app, you must provide screenshots for the following required display sizes: iPhone: At
+  least one screenshot for iPhone with Dynamic Island (medium display)." That is portrait **1206 x 2622** or
+  1179 x 2556 (the page lists iPhone 18 Pro, 17 Pro, 17, 16 Pro, 16, 15 Pro, 15 and 14 Pro).
+- Optional: "iPhone with Dynamic Island (large display)", portrait **1320 x 2868**, 1290 x 2796 or 1260 x 2736 (iPhone
+  Air, 18 Pro Max, 17 Pro Max and others): listed with no "required" line. The older classes (Face ID, Home Button)
+  are optional too; when one is missing, Apple uses scaled screenshots from a neighbouring class.
+- Scaling: "If your app's user interface is consistent across multiple device sizes and localizations, you only need
+  to provide screenshots for the highest required resolution. App Store Connect automatically scales them down for
+  smaller device sizes."
+- At least 1, up to 10 per size, `.jpeg`, `.jpg` or `.png`. "Images can't include alpha channels or transparencies."
+- Plan, to be safe: the same screens twice, on the Pro (1206 x 2622, the required slot) and on the Pro Max
+  (1320 x 2868, the large slot) of the newest iPhone family in Xcode, each set uploaded into its own slot. Turn off the
+  Speed meter first.
+- How: Xcode 27 takes them in Device Hub: run the app on the simulated iPhone, go to the screen, click the Screenshot
+  button below the device; the file goes to the Desktop at the device's full resolution (Apple's "Capturing
+  screenshots and videos from devices"). Xcode 26 and older: the Simulator app, File > Save Screen. Check each file's
+  size (Finder, Get Info, Dimensions) and export it as JPEG from Preview (no transparency then).
 - Apple's page also says iPhone Duo screenshots become required in April 2027 for apps built with the iOS 27.1 SDK or
   later. Not needed for this first build.
 
