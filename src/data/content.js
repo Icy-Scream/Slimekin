@@ -469,14 +469,14 @@ export const GREENHOUSE = {
   // (measured from its model at the size it is shown at; tools/greenhouse-smoke.cjs measures them again).
   spots: {
     planters: [[-0.62, -2.72], [0.42, -2.7], [-0.2, -3.42], [-0.98, -3.95], [0.62, -4.05], [-0.25, -4.65]],
-    lamps: [[-1.66, -0.95], [1.66, -0.95], [-3.2, -2.0], [3.25, -2.35], [-2.0, 2.5], [2.0, 2.5]],
+    lamps: [[-1.85, -0.7], [1.85, -0.7], [-3.2, -2.0], [3.25, -2.35], [-2.0, 2.5], [2.0, 2.5]],
     bubbles: [2.35, 1.3], musicbox: [-2.5, 1.15], fountain: [-2.6, 3.9], spa: [2.5, 4.3],
     observatory: [2.05, -3.75],   // the room's telescope spot (gh.json spots.telescope), nudged 0.1 off the stool
     turn: { bubbles: -0.6, musicbox: 0.5, fountain: 0, observatory: 2.2, spa: -0.5 },   // which way each one faces (radians)
     pals: { ring: [1.85, 2.6], step: 0.5, spacing: 0.55 },   // pals hop on the rug and the floor around the stump
     rainbow: { pos: [0, -0.6, -9.5], radius: 4.6, tube: 0.2 },   // over the garden behind the back glass
   },
-  radius: { planter: 0.3, lamp: 0.38, bubbles: 0.42, musicbox: 0.5, fountain: 0.63, spa: 0.96, observatory: 0.53, slimeling: 0.28 },
+  radius: { planter: 0.3, lamp: 0.42, bubbles: 0.42, musicbox: 0.5, fountain: 0.63, spa: 0.96, observatory: 0.53, slimeling: 0.28 },
   // model origin above the floor (the planters and the wand would sink into the planks; a pal sits a bit higher than
   // on the meadow's grass so its round bottom doesn't dip into the floor)
   lift: { planter: 0.27, bubbles: 0.58, musicbox: 0.2, slimeling: 0.05 },

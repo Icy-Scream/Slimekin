@@ -131,16 +131,16 @@ export class Home {
 
   // A press on empty background (where the swipe for the secret code starts): it may turn the camera.
   down(e) {
+    if (e.isPrimary) this.endDrag();   // the first finger of a new touch: anything left over was a lift we never saw
     if (!this.canTurn || this.touches.size) return;
-    this.touches.set(e.pointerId, { x: e.clientX, y: e.clientY, moved: 0, t: performance.now() });
+    this.touches.set(e.pointerId, { x: e.clientX, y: e.clientY, moved: 0 });
   }
   // A second finger while one is down on the background (anywhere, even on the slime): a pinch. Returns true when it
   // took the finger, so the game neither boops nor counts a swipe.
   second(e) {
+    if (e.isPrimary) { this.endDrag(); return false; }   // a new touch, not a second finger (clears a lift we never saw)
     if (!this.canTurn || this.touches.size !== 1 || this.touches.has(e.pointerId)) return false;
-    const [first] = this.touches.values();
-    if (performance.now() - first.t > 20000) { this.endDrag(); return false; }   // a finger we never saw lift: forget it
-    this.touches.set(e.pointerId, { x: e.clientX, y: e.clientY, moved: 0, t: performance.now() });
+    this.touches.set(e.pointerId, { x: e.clientX, y: e.clientY, moved: 0 });
     this.pinchD = this.spread();
     this.dragging = true;
     this.beginFree();
@@ -153,7 +153,7 @@ export class Home {
     if (!t) return false;
     if (!this.canTurn) { this.endDrag(); return true; }
     const dx = e.clientX - t.x, dy = e.clientY - t.y;
-    t.x = e.clientX; t.y = e.clientY; t.moved += Math.hypot(dx, dy); t.t = performance.now();
+    t.x = e.clientX; t.y = e.clientY; t.moved += Math.hypot(dx, dy);
     if (this.touches.size >= 2) {
       const d = this.spread();
       if (this.pinchD > 0 && d > 0) this.rig.pinch(d / this.pinchD, this.pivot());
