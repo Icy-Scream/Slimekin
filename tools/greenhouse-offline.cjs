@@ -64,7 +64,18 @@ const expect = (cond, what, detail = '') => { if (cond) log('ok', what); else { 
   const roomShown = () => deadline(page.waitForFunction(() => window.slimekin && window.slimekin.home && (window.slimekin.home.room.ready || window.slimekin.home.room.failed), null, { timeout: 150000 }), 160000, 'the room')
     .then(() => ev(() => ({ ready: window.slimekin.home.room.ready, world: window.slimekin.home.world })));
   const roomFiles = () => seen.filter(p => p.includes('/src/assets/greenhouse/'));
-  const waitKeys = (want, what) => deadline(page.waitForFunction(w => caches.keys().then(k => w.every(x => k.includes(x)) && k.length === w.length), want, { timeout: 120000, polling: 500 }), 130000, what);
+  // the caches are exactly `want` (polled from here: the worker installs and activates in the background)
+  const waitKeys = async (want, what) => {
+    const t = Date.now();
+    for (;;) {
+      const k = await keys();
+      if (JSON.stringify(k) === JSON.stringify([...want].sort())) return k;
+      if (Date.now() - t > 120000) throw new Error(`${what}: caches are ${JSON.stringify(k)}`);
+      await page.waitForTimeout(500);
+    }
+  };
+  // ask the browser to look for a new sw.js now (it also does on its own when the app opens)
+  const checkUpdate = () => ev(() => navigator.serviceWorker.getRegistration().then(r => r && r.update()).then(() => true));
   try {
     // 1. first visit
     const room1 = roomCacheOf();
@@ -83,7 +94,9 @@ const expect = (cond, what, detail = '') => { if (cond) log('ok', what); else { 
     seen.length = 0;
     build('gh-b');
     expect(roomCacheOf() === room1, '2. the new build has the same room cache name (same room files)');
-    await page.reload();   // the browser finds the new sw.js; it installs and takes over
+    await page.reload();
+    await roomShown();
+    await checkUpdate();   // the browser finds the new sw.js; it installs and takes over
     await waitKeys(['slimekin-gh-b', room1], 'the update');
     await page.reload();   // now served by the new worker
     r = await roomShown();
@@ -100,6 +113,8 @@ const expect = (cond, what, detail = '') => { if (cond) log('ok', what); else { 
     const room3 = 'slimekin-room-test-changed';
     fs.writeFileSync(path.join(OUT, 'sw.js'), fs.readFileSync(path.join(OUT, 'sw.js'), 'utf8').replace(room1, room3));
     await page.reload();
+    await roomShown();
+    await checkUpdate();
     await waitKeys(['slimekin-gh-c', room3], 'the room update');
     await page.reload();
     r = await roomShown();
