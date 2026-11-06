@@ -622,6 +622,8 @@ export class RanchView {
     r.timer -= dt;
     r.happyT -= dt;
     av.inner.visible = this.visiting;
+    // while you watch the ranch, only the slime you are visiting reshapes every frame (far away it is already slow)
+    av.lod = this.visiting && this.focusId !== r.id ? 2 : 1;
     if (r.happyT > 0) { Object.assign(av.expr, { eyes: 'happy', mouth: 'open', blush: 0.9 }); }
     else if (r.state === 'nap') Object.assign(av.expr, { eyes: 'sleep', mouth: 'smile', blush: 0.4 });
     else Object.assign(av.expr, { eyes: 'normal', mouth: 'smile', blush: 0.4 });
