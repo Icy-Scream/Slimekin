@@ -43,11 +43,16 @@ const OUTFIT_SPECS = {
   party:   { dir: [0.2, 1, 0.1], off: -0.04, align: 'up' },
   crown:   { dir: [0, 1, 0.06], off: -0.03, align: 'up' },
   flowers: { ring: 0.8, off: 0.0 },
-  scarf:   { ring: -0.2, off: 0.0 },
+  scarf:   { ring: -0.2, off: 0.0, hug: true },
   bowtie:  { dir: [0, -0.33, 0.94], off: 0.04, align: 'front' },
   glasses: { dir: [0, 0.215, 0.977], off: 0.07, align: 'front' },
   shades:  { dir: [0, 0.215, 0.977], off: 0.08, align: 'front' },
 };
+// Face and neck pieces follow the face up and down the body (its elevation `faceEl` changes with the breed and as it
+// grows): the directions above fit a face at OUTFIT_FACE_EL. Neck pieces sit higher than they were drawn for (the
+// recipe body's mouth is higher on the face than the old one's): a bow tie by OUTFIT_NECK_RAISE, the scarf's ring a
+// little less (it is thick, and must stay under the mouth).
+const OUTFIT_FACE_EL = 0.2, OUTFIT_NECK_RAISE = 0.11, OUTFIT_RING_RAISE = 0.04;
 function bellyMaterial(mat, opacity) {
   mat.transparent = true;
   mat.opacity = opacity;
@@ -617,18 +622,25 @@ export class SlimeAvatar {
       if (!it.obj.visible) continue;
       const pop = it.grow * (1 + Math.sin(Math.min(1, it.grow) * Math.PI) * 0.12);
       const sp = it.spec;
+      const fe = this.faceEl > -0.5 ? this.faceEl : OUTFIT_FACE_EL;
+      const tilt = slot === 'head' ? 0 : fe - OUTFIT_FACE_EL + (slot === 'neck' ? (sp.ring !== undefined ? OUTFIT_RING_RAISE : OUTFIT_NECK_RAISE) : 0);
       if (sp.ring !== undefined) {
-        const ry = sp.ring;
+        const ry = Math.sin(Math.asin(sp.ring) + tilt);
         this.shape(0, ry, 0, 0, o);
         const cx = o.x, cy = o.y, cz = o.z;
         const rx = Math.sqrt(1 - ry * ry);
-        this.shape(rx, ry, 0, 0, o);
-        const r = Math.abs(o.x - cx) + 0.02;
+        // the body's width around that ring (square forms, lumps and the goo lip are not round): a crown rests on the
+        // widest part, a scarf hugs the body (its average width, a little snug at the corners)
+        let rMax = 0, rSum = 0;
+        for (let k = 0; k < 8; k++) { const a = k * TAU / 8; this.shape(rx * Math.cos(a), ry, rx * Math.sin(a), a, o); const d = Math.hypot(o.x - cx, o.z - cz); rMax = Math.max(rMax, d); rSum += d; }
+        const r = (sp.hug ? rSum / 8 * 1.03 : rMax) + 0.02;
         it.obj.position.set(cx, cy + sp.off + lift, cz);
         it.obj.scale.set(r * pop, r * pop * (1 + this.sq.x), r * pop);
         continue;
       }
-      this.shape(it.dir.x, it.dir.y, it.dir.z, Math.atan2(it.dir.z, it.dir.x), o);
+      let dx = it.dir.x, dy = it.dir.y, dz = it.dir.z;
+      if (tilt) { const c = Math.cos(tilt), sn = Math.sin(tilt); dy = it.dir.y * c + it.dir.z * sn; dz = it.dir.z * c - it.dir.y * sn; }
+      this.shape(dx, dy, dz, Math.atan2(dz, dx), o);
       const ny = o.y - CENTER_Y * (1 + this.sq.x);
       const len = Math.sqrt(o.x * o.x + ny * ny + o.z * o.z) || 1;
       this._v.set(o.x / len, ny / len, o.z / len);
@@ -673,6 +685,16 @@ export class SlimeAvatar {
   // A point of the body for the unit direction (px, py, pz) (az = its azimuth). arm: also the curl (the body mesh
   // and grabbing use it); without it, the point sits on the dome under the curl, which keeps outfits, props, the face
   // and the pin steady on the body while the curl sways or is pulled.
+  // This frame's lump and knob sizes (they breathe a little) and each knob's reach, worked out once per frame and
+  // recipe instead of once per point.
+  liveSizes() {
+    const S = this.S, T = this.time, L = this._live || (this._live = { T: NaN, S: null, b: [], k: [], c: [] });
+    if (L.T === T && L.S === S) return L;
+    S.bumps.forEach((b, i) => { L.b[i] = b[1] * (1 + 0.15 * Math.sin(T * 0.9 + i * 1.7)); });
+    S.knobs.forEach((k, i) => { L.k[i] = k[1] * (1 + 0.08 * Math.sin(T * 1.1 + i)); L.c[i] = Math.cos(k[2]); });
+    L.T = T; L.S = S;
+    return L;
+  }
   shape(px, py, pz, az, o, arm = false) {
     const S = this.S, C = this.curl, T = this.time, FS = this.formShape;
     restShape(px, py, pz, az, S, T, FS, o);
@@ -706,20 +728,21 @@ export class SlimeAvatar {
       Math.sin(px * 2.3 + 1.1 + T * 0.7) * Math.sin(py * 2.1 + 0.4 - T * 0.5) * Math.sin(pz * 2.6 + 2.3 + T * 0.6)
       + 0.6 * Math.sin(px * 3.7 + 0.3 - T * 0.4) * Math.sin(pz * 3.1 + 1.7 + T * 0.55)
       + 0.4 * Math.sin(py * 3.3 + px * 1.3 + 1.3 + T * 0.8));
-    const BL = S.bumps;   // the recipe's lumps, breathing a little
+    const BL = S.bumps, LK = this.liveSizes();   // the recipe's lumps, breathing a little (sizes worked out once a frame)
     for (let i = 0; i < BL.length; i++) {
-      const bd = BL[i][0], ba = BL[i][1]; if (ba < 0.002) continue;
-      off += ba * (1 + 0.15 * Math.sin(T * 0.9 + i * 1.7)) * Math.exp(-(1 - (px * bd[0] + py * bd[1] + pz * bd[2])) / BL[i][2]);
+      const bd = BL[i][0]; if (BL[i][1] < 0.002) continue;
+      const e = (1 - (px * bd[0] + py * bd[1] + pz * bd[2])) / BL[i][2];
+      if (e < 9) off += LK.b[i] * Math.exp(-e);   // (further away a lump adds nothing you could see)
     }
     const KL = S.knobs;   // knobs: a round ball profile, or a pointed cat ear
     for (let i = 0; i < KL.length; i++) {
-      const kd = KL[i][0], ka = KL[i][1]; if (ka < 0.002) continue;
+      const kd = KL[i][0]; if (KL[i][1] < 0.002) continue;
       const kr = KL[i][2], d = px * kd[0] + py * kd[1] + pz * kd[2];
-      if (d <= Math.cos(kr)) continue;
+      if (d <= LK.c[i]) continue;
       const q = Math.acos(clamp(d, -1, 1)) / kr;
       const f = KL[i][3] ? Math.pow(Math.max(0, 1 - Math.sqrt(q * q + 0.02)) / 0.8586, 1.25)   // pointed ear, softly rounded tip
                          : Math.pow(1 - q * q, 0.55);                                            // round knob
-      off += ka * (1 + 0.08 * Math.sin(T * 1.1 + i)) * f;
+      off += LK.k[i] * f;
     }
     // a grown-up form's lumps (Geode, Moss)
     if (FS && FS.lumpy) off += FS.lumpy * 2.2 * Math.sin(px * 5.1 + 1.3) * Math.sin(py * 6.3 + 0.7) * Math.sin(pz * 5.7 + 2.1) * (1 - tipW);
