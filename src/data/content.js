@@ -537,7 +537,7 @@ export const RANCH_LIFE = {
       souvenirs: [{ id: 'duck', name: 'Rubber Duck', icon: '🦆' }, { id: 'towel', name: 'Fluffy Towel', icon: '🧺' }, { id: 'bathPebble', name: 'Bath Pebble', icon: '🫧' }],
       stories: [
         '{name} soaked in the warm pool until extra squishy.',
-        '{name} floated on its back and watched the steam make clouds.',
+        '{name} floated on their back and watched the steam make clouds.',
         '{name} shared a bath with a very polite frog.',
         '{name} got wrapped in a fluffy towel like a little dumpling.',
       ],

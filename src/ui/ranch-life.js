@@ -192,7 +192,7 @@ export class RanchLifeUI {
         <span><b>${esc(p.name)}</b><span class="sub">${line}</span>${this.rl.life.friends.includes(p.id) ? '<span class="sub">You are a Friend of this place.</span>' : ''}</span></button>`;
     }).join('');
     const note = free <= 0 ? `<p class="sub"><b>Every wagon is out</b> (${plural(this.rl.life.wagons, 'wagon')}). ${this.rl.wagonCost() !== null ? 'Another wagon is on the Ranch tab.' : ''}</p>` : '';
-    g.hud.openModal(`<h2>Send ${name} on a trip</h2><p>Trips are free. ${name} comes home on its own with pearls in its bag, a souvenir, ${home ? `a treat for ${home}` : 'a treat'} and a little story.</p>${note}
+    g.hud.openModal(`<h2>Send ${name} on a trip</h2><p>Trips are free. ${name} comes home on their own with pearls in their bag, a souvenir, ${home ? `a treat for ${home}` : 'a treat'} and a little story.</p>${note}
       <div class="egg-choice">${items}</div><div class="actions"><button class="btn" id="rlNo">Not now</button></div>`, {
       onOpen: card => {
         card.querySelector('#rlNo').addEventListener('click', () => g.hud.closeModal());
@@ -223,7 +223,7 @@ export class RanchLifeUI {
     if (!x || !x.trip) return;
     const t = x.trip, p = PLACE_BY_ID[t.place], name = esc(x.name);
     const frac = Math.max(0, Math.min(1, (this.now() - t.startAt) / Math.max(1, t.homeAt - t.startAt)));
-    g.hud.openModal(`<h2>Call ${name} home early?</h2><p>${name} comes straight home from ${esc(p.name)} with ${Math.floor(t.pearls * frac)} of its ${t.pearls} pearls and its story. The souvenir and the treat only come with a full trip (home at ${esc(this.clock(t.homeAt))}).</p>
+    g.hud.openModal(`<h2>Call ${name} home early?</h2><p>${name} comes straight home from ${esc(p.name)} with ${Math.floor(t.pearls * frac)} of their ${t.pearls} pearls and their story. The souvenir and the treat only come with a full trip (home at ${esc(this.clock(t.homeAt))}).</p>
       <div class="actions"><button class="btn" id="rlNo">Let ${name} finish</button><button class="btn primary" id="rlYes">Call home</button></div>`, {
       onOpen: card => {
         card.querySelector('#rlNo').addEventListener('click', () => g.hud.closeModal());
