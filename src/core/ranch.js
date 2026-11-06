@@ -5,6 +5,7 @@ import { rng } from './random.js';
 import { makeEgg, sparkFor, pureFor, emptyLineage } from './breeding.js';
 import { residentMedal } from './medals.js';
 import { heirloomMult } from './heirlooms.js';
+import { createLife, migrateLife, migrateResident } from './ranch-life.js';
 
 export function createRanch() {
   return {
@@ -24,6 +25,7 @@ export function createRanch() {
     sparks: {},       // what the family knows about each spark form: 'observed' | 'understood'
     nearMiss: {},     // spark babies that settled into a normal form, per spark form
     pures: [],        // forms raised Pure (same form as both parents)
+    life: createLife(),   // ranch life (core/ranch-life.js): lanes, wagons, souvenirs, Friend of places
   };
 }
 
@@ -44,11 +46,14 @@ export function migrateRanch(saved) {
   if (!Array.isArray(out.nursery.eggs)) out.nursery.eggs = [];
   for (const k of ['sparks', 'nearMiss']) if (!out[k] || typeof out[k] !== 'object' || Array.isArray(out[k])) out[k] = {};
   if (!Array.isArray(out.pures)) out.pures = [];
+  out.life = migrateLife(saved.life);
   // residents from before breeding: first of their family line, no parents on record
+  // (and from before ranch life: 0 stars in every skill, no lesson, no trip)
   for (const x of out.residents) {
     if (!x || typeof x !== 'object') continue;
     x.lineage = { ...emptyLineage(), ...(x.lineage || {}) };
     if (!Array.isArray(x.lineage.parents)) x.lineage.parents = [];
+    migrateResident(x);
   }
   out.residents = out.residents.filter(x => x && typeof x === 'object');
   return out;

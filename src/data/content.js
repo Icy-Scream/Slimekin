@@ -429,3 +429,148 @@ export const MOVING_DAY = {
   },
   clue: 'Grown slimes sometimes dream of the ranch. Watch where they look.',
 };
+
+// ---------- Ranch life: the Training Center and trips (rules in core/ranch-life.js) ----------
+// Grown slimes on the ranch learn five skills (0..5 stars each, one lesson = one star) and go on trips to the places
+// the buyers live. Everything runs on the wall clock (like Nursery eggs), so it counts while the game is closed and
+// tapping never speeds it up. Nothing fails, nothing is lost: a lesson always finishes, a trip always comes home.
+// Icons are emoji placeholders until the UI pass draws them.
+export const RANCH_LIFE = {
+  maxStars: 5,
+  // What one star does now (contests use the skills later). Every effect is per star; 5 stars = 5x.
+  //   pearls      +x ranch pearls                  tripTime    trips x shorter
+  //   fade        happiness fades x slower          lessonTime  lessons x shorter
+  //   tripPearls  trips bring x more pearls          offers      buyer offers and auction prices +x
+  skills: [
+    { id: 'bounce', name: 'Bounce', icon: '🏐', fx: { pearls: 0.03 },                   does: 'more ranch pearls' },
+    { id: 'speed',  name: 'Speed',  icon: '💨', fx: { tripTime: 0.06 },                 does: 'shorter trips' },
+    { id: 'sturdy', name: 'Sturdy', icon: '🛡️', fx: { fade: 0.05 },                     does: 'farther trips, happiness fades slower' },
+    { id: 'smarts', name: 'Smarts', icon: '📚', fx: { lessonTime: 0.05, tripPearls: 0.05 }, does: 'shorter lessons, more pearls from trips' },
+    { id: 'charm',  name: 'Charm',  icon: '🌸', fx: { offers: 0.04 },                   does: 'better offers from buyers' },
+  ],
+  // One lesson per star: the price and time of the Nth star (the same for every skill). 120 pearls and about 11.5 hours
+  // for a whole skill, 600 pearls and about 58 hours for a fully trained slime.
+  lesson: {
+    pearls:  [5, 10, 20, 35, 50],
+    minutes: [20, 45, 90, 180, 360],
+    happy: 10,                   // happiness when a lesson ends
+  },
+  // How many slimes learn at once (lanes) and travel at once (wagons): the first is free, then these pearl prices.
+  lanes:  { start: 1, costs: [60, 150] },
+  wagons: { start: 1, costs: [80, 200] },
+  trip: {
+    happy: 20,                   // happiness when a full trip comes home (an early return brings its share)
+    middleAt: 1,                 // Sturdy stars that open the 3-hour trips
+    farAt: 3,                    // Sturdy stars that open the 6-hour trips (`loves.bold.farAt` lowers it)
+  },
+  // A treat from a full trip, for your slime at home: a little joy and bond, never traits. While an egg is on the
+  // cushion the traveler eats it itself (+happy).
+  treat: { joy: 8, bond: 2, happy: 10 },
+  // Friend of a place: all three of its souvenirs found. Its buyer offers more for any of your slimes, and a thank-you
+  // postcard brings pearls once.
+  friend: { offers: 0.10, gift: 20 },
+  // Personality "loves": from the strongest lean (the slider farthest from the middle, and which end), the same rule the
+  // Moving Day signs use (core/movingday.js movingDaySign: the keys are its sign ids).
+  //   skill + lessonTime: that skill's lessons x shorter; lessonTime alone: all lessons; tripPearls, tripTime: trips;
+  //   farAt: the Sturdy stars that open the far trips; fade: happiness fades x slower
+  loves: {
+    curious:     { label: 'trips',         fx: { tripPearls: 0.10 },                 does: 'trips bring 10% more pearls' },
+    familiar:    { label: 'lessons',       fx: { lessonTime: 0.10 },                 does: 'all lessons 10% shorter' },
+    patient:     { label: 'Smarts',        fx: { skill: 'smarts', lessonTime: 0.25 }, does: 'Smarts lessons 25% shorter' },
+    impulsive:   { label: 'Speed',         fx: { skill: 'speed', lessonTime: 0.25 },  does: 'Speed lessons 25% shorter' },
+    playful:     { label: 'Bounce',        fx: { skill: 'bounce', lessonTime: 0.25 }, does: 'Bounce lessons 25% shorter' },
+    mellow:      { label: 'Sturdy',        fx: { skill: 'sturdy', lessonTime: 0.25 }, does: 'Sturdy lessons 25% shorter' },
+    cuddly:      { label: 'Charm',         fx: { skill: 'charm', lessonTime: 0.25 },  does: 'Charm lessons 25% shorter' },
+    independent: { label: 'the open road', fx: { tripTime: 0.10 },                   does: 'trips 10% shorter' },
+    bold:        { label: 'adventure',     fx: { farAt: 2 },                          does: 'the far trips open at Sturdy 2 stars' },
+    shy:         { label: 'quiet days',    fx: { fade: 0.10 },                       does: 'happiness fades 10% slower' },
+  },
+  // The six places (each is a buyer's home: `buyer` in BUYERS). reach: near (always open), middle (Sturdy middleAt),
+  // far (Sturdy farAt). Souvenirs are found in this order, one per full trip. Story lines: {name} is the traveler;
+  // `lean` lines join the pool for a slime with that lean (picked half the time when there is one).
+  places: [
+    { id: 'cafe', buyer: 'cafe', name: 'Puddle Café', icon: '☕', hours: 1, reach: 'near', treat: 'a sprinkle drop',
+      souvenirs: [{ id: 'cupHat', name: 'Paper Cup Hat', icon: '🥤' }, { id: 'sprinkleJar', name: 'Sprinkle Jar', icon: '🫙' }, { id: 'napkin', name: 'Napkin Doodle', icon: '🖍️' }],
+      stories: [
+        '{name} helped greet the guests and got a sprinkle on the nose.',
+        '{name} watched the rain puddles from the window seat and counted 31 drops.',
+        '{name} carried a teacup across the whole café. It wobbled, but not one drop spilled!',
+        '{name} curled up by the warm cocoa machine and had a little nap.',
+        'A kid drew {name} on a napkin. It looked like a happy potato.',
+      ],
+      lean: {
+        playful: '{name} bounced from table to table saying hello to everyone.',
+        shy: '{name} hid behind the cake stand, then waved at one very small kid.',
+        cuddly: '{name} sat in every lap in the café, one after another.',
+      } },
+    { id: 'garden', buyer: 'garden', name: 'Willowbend Gardens', icon: '🌻', hours: 1, reach: 'near', treat: 'a garden berry',
+      souvenirs: [{ id: 'seeds', name: 'Seed Packet', icon: '🌱' }, { id: 'snailShell', name: 'Snail Shell', icon: '🐌' }, { id: 'leaf', name: 'Pressed Leaf', icon: '🍂' }],
+      stories: [
+        '{name} got lost in the tomato patch and made friends with a snail.',
+        '{name} helped water the seedlings (mostly by sitting in the watering can).',
+        '{name} watched the bees for an hour. The bees watched back.',
+        '{name} rolled down the grassy hill four times in a row.',
+        '{name} found the biggest pumpkin in the garden and sat right on top.',
+      ],
+      lean: {
+        curious: '{name} peeked under every single leaf to see who lived there.',
+        mellow: '{name} lay in the sun by the sunflowers and did not move all afternoon.',
+        patient: '{name} waited very quietly, and a butterfly landed right on top.',
+      } },
+    { id: 'mine', buyer: 'mine', name: 'Pebblepeak Mine', icon: '⛏️', hours: 3, reach: 'middle', treat: 'a rock candy',
+      souvenirs: [{ id: 'pebble', name: 'Shiny Pebble', icon: '🪨' }, { id: 'crystalChip', name: 'Crystal Chip', icon: '💎' }, { id: 'pickaxe', name: 'Little Pickaxe', icon: '⛏️' }],
+      stories: [
+        '{name} rode the little mine cart and squealed the whole way down.',
+        '{name} found a rock shaped exactly like a slime.',
+        '{name} listened to the miners sing in the echoing tunnel.',
+        '{name} polished a pebble until it shone like a star.',
+      ],
+      lean: {
+        bold: '{name} went all the way to the deepest tunnel and came back very proud.',
+        impulsive: '{name} zoomed down a tunnel before anyone said go. It was a good tunnel.',
+        independent: '{name} explored a side tunnel alone and drew a little map of it.',
+      } },
+    { id: 'springs', buyer: 'springs', name: 'Mistwater Hot Springs', icon: '♨️', hours: 3, reach: 'middle', treat: 'a warm bun',
+      souvenirs: [{ id: 'duck', name: 'Rubber Duck', icon: '🦆' }, { id: 'towel', name: 'Fluffy Towel', icon: '🧺' }, { id: 'bathPebble', name: 'Bath Pebble', icon: '🫧' }],
+      stories: [
+        '{name} soaked in the warm pool until extra squishy.',
+        '{name} floated on its back and watched the steam make clouds.',
+        '{name} shared a bath with a very polite frog.',
+        '{name} got wrapped in a fluffy towel like a little dumpling.',
+      ],
+      lean: {
+        mellow: '{name} found the warmest pool and stayed there all day.',
+        cuddly: '{name} snuggled into a pile of warm towels with three other slimes.',
+        shy: '{name} chose the tiny quiet pool in the corner. It was perfect.',
+      } },
+    { id: 'observatory', buyer: 'observe', name: 'Starlight Observatory', icon: '🔭', hours: 6, reach: 'far', treat: 'a moon cookie',
+      souvenirs: [{ id: 'starMap', name: 'Star Map', icon: '🗺️' }, { id: 'meteor', name: 'Meteor Bit', icon: '☄️' }, { id: 'telescope', name: 'Tiny Telescope', icon: '🔭' }],
+      stories: [
+        '{name} looked through the big telescope and saw the craters on the moon.',
+        '{name} counted 4 stars, then fell asleep under the dome.',
+        '{name} made a wish on a shooting star. It is a secret.',
+        '{name} helped turn the giant telescope (by sitting on the crank).',
+      ],
+      lean: {
+        curious: '{name} asked the astronomer about every single star.',
+        patient: '{name} waited all night for a comet. It came!',
+        familiar: '{name} found the North Star and decided it was a friend from home.',
+      } },
+    { id: 'festival', buyer: 'festival', name: 'Summer Festival', icon: '🎆', hours: 6, reach: 'far', treat: 'a candy floss',
+      souvenirs: [{ id: 'mask', name: 'Festival Mask', icon: '🎭' }, { id: 'sparkler', name: 'Sparkler', icon: '🎇' }, { id: 'fan', name: 'Paper Fan', icon: '🪭' }],
+      stories: [
+        '{name} watched the fireworks go BOOM and was very brave.',
+        '{name} won the ring toss, then gave the prize to a little kid.',
+        '{name} danced to the drums with a crowd of kids.',
+        '{name} tried every snack stall. Every single one.',
+      ],
+      lean: {
+        playful: '{name} jumped in the bouncy castle until the stars came out.',
+        bold: '{name} rode the biggest ride twice and wanted a third go.',
+        impulsive: '{name} chased a runaway balloon all the way across the festival.',
+      } },
+  ],
+};
+export const SKILL_IDS = RANCH_LIFE.skills.map(s => s.id);
+export const SKILL_BY_ID = Object.fromEntries(RANCH_LIFE.skills.map(s => [s.id, s]));
+export const PLACE_BY_ID = Object.fromEntries(RANCH_LIFE.places.map(p => [p.id, p]));

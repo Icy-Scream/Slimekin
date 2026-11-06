@@ -7,6 +7,7 @@ import {
   MEDALS, MEDAL_BY_ID, HEIRLOOM_BY_ID,
 } from '../data/content.js';
 import { createRanch, migrateRanch, Ranch, residentJpsFor, dayNumber } from './ranch.js';
+import { emptySkills } from './ranch-life.js';
 import { emptyLineage, applyEgg, resolveForm, eggFromLineage } from './breeding.js';
 import { medalFor, medalRank } from './medals.js';
 import { createHeirlooms, migrateHeirlooms, heirloomMult, heirloomFlag, startHelpers, forSale, ownsHeirloom } from './heirlooms.js';
@@ -612,6 +613,7 @@ export class Sim {
       runTotal: total, jps: residentJpsFor(total), happiness: 90, pearlT: 0.6, petAt: 0,
       memories: s.memories.slice(-40),
       lineage: { ...emptyLineage(), ...(sl.lineage || {}) },
+      skills: emptySkills(), lesson: null, trip: null,   // ranch life (core/ranch-life.js)
     };
     ranch.residents.push(resident);
     // Family Legacy: the bonus comes from all the jelly the family ever made, so it is recomputed (never lowered)
