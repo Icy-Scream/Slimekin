@@ -210,17 +210,31 @@ export class Greenhouse {
       return s;
     };
     if (meta.lantern) { halo(meta.lantern, '#ffb24a', 2.2, 'lamp'); halo(meta.lantern, '#ffe2a8', 0.75, 'lamp'); }
-    const BULB = ['#ffd98a', '#ffc2d6', '#bfe8ff'];
-    (meta.bulbs || []).forEach((p, i) => halo([p[0], p[1] - 0.03, p[2] + 0.02], BULB[i % 3], 0.26, 'bulb'));
     if (meta.jars) { halo(meta.jars[0], '#ffd84a', 0.7, 'jar'); halo(meta.jars[1], '#8fdcff', 0.7, 'jar'); }
     if (meta.window) halo(meta.window, '#ffb24a', 1.4, 'lamp');
+    // the fairy bulbs and the fireflies: many small halos, one draw call per group (points sized like halos of
+    // `world` units, see update; each one's twinkle is its color, which is the same as its opacity when added on)
+    const dots = (list, world) => {
+      const n = list.length, geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(list.flatMap(d => d.pos)), 3));
+      geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+      const mat = new THREE.PointsMaterial({ map: this.dotTex, vertexColors: true, size: world, sizeAttenuation: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false, opacity: 0 });
+      const pts = noRay(new THREE.Points(geo, mat));
+      pts.frustumCulled = false; pts.renderOrder = 3; pts.visible = false;
+      g.add(pts);
+      return { pts, mat, world, base: list.map(d => new THREE.Color(d.color)), phase: list.map(() => Math.random() * 6.28) };
+    };
+    const BULB = ['#ffd98a', '#ffc2d6', '#bfe8ff'];
+    this.bulbs = dots((meta.bulbs || []).map((p, i) => ({ pos: [p[0], p[1] - 0.03, p[2] + 0.02], color: BULB[i % 3] })), 0.26);
     // fireflies drifting in the garden outside the glass
     {
       let seed = 11; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
       for (let i = 0; i < 26; i++) {
         const home = new THREE.Vector3(-6 + rnd() * 12, 0.4 + rnd() * 2.6, -8 - rnd() * 14);
-        this.flies.push({ s: halo(home.toArray(), '#d8ff8a', 0.18, 'fly'), home, ph: rnd() * 6.28, sp: 0.3 + rnd() * 0.4 });
+        this.flies.push({ home, ph: rnd() * 6.28, sp: 0.3 + rnd() * 0.4 });
       }
+      this.fly = dots(this.flies.map(f => ({ pos: f.home.toArray(), color: '#d8ff8a' })), 0.18);
+      this.fly.phase = this.flies.map(f => f.ph);
     }
     this.scene.add(g);
   }
@@ -243,13 +257,27 @@ export class Greenhouse {
     this.starMat.opacity = nt;
     this.stars.visible = nt > 0.003;
     for (const h of this.glows) {
-      const tw = reduced ? 1 : h.kind === 'bulb' ? 0.75 + 0.25 * Math.sin(t / 700 + h.phase) : h.kind === 'fly' ? Math.max(0, Math.sin(t / 600 + h.phase * 3)) ** 2 : 0.93 + 0.07 * Math.sin(t / 1100 + h.phase);
+      const tw = reduced ? 1 : 0.93 + 0.07 * Math.sin(t / 1100 + h.phase);
       h.m.opacity = nt * tw;
       h.s.visible = h.m.opacity > 0.003;
     }
-    if (nt > 0.003) for (const f of this.flies) {
-      const q = t / 1000 * f.sp + f.ph;
-      f.s.position.set(f.home.x + Math.sin(q) * 0.6, f.home.y + Math.sin(q * 1.7) * 0.25, f.home.z + Math.cos(q * 0.8) * 0.6);
+    const on = nt > 0.003, tanHalf = camera ? Math.tan(camera.fov * Math.PI / 360) : 0.268;
+    for (const [d, tw] of [[this.bulbs, (ph) => 0.75 + 0.25 * Math.sin(t / 700 + ph)], [this.fly, (ph) => Math.max(0, Math.sin(t / 600 + ph * 3)) ** 2]]) {
+      d.pts.visible = on;
+      if (!on) continue;
+      d.mat.opacity = nt;
+      d.mat.size = d.world / tanHalf;   // the same size on screen as a halo `world` units wide, at any fov
+      const col = d.pts.geometry.attributes.color;
+      d.base.forEach((c, i) => { const k = reduced ? 1 : tw(d.phase[i]); col.setXYZ(i, c.r * k, c.g * k, c.b * k); });
+      col.needsUpdate = true;
+    }
+    if (on) {
+      const pos = this.fly.pts.geometry.attributes.position;
+      this.flies.forEach((f, i) => {
+        const q = t / 1000 * f.sp + f.ph;
+        pos.setXYZ(i, f.home.x + Math.sin(q) * 0.6, f.home.y + Math.sin(q * 1.7) * 0.25, f.home.z + Math.cos(q * 0.8) * 0.6);
+      });
+      pos.needsUpdate = true;
     }
     if (camera) { this.sky.position.copy(camera.position); this.stars.position.copy(camera.position); }
     // the slime's lights and the fog follow the blend
@@ -271,6 +299,6 @@ export class Greenhouse {
   counts() {
     if (!this.meta) return null;
     const tris = this.meta.room_chunks.reduce((s, c) => s + c.tris, 0) + this.meta.floor.tris;
-    return { tris, chunks: this.meta.room_chunks.length + 1, glows: this.glows.length, loadMs: this.loadMs };
+    return { tris, chunks: this.meta.room_chunks.length + 1, glows: this.glows.length + this.bulbs.base.length + this.flies.length, loadMs: this.loadMs };
   }
 }
