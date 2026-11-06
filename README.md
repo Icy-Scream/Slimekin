@@ -122,7 +122,7 @@ src/audio/sfx.js      synthesized sounds and slime "voice" (Web Audio, no files)
 src/ui/hud.js         DOM interface
 src/ui/icons.js       drawn icons (sparkle, heart, Journal memory icons, little slime drawings) used instead of emoji
 tools/serve.mjs       local dev server
-tools/build-web.mjs   builds the installable web app (manifest, icons, offline cache) into docs/
+tools/build-web.mjs   builds the installable web app (manifest, icons, offline cache) into docs/ (or the folder given)
 web/                  app icons and the offline service worker template
 docs/                 built web app served by GitHub Pages (do not edit by hand; rebuild instead)
 tools/economy-sim.mjs economy simulator: plays the real rules as an engaged or casual player and prints milestones
@@ -133,6 +133,10 @@ tools/browser-kit.cjs     shared setup for the browser tests (free port, offline
 tools/breeding-test.mjs   breeding rules check in plain node (caps, seeds, sparks, Pure, cooldowns, old saves, cushion egg, new homes)
 tools/jelly-loop-test.mjs jelly loop rules check in plain node (Family Bonus and old saves, medals, heirlooms, Moving Day)
 tools/jelly-loop-smoke.cjs headless jelly loop play-through from an old save (heirlooms, medals, move-out screen, every sign)
+tools/greenhouse-test.mjs  Greenhouse check in plain node (the room's files, helper spots on High and Low, pal hops, camera limits, the move of old saves)
+tools/greenhouse-smoke.cjs headless Greenhouse test with real touches (every angle day and night, drag, pinch, petting, menu sheet, Settings, ranch, helpers, egg)
+tools/greenhouse-offline.cjs the room's own offline cache across two test builds in tools/out/web-test (never docs/)
+src/assets/greenhouse/ the baked room (made outside this repo; do not edit by hand)
 src/core/medals.js    which medal a slime has (from the jelly it made)
 src/core/heirlooms.js heirloom effects over the save (multipliers, starting helpers)
 src/core/movingday.js the Moving Day ratio, its levels and which sign a slime shows
@@ -201,6 +205,10 @@ difference is the favorite snack it may inherit):
 ```bash
 node tools/economy-sim.mjs 4 casual quiet gen2=1e9 bred
 ```
+
+The Greenhouse: `GREENHOUSE` in `content.js` holds the slime's lights in the room (day and night), the ground (stump, rug,
+floor), the four camera angles and the camera's limits, how far a drag or a pinch turns it, and where each helper
+stands. `node tools/greenhouse-test.mjs` checks it (move a helper spot, then run it).
 
 The jelly loop (all in `content.js`, checked by `node tools/jelly-loop-test.mjs`):
 
