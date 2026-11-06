@@ -11,6 +11,8 @@
 //   helpers   every helper at the most copies shown on High and on Low, day and night; each model's real size is
 //             measured against its radius in GREENHOUSE.radius
 //   egg       a fresh egg on the stump, tapped
+//   fail      the room's files can't load (as in a copy of the game without them): home stays on the Meadow, the saved
+//             setting is not changed, one console warning, no camera button
 // Screenshots: tools/out/greenhouse/. Runs offline on its own server (tools/browser-kit.cjs).
 const path = require('path');
 const fs = require('fs');
@@ -20,7 +22,7 @@ const OUT = path.join(__dirname, 'out', 'greenhouse');
 fs.mkdirSync(OUT, { recursive: true });
 const arg = (k, d) => { const a = process.argv.find(x => x.startsWith(`--${k}=`)); return a ? a.split('=')[1] : (process.argv.includes('--' + k) ? true : d); };
 const QUICK = !!arg('quick', false);
-const ONLY = String(arg('only', 'room,touch,sheet,settings,ranch,helpers,egg')).split(',');
+const ONLY = String(arg('only', 'room,touch,sheet,settings,ranch,helpers,egg,fail')).split(',');
 const fixture = n => JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', n), 'utf8')).save;
 const FIX = { settled: fixture('main-settled.json'), egg: fixture('main-egg.json') };
 
@@ -354,6 +356,30 @@ const FIX = { settled: fixture('main-settled.json'), egg: fixture('main-egg.json
         for (let i = 0; i < 2; i++) { await p2.waitForTimeout(250); await p2.screenshot({ path: path.join(OUT, `egg-${dark ? 'night' : 'day'}.png`) }); }
       }
       log('screenshot egg');
+    }
+
+    // ---------- fail ----------
+    if (ONLY.includes('fail')) {
+      kit.mark('fail');
+      const p3 = await kit.context.newPage();
+      const warns = [];
+      p3.on('pageerror', e => errors.push('pageerror (fail page): ' + e.message));
+      p3.on('console', m => { if (m.type() === 'warning' && m.text().includes('Greenhouse')) warns.push(m.text()); });
+      let asked = 0;
+      await p3.route('**/src/assets/greenhouse/**', r => { asked++; return r.abort(); });
+      for (const pg of kit.context.pages()) if (pg !== p3) await pg.close();
+      kit.page = p3;
+      await step('open with the room blocked', async () => {
+        await p3.goto(`${kit.server.origin}/#debug`);
+        await p3.waitForFunction(() => window.slimekin && window.slimekin.home && (window.slimekin.home.room.ready || window.slimekin.home.room.failed), null, { timeout: 120000 });
+      }, 200000);
+      const f = await p3.evaluate(() => { const g = window.slimekin; g.hud.closeModal(); g.advance(1); return { failed: g.home.room.failed, world: g.home.world, scene: g.state.settings.scene, meadow: g.scenery.group.visible, roomShown: g.home.room.group.visible, btn: !document.getElementById('camBtn').hidden, cam: !!g.stage.cam }; });
+      expect(f.failed && f.world === 'meadow' && f.meadow && !f.roomShown, 'the room can\'t load: home shows the Meadow', JSON.stringify(f));
+      expect(f.scene === 'greenhouse', 'the saved setting stays Greenhouse (it comes back when the files can load)', f.scene);
+      expect(!f.btn && !f.cam, 'no camera button and the fixed camera');
+      expect(warns.length === 1, `logged once (${warns.length}): ${warns[0] || ''}`);
+      log('room file requests blocked:', asked);
+      await p3.screenshot({ path: path.join(OUT, 'fail-meadow-day.png') });
     }
   } catch (e) {
     errors.push('test error: ' + e.message);
