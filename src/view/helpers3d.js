@@ -205,6 +205,25 @@ export class HelperWorld {
     }
     if ((helpers.rainbow || 0) > 0 && !this.singles.rainbow) this.makeArch(true);
     this.counts = { ...helpers };
+    this.seeThrough();
+  }
+
+  // [greenhouse] The fountain's goo and the spa's water are see-through (transmission), which makes three.js draw the
+  // whole scene a second time whenever one is in view: in the Greenhouse that is the room's 243k triangles again. On
+  // Low graphics in the Greenhouse they are plain (like the slime's body on Low); the Meadow keeps today's look.
+  seeThrough() {
+    const plain = this.layout === 'greenhouse' && this.shown === SHOWN.low;
+    for (const id of ['fountain', 'spa']) {
+      const o = this.singles[id];
+      if (!o) continue;
+      o.traverse(m => {
+        const mat = m.material;
+        if (!m.isMesh || !mat) return;
+        if (mat.userData.see === undefined) mat.userData.see = mat.transmission || 0;
+        const t = plain ? 0 : mat.userData.see;
+        if (mat.userData.see > 0 && mat.transmission !== t) { mat.transmission = t; mat.needsUpdate = true; }
+      });
+    }
   }
 
   // ---------- where things stand: the meadow (today's spots) or the Greenhouse room ----------
@@ -299,6 +318,7 @@ export class HelperWorld {
     this.planters.forEach((p, i) => p.obj.position.set(...this.planterSpot(i)));
     this.lamps.forEach((l, i) => this.placeLamp(l.obj, i));
     for (const [id] of SINGLES) if (this.singles[id]) this.placeSingle(id, this.singles[id]);
+    this.seeThrough();
     if (this.singles.rainbow) this.makeArch(false);
     for (const s of this.slimelings) {
       s.hopping = false; s.visit = null; s.rest = rand(0.5, 2);
