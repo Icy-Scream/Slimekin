@@ -78,7 +78,6 @@ export class Greenhouse {
     this.flies = [];
     this.time = 0;
     this.loadMs = 0;
-    this._c = new THREE.Color();
     this.light = { hemi: [new THREE.Color(), new THREE.Color(), 1], key: [new THREE.Color(), 1], rim: [new THREE.Color(), 1], env: 0.5 };
     // the slime's lights by day and by night (GREENHOUSE.slimeLight), as colors once
     const col = L => ({ hemi: [new THREE.Color(L.hemi[0]), new THREE.Color(L.hemi[1]), L.hemi[2]], key: [new THREE.Color(L.key[0]), L.key[1]], rim: [new THREE.Color(L.rim[0]), L.rim[1]], env: L.env });

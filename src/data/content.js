@@ -469,8 +469,8 @@ export const GREENHOUSE = {
   // (measured from its model at the size it is shown at; tools/greenhouse-smoke.cjs measures them again).
   spots: {
     planters: [[-0.62, -2.72], [0.42, -2.7], [-0.2, -3.42], [-0.98, -3.95], [0.62, -4.05], [-0.25, -4.65]],
-    lamps: [[-1.85, -0.7], [1.85, -0.7], [-3.2, -2.0], [3.25, -2.35], [-2.0, 2.5], [2.0, 2.5]],
-    bubbles: [2.35, 1.3], musicbox: [-2.5, 1.15], fountain: [-2.6, 3.9], spa: [2.5, 4.3],
+    lamps: [[-1.85, -0.7], [1.85, -0.7], [-3.2, -2.0], [3.25, -2.35], [-2.9, 4.5], [2.9, 4.6]],
+    bubbles: [2.35, 1.3], musicbox: [-2.5, 1.15], fountain: [-2.2, 2.65], spa: [2.4, 3.0],
     observatory: [2.05, -3.75],   // the room's telescope spot (gh.json spots.telescope), nudged 0.1 off the stool
     turn: { bubbles: -0.6, musicbox: 0.5, fountain: 0, observatory: 2.2, spa: -0.5 },   // which way each one faces (radians)
     pals: { ring: [1.85, 2.6], step: 0.5, spacing: 0.55 },   // pals hop on the rug and the floor around the stump
