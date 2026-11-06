@@ -41,7 +41,7 @@ export function nurseryEggTitle(e) {
   if (e.special) return `<b>${esc(BREEDS.specialEggs[e.special]?.name || 'Special egg')}</b>`;
   return `<b>${esc(eggLabel(e, { cap: true }))}</b>`;
 }
-export const nurseryEggNote = e => (e.special ? `<span class="sub">${esc(BREEDS.specialEggs[e.special]?.blurb || '')}</span>` : '');
+export const nurseryEggNote = e => (e.special ? `<span class="sub egg-note">${esc(BREEDS.specialEggs[e.special]?.blurb || '')}</span>` : '');
 
 // Your slime's page: which breed it is (Curly, Dollop, a special Dollop, or an in-between from the Nursery).
 export function breedHtml(s) {

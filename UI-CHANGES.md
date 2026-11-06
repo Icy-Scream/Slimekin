@@ -291,7 +291,8 @@ recipes in `BREEDS` in `content.js`). New menus live in `src/ui/eggs.js`, called
   line when it can't be bought (nest full, or "Cat-ear egg costs 75 pearls. You have 40."), and a
   `.btn.small.primary[data-act="buySpecial"][data-variant]` "Buy · (pearl) 75", disabled when it can't be bought.
 - A special egg waiting in the nest: its card is titled "Cat-ear egg" / "Topknot egg" (instead of "A and B's egg") with
-  the same `.sub` line under it; the rest of the card (warming time, Put on the cushion, Give to a neighbor) as before.
+  the same line under it (`.sub.egg-note`, a block line: one new CSS rule `.egg-row .egg-note` in `index.html`); the
+  rest of the card (warming time, Put on the cushion, Give to a neighbor) as before.
 
 ### Move-out modal and the cushion
 
