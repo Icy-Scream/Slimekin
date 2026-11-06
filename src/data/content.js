@@ -466,6 +466,7 @@ export const MEDAL_BY_ID = Object.fromEntries(MEDALS.map(m => [m.id, m]));
 //   glimmerMult   x Lucky Glimmer rewards (sim fx.glimmerMult)       keepJar    the Jelly Jar keeps its level
 //   ranchPearls   x pearls ranch slimes make                         eggTime    x how long a new Nursery egg warms
 //   happyDecay    x how fast ranch happiness fades (live and away)   buyerPay   x what buyers pay (homes, auctions)
+//   rareEggs      x the surprise chance of a special Dollop from a plain egg (BREEDS.surprise)
 // `where`: where it will live in the world (the in-world objects are not built yet: placeholder icons only).
 // buyable: false = shown, not for sale yet (`soon` says why).
 export const HEIRLOOMS = [
@@ -486,7 +487,7 @@ export const HEIRLOOMS = [
   { id: 'statue',   name: 'Family Statue',        icon: '🗿', price: 1e14, where: 'on the ranch hill',
     effect: 'Buyers pay 25% more pearls (new homes and auctions).', fx: { buyerPay: 1.25 } },
   { id: 'wishstar', name: 'Wishing Star',         icon: '⭐', price: 1e15, where: 'over the ranch at night',
-    effect: 'Rare eggs twice as likely.', fx: {}, buyable: false, soon: 'Arrives with rare eggs.' },
+    effect: 'Rare eggs twice as likely: a plain egg hatches a surprise Cat-ear or Topknot Dollop twice as often.', fx: { rareEggs: 2 } },
 ];
 export const HEIRLOOM_BY_ID = Object.fromEntries(HEIRLOOMS.map(h => [h.id, h]));
 // The Heirlooms tab: a placeholder icon key (memIcon), no text label; `glow` while a new heirloom is affordable.

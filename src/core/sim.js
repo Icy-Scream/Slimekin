@@ -7,7 +7,7 @@ import {
   MEDALS, MEDAL_BY_ID, HEIRLOOM_BY_ID,
 } from '../data/content.js';
 import { createRanch, migrateRanch, Ranch, residentJpsFor, dayNumber } from './ranch.js';
-import { emptyLineage, applyEgg, resolveForm, eggFromLineage } from './breeding.js';
+import { emptyLineage, applyEgg, resolveForm, eggFromLineage, eggLabel } from './breeding.js';
 import { medalFor, medalRank } from './medals.js';
 import { createHeirlooms, migrateHeirlooms, heirloomMult, heirloomFlag, startHelpers, forSale, ownsHeirloom } from './heirlooms.js';
 import { rollPlainEgg, oldBody, cleanBody } from './recipe.js';
@@ -647,7 +647,7 @@ export class Sim {
     if (!ranch.gift) { ranch.gift = true; gift = RANCH.welcomeGift; this.ranch.addPearls(gift); }
 
     const egg = this.startNextEgg(now, eggId);
-    const arrived = egg ? `${egg.parents[0].name} and ${egg.parents[1].name}'s egg is waiting on the cushion.` : 'A new egg arrived on the cushion.';
+    const arrived = egg ? `${eggLabel(egg, { cap: true })} is waiting on the cushion.` : 'A new egg arrived on the cushion.';
     s.memories = [{ t: now, icon: '🏡', text: `${resident.name} moved to the ranch. ${arrived}` }];
     return { resident, bonus, bonusBefore, bonusAfter: ranch.family.bonus, gift, egg };
   }
@@ -678,7 +678,7 @@ export class Sim {
     R.placed.push({ name, form: null, buyer: buyer.id, at: now, cards: 0, lastCard: dayNumber(now), baby: true, stage: stage.id });
     if (R.placed.length > 60) R.placed.shift();
     const egg = this.startNextEgg(now, eggId);
-    const arrived = egg ? `${egg.parents[0].name} and ${egg.parents[1].name}'s egg is waiting on the cushion.` : 'A new egg arrived on the cushion.';
+    const arrived = egg ? `${eggLabel(egg, { cap: true })} is waiting on the cushion.` : 'A new egg arrived on the cushion.';
     s.memories = [{ t: now, icon: '💌', text: `${name} went to live at ${buyer.name}, where they will be loved and looked after. ${arrived}` }];
     return { buyer, name, stage, egg, jelly };
   }

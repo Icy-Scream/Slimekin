@@ -1,11 +1,11 @@
 // Ranch rules: grown-up slimes living on the ranch, pearls, the Pearl Basket, slots,
 // placement (selling to a good home) and auctions. No three.js, no DOM.
-import { RANCH, BUYERS, BUYER_BY_ID, TRAIT_IDS, BREEDING, SPARK_BY_ID } from '../data/content.js';
+import { RANCH, BUYERS, BUYER_BY_ID, TRAIT_IDS, BREEDING, SPARK_BY_ID, BREEDS } from '../data/content.js';
 import { rng } from './random.js';
 import { makeEgg, sparkFor, pureFor, emptyLineage } from './breeding.js';
 import { residentMedal } from './medals.js';
 import { heirloomMult } from './heirlooms.js';
-import { oldBody, cleanBody } from './recipe.js';
+import { oldBody, cleanBody, rollSpecialEgg } from './recipe.js';
 
 export function createRanch() {
   return {
@@ -21,7 +21,7 @@ export function createRanch() {
     placed: [],
     gift: false,
     lastVisit: 0,
-    nursery: { eggs: [], made: 0, given: 0 },   // eggs waiting to start a generation
+    nursery: { eggs: [], made: 0, given: 0, bought: 0 },   // eggs waiting to start a generation (bought: special eggs)
     sparks: {},       // what the family knows about each spark form: 'observed' | 'understood'
     nearMiss: {},     // spark babies that settled into a normal form, per spark form
     pures: [],        // forms raised Pure (same form as both parents)
@@ -188,6 +188,28 @@ export class Ranch {
     a.bredDay = b.bredDay = dayNumber(now);
     if (egg.spark) this.learnSpark(egg.spark, 'observed');
     return { egg, cost: BREEDING.cost };
+  }
+  // ---------- special eggs (pearls) ----------
+  // A Cat-ear or Topknot egg (BREEDS.specialEggs): the type is guaranteed (a Dollop of that variant). It waits in the
+  // Nursery like a bred egg: same warm time, same nest limit, chosen at move-out or put on the cushion.
+  canBuySpecialEgg(variant) {
+    const def = BREEDS.specialEggs[variant];
+    if (!def) return { ok: false, reason: 'missing' };
+    if (this.eggs().length >= BREEDING.maxEggs) return { ok: false, reason: 'full' };
+    if (this.r.pearls < def.price) return { ok: false, reason: 'pearls', cost: def.price };
+    return { ok: true, cost: def.price };
+  }
+  buySpecialEgg(variant, now = Date.now()) {
+    if (!this.canBuySpecialEgg(variant).ok) return null;
+    const def = BREEDS.specialEggs[variant], n = this.r.nursery;
+    this.spend(def.price);
+    const id = `s${now.toString(36)}-${n.made}`, seed = `${variant}|${id}`;
+    const egg = { id, seed, laidAt: now, readyAt: now + this.newEggSeconds() * 1000, parents: [], special: variant, spark: null, pure: null,
+      line: 1, bias: {}, personality: {}, favorite: null, body: rollSpecialEgg(variant, seed) };
+    n.made++;
+    n.bought = (n.bought || 0) + 1;
+    n.eggs.push(egg);
+    return { egg, cost: def.price, first: n.bought === 1 };
   }
   eggReady(egg, now = Date.now()) { return !!egg && now >= egg.readyAt; }
   // how long this egg warms in all (eggs made with the Patchwork Quilt warm faster)

@@ -203,7 +203,8 @@ console.log('\n# Heirlooms');
   const { st, sim } = fresh();
   settled(st, 2e15); st.jelly = 2e15;
   const ws = sim.canBuyHeirloom('wishstar');
-  ok(!ws.ok && ws.reason === 'soon' && sim.buyHeirloom('wishstar') === null && !st.heirlooms.owned.includes('wishstar'), 'Wishing Star: shown but not buyable ("' + HEIRLOOM_BY_ID.wishstar.soon + '")');
+  // (recipe body, slice B1: the Wishing Star got its real effect, rare eggs x2, and is for sale like the others)
+  ok(ws.ok && HEIRLOOM_BY_ID.wishstar.buyable !== false && HEIRLOOM_BY_ID.wishstar.fx.rareEggs === 2 && !st.heirlooms.owned.includes('wishstar'), 'Wishing Star: for sale, with its real effect (rare eggs x2)');
   ok(HEIRLOOMS.filter(h => h.buyable !== false).every(h => Object.keys(h.fx).length > 0), 'every heirloom you can buy has a real effect');
   // buying: spends jelly only
   const fam = clone(st.ranch.family), tj = st.totalJelly, j0 = st.jelly;
