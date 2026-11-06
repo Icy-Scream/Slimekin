@@ -261,3 +261,28 @@ The jelly loop's placeholder emoji now have drawings. Nothing in `content.js` ch
   disc with an emoji; the old disc is the fallback until the image loads. The sprite is a bit bigger (0.34).
 - Phone pill: `#medalBadge` shows again at 17 px next to the name (it was hidden on phones). To make room, the jelly
   rate under the count is shorter on phones: "2.08M /sec" (and "· zzz" while asleep) instead of "jelly per second".
+
+## Greenhouse
+
+The baked Greenhouse room is home's default background (`src/view/greenhouse.js`, coordinated by
+`src/greenhouse-home.js`), with a camera you can turn in it.
+
+- Camera button `#camBtn.cam-btn.glass` (`src/ui/camera-button.js`, CSS `.cam-btn` in `index.html`): a 44 x 44 round
+  button fixed at the left, 10 px under the top bar (`top` set from `.top`'s bottom; with no top bar, while the egg
+  waits, `env(safe-area-inset-top) + 14px`). `z-index: 4`, under the HUD layer (`#ui` is 5), so a stretched menu sheet
+  covers it; it is also hidden while the sheet is tall. Shows only in the Greenhouse, at home, in play or while the egg
+  waits, with no modal open (hidden in the Meadow and Classic, at the ranch, while hatching or moving out).
+  - Icon: the drawn `ICON.camera` (`src/ui/icons.js`); after you turn the camera by hand it shows `ICON.cameraBack`
+    (a camera with an orange curved arrow), the button gets the class `.free` (an orange ring), and its next tap goes
+    to Front.
+  - `data-view`: `front | wide | left | right | free`; `aria-label` / `title`: "Camera: Wide view. Tap for Left" or
+    "Camera: turned by hand. Tap for the front view".
+  - `.tip`: a small pill to the right of the button with the new angle's name ("Wide view") for 1.3 s after a tap
+    (class `.tipping` on the button).
+- Settings, Background row: three choices `Greenhouse / Meadow / Classic` (`.seg` buttons `data-k="scene"`) and a new
+  sub line: "In the Greenhouse, the camera button and a drag on the background turn the view. Classic is just your
+  slime." If the room could not load on this device: "The Greenhouse could not load here, so the meadow shows for now."
+- No other new elements. Gestures on empty background in the Greenhouse: one finger turns the camera, two fingers
+  pinch to zoom, a mouse wheel zooms on a computer (the swipe code still counts).
+- 3D: helpers stand on the Greenhouse's spots (`GREENHOUSE.spots` in `content.js`); while the room loads, home shows
+  the plain Classic look for a moment.

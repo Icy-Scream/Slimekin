@@ -1113,6 +1113,7 @@ export class Game {
     const st = this.state;
     if (st.phase === 'egg') {
       if (this.view === 'ranch') { if (!this.hud.modalOpen) this.ranchDown(e); return; }
+      if (this.home.second(e)) return;   // [greenhouse] a second finger while turning the camera: a pinch
       const h = this.egg && this.egg.hit(this.raycaster);
       if (h) this.tapEgg(h.point);
       else this.home.down(e);   // [greenhouse] empty background: turn the camera
@@ -1120,6 +1121,7 @@ export class Game {
     }
     if (st.phase !== 'play' || this.hud.modalOpen || this.departing) return;
     if (this.view === 'ranch') { this.ranchDown(e); return; }
+    if (this.home.second(e)) { this.swipe = null; return; }   // [greenhouse] a second finger while turning the camera: a pinch
     if (this.behave.tryHighFive(this.raycaster)) return;
     if (this.glimmer && this.raycaster.ray.distanceSqToPoint(this.glimmer.obj.position) < 0.5 * 0.5) { this.catchGlimmer(); return; }
     const b = this.helpers3d.hitBubble(this.raycaster);
@@ -1127,7 +1129,7 @@ export class Game {
     const hit = this.slime.hit(this.raycaster);
     if (!hit) {
       this.swipe = { id: e.pointerId, x: e.clientX, y: e.clientY, t: this.time };
-      if (this.home.down(e)) this.swipe = null;   // [greenhouse] a drag here turns the camera; a second finger pinches (no swipe)
+      this.home.down(e);   // [greenhouse] a drag from here turns the camera (a short swipe still counts for the secret code)
     }
     if (hit) {
       const region = this.slime.faceRegion(this.raycaster);
