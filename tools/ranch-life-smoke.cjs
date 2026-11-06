@@ -194,7 +194,7 @@ const HOUR = 3600e3;
     await ev(() => { const g = window.slimekin; g.openNursery(); g.advance(1.5); });
     const nur = await ev(id => { const g = window.slimekin, b = document.querySelector(`.parent-pick[data-id="${id}"]`); return { disabled: b && b.disabled, text: b && b.innerText, canBreed: g.sim.ranch.canBreed(id, g.state.ranch.residents.find(x => x.id !== id).id, g.nowMs()) }; }, juniper);
     check(nur.disabled && /On a trip/.test(nur.text) && nur.canBreed.reason === 'away', 'the Nursery: a traveler can\'t be picked ("On a trip"), canBreed says away', JSON.stringify(nur));
-    await scrollTo('.parent-grid');
+    await ev(() => document.querySelector('.parent-grid').scrollIntoView({ block: 'center' }));
     await shot('11-nursery-traveler');
     await ev(() => { const g = window.slimekin; g.closeNursery(); g.advance(1); });
     await ev(id => { document.querySelector(`#body-ranch .res [data-act="place"][data-id="${id}"]`).click(); window.slimekin.advance(0.3); }, juniper);
@@ -231,9 +231,18 @@ const HOUR = 3600e3;
     await ev(() => window.slimekin.advance(1));
     const dn = await ev(() => { const g = window.slimekin; for (let k = 0; k < 6 && !document.querySelector('#modalCard .rl-return'); k++) g.advance(1); return { busy: g.state.ranch.residents.filter(x => x.trip || x.lesson).map(x => x.name), charm: g.state.ranch.residents.find(x => x.name === 'Pebble').skills.charm, card: g.hud.modalOpen ? document.getElementById('modalCard').innerText : '' }; });
     check(dn.busy.length === 0 && dn.charm === 1 && /Juniper · Willowbend Gardens/.test(dn.card), 'the debug buttons finish the lesson and bring the traveler home (with its card)', JSON.stringify(dn.busy));
+    // another card opening on top of the return card (here: Settings) does not lose it: it comes back afterwards
+    const again = await ev(() => {
+      const g = window.slimekin;
+      g.openSettings(); g.advance(0.6);
+      const replaced = !document.querySelector('#modalCard [data-rl-card]');
+      g.hud.closeModal(); g.advance(1.2);
+      return { replaced, back: !!document.querySelector('#modalCard [data-rl-card]') && g.hud.modalOpen && /Willowbend Gardens/.test(document.getElementById('modalCard').innerText) };
+    });
+    check(again.replaced && again.back, 'a card opened over the return card does not lose it: it shows again when that one closes', JSON.stringify(again));
     await ev(() => window.slimekin.hud.closeModal());
     await ev(() => { const g = window.slimekin; g.focusResident(null); g.advance(1); });
-    await scrollTo('#body-ranch .rl-card');
+    await ev(() => { for (const t of document.querySelectorAll('.toast')) t.remove(); document.querySelector('#body-ranch [data-rl="shelf"]').scrollIntoView({ block: 'end' }); });
     await shot('14-ranch-row-after');
   } catch (e) {
     errors.push('test error: ' + (e.stack || e.message));

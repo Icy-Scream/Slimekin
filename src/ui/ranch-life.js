@@ -17,6 +17,7 @@ const CSS = `
   .rl-ic { font-size: 24px; line-height: 1; width: 32px; text-align: center; flex: none; }
   .rl-stars { letter-spacing: 1px; color: var(--honey, #e0a526); font-weight: 800; white-space: nowrap; }
   .res .rl-status { grid-column: 1 / -1; }
+  .rl-card .upgrades { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .rl-card .upgrades .upgrade { min-height: 44px; }
   .rl-return .story { font-style: italic; }`;
 
@@ -24,6 +25,7 @@ export class RanchLifeUI {
   constructor(game) {
     this.g = game;
     this.pending = [];        // finished trips/lessons waiting for the return card
+    this.shown = null;        // what the return card on screen lists (put back in the queue if another card replaces it)
     this.cardAt = 3;          // (game seconds) not before this: the welcome-back card goes first
     this.checkT = 0;
     if (typeof document !== 'undefined' && !document.getElementById('ranchLifeCss')) {
@@ -267,6 +269,11 @@ export class RanchLifeUI {
       const done = this.rl.resolve(this.now());
       if (done.length) this.announce(done, { live: true });
     }
+    // the card was closed (seen), or another card took its place before it was seen: show it again later
+    if (this.shown && !g.hud.modalOpen) {
+      if (!document.querySelector('#modalCard [data-rl-card]')) this.pending.unshift(...this.shown);
+      this.shown = null;
+    }
     if (this.pending.length && g.time >= this.cardAt && !g.hud.modalOpen && !g.hatching && !g.departing && !g.auction && g.state.phase !== 'naming') this.showCard();
   }
   // Toasts and Journal lines now; trips (and anything that finished while the game was closed) also get the card.
@@ -320,7 +327,8 @@ export class RanchLifeUI {
     }).join('');
     const lessonHtml = lessons.map(r => `<div class="card"><div class="row-between"><b>🎓 ${esc(r.name)} · ${esc(SKILL_BY_ID[r.skill].name)}</b><span class="rl-stars">${starText(r.star)}</span></div><span class="sub">${esc(r.name)} earned ${plural(r.star, 'star')} in ${esc(SKILL_BY_ID[r.skill].name)}.</span></div>`).join('');
     const title = list.length > 1 ? 'While you were away' : trips.length ? `${esc(trips[0].name)} is home!` : 'Lesson done!';
-    g.hud.openModal(`<h2>${title}</h2>${tripHtml}${lessonHtml}<div class="actions"><button class="btn primary" id="rlOk">Yay!</button></div>`, {
+    this.shown = list;
+    g.hud.openModal(`<h2 data-rl-card>${title}</h2>${tripHtml}${lessonHtml}<div class="actions"><button class="btn primary" id="rlOk">Yay!</button></div>`, {
       onOpen: card => card.querySelector('#rlOk').addEventListener('click', () => g.hud.closeModal()),
     });
     g.sfx.mii && g.sfx.mii();
