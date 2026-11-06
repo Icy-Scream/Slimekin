@@ -217,7 +217,8 @@ async function render() {
         g.ranch.sync(list.map((d, i) => ({ id: 'sample' + i, name: d.name, traits: Object.fromEntries(keys.map(k => [k, T(d.form)[k] || 0])), form: { id: d.form, pure: false },
           breed: d.body.mix === 0 ? 'curly' : d.body.mix === 1 ? 'dollop' : 'mixed', variant: d.body.variant || 'plain', mix: d.body.mix, genes: { tall: 1, wide: 1, lump: 1, side: 0, ...(d.body.genes || {}) } })));
         // spread over the meadow, clear of the barn, pond, trees, basket and the Nursery's yard
-        const spots = [[-1.2, -2.2], [0.9, -3.0], [1.4, -0.4], [-0.8, -0.2], [-2.8, 0.0], [0.6, 1.6], [2.6, 1.6], [3.6, -3.6], [1.9, 3.6], [-0.4, 2.2]];
+        // (the two that get visited stand where the close-up camera has a clear view)
+        const spots = [[-1.2, -2.2], [2.0, -3.4], [0.8, -1.9], [-1.4, 0.9], [-2.8, 0.0], [0, 0.2], [2.6, 1.6], [3.6, -3.6], [1.9, 3.6], [-0.4, 2.4]];
         let i = 0;
         for (const r of g.ranch.residents.values()) {
           const [x, z] = spots[i++ % spots.length];
@@ -252,9 +253,9 @@ async function render() {
         await shot(framePath('ranch-10', dark ? 'night' : 'day'));
       }
       await setTheme(false);
-      await ev(() => { const g = window.slimekin; g.focusResident('sample2'); g.advance(3); });
+      await ev(() => { const g = window.slimekin; g.focusResident('sample2'); g.advance(4.5); });
       await shot(framePath('ranch-visit', 'day'));
-      await ev(() => { const g = window.slimekin; g.focusResident('sample5'); g.advance(3); });
+      await ev(() => { const g = window.slimekin; g.focusResident('sample5'); g.advance(4.5); });
       await shot(framePath('ranch-visit2', 'day'));
       await ev(() => { const g = window.slimekin; g.focusResident(null); g.leaveRanch(); g.advance(2); });
     }
