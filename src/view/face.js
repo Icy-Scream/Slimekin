@@ -9,6 +9,10 @@ const TONGUE = '#ff8fae';
 const TAU = Math.PI * 2;
 
 export const FACE_W = W, FACE_H = H;
+const lerp = (a, b, t) => a + (b - a) * t;
+const ell = (c, x, y, rx, ry) => { c.beginPath(); c.ellipse(x, y, Math.max(0.1, rx), Math.max(0.1, ry), 0, 0, TAU); c.fill(); };
+const _ca = new THREE.Color(), _cb = new THREE.Color();
+const mixHex = (a, b, t) => '#' + _ca.set(a).lerp(_cb.set(b), t).getHexString();
 
 export class FaceRenderer {
   constructor() {
@@ -19,9 +23,16 @@ export class FaceRenderer {
     this.texture = new THREE.CanvasTexture(this.canvas);
     this.texture.colorSpace = THREE.SRGBColorSpace;
     this.texture.anisotropy = 4;
-    this.eyeY = 150;
-    this.eyeDX = 112;
-    this.mouthY = 238;
+    // The recipe body's face: ONE eye that slides from the Curly face (big glossy blue eyes, open smile) to the Dollop
+    // face (dark ovals; the smile shrinks to a tiny one, then away when grown, though it still opens to eat, sing and
+    // gasp). mixK: how Dollop the slime is (0..1); grown: how grown its Dollop face is (0..1). Set by SlimeAvatar.
+    this.eyeY = 145;
+    this.eyeDX = 118;
+    this.mouthY = 196;
+    this.cheekDX = 165;
+    this.cheekY = 216;
+    this.mixK = 0;
+    this.grown = 0;
   }
 
   draw(e, look, blink, t) {
@@ -43,27 +54,23 @@ export class FaceRenderer {
     if (e.sweat) this.sweat(t);
   }
 
+  // soft round cheeks: always a little rosy (the baseline face), stronger when shy, with three white lines when
+  // very embarrassed
   blush(amount, t) {
-    if (amount < 0.02) return;
-    const c = this.ctx;
+    const c = this.ctx, k = Math.max(0.55, amount) * lerp(1, 0.75, this.mixK);
     for (const side of [-1, 1]) {
-      const x = W / 2 + side * 176, y = 232;
-      c.save();
-      c.translate(x, y);
-      c.scale(1, 0.55);
-      const g = c.createRadialGradient(0, 0, 4, 0, 0, 58);
-      g.addColorStop(0, `rgba(255, 105, 150, ${0.62 * amount})`);
-      g.addColorStop(1, 'rgba(255, 105, 150, 0)');
-      c.fillStyle = g;
-      c.beginPath(); c.arc(0, 0, 58, 0, TAU); c.fill();
-      c.restore();
+      const x = W / 2 + side * this.cheekDX, y = this.cheekY;
+      c.save(); c.translate(x, y); c.scale(1, 0.48);
+      const g = c.createRadialGradient(0, 0, 4, 0, 0, 42);
+      g.addColorStop(0, `rgba(255,120,150,${0.7 * k})`); g.addColorStop(0.7, `rgba(255,120,150,${0.45 * k})`); g.addColorStop(1, 'rgba(255,120,150,0)');
+      c.fillStyle = g; c.beginPath(); c.arc(0, 0, 42, 0, TAU); c.fill(); c.restore();
       if (amount > 0.55) {
         c.strokeStyle = `rgba(255, 255, 255, ${(amount - 0.55) * 1.6})`;
         c.lineWidth = 4;
         for (let i = -1; i <= 1; i++) {
           c.beginPath();
-          c.moveTo(x + i * 16 - 5, y + 7);
-          c.lineTo(x + i * 16 + 5, y - 7);
+          c.moveTo(x + i * 14 - 4, y + 6);
+          c.lineTo(x + i * 14 + 4, y - 6);
           c.stroke();
         }
       }
@@ -149,37 +156,34 @@ export class FaceRenderer {
     c.stroke();
   }
 
-  // Round glossy eyes: normal, sparkle, wide, sad, determined
+  // Round glossy eyes (normal, sparkle, wide, sad, determined): one parametric eye from the Curly face (k = 0: big
+  // glossy blue eyes with a cyan glow) to the Dollop face (k = 1: dark ovals, smaller highlights when grown).
   eyeRound(ex, ey, rx, ry, style, open, lx, ly, side, t, iris) {
-    const c = this.ctx;
-    let erx = rx, ery = ry * open;
-    if (style === 'wide') { erx *= 1.08; ery *= 1.12; }
-    if (style === 'sad') { ery *= 0.92; }
+    const c = this.ctx, k = this.mixK, g = this.grown;
+    const RX = lerp(56, 34, k), RY = lerp(70, lerp(47, 56, g), k) * (style === 'wide' ? 1.1 : style === 'sad' ? 0.92 : 1) * open;
     c.save();
-    c.beginPath();
-    c.ellipse(ex, ey, erx, ery, 0, 0, TAU);
-    c.fillStyle = INK;
-    c.fill();
-    c.clip();
-    const g = c.createLinearGradient(0, ey - ery, 0, ey + ery);
-    g.addColorStop(0.3, 'rgba(0,0,0,0)');
-    g.addColorStop(1, iris || 'rgba(120, 240, 200, 0.9)');
-    c.fillStyle = g;
-    c.fillRect(ex - erx, ey - ery, erx * 2, ery * 2);
+    c.fillStyle = mixHex('#0e1c4e', '#10163a', k); ell(c, ex, ey, RX + 3 * k, RY + 3 * k);
+    const ix = lerp(0.84, 1, k), iy = lerp(0.88, 1, k);
+    c.beginPath(); c.ellipse(ex, ey + RY * 0.04 * (1 - k), RX * ix, Math.max(0.1, RY * iy), 0, 0, TAU); c.save(); c.clip();
+    const gr = c.createLinearGradient(0, ey - RY, 0, ey + RY);
+    gr.addColorStop(0, mixHex('#183496', '#1e2242', k)); gr.addColorStop(0.5, mixHex('#246ce4', '#1e2242', k)); gr.addColorStop(1, mixHex('#6ec8ff', '#2c3466', k));
+    c.fillStyle = gr; c.fillRect(ex - RX, ey - RY * 1.1, RX * 2, RY * 2.2);
+    c.fillStyle = `rgba(8,20,64,${0.84 * (1 - k)})`; ell(c, ex, ey - RY * 0.04, RX * 0.46, RY * 0.52);
+    const gx = ex + RX * 0.05 * (1 - k), gy = ey + RY * lerp(0.5, 0.45, k);
+    const rg = c.createRadialGradient(gx, gy, 0, gx, gy, Math.max(0.1, RX * lerp(0.6, 0.9, k)));
+    rg.addColorStop(0, `rgba(${Math.round(lerp(80, 90, k))},${Math.round(lerp(230, 104, k))},${Math.round(lerp(255, 170, k))},${lerp(0.85, 0.7, k)})`); rg.addColorStop(1, 'rgba(90,104,170,0)');
+    c.fillStyle = rg; ell(c, gx, gy, RX * lerp(0.6, 1, k), RY * lerp(0.32, 0.5, k));
     c.restore();
-
-    const hs = style === 'wide' ? 0.7 : 1;
-    c.fillStyle = '#ffffff';
-    c.beginPath();
-    c.ellipse(ex - erx * 0.3 - lx * 3, ey - ery * 0.36 - ly * 2, erx * 0.35 * hs, Math.min(erx * 0.35, ery * 0.42) * hs, -0.35, 0, TAU);
-    c.fill();
-    c.beginPath();
-    c.arc(ex + erx * 0.36, ey + ery * 0.34, erx * 0.14 * hs, 0, TAU);
-    c.fill();
+    if (open > 0.4) {
+      c.fillStyle = '#ffffff';
+      ell(c, ex + RX * lerp(0.26, lerp(0.2, 0.14, g), k), ey - RY * lerp(0.38, lerp(0.42, 0.5, g), k), RX * lerp(0.3, lerp(0.36, 0.34, g), k), RY * lerp(0.25, lerp(0.24, 0.2, g), k));
+      c.globalAlpha = lerp(0.92, lerp(0.9, 0, g), k); ell(c, ex - RX * lerp(0.32, 0.3, k), ey + RY * lerp(0.36, 0.38, k), RX * 0.13, RY * 0.1); c.globalAlpha = 1;
+    }
+    c.restore();
     if (style === 'sparkle') {
       const tw = 0.75 + Math.sin(t * 10 + side) * 0.25;
-      this.star(ex + erx * 0.25, ey - ery * 0.02, 13 * tw);
-      this.star(ex - erx * 0.42, ey + ery * 0.4, 7 * (1.2 - tw * 0.4));
+      this.star(ex + RX * 0.25, ey - RY * 0.02, 13 * tw);
+      this.star(ex - RX * 0.42, ey + RY * 0.4, 7 * (1.2 - tw * 0.4));
     }
   }
 
@@ -210,6 +214,7 @@ export class FaceRenderer {
 
   mouthShape(e, cx, cy, t) {
     const c = this.ctx;
+    if ((e.mouth === 'smile' || e.mouth === 'cat') && !(e.mouthOpen > 0.05)) { this.smile(cx, cy); return; }
     c.strokeStyle = INK;
     c.fillStyle = INK;
     c.lineWidth = 6;
@@ -270,6 +275,20 @@ export class FaceRenderer {
       default:
         c.beginPath(); c.arc(cx, cy - 16, 20, Math.PI * 0.2, Math.PI * 0.8); c.stroke();
     }
+  }
+
+  // The baseline open smile; it shrinks to a Dollop baby's tiny smile, then away for a grown Dollop.
+  smile(cx, cy) {
+    const f = lerp(1, lerp(0.36, 0, this.grown), this.mixK);
+    if (f < 0.06) return;
+    const c = this.ctx, w = 34 * f, h = 38 * f, top = cy - 7 * f;
+    const path = () => {
+      c.beginPath(); c.moveTo(cx - w, top); c.quadraticCurveTo(cx, top - 5, cx + w, top);
+      c.bezierCurveTo(cx + w * 0.98, top + h * 1.32, cx - w * 0.98, top + h * 1.32, cx - w, top); c.closePath();
+    };
+    c.save(); path(); c.fillStyle = '#962434'; c.fill(); c.clip();
+    c.fillStyle = '#ff808e'; ell(c, cx, top + h * 0.98, w * 0.7, h * 0.5); c.restore();
+    path(); c.lineWidth = Math.max(1.5, 4 * f); c.strokeStyle = '#581220'; c.stroke();
   }
 
   openMouth(cx, top, hw, depth) {

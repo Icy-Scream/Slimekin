@@ -51,6 +51,8 @@ export class Game {
     this.slime.root.position.y = SLIME_Y;
     this.scene.add(this.slime.root);
     this.slime.setTraits(this.state.slime.traits);
+    this.slime.setRecipe(this.state.slime, { instant: true });   // its breed (Curly, Dollop or in-between), fixed at the egg
+    this.slime.setStage(this.sim.stageIndex(), this.sim.stageProgress(), true);
     this.slime.size = this.slime.sizeTarget = this.sim.size();
     this.slime.setOutfits(this.state.outfits.worn);
     if (this.state.slime.form) this.slime.setForm(this.state.slime.form.id, { pure: this.state.slime.form.pure });
@@ -764,6 +766,8 @@ export class Game {
     const was = r.oldTo === 'nursery' ? `${old} went back to the Nursery.` : `${old} went to a neighbor family who will love the baby.`;
     this.remember('🥚', `${p.name} and ${q.name}'s egg went on the cushion. ${was}`);
     this.makeEggView();
+    this.slime.setRecipe(this.state.slime, { instant: true });   // the baby in this egg has the egg's own body
+    this.slime.setStage(0, 0, true);
     this.eggWarming = !this.sim.eggReady(this.nowMs());
     this.updateEggHint();
     this.syncNursery();
@@ -2526,6 +2530,7 @@ export class Game {
     this.computeLook();
     this.computeMotion();
     this.slime.sizeTarget = this.sim.size();
+    this.slime.setStage(this.sim.stageIndex(), this.sim.stageProgress());   // the body morphs as it grows
     if (this.departing) this.updateDeparture(dt);
     // (off screen while visiting the ranch, so it can rest)
     if (this.slime.visible && (this.view !== 'ranch' || this.stage.camPos.z > -2)) this.slime.update(dt);

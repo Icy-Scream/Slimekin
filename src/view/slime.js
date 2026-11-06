@@ -2,11 +2,11 @@
 // poke dents, wobble, swallowing bulge), a canvas face that hugs the surface,
 // accessories that grow from its diet, and eaten food floating inside.
 import * as THREE from 'three';
-import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
-import { FaceRenderer } from './face.js';
+import { FaceRenderer, FACE_H } from './face.js';
 import { makeFood, OUTFIT_MAKERS } from './models.js';
 import { FORM_LOOKS, PROP_MAKERS, makePattern } from './forms.js';
-import { TRAITS, TRAIT_IDS, FOOD_BY_ID } from '../data/content.js';
+import { TRAITS, TRAIT_IDS, FOOD_BY_ID, BREEDS } from '../data/content.js';
+import { recipeFor, stageM, cleanBody } from '../core/recipe.js';
 
 // How long each snack takes to fully dissolve (seconds of play), and what it breaks into.
 const DIGEST = { cookie: 150, chili: 110, iron: 320, moss: 180, berry: 120, crystal: 360 };
@@ -63,6 +63,151 @@ const CENTER_Y = 0.6;
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+const lerp = (a, b, t) => a + (b - a) * t;
+const TAU = Math.PI * 2;
+
+// ---------- the recipe body ----------
+// One body for every slime: unit directions in rings around the curl's axis A0 (leaning back and to the right),
+// denser along the curl, so the same points can be the baby drop, a Dollop's dome or a Curly's curl. The shape is the
+// recipe (core/recipe.js, BREEDS in content.js) plus slow goo motion plus every physics term (dents, squash, lean, hop,
+// wobble, gulp, little hands, taffy pull), then a grown-up form's shape on top.
+const nrm3 = (x, y, z) => { const l = Math.hypot(x, y, z) || 1; return [x / l, y / l, z / l]; };
+const A0 = nrm3(0.3, 1, -0.25);
+const B0 = (() => { const b = [1, 0, -0.35], d = b[0] * A0[0] + b[1] * A0[1] + b[2] * A0[2]; return nrm3(b[0] - d * A0[0], b[1] - d * A0[1], b[2] - d * A0[2]); })();
+const N0 = [A0[1] * B0[2] - A0[2] * B0[1], A0[2] * B0[0] - A0[0] * B0[2], A0[0] * B0[1] - A0[1] * B0[0]];
+const [A0x, A0y, A0z] = A0;
+// curl rings, body rings, points around each ring: the pet's body (5,618 points) and a lighter one (1,370 points)
+// for ranch residents (and the pet on Low graphics). Same math, fewer rings.
+const BODY_RES = { full: [34, 46, 72], lite: [17, 23, 36] };
+const ARM_THETA = 0.5;   // the ring band reserved for the curl (radians around A0); denser toward the tip
+const TOPOLOGY = {};
+function bodyTopology(kind) {
+  if (TOPOLOGY[kind]) return TOPOLOGY[kind];
+  const [armRings, bodyRings, seg] = BODY_RES[kind], p = 1.5, th = [];
+  for (let j = armRings; j >= 1; j--) { const t = ARM_THETA * Math.pow(1 - j / armRings, 1 / p); if (t > 1e-6) th.push(t); }
+  for (let i = 1; i < bodyRings; i++) th.push(ARM_THETA + (Math.PI - ARM_THETA) * i / bodyRings);
+  const dirs = [A0.slice()];
+  for (const t of th) for (let k = 0; k < seg; k++) {
+    const f = TAU * k / seg, c = Math.cos(t), s = Math.sin(t), cf = Math.cos(f), sf = Math.sin(f);
+    dirs.push([c * A0[0] + s * (cf * B0[0] + sf * N0[0]), c * A0[1] + s * (cf * B0[1] + sf * N0[1]), c * A0[2] + s * (cf * B0[2] + sf * N0[2])]);
+  }
+  dirs.push([-A0[0], -A0[1], -A0[2]]);
+  const tris = [];
+  for (let k = 0; k < seg; k++) tris.push([0, 1 + k, 1 + (k + 1) % seg]);
+  for (let r = 0; r < th.length - 1; r++) {
+    const a = 1 + r * seg, b = 1 + (r + 1) * seg;
+    for (let k = 0; k < seg; k++) { const k1 = (k + 1) % seg; tris.push([a + k, b + k, b + k1]); tris.push([a + k, b + k1, a + k1]); }
+  }
+  const last = 1 + (th.length - 1) * seg, bot = dirs.length - 1;
+  for (let k = 0; k < seg; k++) tris.push([last + k, bot, last + (k + 1) % seg]);
+  // wind every triangle outward
+  const idx = [];
+  for (const [i, j, k] of tris) {
+    const a = dirs[i], b = dirs[j], c = dirs[k];
+    const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
+    const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+    if (nx * (a[0] + b[0] + c[0]) + ny * (a[1] + b[1] + c[1]) + nz * (a[2] + b[2] + c[2]) >= 0) idx.push(i, j, k); else idx.push(i, k, j);
+  }
+  const n = dirs.length, base = new Float32Array(n * 3), baseAz = new Float32Array(n), uvs = new Float32Array(n * 2);
+  dirs.forEach((d, i) => {
+    base.set(d, i * 3); baseAz[i] = Math.atan2(d[2], d[0]);
+    // wrap-around UVs (seam at the back) so grown-up forms can paint patterns on the body
+    uvs[i * 2] = 0.5 + Math.atan2(d[0], d[2]) / TAU; uvs[i * 2 + 1] = 0.5 + Math.asin(clamp(d[1], -1, 1)) / Math.PI;
+  });
+  TOPOLOGY[kind] = { base, baseAz, uvs, index: n > 65535 ? new Uint32Array(idx) : new Uint16Array(idx), count: n };
+  return TOPOLOGY[kind];
+}
+// The resting body for a recipe S at time T (slow goo motion), with a grown-up form's shape F on top.
+function restShape(px, py, pz, az, S, T, F, o) {
+  let x, y, z;
+  if (py < 0) { const t = -py, tt = 1 - t; y = -BOTTOM * (1 - tt * tt * tt); const w = 1 + 0.14 * t; x = px * w * S.wide; z = pz * w * S.wide; }
+  else { y = py * 0.97; const w = 1 - 0.07 * py * py; x = px * w * S.wide; z = pz * w * S.wide; }
+  let al = px * A0x + py * A0y + pz * A0z; al = al > 0 ? al : 0; const k = al * al * al;
+  if (py > 0) y *= S.tall * (1 + S.peak * k * 0.32);
+  const f = 1 - S.peak * k * 0.8; x *= f; z *= f;
+  if (S.side) { const f2 = 1 + S.side * Math.sin(Math.PI * clamp(py, 0, 1)); x *= f2; z *= f2; }
+  if (S.flat && py > 0) { const c1 = clamp(py, 0, 1); y *= 1 - S.flat * c1 * c1 * c1 * c1; }
+  const q = (py - S.lipc) / S.lipw; let lb = Math.exp(-q * q); if (py < S.lipc) lb = 0.9 + 0.1 * lb;
+  const flow = 1 + S.flowA * (0.25 * Math.sin(az * 3 + 0.7 + T * 0.45) + 0.14 * Math.sin(az * 5 + 2.0 - T * 0.6) + S.flow2 * Math.sin(az * 2 + 2.6 + T * 0.3));
+  const qc = (py - 0.02) / 0.1;
+  let kr = 1 + S.lip * lb * flow - S.crease * (0.5 + 0.5 * Math.sin(az * 2 + 1.0)) * Math.exp(-qc * qc);
+  if (S.skirtWave) { const qs = (py + 0.12) / 0.16; kr += S.skirtWave * Math.sin(az * 4 + 1.0 + T * 0.35) * Math.exp(-qs * qs); }
+  if (S.baseFlow) { const qb = (py + 0.26) / 0.22; kr += S.baseFlow * (0.6 * Math.sin(az * 3 + 0.7 + T * 0.45) + 0.4 * Math.sin(az * 5 + 2.0 - T * 0.6)) * Math.exp(-qb * qb); }
+  x *= kr; z *= kr;
+  if (py < 0) y += (-BOTTOM - y) * Math.min(1, S.lip * lb * S.sag);
+  // a grown-up form's shape on top (forms.js `shape`): squarer, wider, taller, a pointed top
+  if (F) {
+    if (F.square) {
+      const r2 = Math.sqrt(x * x + z * z);
+      if (r2 > 1e-4) { const r4 = Math.sqrt(Math.sqrt(x ** 4 + z ** 4)); const kk = 1 + (r2 / r4 - 1) * F.square; x *= kk; z *= kk; }
+    }
+    if (F.wide !== 1) { x *= F.wide; z *= F.wide; }
+    if (F.tall !== 1 && py > 0) y *= F.tall;
+    if (F.peak && py > 0) { const kk = py * py * py; x *= 1 - F.peak * kk * 0.8; z *= 1 - F.peak * kk * 0.8; y *= 1 + F.peak * kk * 0.32; }
+  }
+  o.x = x; o.y = y + BOTTOM; o.z = z;
+  return o;
+}
+// Bubbles inside the jelly.
+let BUBBLE_TEX = null;
+function bubbleTex() {
+  if (BUBBLE_TEX) return BUBBLE_TEX;
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const x = c.getContext('2d');
+  const g = x.createRadialGradient(32, 32, 10, 32, 32, 30);
+  g.addColorStop(0, 'rgba(255,255,255,0.05)'); g.addColorStop(0.8, 'rgba(210,245,255,0.35)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+  x.fillStyle = g; x.beginPath(); x.arc(32, 32, 30, 0, TAU); x.fill();
+  x.strokeStyle = 'rgba(255,255,255,0.8)'; x.lineWidth = 3; x.beginPath(); x.arc(32, 32, 24, 0, TAU); x.stroke();
+  x.fillStyle = 'rgba(255,255,255,0.95)'; x.beginPath(); x.ellipse(24, 23, 6, 4, -0.6, 0, TAU); x.fill();
+  BUBBLE_TEX = new THREE.CanvasTexture(c); BUBBLE_TEX.colorSpace = THREE.SRGBColorSpace;
+  return BUBBLE_TEX;
+}
+const BUBBLE_DIRS = [[-0.45, 0.35, 0.8], [0.3, 0.5, 0.82], [0.55, 0.15, 0.85], [-0.2, 0.62, 0.78], [0.05, 0.25, 0.97], [-0.62, 0.05, 0.78]].map(d => nrm3(...d));
+// The jelly skin: a soft blurred inside, a rim light, a lighter glow low in the body, small crisp painted highlights
+// (small on purpose: big white spots read as glass) and, on the wet skin, a slow ripple that makes the shine crawl.
+// uMk: how gummy (Dollop) the body is; uWet: the wet skin's small glints; uRip: the ripple (off on Low graphics).
+function jellyShader(U) {
+  return sh => {
+    Object.assign(sh.uniforms, U);
+    sh.vertexShader = 'varying vec3 vLocalP;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vLocalP = transformed;');
+    sh.fragmentShader = 'varying vec3 vLocalP;\nuniform float uTime; uniform vec3 uRim; uniform vec3 uLow; uniform float uMk; uniform float uWet; uniform float uRip;\n' +
+      'vec3 slimeRipple(vec3 lp) { vec3 q = lp * vec3(7.0, 5.0, 7.0); q.y += uTime * 0.55;\n' +
+      '  return vec3(sin(q.x * 1.3 + sin(q.y * 1.7) * 1.2), sin(q.y * 1.1 + sin(q.z * 1.5 + q.x) * 1.3) * 0.5, sin(q.z * 1.2 + sin(q.x * 1.4 + q.y) * 1.1)); }\n' +
+      sh.fragmentShader
+        .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\n  if (uRip > 0.0) normal = normalize(normal + slimeRipple(vLocalP) * 0.06 * uRip);')
+        .replace('#include <clearcoat_normal_fragment_maps>', '#include <clearcoat_normal_fragment_maps>\n  if (uRip > 0.0) clearcoatNormal = normalize(clearcoatNormal + slimeRipple(vLocalP) * 0.11 * uRip);')
+        .replace('#include <opaque_fragment>', `
+      {
+        vec3 Vd = normalize(vViewPosition);
+        vec3 Nn = normalize(normal);
+        float ndv = clamp(dot(Nn, Vd), 0.0, 1.0);
+        float frs = 1.0 - ndv;
+        float low = smoothstep(0.85, 0.05, vLocalP.y);
+        outgoingLight *= 1.0 - 0.2 * uMk * smoothstep(0.45, 1.25, vLocalP.y);
+        outgoingLight = mix(outgoingLight, uLow, (0.2 + 0.14 * uMk) * low * (0.4 + 0.6 * ndv));
+        vec3 p = vLocalP * vec3(2.2, 2.6, 2.2);
+        float sw = sin(p.x * 1.4 + sin(p.y * 1.9 + uTime * 0.5) * 1.5 + uTime * 0.3) * sin(p.z * 1.3 + sin(p.x * 1.2 - uTime * 0.4) * 1.3 + p.y * 0.8);
+        outgoingLight += uLow * smoothstep(0.55, 0.9, sw) * 0.1 * low;
+        outgoingLight = mix(outgoingLight, uRim, smoothstep(0.55, 0.92, frs) * 0.28);
+        float d1 = dot(Nn, normalize(vec3(-0.45, 0.55, 0.7))), d2 = dot(Nn, normalize(vec3(0.6, 0.3, 0.75)));
+        float h1 = smoothstep(mix(mix(0.972, 0.988, uWet), 0.992, uMk), mix(mix(0.98, 0.993, uWet), 0.996, uMk), d1);
+        float h2 = smoothstep(mix(mix(0.986, 0.994, uWet), 0.995, uMk), mix(mix(0.99, 0.997, uWet), 0.998, uMk), d2);
+        outgoingLight = mix(outgoingLight, vec3(1.0), clamp(h1 * mix(0.78, 0.62, uMk) + h2 * mix(0.65, 0.5, uMk), 0.0, 1.0));
+      }
+      #include <opaque_fragment>`);
+  };
+}
+// The jelly's material numbers (v3base look): a plain Curly (mk 0) to a grown Dollop's gummy skin (mk 1); wet = the
+// wet skin (small glints instead of broad glass patches). A grown-up form's own `mat` numbers win over these.
+const JELLY = {
+  static: { thickness: 1.4, ior: 1.25, attenuationDistance: 1.3 },
+  live: (mk, wet) => ({
+    roughness: lerp(0.3, 0.36, mk),
+    clearcoat: lerp(lerp(1, 0.6, wet), 0.45, mk), clearcoatRoughness: lerp(lerp(0.08, 0.16, wet), 0.3, mk),
+    sheen: lerp(0.4, 0.75, mk), specularIntensity: lerp(lerp(1, 0.45, wet), 0.35, mk),
+    transmission: lerp(0.5, 0.32, mk),
+  }),
+};
 
 class Spring {
   constructor(k, d, x = 0) { this.k = k; this.d = d; this.x = x; this.v = 0; this.target = x; }
@@ -100,7 +245,7 @@ function pureStarTex() {
 }
 
 export class SlimeAvatar {
-  // lite: a cheaper slime for the ranch (coarser body, face redrawn less often).
+  // lite: a cheaper slime for the ranch (lighter body, face redrawn less often).
   constructor({ quality = 'high', lite = false } = {}) {
     this.lite = lite;
     this.faceT = 0;
@@ -108,54 +253,67 @@ export class SlimeAvatar {
     this.body = new THREE.Group();     // squash pivot + roll
     this.root.add(this.body);
 
-    let geo = new THREE.IcosahedronGeometry(1, lite ? 3 : 5);
-    geo.deleteAttribute('normal');
-    geo.deleteAttribute('uv');
-    geo = mergeVertices(geo);
-    this.geo = geo;
-    this.base = Float32Array.from(geo.attributes.position.array);
-    const n = this.base.length / 3;
-    // Wrap-around UVs (seam at the back) so grown-up forms can paint patterns on the body.
-    const uvs = new Float32Array(n * 2);
-    for (let i = 0; i < n; i++) {
-      const x = this.base[i * 3], y = this.base[i * 3 + 1], z = this.base[i * 3 + 2];
-      uvs[i * 2] = 0.5 + Math.atan2(x, z) / (Math.PI * 2);
-      uvs[i * 2 + 1] = 0.5 + Math.asin(Math.max(-1, Math.min(1, y))) / Math.PI;
-    }
-    geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
-    this.baseAz = new Float32Array(n);
-    for (let i = 0; i < n; i++) this.baseAz[i] = Math.atan2(this.base[i * 3 + 2], this.base[i * 3]);
-    geo.computeVertexNormals();
-    geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0.7, 0), 3.2);
+    // the recipe body (see BREEDS in content.js): the slime's own mix of the breeds, its shape number m
+    // (0 = baby .. 1 = grown, eased toward mTarget) and the recipe S it shows now
+    this.bodyInfo = { breed: 'curly', variant: 'plain', mix: 0, genes: { tall: 1, wide: 1, lump: 1, side: 0 } };
+    this.m = 0; this.mTarget = 0; this.mixS = 0; this.mk = 0;
+    this.S = recipeFor(this.bodyInfo, 0);
+    this._rKey = '';
+    this.curl = null;                  // the curl's frame this frame (frameCurl)
+    this.dyn = { sx: 0, vx: 0, sz: 0, vz: 0 };   // the curl sways behind the body's lean
+    this.tipGrab = 0;                  // > 0 while the curl is held by its tip (how far up it was grabbed)
+    this.topIdx = -1;                  // the highest point of the body (the curl's top, or the dome's)
+    this.faceEl = -1;
+    this._cA = new Float32Array(129); this._cB = new Float32Array(129); this._ph = new Float32Array(129);
+    this.wet = true;                   // the wet skin (small crisp glints); ripple: its slow ripple (not on Low)
+    this.ripple = true;
 
+    this.geo = new THREE.BufferGeometry();
+    this.useBody(lite ? 'lite' : 'full');
+
+    this.jellyU = { uTime: { value: 0 }, uRim: { value: new THREE.Color('#bdf3ff') }, uLow: { value: new THREE.Color('#8fe4ff') }, uMk: { value: 0 }, uWet: { value: 1 }, uRip: { value: 1 } };
     this.mat = new THREE.MeshPhysicalMaterial({
       color: BASE_COLOR.clone(),
-      roughness: 0.13,
+      roughness: 0.3,
       metalness: 0,
-      transmission: 0.66,
-      thickness: 1.1,
-      ior: 1.22,
+      transmission: 0.5,
+      thickness: JELLY.static.thickness,
+      ior: JELLY.static.ior,
       attenuationColor: BASE_COLOR.clone(),
-      attenuationDistance: 1.9,
+      attenuationDistance: JELLY.static.attenuationDistance,
       clearcoat: 1,
-      clearcoatRoughness: 0.1,
-      sheen: 0.6,
+      clearcoatRoughness: 0.08,
+      sheen: 0.4,
       sheenRoughness: 0.4,
       sheenColor: new THREE.Color('#ffffff'),
       emissive: BASE_COLOR.clone().multiplyScalar(0.05),
       iridescence: 0,
       iridescenceIOR: 1.3,
     });
-    this.mesh = new THREE.Mesh(geo, this.mat);
+    this.mat.onBeforeCompile = jellyShader(this.jellyU);
+    this.mat.customProgramCacheKey = () => 'slimekin-jelly';
+    this.mesh = new THREE.Mesh(this.geo, this.mat);
     this.mesh.renderOrder = 1;
     this.body.add(this.mesh);
 
-    // Cheap invisible shape for clicking.
-    this.proxy = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 14), new THREE.MeshBasicMaterial({ visible: false }));
-    // Slightly larger than the body and steady while it squishes, so taps land reliably.
-    this.proxy.position.y = 0.66;
-    this.proxy.scale.set(1.18, 0.8, 1.18);
-    this.body.add(this.proxy);
+    // the baby's two little feet (they tuck in as it grows)
+    const footGeo = new THREE.SphereGeometry(1, lite ? 14 : 28, lite ? 10 : 18);
+    this.feet = [-1, 1].map(side => {
+      const f = new THREE.Mesh(footGeo, this.mat);
+      f.renderOrder = 1; f.visible = false; f.userData.d = nrm3(side * 0.55, -0.62, 0.62);
+      this.body.add(f);
+      return f;
+    });
+    this._hitList = [];
+    // bubbles inside the jelly (drawn over it, like the snacks in the belly; residents show them when visited)
+    this.fizz = new THREE.Group();
+    this.body.add(this.fizz);
+    this.bubbles = BUBBLE_DIRS.map((d, i) => {
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: bubbleTex(), depthTest: false, depthWrite: false, transparent: true, opacity: 0.9 }));
+      sp.renderOrder = 1.5; sp.userData = { d, r: 0.03 + (i % 3) * 0.012, ph: i * 1.7 };
+      this.fizz.add(sp);
+      return sp;
+    });
 
     // Face patch: a grid wrapped over the front of the body.
     this.face = new FaceRenderer();
@@ -248,10 +406,101 @@ export class SlimeAvatar {
   setQuality(q) {
     this.quality = q;
     const high = q !== 'low';
-    this.mat.transmission = high ? 0.66 : 0;
+    this.mat.transmission = high ? 0.5 : 0;
     this.mat.transparent = !high;
     this.mat.opacity = high ? 1 : 0.9;
     this.mat.needsUpdate = true;
+    // Low graphics: no wet ripple, and the pet uses the lighter body too
+    this.ripple = high;
+    if (!this.lite) this.useBody(high ? 'full' : 'lite');
+  }
+
+  // ---------- the recipe body ----------
+  // Which body the mesh uses ('full' for the pet, 'lite' for residents and on Low graphics). Same math either way.
+  useBody(kind) {
+    if (this.bodyKind === kind) return;
+    const T = bodyTopology(kind), geo = this.geo;
+    this.bodyKind = kind;
+    this.base = T.base; this.baseAz = T.baseAz;
+    geo.setIndex(new THREE.BufferAttribute(T.index, 1));
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(T.count * 3), 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(T.uvs, 2));
+    geo.deleteAttribute('normal');
+    geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0.7, 0), 3.2);
+    this.topIdx = -1;
+    this.tipGrab = 0;
+    if (this.mesh) this.deform();
+  }
+  // The slime's body: { breed, variant, mix, genes } (from the save). instant: no morph (loading, a new egg).
+  setRecipe(body, { instant = false } = {}) {
+    const b = cleanBody(body);
+    this.bodyInfo = b;
+    if (instant) this.mixS = b.mix;
+    this._rKey = '';
+  }
+  // Growth: stage index (STAGES) and how far along it is; the body eases toward it (instant: jump there).
+  setStage(stageIndex, progress = 0, instant = false) {
+    this.mTarget = stageM(stageIndex, progress);
+    if (instant) { this.m = this.mTarget; this._rKey = ''; }
+  }
+  // The recipe this frame: eased growth and mix (blending numbers is cheap; recomputed only while they move).
+  updateRecipe(dt) {
+    this.m += (this.mTarget - this.m) * (1 - Math.exp(-dt * BREEDS.growEase));
+    this.mixS += (this.bodyInfo.mix - this.mixS) * (1 - Math.exp(-dt * BREEDS.mixEase));
+    if (Math.abs(this.m - this.mTarget) < 1e-4) this.m = this.mTarget;
+    if (Math.abs(this.mixS - this.bodyInfo.mix) < 1e-4) this.mixS = this.bodyInfo.mix;
+    const key = this.m.toFixed(4) + '|' + this.mixS.toFixed(4);
+    if (key === this._rKey) return;
+    this._rKey = key;
+    this.S = recipeFor({ ...this.bodyInfo, mix: this.mixS }, this.m);
+    // the gummy skin comes in with the Dollop breed, fully when grown
+    this.mk = this.mixS * (0.35 + 0.65 * smooth(0, 1, this.m));
+    // the face slides from the Curly face (big glossy eyes, open smile) to the Dollop face (dark ovals, tiny smile)
+    const g = smooth(0.5, 1, this.m);
+    this.face.mixK = this.mixS; this.face.grown = g;
+    this.face.eyeDX = lerp(118, lerp(102, 118, g), this.mixS);
+    if (Math.abs(this.S.faceEl - this.faceEl) > 0.002) this.setFaceEl(this.S.faceEl);
+  }
+  // Where the face sits (its elevation on the body, radians); the mouth and face points follow it.
+  setFaceEl(el0) {
+    const uv = this.faceGeo.attributes.uv.array, fd = this.faceDirs, AZ = 1.32, EL = 0.9;
+    for (let i = 0; i < fd.length / 3; i++) {
+      const az = (uv[i * 2] - 0.5) * AZ, el = el0 + (uv[i * 2 + 1] - 0.5) * EL;
+      fd[i * 3] = Math.sin(az) * Math.cos(el); fd[i * 3 + 1] = Math.sin(el); fd[i * 3 + 2] = Math.cos(az) * Math.cos(el);
+    }
+    this.faceEl = el0;
+    // the drawn mouth sits at mouthY on the face canvas; mouthDir stays the same bit below it as before
+    const mouthEl = el0 + (0.5 - this.face.mouthY / FACE_H) * EL - 0.19;
+    this.mouthDir.set(0, Math.sin(mouthEl), Math.cos(mouthEl));
+    this.faceCenterDir.set(0, Math.sin(el0 - 0.03), Math.cos(el0 - 0.03));
+  }
+  // The curl's frame for this frame: its base ring, axis and centerline (it lags behind the lean, droops when
+  // squashed, and straightens while its tip is pulled).
+  frameCurl() {
+    const S = this.S, T = this.time, F = this.formShape, o = this._o2 || (this._o2 = { x: 0, y: 0, z: 0 });
+    if (S.armK <= 0.001) { this.curl = null; return; }
+    const th = S.theta, c0 = Math.cos(th), s0 = Math.sin(th), R = this._ring || (this._ring = Array.from({ length: 12 }, () => [0, 0, 0]));
+    for (let i = 0; i < 12; i++) {
+      const f = TAU * i / 12, cf = Math.cos(f), sf = Math.sin(f);
+      const dx = c0 * A0[0] + s0 * (cf * B0[0] + sf * N0[0]), dy = c0 * A0[1] + s0 * (cf * B0[1] + sf * N0[1]), dz = c0 * A0[2] + s0 * (cf * B0[2] + sf * N0[2]);
+      restShape(dx, dy, dz, Math.atan2(dz, dx), S, T, F, o); R[i][0] = o.x; R[i][1] = o.y; R[i][2] = o.z;
+    }
+    const C = [0, 0, 0]; for (const r of R) { C[0] += r[0] / 12; C[1] += r[1] / 12; C[2] += r[2] / 12; }
+    let r0 = 0; for (const r of R) r0 += Math.hypot(r[0] - C[0], r[1] - C[1], r[2] - C[2]) / 12; r0 *= 0.97;
+    const X = [R[0][0] - R[6][0], R[0][1] - R[6][1], R[0][2] - R[6][2]], Y = [R[3][0] - R[9][0], R[3][1] - R[9][1], R[3][2] - R[9][2]];
+    let A = nrm3(X[1] * Y[2] - X[2] * Y[1], X[2] * Y[0] - X[0] * Y[2], X[0] * Y[1] - X[1] * Y[0]); if (A[1] < 0) A = [-A[0], -A[1], -A[2]];
+    const dy = this.dyn;
+    const bx = X[0] + dy.sx, by = X[1], bz = X[2] + dy.sz;
+    const dA = bx * A[0] + by * A[1] + bz * A[2];
+    const Bv = nrm3(bx - dA * A[0], by - dA * A[1], bz - dA * A[2]);
+    const N = [A[1] * Bv[2] - A[2] * Bv[1], A[2] * Bv[0] - A[0] * Bv[2], A[0] * Bv[1] - A[1] * Bv[0]];
+    const st = this.tipGrab ? Math.min(1, (this.pull.amt || 0) / 0.6) : 0;   // pulling the tip straightens the curl
+    const bend = (S.bend + clamp(-this.sq.x * 1.4, -0.5, 0.8) + Math.sin(T * 1.6) * 0.06) * (1 - 0.6 * st);
+    const L = S.L, cA = this._cA, cB = this._cB, ph = this._ph, dl = L / 128;
+    for (let i = 0; i <= 128; i++) ph[i] = bend * Math.pow(i / 128, 1.6);
+    cA[0] = 0; cB[0] = 0;
+    for (let i = 1; i <= 128; i++) { cA[i] = cA[i - 1] + Math.cos(ph[i - 1]) * dl; cB[i] = cB[i - 1] + Math.sin(ph[i - 1]) * dl; }
+    this.curl = { th, c0, C, r0, A, Bv, N, cA, cB, ph };
   }
 
   // ---------- construction ----------
@@ -388,9 +637,10 @@ export class SlimeAvatar {
     if (this.pureFx) { this.body.remove(this.pureFx.group); this.pureFx = null; }
     this.pure = !!(pure && look);
     const m = this.mat;
-    Object.assign(m, { roughness: 0.13, clearcoat: 1, sheen: 0.6, metalness: 0, iridescence: Math.min(1, (this.traits.prism || 0) / 25), thickness: 1.1 });
+    // the jelly skin (JELLY: the live numbers follow the breed every frame), then the form's own material numbers
+    Object.assign(m, { metalness: 0, iridescence: Math.min(1, (this.traits.prism || 0) / 25), ...JELLY.static, ...JELLY.live(this.mk, this.wet ? 1 : 0) });
     m.iridescenceThicknessRange = [100, 400];
-    m.transmission = this.quality === 'low' ? 0 : 0.66;
+    if (this.quality === 'low') m.transmission = 0;
     if (m.map) { m.map.dispose(); m.map = null; }
     if (m.emissiveMap) { m.emissiveMap.dispose(); m.emissiveMap = null; }
     this.form = look;
@@ -411,6 +661,8 @@ export class SlimeAvatar {
       m.sheen = 1; m.iridescence = Math.max(m.iridescence, PURE_IRIDESCENCE);
       this.pureFx = this.buildPure();
     }
+    // material numbers the form (or Pure) sets itself: the jelly's live numbers leave them alone
+    this.lockedMat = new Set([...Object.keys((look && look.mat) || {}), ...(this.pure ? ['sheen'] : [])]);
     this.formAnchor = (this.formProps.find(p => p.anchor) || {}).anchor || null;
     m.needsUpdate = true;
   }
@@ -517,35 +769,61 @@ export class SlimeAvatar {
   }
 
   // ---------- shape ----------
-  shape(px, py, pz, az, o) {
-    let x = px, y, z = pz;
-    if (py < 0) {
-      const t = -py, tt = 1 - t;
-      y = -BOTTOM * (1 - tt * tt * tt);
-      const w = 1 + 0.14 * t;
-      x *= w; z *= w;
-    } else {
-      y = py * 0.97;
-      const w = 1 - 0.07 * py * py;
-      x *= w; z *= w;
-    }
-    const F = this.formShape;
-    if (F) {
-      if (F.square) {
-        const r2 = Math.sqrt(x * x + z * z);
-        if (r2 > 1e-4) { const r4 = Math.sqrt(Math.sqrt(x ** 4 + z ** 4)); const k = 1 + (r2 / r4 - 1) * F.square; x *= k; z *= k; }
+  // A point of the body for the unit direction (px, py, pz) (az = its azimuth). arm: also the curl (the body mesh
+  // and grabbing use it); without it, the point sits on the dome under the curl, which keeps outfits, props, the face
+  // and the pin steady on the body while the curl sways or is pulled.
+  shape(px, py, pz, az, o, arm = false) {
+    const S = this.S, C = this.curl, T = this.time, FS = this.formShape;
+    restShape(px, py, pz, az, S, T, FS, o);
+    let x = o.x, y = o.y, z = o.z, tipW = 0, armSp = -1;
+    if (arm && C) {
+      const c = px * A0x + py * A0y + pz * A0z;
+      if (c > C.c0) {
+        const sp = 1 - Math.pow(Math.acos(Math.min(1, c)) / C.th, 1.5);
+        const ex = px - c * A0x, ey = py - c * A0y, ez = pz - c * A0z;
+        const el = Math.hypot(ex, ey, ez) || 1e-9;
+        const u = (ex * B0[0] + ey * B0[1] + ez * B0[2]) / el, v = (ex * N0[0] + ey * N0[1] + ez * N0[2]) / el;
+        const fi = clamp(sp, 0, 1) * 128, i0 = Math.min(127, fi | 0), fr = fi - i0;
+        const fA = C.cA[i0] + (C.cA[i0 + 1] - C.cA[i0]) * fr, fB = C.cB[i0] + (C.cB[i0 + 1] - C.cB[i0]) * fr;
+        const phv = C.ph[i0] + (C.ph[i0 + 1] - C.ph[i0]) * fr, sk = Math.sin(phv), ck = Math.cos(phv);
+        let rho;
+        if (sp < 0.3) { const q = 1 - sp / 0.3; rho = S.ra + (C.r0 - S.ra) * q * q; }
+        else if (sp <= 0.86) rho = S.ra + (S.rt - S.ra) * (sp - 0.3) / 0.56;
+        else { const q = (sp - 0.86) / 0.14; rho = S.rt * Math.sqrt(Math.max(0, 1 - q * q)); }
+        const A = C.A, Bv = C.Bv, N = C.N;
+        const bpx = -sk * A[0] + ck * Bv[0], bpy = -sk * A[1] + ck * Bv[1], bpz = -sk * A[2] + ck * Bv[2];
+        const tx = C.C[0] + fA * A[0] + fB * Bv[0] + rho * (u * bpx + v * N[0]);
+        const ty = C.C[1] + fA * A[1] + fB * Bv[1] + rho * (u * bpy + v * N[1]);
+        const tz = C.C[2] + fA * A[2] + fB * Bv[2] + rho * (u * bpz + v * N[2]);
+        tipW = smooth(0, 0.15, sp) * S.armK; armSp = sp;
+        x += (tx - x) * tipW; y += (ty - y) * tipW; z += (tz - z) * tipW;
       }
-      if (F.wide !== 1) { x *= F.wide; z *= F.wide; }
-      if (F.tall !== 1 && py > 0) y *= F.tall;
-      if (F.peak && py > 0) { const k = py * py * py; x *= 1 - F.peak * k * 0.8; z *= 1 - F.peak * k * 0.8; y *= 1 + F.peak * k * 0.32; }
     }
-    y += BOTTOM;
     const h = y / HEIGHT;
-
-    let off = 0;
-    if (F && F.lumpy) off += F.lumpy * 2.2 * Math.sin(px * 5.1 + 1.3) * Math.sin(py * 6.3 + 0.7) * Math.sin(pz * 5.7 + 2.1);
+    // living goo: slow lumps that drift over the body
+    let off = S.lump * 1.6 * (1 - tipW) * (
+      Math.sin(px * 2.3 + 1.1 + T * 0.7) * Math.sin(py * 2.1 + 0.4 - T * 0.5) * Math.sin(pz * 2.6 + 2.3 + T * 0.6)
+      + 0.6 * Math.sin(px * 3.7 + 0.3 - T * 0.4) * Math.sin(pz * 3.1 + 1.7 + T * 0.55)
+      + 0.4 * Math.sin(py * 3.3 + px * 1.3 + 1.3 + T * 0.8));
+    const BL = S.bumps;   // the recipe's lumps, breathing a little
+    for (let i = 0; i < BL.length; i++) {
+      const bd = BL[i][0], ba = BL[i][1]; if (ba < 0.002) continue;
+      off += ba * (1 + 0.15 * Math.sin(T * 0.9 + i * 1.7)) * Math.exp(-(1 - (px * bd[0] + py * bd[1] + pz * bd[2])) / BL[i][2]);
+    }
+    const KL = S.knobs;   // knobs: a round ball profile, or a pointed cat ear
+    for (let i = 0; i < KL.length; i++) {
+      const kd = KL[i][0], ka = KL[i][1]; if (ka < 0.002) continue;
+      const kr = KL[i][2], d = px * kd[0] + py * kd[1] + pz * kd[2];
+      if (d <= Math.cos(kr)) continue;
+      const q = Math.acos(clamp(d, -1, 1)) / kr;
+      const f = KL[i][3] ? Math.pow(Math.max(0, 1 - Math.sqrt(q * q + 0.02)) / 0.8586, 1.25)   // pointed ear, softly rounded tip
+                         : Math.pow(1 - q * q, 0.55);                                            // round knob
+      off += ka * (1 + 0.08 * Math.sin(T * 1.1 + i)) * f;
+    }
+    // a grown-up form's lumps (Geode, Moss)
+    if (FS && FS.lumpy) off += FS.lumpy * 2.2 * Math.sin(px * 5.1 + 1.3) * Math.sin(py * 6.3 + 0.7) * Math.sin(pz * 5.7 + 2.1) * (1 - tipW);
     const W = this.wobble;
-    if (W > 0.0005) off += W * (Math.sin(3 * az + this.time * 11) * 0.6 + Math.sin(py * 7 + this.time * 8.3) * 0.4);
+    if (W > 0.0005) off += W * (Math.sin(3 * az + T * 11) * 0.6 + Math.sin(py * 7 + T * 8.3) * 0.4);
     for (let i = 0; i < this.dents.length; i++) {
       const d = this.dents[i];
       const dot = px * d.x + py * d.y + pz * d.z;
@@ -567,14 +845,18 @@ export class SlimeAvatar {
     }
     const pl = this.pull;
     if (pl.amt > 0.002) {
-      const dot = px * pl.dir.x + py * pl.dir.y + pz * pl.dir.z;
-      if (dot > 0.1) { const w = Math.exp(-(1 - dot) / 0.12) * Math.min(1, h * 3); x += pl.vec.x * w; y += pl.vec.y * w; z += pl.vec.z * w; }
+      if (this.tipGrab > 0) {   // held by the curl: the tip follows the finger, the curl stretches like taffy
+        if (armSp > 0) { const w = Math.pow(clamp(armSp / this.tipGrab, 0, 1), 1.3) * S.armK; x += pl.vec.x * w; y += pl.vec.y * w; z += pl.vec.z * w; }
+      } else {
+        const dot = px * pl.dir.x + py * pl.dir.y + pz * pl.dir.z;
+        if (dot > 0.1) { const w = Math.exp(-(1 - dot) / 0.12) * Math.min(1, h * 3); x += pl.vec.x * w; y += pl.vec.y * w; z += pl.vec.z * w; }
+      }
     }
-    const sq = this.sq.x;
-    const sxz = 1 - sq * 0.45 + Math.max(0, -sq) * 0.3 * (1 - h);
+    const sq = this.sq.x, hh2 = Math.min(1.6, h);
+    const sxz = 1 - sq * 0.45 + Math.max(0, -sq) * 0.3 * (1 - hh2);
     y *= 1 + sq;
     x *= sxz; z *= sxz;
-    const hh = h * h;
+    const hh = hh2 * hh2;
     x += this.leanX.x * hh;
     z += this.leanZ.x * hh;
     o.x = x; o.y = y; o.z = z;
@@ -637,14 +919,30 @@ export class SlimeAvatar {
     return l.normalize();
   }
 
-  // Taffy pull: grab a spot and stretch it toward a target (local units).
+  // Taffy pull: grab a spot and stretch it toward a target (local units). Grabbed by the curl (above its base), it is
+  // the tip that follows the finger, and the curl boings back when let go.
   grab(worldPoint) {
     this.localDir(worldPoint, this.pull.dir);
     this.pull.active = true;
     this.pull.target.set(0, 0, 0);
+    this.tipGrab = 0;
+    const C = this.curl;
+    if (!C || this.S.armK < 0.3) return;
+    const lp = this.mesh.worldToLocal(this._v.copy(worldPoint));
+    const pos = this.geo.attributes.position.array, b = this.base;
+    let best = 1e9, bi = 0;
+    for (let i = 0, j = 0; i < pos.length; i += 3, j++) {
+      const dx = pos[i] - lp.x, dy = pos[i + 1] - lp.y, dz = pos[i + 2] - lp.z, dd = dx * dx + dy * dy + dz * dz;
+      if (dd < best) { best = dd; bi = j; }
+    }
+    const c = b[bi * 3] * A0x + b[bi * 3 + 1] * A0y + b[bi * 3 + 2] * A0z;
+    if (c > C.c0) { const sp = 1 - Math.pow(Math.acos(Math.min(1, c)) / C.th, 1.5); if (sp > 0.18) this.tipGrab = Math.max(0.3, sp); }
   }
   pullTo(localVec) { this.pull.target.copy(localVec); }
-  release() { this.pull.active = false; this.pull.target.set(0, 0, 0); }
+  release() {
+    if (this.tipGrab) { this.dyn.vx += this.pull.vec.x * 18; this.dyn.vz += this.pull.vec.z * 18; }   // the curl boings back
+    this.pull.active = false; this.pull.target.set(0, 0, 0);
+  }
 
   // Which part of the face a ray hits: eyeL, eyeR, mouth, cheekL, cheekR, or null.
   faceRegion(raycaster) {
@@ -659,7 +957,7 @@ export class SlimeAvatar {
       if (((x - ex) / 56) ** 2 + ((y - ey) / 68) ** 2 < 1) return side < 0 ? 'eyeL' : 'eyeR';
     }
     if (((x - 256) / 52) ** 2 + ((y - f.mouthY) / 40) ** 2 < 1) return 'mouth';
-    for (const side of [-1, 1]) if (Math.hypot(x - (256 + side * 176), y - 232) < 48) return side < 0 ? 'cheekL' : 'cheekR';
+    for (const side of [-1, 1]) if (Math.hypot(x - (256 + side * f.cheekDX), y - f.cheekY) < 48) return side < 0 ? 'cheekL' : 'cheekR';
     return 'face';
   }
   startGulp() { this.gulp = { h: 0.72, a: 0.11 }; }
@@ -818,7 +1116,14 @@ export class SlimeAvatar {
 
   // ---------- queries ----------
   localToWorld(v) { return this.body.localToWorld(v); }
-  headTopWorld(out) { this.shapeDir(this._v2.set(0, 1, 0), out); out.y += 0.12; return this.body.localToWorld(out); }
+  // the real top of the body (the curl's top on a Curly, the dome or a knob on a Dollop), for hearts, notes and sparkles
+  headTopWorld(out) {
+    const i = this.topIdx, pos = this.geo.attributes.position.array;
+    if (i >= 0 && i * 3 + 2 < pos.length) out.set(pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2]);
+    else this.shapeDir(this._v2.set(0, 1, 0), out);
+    out.y += 0.12;
+    return this.body.localToWorld(out);
+  }
   mouthWorld(out) {
     this.shapeDir(this.mouthDir, out);
     out.z += 0.05;
@@ -826,10 +1131,29 @@ export class SlimeAvatar {
   }
   faceWorld(out) { this.shapeDir(this.faceCenterDir, out); return this.body.localToWorld(out); }
   centerWorld(out) { out.set(0, CENTER_Y * (1 + this.sq.x), 0); return this.body.localToWorld(out); }
+  // touch the real body (and the baby's feet): the curl, ears and knobs count too
   hit(raycaster) {
     if (!this.visible) return null;
-    const hits = raycaster.intersectObject(this.proxy, false);
+    const list = this._hitList;
+    list.length = 0; list.push(this.mesh);
+    for (const f of this.feet) if (f.visible) list.push(f);
+    const hits = raycaster.intersectObjects(list, false);
     return hits.length ? hits[0] : null;
+  }
+
+  // the body this frame: every point of the recipe body with all the physics (and the highest point, for headTopWorld)
+  deform() {
+    const pos = this.geo.attributes.position.array;
+    const b = this.base, az = this.baseAz, o = this._o;
+    let top = -1e9, ti = -1;
+    for (let i = 0, j = 0; i < b.length; i += 3, j++) {
+      this.shape(b[i], b[i + 1], b[i + 2], az[j], o, true);
+      pos[i] = o.x; pos[i + 1] = o.y; pos[i + 2] = o.z;
+      if (o.y > top) { top = o.y; ti = j; }
+    }
+    this.topIdx = ti;
+    this.geo.attributes.position.needsUpdate = true;
+    this.geo.computeVertexNormals();
   }
 
   // ---------- frame ----------
@@ -911,6 +1235,14 @@ export class SlimeAvatar {
     this.body.scale.setScalar(s);
     this.body.position.y = this.hopY;
 
+    // the recipe body: growth and breed mix ease along; the curl sways like a lagging spring behind the lean
+    this.updateRecipe(dt);
+    if (this.tipGrab && !pl.active && (pl.amt || 0) < 0.003) this.tipGrab = 0;
+    const dyn = this.dyn;
+    dyn.vx += (-(dyn.sx - (-this.leanX.x * 2.4)) * 55 - dyn.vx * 4.5) * dt; dyn.sx += dyn.vx * dt;
+    dyn.vz += (-(dyn.sz - (-this.leanZ.x * 2.4)) * 55 - dyn.vz * 4.5) * dt; dyn.sz += dyn.vz * dt;
+    this.frameCurl();
+
     // color + glow
     this.color.lerp(this.targetColor, 1 - Math.exp(-dt * 1.4));
     const shown = this._c.copy(this.colorOverride || this.color);
@@ -922,6 +1254,20 @@ export class SlimeAvatar {
       shown.setHSL(this._hsl.h, Math.min(1, this._hsl.s * 1.2 + 0.06), Math.min(0.86, this._hsl.l + 0.05), THREE.SRGBColorSpace);
     }
     if (this.tintAmt > 0.002 && !this.colorOverride) shown.lerp(this.tint, this.tintAmt);
+    // the jelly skin: a Dollop's gummy body is a little deeper in color; the rim light and the low glow are lighter
+    // versions of the body's own color (so a diet color never gets a foreign glow)
+    shown.getHSL(this._hsl, THREE.SRGBColorSpace);
+    if (this.mk > 0.001 && !this.colorOverride) { this._hsl.l = Math.max(0.2, this._hsl.l - 0.09 * this.mk); shown.setHSL(this._hsl.h, this._hsl.s, this._hsl.l, THREE.SRGBColorSpace); }
+    const JU = this.jellyU, sat = Math.min(1, this._hsl.s * 1.1 + 0.1);
+    JU.uLow.value.setHSL(this._hsl.h, sat, 0.78, THREE.SRGBColorSpace);
+    JU.uRim.value.setHSL(this._hsl.h, sat, 0.87, THREE.SRGBColorSpace);
+    JU.uTime.value = t; JU.uMk.value = this.mk; JU.uWet.value = this.wet ? 1 : 0; JU.uRip.value = this.ripple ? 1 : 0;
+    const live = JELLY.live(this.mk, this.wet ? 1 : 0), locked = this.lockedMat;
+    for (const k in live) {
+      if (locked && locked.has(k)) continue;
+      if (k === 'transmission' && this.quality === 'low') continue;
+      this.mat[k] = live[k];
+    }
     this.mat.attenuationColor.copy(shown);
     if (look && look.mapWhite && this.mat.map) this.mat.color.copy(shown).lerp(this._c2.setRGB(1, 1, 1), look.mapWhite);
     else this.mat.color.copy(shown);
@@ -940,14 +1286,28 @@ export class SlimeAvatar {
     if (this.pure) this.mat.iridescenceThicknessRange[1] = 420 + 180 * Math.sin(t * 0.7);
 
     // deform body
-    const pos = this.geo.attributes.position.array;
-    const b = this.base, az = this.baseAz, o = this._o;
-    for (let i = 0, j = 0; i < b.length; i += 3, j++) {
-      this.shape(b[i], b[i + 1], b[i + 2], az[j], o);
-      pos[i] = o.x; pos[i + 1] = o.y; pos[i + 2] = o.z;
+    this.deform();
+    const o = this._o;
+    // the baby's feet (they tuck in as it grows) and the bubbles inside, riding the body
+    const sqx = this.sq.x, fk = this.S.feet;
+    for (const f of this.feet) {
+      f.visible = fk > 0.02;
+      if (!f.visible) continue;
+      const fd = f.userData.d; this.shape(fd[0], fd[1], fd[2], Math.atan2(fd[2], fd[0]), o);
+      f.position.set(o.x * 1.02, 0.1 * fk * (1 + sqx * 0.5), o.z * 1.04 + 0.04);
+      f.scale.set(0.2 * fk * (1 - sqx * 0.4), 0.13 * fk * (1 + sqx * 0.6), 0.22 * fk);
     }
-    this.geo.attributes.position.needsUpdate = true;
-    this.geo.computeVertexNormals();
+    this.fizz.visible = this.inner.visible;
+    if (this.fizz.visible) {
+      const cy = CENTER_Y * (1 + sqx);
+      for (const bb of this.bubbles) {
+        const u = bb.userData, d = u.d;
+        const bx = d[0] + Math.sin(t * 0.3 + u.ph) * 0.06, by = d[1] + Math.sin(t * 0.22 + u.ph) * 0.08, bl = Math.hypot(bx, by, d[2]) || 1;
+        this.shape(bx / bl, by / bl, d[2] / bl, Math.atan2(d[2] / bl, bx / bl), o);
+        bb.position.set(o.x * 0.84, cy + (o.y - cy) * 0.84, o.z * 0.84);
+        bb.scale.setScalar(u.r * 2);
+      }
+    }
 
 
     // face patch
