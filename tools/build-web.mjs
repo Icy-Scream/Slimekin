@@ -25,6 +25,8 @@ function copyDir(from, to) {
 }
 copyDir(path.join(root, 'src'), path.join(out, 'src'));
 copyDir(path.join(root, 'web', 'icons'), path.join(out, 'icons'));
+// The App Store pages (privacy, support) are plain pages next to the game; not part of the offline cache.
+for (const name of fs.readdirSync(path.join(root, 'web', 'pages'))) fs.copyFileSync(path.join(root, 'web', 'pages', name), path.join(out, name));
 
 const body = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const head = `<!doctype html>

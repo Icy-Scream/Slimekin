@@ -1,0 +1,3 @@
+# npm installs these; the build makes www/ from the game files (tools/build-ios.mjs)
+node_modules/
+www/

@@ -1,0 +1,73 @@
+<!-- REVISE BEFORE SUBMISSION if purchases or ads were added. This page describes the iPhone app as built in slice W1: no purchases, no ads. -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#f3e6ee" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#17132e" media="(prefers-color-scheme: dark)">
+<title>Slimekin: privacy</title>
+<style>
+  :root { --bg: #f3e6ee; --card: #fffafc; --ink: #2c2142; --soft: #6b5a7e; --accent: #e0609a; --edge: #ead3e0; color-scheme: light dark; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #17132e; --card: #221c40; --ink: #f4ecff; --soft: #b9addb; --accent: #ff8cc0; --edge: #352d5c; } }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.55 ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 640px; margin: 0 auto; padding: 28px 18px 48px; }
+  h1 { font-size: 30px; line-height: 1.15; margin: 0 0 4px; }
+  h2 { font-size: 20px; margin: 0 0 6px; }
+  .sub { color: var(--soft); margin: 0 0 22px; font-size: 15px; }
+  section { background: var(--card); border: 1.5px solid var(--edge); border-radius: 20px; padding: 16px 18px; margin: 0 0 14px; }
+  p { margin: 0 0 8px; }
+  p:last-child { margin-bottom: 0; }
+  ul { margin: 6px 0 0; padding-left: 22px; }
+  li { margin: 4px 0; }
+  a { color: var(--accent); }
+  .blob { width: 44px; height: 34px; border-radius: 50% 50% 46% 46% / 62% 62% 38% 38%; background: #8fe0c6; margin: 0 0 12px; box-shadow: inset -6px -6px 0 rgba(0,0,0,.08); }
+</style>
+</head>
+<body>
+<main>
+  <div class="blob" aria-hidden="true"></div>
+  <h1>Slimekin: privacy</h1>
+  <p class="sub">For the Slimekin app for iPhone. Effective {{DATE}}.</p>
+
+  <section>
+    <h2>The short version</h2>
+    <p>Slimekin does not collect anything about you or your child. Your slime lives on your phone, and only there.</p>
+  </section>
+
+  <section>
+    <h2>What the app does not do</h2>
+    <ul>
+      <li>No accounts and no sign-in. You never type an email or a password.</li>
+      <li>No ads.</li>
+      <li>No analytics and no tracking.</li>
+      <li>No third-party code that talks to anything. The app is built from open-source parts (a 3D engine, two fonts, the app shell), and none of them sends or fetches anything.</li>
+      <li>No network requests at all. The whole game is inside the app and plays the same in airplane mode.</li>
+      <li>No chat, and nothing you make is shared with other players.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Your save</h2>
+    <p>Your slime's save stays on your phone. The app keeps a second copy on the phone too, so the slime is safe if iOS tidies up storage. Like the rest of your apps' data, it can be part of your phone's own backup (iCloud or a computer backup), which you control in your phone's settings.</p>
+    <p>Deleting the app deletes the save.</p>
+  </section>
+
+  <section>
+    <h2>Save codes</h2>
+    <p>In Settings you can copy a save code to move your slime to another device. The app only makes the code when you tap the button; you copy it and paste it yourself, and it goes nowhere else. Anyone you give the code to can load a copy of your slime, so keep it to yourself.</p>
+  </section>
+
+  <section>
+    <h2>Changes</h2>
+    <p>If the app ever changes any of this, this page will be updated first, with a new date at the top.</p>
+  </section>
+
+  <section>
+    <h2>Questions</h2>
+    <p>Write to <a href="mailto:{{CONTACT_EMAIL}}">{{CONTACT_EMAIL}}</a>.</p>
+  </section>
+</main>
+</body>
+</html>

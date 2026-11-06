@@ -1,0 +1,28 @@
+{
+  "name": "slimekin-ios",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Slimekin as an iPhone app: the same game files, bundled offline in a Capacitor shell. See MAC-GUIDE.md.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "node ../tools/build-ios.mjs",
+    "check": "node ../tools/check-ios-www.mjs",
+    "patch-ios": "node tools/patch-ios.mjs",
+    "check-ios": "node tools/check-ios.mjs",
+    "ios": "npm run build && npm run patch-ios && npx cap sync ios && npm run check-ios"
+  },
+  "dependencies": {
+    "@capacitor/core": "8.6.0",
+    "@capacitor/haptics": "8.0.2",
+    "@capacitor/ios": "8.6.0",
+    "@capacitor/preferences": "8.0.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.6.0",
+    "@fontsource/dynapuff": "5.3.0",
+    "@fontsource/m-plus-rounded-1c": "5.3.0",
+    "three": "0.170.0"
+  }
+}

@@ -153,6 +153,13 @@ tools/recipe-test.mjs     recipe body check in plain node (recipes, blends, body
 tools/recipe-smoke.cjs    headless recipe body play-through (a Curly, a Cat-ear Dollop, an in-between; real touch pulls; the ranch)
 tools/recipe-samples.cjs  recipe body contact sheets (stages, in-betweens, outfits, the scarf, forms, ranch, Nursery) and its cost
                           (perf.json)
+src/platform/index.js the iPhone app's seam (Capacitor): isNative, save backup, haptics; a no-op on the web
+tools/build-ios.mjs   builds native/www/ for the iPhone app (offline: three.js and fonts copied in), then runs the gate
+tools/check-ios-www.mjs   gate for native/www/: no links, no network calls in the game code, every import resolves
+tools/platform-test.cjs   headless test of src/platform/ with a fake Capacitor and without one
+tools/check-store-pages.mjs  App Store pages (web/pages/) ready to submit? (only before a submission)
+native/               the iPhone app (Capacitor 8): MAC-GUIDE.md, mac-build.sh, APP-STORE-NOTES.md, the Xcode
+                      project in native/ios/, its settings as code in native/tools/ (patch-ios, check-ios)
 AGENTS.md, CLAUDE.md  hand-off guide for coding agents (how it ships, how to test, gotchas, roadmap)
 ```
 

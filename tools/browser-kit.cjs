@@ -14,6 +14,11 @@
 //   throttles every process in it, and the browser stalls with all its processes asleep (no frames, page.evaluate
 //   never answers, the page's "load" never comes). The test warns at the start when there is little room under the
 //   limit, and a failure says so when the system throttled the group during the run.
+// - Two switches for the iPhone app's built folder (the tests themselves don't change; setup() reads both from the
+//   environment, or from its options): SLIMEKIN_ROOT=<folder> serves that folder instead of the repo (the root option
+//   of tools/serve.mjs), and SLIMEKIN_STRICT=1 answers nothing from a local copy: three.js and the font stylesheet are
+//   not stood in for, so every request that leaves the test server is aborted, logged and fails the test.
+//   Example: SLIMEKIN_ROOT=native/www SLIMEKIN_STRICT=1 node tools/smoke-test.cjs
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -34,8 +39,8 @@ function deadline(promise, ms, what) {
   return Promise.race([promise, late]).finally(() => clearTimeout(timer));
 }
 
-function startServer() {
-  const server = spawn(process.execPath, [path.join(ROOT, 'tools/serve.mjs'), '0', '127.0.0.1'], { stdio: ['ignore', 'pipe', 'pipe'] });
+function startServer(root = null) {
+  const server = spawn(process.execPath, [path.join(ROOT, 'tools/serve.mjs'), '0', '127.0.0.1', ...(root ? [path.resolve(ROOT, root)] : [])], { stdio: ['ignore', 'pipe', 'pipe'] });
   process.on('exit', () => server.kill());
   let out = '';
   return deadline(new Promise((resolve, reject) => {
@@ -138,30 +143,32 @@ async function launch() {
 }
 
 // Routes for a context: the test server passes, three.js and the font stylesheet are answered locally, anything
-// else is aborted and logged.
-async function offline(context, origin, aborted) {
+// else is aborted and logged. Strict: nothing is answered locally, and every aborted request is also a test error.
+async function offline(context, origin, aborted, strict = false, errors = null) {
   await context.route(() => true, route => {
     const url = route.request().url();
     if (url.startsWith(origin + '/')) return route.continue();
-    if (url.startsWith(CDN)) return route.fulfill({ path: path.join(THREE, url.slice(CDN.length).split(/[?#]/)[0]), contentType: 'text/javascript' });
-    if (url.startsWith(FONTS)) return route.fulfill({ body: '', contentType: 'text/css' });
+    if (!strict && url.startsWith(CDN)) return route.fulfill({ path: path.join(THREE, url.slice(CDN.length).split(/[?#]/)[0]), contentType: 'text/javascript' });
+    if (!strict && url.startsWith(FONTS)) return route.fulfill({ body: '', contentType: 'text/css' });
     aborted.push(url);
     log('aborted outside request:', url.slice(0, 160));
+    if (strict && errors) errors.push('strict offline mode: the page asked for ' + url.slice(0, 160));
     return route.abort('internetdisconnected');
   });
 }
 
 // Everything a test needs. Each test step goes through `step(name, fn, ms)`: it is logged, and it fails with a
 // diagnosis instead of hanging if it takes longer than `ms`.
-async function setup({ contextOptions }) {
+async function setup({ contextOptions, root = process.env.SLIMEKIN_ROOT || null, strict = process.env.SLIMEKIN_STRICT === '1' }) {
   const memStart = memoryCheck();
-  const server = await startServer();
+  if (root || strict) log(`serving ${root ? path.resolve(ROOT, root) : 'the repo'}${strict ? '; strict offline mode: nothing is answered from a local copy, every outside request fails the test' : ''}`);
+  const server = await startServer(root);
   const { browser, browserLog } = await launch();
   const context = await browser.newContext({ serviceWorkers: 'block', ...contextOptions });
   const aborted = [];
-  await offline(context, server.origin, aborted);
-  const page = await context.newPage();
   const errors = [];
+  await offline(context, server.origin, aborted, strict, errors);
+  const page = await context.newPage();
   page.on('pageerror', e => errors.push('pageerror: ' + e.message));
   page.on('console', m => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
   page.on('crash', () => errors.push('the page crashed'));
@@ -198,7 +205,7 @@ async function setup({ contextOptions }) {
     server.stop();
   };
   const report = () => {
-    if (aborted.length) log(`${aborted.length} outside request(s) were aborted (the test runs offline)`);
+    if (aborted.length || strict) log(`${aborted.length} outside request(s) were aborted (the test runs offline${strict ? '; strict: nothing answered locally' : ''})`);
     const m = groupMemory();
     if (m && memStart && m.throttled > memStart.throttled) log(`note: this process group went over its memory limit ${m.throttled - memStart.throttled} times during the test, which slows the browser`);
   };

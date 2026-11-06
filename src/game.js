@@ -26,18 +26,19 @@ import { movingDayRatio, movingDayLevel } from './core/movingday.js';
 import { RanchView } from './view/ranch.js';
 import { Scenery } from './view/scenery.js';
 import { RanchLifeUI } from './ui/ranch-life.js';
+import { isNative, haptic, freshState } from './platform/index.js';
 
 const SLIME_Y = CUSHION_TOP - 0.03;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const ease = t => 1 - Math.pow(1 - clamp(t, 0, 1), 3);
-const DEBUG = location.hash === '#debug';
+const DEBUG = location.hash === '#debug' && !isNative;   // no debug tools in the iPhone app
 const an = w => (/^[aeiou]/i.test(w) ? 'an ' : 'a ') + w;
 
 export class Game {
   constructor({ canvas, save, store }) {
     this.canvas = canvas;
     this.store = store;
-    this.state = save ? migrate(save) : createState();
+    this.state = save ? migrate(save) : freshState(createState());   // freshState: the iPhone app's defaults (no-op on the web)
     this.sim = new Sim(this.state);
     this.requests = new Requests(this.sim);
     this.life = new RanchLifeUI(this);   // ranch life: lessons and trips (menus in ui/ranch-life.js, rules in core/ranch-life.js)
@@ -1754,7 +1755,7 @@ export class Game {
 
   buzz(ms) {
     if (!this.state.settings.sound || this.reduced) return;
-    try { navigator.vibrate && navigator.vibrate(ms); } catch { /* not supported */ }
+    haptic(ms);   // web: navigator.vibrate as before; iPhone app: a light tap
   }
 
   // ---------- requests ----------
