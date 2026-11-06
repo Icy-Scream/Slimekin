@@ -75,6 +75,7 @@ Phone notes: swipe the menu down (or its grip bar) to close it; drag a notificat
 | Moving out (a new generation) | A Settled slime can move to the ranch. That starts a new generation with a new egg: jelly, helpers, upgrades and the Jelly Jar start over; pearls, the ranch, outfits, combos and secrets stay. Each move-out raises the permanent Family Bonus on all jelly: it comes from all the jelly the whole family has ever made (so every slime's jelly counts, and rushing slimes out early no longer pays), and the ranch slime keeps making jelly. |
 | Pearls | The ranch currency. Ranch slimes make about 4 an hour each (more when happy, so visit and pet them). Pearls pop out into the grass to pick up, roll into the Pearl Basket, and wait there while you're away. Spend them on more room and a bigger basket. |
 | New homes and auctions | Three buyers offer a new home for a ranch slime (a better fit pays more, and it sends postcards with a few pearls for a week), or hold a live auction for usually a bit more. Offers and auctions are fixed for the day. |
+| Ranch life (Training Center and trips) | Every ranch slime has five skills (Bounce, Speed, Sturdy, Smarts, Charm), 0 to 5 stars each. Train one from its page (one lesson = one star: 5 to 50 pearls, 20 minutes to 6 hours; it keeps making pearls meanwhile) or send it on a free trip to one of six places the buyers live (1, 3 or 6 hours; the farther ones open with Sturdy). It comes home on its own with pearls in its bag, the next souvenir from that place, a treat for your slime at home and a little story; it can be called home early. Skills help now (more pearls, shorter trips and lessons, slower fading, better offers) and later in contests. Its personality's strongest lean sets what it loves (e.g. Playful: Bounce lessons 25% shorter). One lane and one wagon to start, more for pearls; all three souvenirs from a place make you a Friend of it (its buyer pays 10% more, a postcard with 20 pearls). Real time, so it goes on while the game is closed. |
 | The Nursery (breeding) | A little cottage on the ranch. Pick two ranch slimes and they make an egg (25 pearls, ready in an hour, even while the game is closed; each slime can be a parent once a day; up to two eggs wait in the nest). When your slime moves to the ranch you choose which egg comes next: a new egg or a waiting one, even one still warming (it finishes warming on the cushion; taps wait until it is ready). The baby takes after its parents a little (a capped head start in their snack colors and a small personality nudge), but how you raise it decides its form. |
 | The egg on the cushion | While an egg waits on the cushion, the Ranch tab stays open: visit, breed, and before it hatches swap it for a Nursery egg ("Put on the cushion"; a plain egg goes to a neighbor family, a Nursery egg goes back to the Nursery). |
 | A new home for a baby | A slime that is not grown yet can go to a family that will raise it ("Find ... a new home" in the Slime tab), then the next egg comes (plain or from the Nursery). No pearls and no Family Bonus for a baby; it sends postcards. |
@@ -136,6 +137,11 @@ tools/jelly-loop-smoke.cjs headless jelly loop play-through from an old save (he
 src/core/medals.js    which medal a slime has (from the jelly it made)
 src/core/heirlooms.js heirloom effects over the save (multipliers, starting helpers)
 src/core/movingday.js the Moving Day ratio, its levels and which sign a slime shows
+src/core/ranch-life.js ranch life rules: skills, lessons, lanes, trips, wagons, souvenirs, Friend of, treats, time while closed
+src/ui/ranch-life.js  ranch life menus: a resident's skills and pickers, the Ranch life row, the return card (plain cards)
+tools/ranch-life-test.mjs ranch life rules check in plain node (lessons, trips, rewards fixed at departure, old saves)
+tools/ranch-life-smoke.cjs headless ranch life play-through from an old save (train, trip, close and reopen, refusals)
+tools/pearl-sim.mjs   pearl simulator: 30 days of the ranch with and without ranch life, against the design targets
 src/moving-day.js     plays the Moving Day signs (built from what the slime already does) and the travel bundle
 src/view/medal-pin.js the small medal pin on a grown slime's chest (placeholder, drawn from the emoji)
 UI-CHANGES.md             every on-screen element the breeding work added or changed (for the UI branch)
@@ -215,6 +221,18 @@ The jelly loop (all in `content.js`, checked by `node tools/jelly-loop-test.mjs`
 | Moving Day | `MOVING_DAY.levels` | ratio steps 1.5 / 2 / 3 and seconds between signs at each (`every`), travel bundle chance |
 | Moving Day signs | `MOVING_DAY.signs` | one per personality lean: length, turn toward the hill, hops, distance |
 
+Ranch life (all in `RANCH_LIFE` in `content.js`, checked by `node tools/ranch-life-test.mjs`; balance with
+`node tools/pearl-sim.mjs`, which plays 30 days as an engaged, casual and spamming player with and without it):
+
+| What | Where | Now |
+| --- | --- | --- |
+| Skills | `RANCH_LIFE.skills` | per star: Bounce +3% pearls, Speed trips 6% shorter, Sturdy fades 5% slower (and opens trips), Smarts lessons 5% shorter and trips +5% pearls, Charm offers +4% |
+| Lessons | `RANCH_LIFE.lesson` | 5 / 10 / 20 / 35 / 50 pearls, 20 min / 45 min / 1.5 h / 3 h / 6 h, +10 happiness |
+| Lanes, wagons | `RANCH_LIFE.lanes`, `.wagons` | 1 each; more for 60 / 150 and 80 / 200 pearls |
+| Trips | `RANCH_LIFE.trip`, `.places` | +10 happiness home; 3-hour places at Sturdy 1, 6-hour at Sturdy 3; six places, 3 souvenirs each, story lines |
+| Loves | `RANCH_LIFE.loves` | one per personality lean (the Moving Day sign ids) |
+| Treat, Friend of | `RANCH_LIFE.treat`, `.friend` | joy +8, bond +2 for the slime at home; Friend of: offers +10%, 20 pearls once |
+
 To try the Moving Day signs: open with `#debug`, Settings shows each sign's button and where this slime is; or load
 `tools/fixtures/moving-day-almost.json` (a slime just under "ready" that gets there after a few minutes of play).
 
@@ -234,5 +252,5 @@ To try it: open with `#debug`; Settings → Body sets this slime's breed, varian
 
 ## Not in this prototype (from the GDD, deliberately left for later)
 
-More family sparks, rare and lucky eggs, and rewards for special slimes (later breeding slices), the Training
-Center and trips, contests and slime battles, world conditions and forecasts, contracts.
+More family sparks, rare and lucky eggs, and rewards for special slimes (later breeding slices),
+contests and slime battles, world conditions and forecasts, contracts.
