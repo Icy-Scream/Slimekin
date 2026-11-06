@@ -5,6 +5,7 @@ import { rng } from './random.js';
 import { makeEgg, sparkFor, pureFor, emptyLineage } from './breeding.js';
 import { residentMedal } from './medals.js';
 import { heirloomMult } from './heirlooms.js';
+import { oldBody, cleanBody } from './recipe.js';
 
 export function createRanch() {
   return {
@@ -49,7 +50,11 @@ export function migrateRanch(saved) {
     if (!x || typeof x !== 'object') continue;
     x.lineage = { ...emptyLineage(), ...(x.lineage || {}) };
     if (!Array.isArray(x.lineage.parents)) x.lineage.parents = [];
+    // the recipe body: residents from before it are Curlys (plain, mix 0, neutral genes)
+    Object.assign(x, 'breed' in x ? cleanBody(x) : oldBody());
   }
+  // Nursery eggs from before the recipe body hatch Curlys
+  for (const e of out.nursery.eggs) if (e && typeof e === 'object') e.body = e.body ? cleanBody(e.body) : oldBody();
   out.residents = out.residents.filter(x => x && typeof x === 'object');
   return out;
 }

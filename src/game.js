@@ -13,6 +13,7 @@ import { Egg } from './view/egg.js';
 import { addEggSpark } from './view/egg-spark.js';
 import { setMedalPin } from './view/medal-pin.js';
 import { heirloomFlag } from './core/heirlooms.js';
+import { cleanBody, bodyName } from './core/recipe.js';
 import { makeFood, renderIcons, FOOD_MAKERS, HELPER_MAKERS, OUTFIT_MAKERS } from './view/models.js';
 import { Sfx } from './audio/sfx.js';
 import { Hud, esc } from './ui/hud.js';
@@ -332,7 +333,8 @@ export class Game {
       this.state.slime.bornAt = Date.now();
       this.state.phase = 'naming';
       const lin = this.state.slime.lineage || {};
-      const from = lin.parents?.length ? `Hatched from ${lin.parents[0].name} and ${lin.parents[1].name}'s egg.${lin.spark ? ' The egg twinkled with a family spark.' : ''}` : 'Hatched from a warm, spotty egg.';
+      const from = (lin.parents?.length ? `Hatched from ${lin.parents[0].name} and ${lin.parents[1].name}'s egg.${lin.spark ? ' The egg twinkled with a family spark.' : ''}` : 'Hatched from a warm, spotty egg.') +
+        ` A little ${bodyName(this.state.slime)}!`;
       this.sim.remember('🥚', from, 'hatch');
       this.flash({ eyes: 'sleep', mouth: 'o' }, 0.9);
       this.lookOverride = { target: new THREE.Vector3(-3, 1, 2), until: this.time + 2.0 };
@@ -2006,6 +2008,7 @@ export class Game {
       <button class="btn" data-dbg="glim">Glimmer</button><button class="btn" data-dbg="req">Request</button><button class="btn" data-dbg="bond">+Bond</button>
       <button class="btn" data-dbg="tera">+1T jelly</button><button class="btn" data-dbg="pearls">+100 pearls</button>
       <button class="btn" data-dbg="instant" aria-pressed="${this.debugInstant}">Instant eggs: ${this.debugInstant ? 'On' : 'Off'}</button></div>
+      ${this.bodyDebugHtml()}
       ${this.movingDayDebugHtml()}` : '';
     this.hud.openModal(`<h2>Settings</h2>
       <div class="setting"><span>Sound</span>${seg('sound', [[true, 'On'], [false, 'Off']])}</div>
@@ -2131,8 +2134,29 @@ export class Game {
       <div class="actions md-debug">${Object.keys(MOVING_DAY.signs).map(id => `<button class="btn small" data-dbg="sign:${id}">${esc(name(id))}</button>`).join('')}<button class="btn small" data-dbg="bundle">Travel bundle</button></div>`;
   }
 
+  // Recipe body tester tools (#debug only): set the breed, variant and mix of this slime (and of the egg on the cushion).
+  bodyDebugHtml() {
+    const sl = this.state.slime, b = (k, v, l) => `<button class="btn small" data-dbg="body:${k}:${v}" aria-pressed="${String(sl[k]) === String(v)}">${l}</button>`;
+    return `<div class="sec-title">Body</div><p class="sub" id="bodyStatus">${esc(bodyName(sl))}: breed ${esc(sl.breed)}, variant ${esc(sl.variant)}, mix ${(+sl.mix).toFixed(2)}.</p>
+      <div class="actions body-debug">${b('mix', 0, 'Curly')}${b('mix', 0.25, 'Mix 25%')}${b('mix', 0.5, 'Mix 50%')}${b('mix', 0.75, 'Mix 75%')}${b('mix', 1, 'Dollop')}</div>
+      <div class="actions body-debug">${b('variant', 'plain', 'Plain')}${b('variant', 'ears', 'Cat ears')}${b('variant', 'topknot', 'Topknot')}</div>`;
+  }
+  // Set this slime's body (and the cushion egg's, while it waits); the body morphs over to it. Test hook too.
+  debugBody(patch, { instant = false } = {}) {
+    const st = this.state, sl = st.slime;
+    let mix = 'mix' in patch ? clamp(+patch.mix, 0, 1) : sl.mix;
+    const variant = 'variant' in patch ? patch.variant : sl.variant;
+    if ('variant' in patch && variant !== 'plain' && mix <= 0) mix = 1;   // ears and a topknot only show with some Dollop in it
+    Object.assign(sl, cleanBody({ breed: 'set', mix, variant, genes: sl.genes }));
+    if (st.phase === 'egg' && st.egg.bred) st.egg.bred.body = cleanBody(sl);
+    this.slime.setRecipe(sl, { instant });
+    this.markDirty(true);
+    return cleanBody(sl);
+  }
+
   debug(k) {
     const s = this.state.slime;
+    if (k.startsWith('body:')) { const [, key, v] = k.split(':'); this.debugBody({ [key]: key === 'mix' ? +v : v }); this.openSettings(); return; }
     if (k.startsWith('sign:')) { this.hud.closeModal(); if (this.sim.asleep) this.wakeUp('rested'); this.movingDay.play(k.slice(5), { forced: true }); return; }
     if (k === 'bundle') { this.hud.closeModal(); this.movingDay.showBundle(); return; }
     if (k === 'jelly') this.sim.addJelly(10000);

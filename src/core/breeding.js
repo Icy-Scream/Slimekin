@@ -2,6 +2,7 @@
 // bred baby's form is decided when it settles. Pure functions; no three.js, no DOM.
 import { BREEDING, SPARK_FORMS, SPARK_BY_ID, TRAIT_IDS, FOODS, FOOD_BY_ID, PERSONALITY_IDS, FORM_BY_ID, PURE_LINE } from '../data/content.js';
 import { rng } from './random.js';
+import { rollBredEgg, cleanBody } from './recipe.js';
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const round1 = v => Math.round(v * 10) / 10;
@@ -92,6 +93,8 @@ export function makeEgg(a, b, { now, id, seed }) {
     pure: pureFor(p, q),
     line: Math.max(p.lineage?.line || 1, q.lineage?.line || 1) + 1,
     ...inherit(p, q, s),
+    // the baby's body (core/recipe.js): two Curlys make a Curly, two Dollops a Dollop, a Curly x Dollop an in-between
+    body: rollBredEgg(p, q, s),
   };
 }
 
@@ -115,6 +118,7 @@ export function applyEgg(slime, egg) {
     }
   }
   slime.lineage = { line: egg.line, parents: egg.parents.map(p => ({ ...p, form: { ...p.form } })), spark: egg.spark, pure: egg.pure, egg: egg.id, bias: { ...egg.bias } };
+  Object.assign(slime, cleanBody(egg.body));   // its body was fixed when the egg was made (an older egg: a Curly)
   return slime;
 }
 

@@ -10,13 +10,20 @@ import { createRanch, migrateRanch, Ranch, residentJpsFor, dayNumber } from './r
 import { emptyLineage, applyEgg, resolveForm, eggFromLineage } from './breeding.js';
 import { medalFor, medalRank } from './medals.js';
 import { createHeirlooms, migrateHeirlooms, heirloomMult, heirloomFlag, startHelpers, forSale, ownsHeirloom } from './heirlooms.js';
+import { rollPlainEgg, oldBody, cleanBody } from './recipe.js';
 
 export const SAVE_VERSION = 1;
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+// A plain egg's seed: its body (breed, variant, genes) is rolled from it once, when the egg is made, and saved, so
+// reopening the game never rerolls it. Made from the clock and a counter (no Math.random: the economy simulator
+// replays the game's own random numbers and must see exactly the same ones as before).
+let eggCount = 0;
+export const newEggSeed = (now = Date.now()) => `p${now.toString(36)}-${(eggCount++).toString(36)}`;
 
 export function createState() {
+  const seed = newEggSeed();
   const foods = FOODS.map(f => f.id);
   const favorite = pick(foods);
   const dislike = pick(foods.filter(f => f !== favorite));
@@ -28,8 +35,9 @@ export function createState() {
     savedAt: Date.now(),
     phase: 'egg', // egg -> naming -> play
     // the egg on the cushion: warmth from taps; bred = the Nursery egg it is (null for a plain egg), so it can go
-    // back to the Nursery; readyAt = when a bred egg is done warming (it can finish warming on the cushion)
-    egg: { warmth: 0, bred: null, readyAt: null },
+    // back to the Nursery; readyAt = when a bred egg is done warming (it can finish warming on the cushion);
+    // seed = what a plain egg's body was rolled from (null for a Nursery egg and for eggs from before the recipe body)
+    egg: { warmth: 0, bred: null, readyAt: null, seed },
     slime: {
       name: '',
       bornAt: null,
@@ -51,6 +59,9 @@ export function createState() {
       tricks: {},
       lineage: emptyLineage(),   // where it came from (parents, family spark, Pure line); see core/breeding.js
       medalShown: null,          // the last medal this slime's ceremony played for (id in MEDALS; null = none yet)
+      // its body (core/recipe.js, BREEDS in content.js), fixed when the egg is made: breed 'curly' | 'dollop' | 'mixed',
+      // variant 'plain' | 'ears' | 'topknot', mix 0 (Curly) .. 1 (Dollop), genes (small quirks)
+      ...rollPlainEgg(seed),
     },
     jelly: 0,
     totalJelly: 0,
@@ -95,8 +106,12 @@ export function migrate(save) {
   out.slime.tricks = { ...(save.slime?.tricks || {}) };
   out.slime.lineage = { ...emptyLineage(), ...(save.slime?.lineage || {}) };
   if (!Array.isArray(out.slime.lineage.parents)) out.slime.lineage.parents = [];
+  // the recipe body: a slime (or egg) from before it is a Curly (plain, mix 0, neutral genes); the egg had no seed
+  Object.assign(out.slime, save.slime && 'breed' in save.slime ? cleanBody(out.slime) : oldBody());
+  if (!(save.egg && 'seed' in save.egg)) out.egg.seed = null;
+  if (out.egg.bred && typeof out.egg.bred === 'object' && !out.egg.bred.body) out.egg.bred.body = cleanBody(out.slime);
   // a bred egg put on the cushion before the cushion remembered its egg: rebuild that egg from the baby's lineage
-  if (out.phase === 'egg' && !out.egg.bred && out.slime.lineage.parents.length === 2) out.egg.bred = eggFromLineage(out.slime.lineage);
+  if (out.phase === 'egg' && !out.egg.bred && out.slime.lineage.parents.length === 2) out.egg.bred = { ...eggFromLineage(out.slime.lineage), body: cleanBody(out.slime) };
   // medals: a save from before medals starts with the medal its slime already has, so no old ceremony replays
   if (!('medalShown' in (save.slime || {}))) {
     const grown = (out.slime.growth || 0) >= STAGES[STAGES.length - 1].minGrowth;
@@ -537,8 +552,14 @@ export class Sim {
   }
   // A Nursery egg goes on the cushion: the baby takes after its parents a little (see core/breeding.js).
   placeEgg(egg) {
-    this.s.egg = { warmth: 0, bred: egg, readyAt: egg.readyAt ?? null };
+    this.s.egg = { warmth: 0, bred: egg, readyAt: egg.readyAt ?? null, seed: null };
     applyEgg(this.s.slime, egg);
+  }
+  // A plain egg's body: a pure Curly or Dollop from its seed (the Wishing Star makes a surprise special Dollop likelier).
+  rollPlainBody() {
+    const e = this.s.egg;
+    if (!e.seed) return;
+    Object.assign(this.s.slime, rollPlainEgg(e.seed, { surpriseMult: heirloomMult(this.s, 'rareEggs') }));
   }
   // Everything bought with jelly starts over and an egg goes on the cushion: a plain egg, or (eggId) one from the
   // Nursery, ready or still warming (it finishes warming on the cushion). Outfits, combos, secrets, pearls and the
@@ -551,6 +572,7 @@ export class Sim {
     s.slime = fresh.slime;
     const egg = eggId ? this.ranch.takeEgg(eggId, now, { early: true }) : null;
     if (egg) this.placeEgg(egg);
+    else this.rollPlainBody();
     s.jelly = 0;
     s.totalJelly = 0;
     // heirlooms: the Golden Jar Lid keeps the jar's size (not what is in it); the Toy Box gives the new slime helpers
@@ -612,6 +634,7 @@ export class Sim {
       runTotal: total, jps: residentJpsFor(total), happiness: 90, pearlT: 0.6, petAt: 0,
       memories: s.memories.slice(-40),
       lineage: { ...emptyLineage(), ...(sl.lineage || {}) },
+      ...cleanBody(sl),   // its body (breed, variant, mix, genes) moves with it
     };
     ranch.residents.push(resident);
     // Family Legacy: the bonus comes from all the jelly the family ever made, so it is recomputed (never lowered)
