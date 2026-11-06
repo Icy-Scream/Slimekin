@@ -348,6 +348,99 @@ export const PURE_LINE = {
   note: 'Same form as both parents: a pure family line.',
 };
 
+// ---------- Breeds: the recipe body ----------
+// Every slime is the same soft body (view/slime.js) plus a recipe: a short list of numbers (core/recipe.js blends
+// them). Two breeds share the body: Curly (the drop with the curl on top) and Dollop (a soft gummy dome). Growing up,
+// and mixing the two breeds, only blend numbers, so nothing pops: a feature (the curl, ears, a knob) grows or melts
+// away by its size. Eggs hatch pure (Curly or Dollop); in-betweens come only from breeding a Curly with a Dollop.
+//
+// Body numbers (all on the unit body; the ring axis of the curl leans back and to the right):
+//   tall, wide         height of the top half, width              side       cheeks (fuller around the middle)
+//   peak               a pointed top (the baby drop)               flat       a flatter top
+//   lip, lipc, lipw    the goo lip around the bottom: size, height, width;   sag  how far the lip sags to the floor
+//   flowA, flow2       how uneven the lip flows around (3+5 lobes, and a 2-lobe lean); skirtWave  a slow wave above it
+//   crease             a soft crease at the waist                  lump       living lumps drifting over the body
+//   baseFlow           the young body's lower half flowing (the grown has its lip instead)
+//   theta, L, bend     the curl: how wide its base is (radians), length, how much it curls
+//   ra, rt             the curl's thickness at its base and before the tip;   armK  how much curl there is (0 = none)
+//   feet               the baby's two little feet (0 = tucked in)  faceEl     how high the face sits (radians)
+// bumps: [direction, size, softness] soft lumps;  knobs: [direction, size, width, shape] (shape 0 = round knob,
+// 1 = pointed cat ear). Directions are normalized by core/recipe.js.
+export const BREEDS = {
+  ids: ['curly', 'dollop'],
+  names: { curly: 'Curly', dollop: 'Dollop', mixed: 'Curly × Dollop' },
+  // growth: the shape number m for each stage (0 = baby drop .. 1 = grown), blended along a stage's progress;
+  // the body eases toward it (per second), so growing up is a slow morph, never a jump
+  stageM: [0, 0.35, 0.65, 1],   // Hatchling, Sprout, Rascal, Settled
+  growEase: 2.5,
+  mixEase: 3,
+  // Curly: every number goes from the baby value (m = 0) to the grown value (m = 1): evenly, or only between
+  // m = a and m = b (`lin: [a, b]` evenly, `sm: [a, b]` smoothly)
+  curly: {
+    grow: {
+      tall: [1.16, 1.1], wide: [0.9, 1.0], peak: [0.8, 0, { lin: [0, 0.8] }],
+      lip: [0, 0.16, { sm: [0.15, 1] }], crease: [0, 0.045, { sm: [0.3, 1] }], lump: [0.036, 0.045],
+      theta: [0.5, 0.3], L: [0.5, 0.8], bend: [2.4, 2.6], ra: [0.15, 0.17], rt: [0.11, 0.12],
+      feet: [1, 0, { sm: [0.15, 0.7] }], faceEl: [0.06, 0.3], baseFlow: [0.045, 0, { sm: [0.5, 1] }],
+    },
+    fixed: { side: 0, flat: 0, skirtWave: 0, lipc: -0.3, lipw: 0.3, sag: 0.8, flowA: 1, flow2: 0, armK: 1 },
+  },
+  // Dollop: a baby (m = 0), a teen (m = teenAt) and a grown body per variant, each blended to the next. Numbers not
+  // given come from `base`. plain = the mini mochi baby; ears and topknot are the special types (pearl eggs, or a
+  // small surprise from a plain egg) and keep a smaller ear or knob when grown (`keep`), so they still look special.
+  dollop: {
+    teenAt: 0.5,
+    base: { tall: 1, wide: 1, peak: 0, side: 0, flat: 0, lip: 0.1, crease: 0, lump: 0.034, skirtWave: 0, lipc: -0.36, lipw: 0.24,
+      sag: 1.0, flowA: 1.2, flow2: 0.4, baseFlow: 0.03, theta: 0.3, L: 0.5, bend: 2.4, ra: 0.15, rt: 0.11, armK: 0, feet: 0, faceEl: 0.12 },
+    grown: {
+      body: { tall: 0.98, wide: 1.04, side: 0.09, flat: 0.12, lip: 0.2, crease: 0.035, lump: 0.042, skirtWave: 0.05, lipc: -0.46, lipw: 0.22,
+        sag: 0.85, flowA: 1.8, flow2: 0.7, baseFlow: 0, faceEl: 0.2 },
+      bumps: [[[0.45, 0.85, -0.25], 0.085, 0.07], [[-0.42, 0.86, 0.05], 0.05, 0.09], [[0.95, 0.12, 0.25], 0.065, 0.06], [[-0.96, 0.05, 0.28], 0.04, 0.07], [[0.15, -0.05, 1.0], 0.03, 0.1]],
+    },
+    variants: {
+      plain: {
+        baby: { body: { tall: 0.86, wide: 1.0, side: 0.1, flat: 0.1, lip: 0.14, lipc: -0.44, lipw: 0.22, flowA: 1.4, flow2: 0.5, faceEl: 0.14 }, bumps: [[[0.3, 0.9, -0.2], 0.035, 0.08]] },
+        teen: { body: { tall: 0.93, wide: 1.02, side: 0.1, flat: 0.11, lip: 0.17, lipc: -0.45, lipw: 0.22, sag: 0.95, flowA: 1.6, flow2: 0.6, faceEl: 0.18 },
+          bumps: [[[0.42, 0.87, -0.24], 0.06, 0.07], [[-0.4, 0.88, 0.05], 0.04, 0.09], [[0.92, 0.15, 0.25], 0.04, 0.06]] },
+        keep: null,
+      },
+      ears: {
+        baby: { body: { tall: 1.0, wide: 0.9, side: 0.05, lip: 0.12, lipc: -0.42, lipw: 0.2, faceEl: 0.08 }, bumps: [[[0.5, 0.86, -0.12], 0.05, 0.05], [[-0.46, 0.88, -0.05], 0.05, 0.05]],
+          knobs: [[[0.52, 0.84, -0.1], 0.26, 0.3, 1], [[-0.48, 0.86, -0.03], 0.25, 0.3, 1]] },
+        teen: { body: { tall: 1.0, wide: 0.96, side: 0.06, flat: 0.05, lip: 0.15, lipc: -0.44, flowA: 1.5, flow2: 0.6, faceEl: 0.15 },
+          bumps: [[[0.5, 0.84, -0.2], 0.05, 0.05], [[-0.44, 0.88, 0.0], 0.04, 0.05], [[0.9, 0.2, 0.25], 0.04, 0.06]],
+          knobs: [[[0.54, 0.82, -0.16], 0.21, 0.27, 1], [[-0.48, 0.85, 0.0], 0.2, 0.27, 1]] },
+        keep: { knobs: [[[0.55, 0.81, -0.2], 0.17, 0.24, 1], [[-0.5, 0.84, -0.02], 0.16, 0.24, 1]] },
+      },
+      topknot: {
+        baby: { body: { tall: 0.9, wide: 0.95, side: 0.08, lip: 0.2, lipc: -0.64, lipw: 0.12, sag: 2.2, flowA: 1.4, flow2: 0.4, faceEl: 0.05 }, knobs: [[[0.05, 1.0, -0.12], 0.2, 0.34]] },
+        teen: { body: { tall: 0.96, wide: 0.98, side: 0.07, flat: 0.04, lip: 0.19, lipc: -0.56, lipw: 0.17, sag: 1.6, flowA: 1.5, flow2: 0.5, faceEl: 0.13 },
+          knobs: [[[0.26, 0.96, -0.14], 0.12, 0.36], [[-0.22, 0.97, 0.02], 0.09, 0.34]] },
+        keep: { body: { flat: 0.08 }, knobs: [[[0.08, 1.0, -0.1], 0.15, 0.3]] },
+      },
+    },
+  },
+  // genes: small personal quirks, fixed when the egg is made (seeded): tall, wide and lump multiply, side adds
+  geneRange: { tall: 0.08, wide: 0.07, lump: 0.35, side: 0.04 },
+  geneWobble: { tall: 0.015, wide: 0.015, lump: 0.08, side: 0.015 },   // a bred egg: the parents' average, plus this much
+  // a plain egg: which breed hatches (weights), and the small surprise chance of a special Dollop (of Dollop hatches;
+  // the Wishing Star heirloom multiplies it), then which special type (weights)
+  hatch: { curly: 50, dollop: 50 },
+  surprise: 1 / 20,
+  surpriseVariants: { ears: 1, topknot: 1 },
+  // a Curly × Dollop egg: the baby's mix (0 = Curly .. 1 = Dollop) lands this share of the way between its parents'
+  // (Curly × Dollop: 0.25 .. 0.75). Two parents of the same breed (and mix) make a baby of that breed.
+  mixBetween: [0.25, 0.75],
+  passSpecial: 0.5,   // a parent with ears or a topknot: the chance its baby gets it too (else plain)
+  // special eggs, bought with pearls in the Nursery: the type is guaranteed (a Dollop of that variant). They wait in
+  // the Nursery like a bred egg (same warm time, same nest limit). 75 pearls = 3 Nursery eggs.
+  specialEggs: {
+    ears:    { name: 'Cat-ear egg', price: 75, blurb: 'A Dollop with little cat ears, every time.', colors: ['#c9b6ff', '#ffd1ea', '#fff1c9'] },
+    topknot: { name: 'Topknot egg', price: 75, blurb: 'A Dollop with a round topknot, every time.', colors: ['#9ed8ff', '#ffe3a8', '#fff1c9'] },
+  },
+  variantNames: { plain: 'Dollop', ears: 'Cat-ear Dollop', topknot: 'Topknot Dollop' },
+};
+
 // ---------- The jelly loop: medals, heirlooms, Moving Day ----------
 // Slime medals: a step every x10 of a slime's own jelly (s.totalJelly while you raise it, runTotal for a ranch
 // resident), earned live while you raise it. Every grown (Settled) slime has at least the Ribbon; the jelly steps
@@ -373,6 +466,7 @@ export const MEDAL_BY_ID = Object.fromEntries(MEDALS.map(m => [m.id, m]));
 //   glimmerMult   x Lucky Glimmer rewards (sim fx.glimmerMult)       keepJar    the Jelly Jar keeps its level
 //   ranchPearls   x pearls ranch slimes make                         eggTime    x how long a new Nursery egg warms
 //   happyDecay    x how fast ranch happiness fades (live and away)   buyerPay   x what buyers pay (homes, auctions)
+//   rareEggs      x the surprise chance of a special Dollop from a plain egg (BREEDS.surprise)
 // `where`: where it will live in the world (the in-world objects are not built yet: placeholder icons only).
 // buyable: false = shown, not for sale yet (`soon` says why).
 export const HEIRLOOMS = [
@@ -393,7 +487,7 @@ export const HEIRLOOMS = [
   { id: 'statue',   name: 'Family Statue',        icon: '🗿', price: 1e14, where: 'on the ranch hill',
     effect: 'Buyers pay 25% more pearls (new homes and auctions).', fx: { buyerPay: 1.25 } },
   { id: 'wishstar', name: 'Wishing Star',         icon: '⭐', price: 1e15, where: 'over the ranch at night',
-    effect: 'Rare eggs twice as likely.', fx: {}, buyable: false, soon: 'Arrives with rare eggs.' },
+    effect: 'Rare eggs twice as likely: a plain egg hatches a surprise Cat-ear or Topknot Dollop twice as often.', fx: { rareEggs: 2 } },
 ];
 export const HEIRLOOM_BY_ID = Object.fromEntries(HEIRLOOMS.map(h => [h.id, h]));
 // The Heirlooms tab: a placeholder icon key (memIcon), no text label; `glow` while a new heirloom is affordable.
@@ -429,3 +523,151 @@ export const MOVING_DAY = {
   },
   clue: 'Grown slimes sometimes dream of the ranch. Watch where they look.',
 };
+
+// ---------- Ranch life: the Training Center and trips (rules in core/ranch-life.js) ----------
+// Grown slimes on the ranch learn five skills (0..5 stars each, one lesson = one star) and go on trips to the places
+// the buyers live. Everything runs on the wall clock (like Nursery eggs), so it counts while the game is closed and
+// tapping never speeds it up. Nothing fails, nothing is lost: a lesson always finishes, a trip always comes home.
+// Icons are emoji placeholders until the UI pass draws them.
+export const RANCH_LIFE = {
+  maxStars: 5,
+  // What one star does now (contests use the skills later). Every effect is per star; 5 stars = 5x.
+  //   pearls      +x ranch pearls                  tripTime    trips x shorter
+  //   fade        happiness fades x slower          lessonTime  lessons x shorter
+  //   tripPearls  trips bring x more pearls          offers      buyer offers and auction prices +x
+  skills: [
+    { id: 'bounce', name: 'Bounce', icon: '🏐', fx: { pearls: 0.03 },                   does: 'more ranch pearls' },
+    { id: 'speed',  name: 'Speed',  icon: '💨', fx: { tripTime: 0.06 },                 does: 'shorter trips' },
+    { id: 'sturdy', name: 'Sturdy', icon: '🛡️', fx: { fade: 0.05 },                     does: 'farther trips, happiness fades slower' },
+    { id: 'smarts', name: 'Smarts', icon: '📚', fx: { lessonTime: 0.05, tripPearls: 0.05 }, does: 'shorter lessons, more pearls from trips' },
+    { id: 'charm',  name: 'Charm',  icon: '🌸', fx: { offers: 0.04 },                   does: 'better offers from buyers' },
+  ],
+  // One lesson per star: the price and time of the Nth star (the same for every skill). 120 pearls and about 11.5 hours
+  // for a whole skill, 600 pearls and about 58 hours for a fully trained slime.
+  lesson: {
+    pearls:  [5, 10, 20, 35, 50],
+    minutes: [20, 45, 90, 180, 360],
+    happy: 10,                   // happiness when a lesson ends
+  },
+  // How many slimes learn at once (lanes) and travel at once (wagons): the first is free, then these pearl prices.
+  lanes:  { start: 1, costs: [60, 150] },
+  wagons: { start: 1, costs: [80, 200] },
+  trip: {
+    // happiness when a full trip comes home (an early return brings its share). Design: 20; tuned to 10 by the pearl
+    // simulator (tools/pearl-sim.mjs): on a ranch checked twice a day the +20 cheered slimes up so much that ranch life
+    // added +68% pearls for a casual player (target: at most +40%); +10 gives +47%, the most -50% can do.
+    happy: 10,
+    middleAt: 1,                 // Sturdy stars that open the 3-hour trips
+    farAt: 3,                    // Sturdy stars that open the 6-hour trips (`loves.bold.farAt` lowers it)
+  },
+  // A treat from a full trip, for your slime at home: a little joy and bond, never traits. While an egg is on the
+  // cushion the traveler eats it itself (+happy).
+  treat: { joy: 8, bond: 2, happy: 10 },
+  // Friend of a place: all three of its souvenirs found. Its buyer offers more for any of your slimes, and a thank-you
+  // postcard brings pearls once.
+  friend: { offers: 0.10, gift: 20 },
+  // Personality "loves": from the strongest lean (the slider farthest from the middle, and which end), the same rule the
+  // Moving Day signs use (core/movingday.js movingDaySign: the keys are its sign ids).
+  //   skill + lessonTime: that skill's lessons x shorter; lessonTime alone: all lessons; tripPearls, tripTime: trips;
+  //   farAt: the Sturdy stars that open the far trips; fade: happiness fades x slower
+  loves: {
+    curious:     { label: 'trips',         fx: { tripPearls: 0.10 },                 does: 'trips bring 10% more pearls' },
+    familiar:    { label: 'lessons',       fx: { lessonTime: 0.10 },                 does: 'all lessons 10% shorter' },
+    patient:     { label: 'Smarts',        fx: { skill: 'smarts', lessonTime: 0.25 }, does: 'Smarts lessons 25% shorter' },
+    impulsive:   { label: 'Speed',         fx: { skill: 'speed', lessonTime: 0.25 },  does: 'Speed lessons 25% shorter' },
+    playful:     { label: 'Bounce',        fx: { skill: 'bounce', lessonTime: 0.25 }, does: 'Bounce lessons 25% shorter' },
+    mellow:      { label: 'Sturdy',        fx: { skill: 'sturdy', lessonTime: 0.25 }, does: 'Sturdy lessons 25% shorter' },
+    cuddly:      { label: 'Charm',         fx: { skill: 'charm', lessonTime: 0.25 },  does: 'Charm lessons 25% shorter' },
+    independent: { label: 'the open road', fx: { tripTime: 0.10 },                   does: 'trips 10% shorter' },
+    bold:        { label: 'adventure',     fx: { farAt: 2 },                          does: 'the far trips open at Sturdy 2 stars' },
+    shy:         { label: 'quiet days',    fx: { fade: 0.10 },                       does: 'happiness fades 10% slower' },
+  },
+  // The six places (each is a buyer's home: `buyer` in BUYERS). reach: near (always open), middle (Sturdy middleAt),
+  // far (Sturdy farAt). Souvenirs are found in this order, one per full trip. Story lines: {name} is the traveler;
+  // `lean` lines join the pool for a slime with that lean (picked half the time when there is one).
+  places: [
+    { id: 'cafe', buyer: 'cafe', name: 'Puddle Café', icon: '☕', hours: 1, reach: 'near', treat: 'a sprinkle drop',
+      souvenirs: [{ id: 'cupHat', name: 'Paper Cup Hat', icon: '🥤' }, { id: 'sprinkleJar', name: 'Sprinkle Jar', icon: '🫙' }, { id: 'napkin', name: 'Napkin Doodle', icon: '🖍️' }],
+      stories: [
+        '{name} helped greet the guests and got a sprinkle on the nose.',
+        '{name} watched the rain puddles from the window seat and counted 31 drops.',
+        '{name} carried a teacup across the whole café. It wobbled, but not one drop spilled!',
+        '{name} curled up by the warm cocoa machine and had a little nap.',
+        'A kid drew {name} on a napkin. It looked like a happy potato.',
+      ],
+      lean: {
+        playful: '{name} bounced from table to table saying hello to everyone.',
+        shy: '{name} hid behind the cake stand, then waved at one very small kid.',
+        cuddly: '{name} sat in every lap in the café, one after another.',
+      } },
+    { id: 'garden', buyer: 'garden', name: 'Willowbend Gardens', icon: '🌻', hours: 1, reach: 'near', treat: 'a garden berry',
+      souvenirs: [{ id: 'seeds', name: 'Seed Packet', icon: '🌱' }, { id: 'snailShell', name: 'Snail Shell', icon: '🐌' }, { id: 'leaf', name: 'Pressed Leaf', icon: '🍂' }],
+      stories: [
+        '{name} got lost in the tomato patch and made friends with a snail.',
+        '{name} helped water the seedlings (mostly by sitting in the watering can).',
+        '{name} watched the bees for an hour. The bees watched back.',
+        '{name} rolled down the grassy hill four times in a row.',
+        '{name} found the biggest pumpkin in the garden and sat right on top.',
+      ],
+      lean: {
+        curious: '{name} peeked under every single leaf to see who lived there.',
+        mellow: '{name} lay in the sun by the sunflowers and did not move all afternoon.',
+        patient: '{name} waited very quietly, and a butterfly landed right on top.',
+      } },
+    { id: 'mine', buyer: 'mine', name: 'Pebblepeak Mine', icon: '⛏️', hours: 3, reach: 'middle', treat: 'a rock candy',
+      souvenirs: [{ id: 'pebble', name: 'Shiny Pebble', icon: '🪨' }, { id: 'crystalChip', name: 'Crystal Chip', icon: '💎' }, { id: 'pickaxe', name: 'Little Pickaxe', icon: '⛏️' }],
+      stories: [
+        '{name} rode the little mine cart and squealed the whole way down.',
+        '{name} found a rock shaped exactly like a slime.',
+        '{name} listened to the miners sing in the echoing tunnel.',
+        '{name} polished a pebble until it shone like a star.',
+      ],
+      lean: {
+        bold: '{name} went all the way to the deepest tunnel and came back very proud.',
+        impulsive: '{name} zoomed down a tunnel before anyone said go. It was a good tunnel.',
+        independent: '{name} explored a side tunnel alone and drew a little map of it.',
+      } },
+    { id: 'springs', buyer: 'springs', name: 'Mistwater Hot Springs', icon: '♨️', hours: 3, reach: 'middle', treat: 'a warm bun',
+      souvenirs: [{ id: 'duck', name: 'Rubber Duck', icon: '🦆' }, { id: 'towel', name: 'Fluffy Towel', icon: '🧺' }, { id: 'bathPebble', name: 'Bath Pebble', icon: '🫧' }],
+      stories: [
+        '{name} soaked in the warm pool until extra squishy.',
+        '{name} floated on their back and watched the steam make clouds.',
+        '{name} shared a bath with a very polite frog.',
+        '{name} got wrapped in a fluffy towel like a little dumpling.',
+      ],
+      lean: {
+        mellow: '{name} found the warmest pool and stayed there all day.',
+        cuddly: '{name} snuggled into a pile of warm towels with three other slimes.',
+        shy: '{name} chose the tiny quiet pool in the corner. It was perfect.',
+      } },
+    { id: 'observatory', buyer: 'observe', name: 'Starlight Observatory', icon: '🔭', hours: 6, reach: 'far', treat: 'a moon cookie',
+      souvenirs: [{ id: 'starMap', name: 'Star Map', icon: '🗺️' }, { id: 'meteor', name: 'Meteor Bit', icon: '☄️' }, { id: 'telescope', name: 'Tiny Telescope', icon: '🔭' }],
+      stories: [
+        '{name} looked through the big telescope and saw the craters on the moon.',
+        '{name} counted 4 stars, then fell asleep under the dome.',
+        '{name} made a wish on a shooting star. It is a secret.',
+        '{name} helped turn the giant telescope (by sitting on the crank).',
+      ],
+      lean: {
+        curious: '{name} asked the astronomer about every single star.',
+        patient: '{name} waited all night for a comet. It came!',
+        familiar: '{name} found the North Star and decided it was a friend from home.',
+      } },
+    { id: 'festival', buyer: 'festival', name: 'Summer Festival', icon: '🎆', hours: 6, reach: 'far', treat: 'a candy floss',
+      souvenirs: [{ id: 'mask', name: 'Festival Mask', icon: '🎭' }, { id: 'sparkler', name: 'Sparkler', icon: '🎇' }, { id: 'fan', name: 'Paper Fan', icon: '🪭' }],
+      stories: [
+        '{name} watched the fireworks go BOOM and was very brave.',
+        '{name} won the ring toss, then gave the prize to a little kid.',
+        '{name} danced to the drums with a crowd of kids.',
+        '{name} tried every snack stall. Every single one.',
+      ],
+      lean: {
+        playful: '{name} jumped in the bouncy castle until the stars came out.',
+        bold: '{name} rode the biggest ride twice and wanted a third go.',
+        impulsive: '{name} chased a runaway balloon all the way across the festival.',
+      } },
+  ],
+};
+export const SKILL_IDS = RANCH_LIFE.skills.map(s => s.id);
+export const SKILL_BY_ID = Object.fromEntries(RANCH_LIFE.skills.map(s => [s.id, s]));
+export const PLACE_BY_ID = Object.fromEntries(RANCH_LIFE.places.map(p => [p.id, p]));

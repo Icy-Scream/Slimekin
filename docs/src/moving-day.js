@@ -184,7 +184,9 @@ export class MovingDay {
         this.once('hop', () => sl.hop(3));
         this.lookAt(g.stage.camera.position);
         if (t > 0.8) this.once('offer', () => {
-          sl.nub('mdOffer', this.v.set(0.35 * s, 0.25, 1), 0.45, { snap: 4 });
+          // raised beside the face at shoulder height: in front of the face it covered an eye on a big grown slime, and
+          // lower down it covered the medal pin (view/medal-pin.js, on the chest to the viewer's right)
+          sl.nub('mdOffer', this.v.set(0.7 * s, 0.45, 0.6), 0.45, { snap: 4 });
           const id = FOOD_BY_ID[g.state.slime.favorite] ? g.state.slime.favorite : 'cookie';
           a.food = makeFood(id);
           a.food.scale.setScalar(0.01);
@@ -193,7 +195,7 @@ export class MovingDay {
         });
         if (a.food) {
           const tip = sl.nubTipWorld('mdOffer', this.v);
-          if (tip) a.food.position.copy(tip).add(new THREE.Vector3(0, 0.12, 0.1));
+          if (tip) a.food.position.copy(tip).add(new THREE.Vector3(0.05 * s, 0.06, 0.1));
           a.food.scale.setScalar(Math.min(1.1, 0.01 + (t - 0.8) * 3));
           a.food.rotation.y += dt * 1.5;
         }

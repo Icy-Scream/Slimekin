@@ -413,18 +413,22 @@ export const OUTFIT_MAKERS = {
     g.userData.ring = true;
     return g;
   },
+  // (worn, every vertex follows the body's real outline: view/scarf.js; userData.fit names each part's role there)
   scarf() {
     const g = new THREE.Group();
     const knit = std('#ff8a5c', { roughness: 0.95 });
     const ring = mesh(new THREE.TorusGeometry(1, 0.085, 12, 48), knit);
     ring.rotation.x = Math.PI / 2;
+    ring.userData.fit = 'ring';
     g.add(ring);
     const stripe = std('#fff1d6', { roughness: 0.95 });
     const r2 = mesh(new THREE.TorusGeometry(1.002, 0.087, 12, 48, 0.25), stripe);
     r2.rotation.x = Math.PI / 2;
+    r2.userData.fit = 'ring';
     g.add(r2);
     const tail = mesh(new RoundedBoxGeometry(0.2, 0.42, 0.07, 2, 0.03), knit, 0.45, -0.22, 0.9);
     tail.rotation.z = 0.25;
+    tail.userData.fit = 'tail';
     g.add(tail);
     g.userData.ring = true;
     return g;

@@ -1,10 +1,12 @@
 // Ranch rules: grown-up slimes living on the ranch, pearls, the Pearl Basket, slots,
 // placement (selling to a good home) and auctions. No three.js, no DOM.
-import { RANCH, BUYERS, BUYER_BY_ID, TRAIT_IDS, BREEDING, SPARK_BY_ID } from '../data/content.js';
+import { RANCH, BUYERS, BUYER_BY_ID, TRAIT_IDS, BREEDING, SPARK_BY_ID, BREEDS } from '../data/content.js';
 import { rng } from './random.js';
 import { makeEgg, sparkFor, pureFor, emptyLineage } from './breeding.js';
 import { residentMedal } from './medals.js';
 import { heirloomMult } from './heirlooms.js';
+import { oldBody, cleanBody, rollSpecialEgg } from './recipe.js';
+import { createLife, migrateLife, migrateResident, pearlSkillMult, fadeMult, offerSkillMult, friendMult, busy } from './ranch-life.js';
 
 export function createRanch() {
   return {
@@ -20,10 +22,11 @@ export function createRanch() {
     placed: [],
     gift: false,
     lastVisit: 0,
-    nursery: { eggs: [], made: 0, given: 0 },   // eggs waiting to start a generation
+    nursery: { eggs: [], made: 0, given: 0, bought: 0 },   // eggs waiting to start a generation (bought: special eggs)
     sparks: {},       // what the family knows about each spark form: 'observed' | 'understood'
     nearMiss: {},     // spark babies that settled into a normal form, per spark form
     pures: [],        // forms raised Pure (same form as both parents)
+    life: createLife(),   // ranch life (core/ranch-life.js): lanes, wagons, souvenirs, Friend of places
   };
 }
 
@@ -44,12 +47,19 @@ export function migrateRanch(saved) {
   if (!Array.isArray(out.nursery.eggs)) out.nursery.eggs = [];
   for (const k of ['sparks', 'nearMiss']) if (!out[k] || typeof out[k] !== 'object' || Array.isArray(out[k])) out[k] = {};
   if (!Array.isArray(out.pures)) out.pures = [];
+  out.life = migrateLife(saved.life);
   // residents from before breeding: first of their family line, no parents on record
+  // (and from before ranch life: 0 stars in every skill, no lesson, no trip)
   for (const x of out.residents) {
     if (!x || typeof x !== 'object') continue;
     x.lineage = { ...emptyLineage(), ...(x.lineage || {}) };
     if (!Array.isArray(x.lineage.parents)) x.lineage.parents = [];
+    // the recipe body: residents from before it are Curlys (plain, mix 0, neutral genes)
+    Object.assign(x, 'breed' in x ? cleanBody(x) : oldBody());
+    migrateResident(x);   // ranch life: skills, lesson, trip
   }
+  // Nursery eggs from before the recipe body hatch Curlys
+  for (const e of out.nursery.eggs) if (e && typeof e === 'object') e.body = e.body ? cleanBody(e.body) : oldBody();
   out.residents = out.residents.filter(x => x && typeof x === 'object');
   return out;
 }
@@ -83,22 +93,25 @@ export class Ranch {
   // offers. Old residents get theirs from runTotal (nothing new is saved for residents). Heirlooms multiply on top:
   // Ranch Lanterns (pearls), Family Statue (what buyers pay).
   medal(x) { return residentMedal(x); }
-  pearlMult(x) { return this.medal(x).pearls * heirloomMult(this.s, 'ranchPearls'); }
-  offerMult(x) { return (1 + this.medal(x).offers) * heirloomMult(this.s, 'buyerPay'); }
-  // happiness lost per hour (the Family Portrait halves it)
-  happyDecay() { return RANCH.happyDecayPerHour * heirloomMult(this.s, 'happyDecay'); }
+  // Ranch life (core/ranch-life.js): Bounce stars add pearls, Charm stars add to offers.
+  pearlMult(x) { return this.medal(x).pearls * heirloomMult(this.s, 'ranchPearls') * pearlSkillMult(x); }
+  offerMult(x) { return (1 + this.medal(x).offers) * heirloomMult(this.s, 'buyerPay') * offerSkillMult(x); }
+  // happiness lost per hour (the Family Portrait halves it; a resident's Sturdy stars and a Shy lean slow it down)
+  happyDecay(x) { return RANCH.happyDecayPerHour * heirloomMult(this.s, 'happyDecay') * fadeMult(x); }
   // pearls per second for one resident
   pearlRate(x) { return this.happyMult(x) * (1 + 0.05 * (x.bondLevel || 0)) * this.pearlMult(x) / (RANCH.pearlMinutes * 60); }
-  pearlsPerHour() { let t = 0; for (const x of this.r.residents) t += this.pearlRate(x) * 3600; return t; }
+  // (a slime on a trip makes no ranch pearls: its pearls come home in its bag)
+  pearlsPerHour() { let t = 0; for (const x of this.r.residents) if (!x.trip) t += this.pearlRate(x) * 3600; return t; }
 
   // Live tick. A new pearl counts as in the basket right away (on screen it pops out into the grass
   // first, and can be picked up there). Returns the ids of residents that just made one.
   // Production pauses while the basket is full.
+  // A slime on a trip is not here: no pearls, and its happiness does not fade.
   tick(dt) {
     const made = [];
-    const decay = this.happyDecay() / 3600 * dt;
     for (const x of this.r.residents) {
-      x.happiness = Math.max(0, x.happiness - decay);
+      if (x.trip) continue;
+      x.happiness = Math.max(0, x.happiness - this.happyDecay(x) / 3600 * dt);
       if (this.r.basket.stored >= this.basketCap()) continue;
       x.pearlT = (x.pearlT || 0) + this.pearlRate(x) * dt;
       if (x.pearlT >= 1) { x.pearlT -= 1; this.r.basket.stored++; made.push(x.id); }
@@ -113,13 +126,15 @@ export class Ranch {
     return 1;
   }
 
-  // While the game was closed: happiness fades, pearls go straight into the basket.
+  // While the game was closed: happiness fades, pearls go straight into the basket (travelers skipped, as in tick;
+  // RanchLife.passTime splits the time where a traveler came home or a lesson ended).
   tickAway(seconds) {
     if (seconds <= 0 || !this.r.residents.length) return { pearls: 0, full: false };
     let made = 0;
     for (const x of this.r.residents) {
+      if (x.trip) continue;
       const before = x.happiness;
-      x.happiness = Math.max(0, x.happiness - this.happyDecay() / 3600 * seconds);
+      x.happiness = Math.max(0, x.happiness - this.happyDecay(x) / 3600 * seconds);
       const avg = { ...x, happiness: (before + x.happiness) / 2 };
       const t = (x.pearlT || 0) + this.pearlRate(avg) * seconds;
       made += Math.floor(t);
@@ -143,7 +158,7 @@ export class Ranch {
   // ---------- caring for residents ----------
   pet(id, now = Date.now()) {
     const x = this.resident(id);
-    if (!x) return null;
+    if (!x || x.trip) return null;
     const fresh = now - (x.petAt || 0) > RANCH.petCooldown * 1000;
     if (fresh) { x.happiness = Math.min(100, x.happiness + RANCH.petHappy); x.petAt = now; }
     return { resident: x, counted: fresh };
@@ -152,7 +167,7 @@ export class Ranch {
   visit(now = Date.now()) {
     if (now - (this.r.lastVisit || 0) < RANCH.visitCooldown * 1000) return false;
     this.r.lastVisit = now;
-    for (const x of this.r.residents) x.happiness = Math.min(100, x.happiness + RANCH.visitHappy);
+    for (const x of this.r.residents) if (!x.trip) x.happiness = Math.min(100, x.happiness + RANCH.visitHappy);
     return true;
   }
 
@@ -165,6 +180,10 @@ export class Ranch {
     const a = this.resident(aId), b = this.resident(bId);
     if (!a || !b) return { ok: false, reason: 'missing' };
     if (a === b) return { ok: false, reason: 'same' };
+    // ranch life: a slime on a trip or in a lesson can't be a parent until it is back / done
+    const away = [a, b].filter(x => busy(x) === 'away'), learning = [a, b].filter(x => busy(x) === 'lesson');
+    if (away.length) return { ok: false, reason: 'away', who: away.map(x => x.name) };
+    if (learning.length) return { ok: false, reason: 'lesson', who: learning.map(x => x.name) };
     if (this.eggs().length >= BREEDING.maxEggs) return { ok: false, reason: 'full' };
     const resting = [a, b].filter(x => this.restingToday(x, now));
     if (resting.length) return { ok: false, reason: 'resting', who: resting.map(x => x.name) };
@@ -183,6 +202,28 @@ export class Ranch {
     a.bredDay = b.bredDay = dayNumber(now);
     if (egg.spark) this.learnSpark(egg.spark, 'observed');
     return { egg, cost: BREEDING.cost };
+  }
+  // ---------- special eggs (pearls) ----------
+  // A Cat-ear or Topknot egg (BREEDS.specialEggs): the type is guaranteed (a Dollop of that variant). It waits in the
+  // Nursery like a bred egg: same warm time, same nest limit, chosen at move-out or put on the cushion.
+  canBuySpecialEgg(variant) {
+    const def = BREEDS.specialEggs[variant];
+    if (!def) return { ok: false, reason: 'missing' };
+    if (this.eggs().length >= BREEDING.maxEggs) return { ok: false, reason: 'full' };
+    if (this.r.pearls < def.price) return { ok: false, reason: 'pearls', cost: def.price };
+    return { ok: true, cost: def.price };
+  }
+  buySpecialEgg(variant, now = Date.now()) {
+    if (!this.canBuySpecialEgg(variant).ok) return null;
+    const def = BREEDS.specialEggs[variant], n = this.r.nursery;
+    this.spend(def.price);
+    const id = `s${now.toString(36)}-${n.made}`, seed = `${variant}|${id}`;
+    const egg = { id, seed, laidAt: now, readyAt: now + this.newEggSeconds() * 1000, parents: [], special: variant, spark: null, pure: null,
+      line: 1, bias: {}, personality: {}, favorite: null, body: rollSpecialEgg(variant, seed) };
+    n.made++;
+    n.bought = (n.bought || 0) + 1;
+    n.eggs.push(egg);
+    return { egg, cost: def.price, first: n.bought === 1 };
   }
   eggReady(egg, now = Date.now()) { return !!egg && now >= egg.readyAt; }
   // how long this egg warms in all (eggs made with the Patchwork Quilt warm faster)
@@ -256,12 +297,13 @@ export class Ranch {
     while (picks.length < 3 && pool.length) picks.push(pool.splice(Math.floor(rand() * pool.length), 1)[0]);
     return picks.map(b => {
       const f = this.fit(x, b);
-      return { buyer: b.id, name: b.name, line: b.line, fit: f, pearls: Math.max(5, Math.round(this.value(x) * f * (0.95 + rand() * 0.1) * this.offerMult(x))) };
+      // (Friend of a place: that place's buyer offers more; ranch life)
+      return { buyer: b.id, name: b.name, line: b.line, fit: f, pearls: Math.max(5, Math.round(this.value(x) * f * (0.95 + rand() * 0.1) * this.offerMult(x) * friendMult(this.s, b.id))) };
     }).sort((a, b) => b.pearls - a.pearls);
   }
   place(id, buyerId, now = Date.now()) {
     const x = this.resident(id);
-    if (!x) return null;
+    if (!x || busy(x)) return null;   // (on a trip or in a lesson: not now)
     const offer = this.offers(x, now).find(o => o.buyer === buyerId);
     if (!offer) return null;
     this.r.residents = this.r.residents.filter(r => r !== x);
@@ -279,7 +321,7 @@ export class Ranch {
     const bidders = [];
     for (let i = 0; i < 4; i++) {
       const b = pool.splice(Math.floor(rand() * pool.length), 1)[0];
-      const max = Math.round(this.value(x) * (0.8 + 0.65 * (this.fit(x, b) - 0.75) / 0.6 + 0.3) * (0.9 + rand() * 0.25));
+      const max = Math.round(this.value(x) * (0.8 + 0.65 * (this.fit(x, b) - 0.75) / 0.6 + 0.3) * (0.9 + rand() * 0.25) * friendMult(this.s, b.id));
       bidders.push({ buyer: b.id, name: b.name, max });
     }
     bidders.sort((a, b) => b.max - a.max);
@@ -303,7 +345,7 @@ export class Ranch {
   }
   sellAtAuction(id, now = Date.now()) {
     const x = this.resident(id);
-    if (!x) return null;
+    if (!x || busy(x)) return null;   // (on a trip or in a lesson: not now)
     const a = this.auction(x, now);
     if (!a.winner) return null;
     this.r.residents = this.r.residents.filter(r => r !== x);
