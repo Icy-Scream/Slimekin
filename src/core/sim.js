@@ -7,7 +7,7 @@ import {
   MEDALS, MEDAL_BY_ID, HEIRLOOM_BY_ID,
 } from '../data/content.js';
 import { createRanch, migrateRanch, Ranch, residentJpsFor, dayNumber } from './ranch.js';
-import { emptySkills } from './ranch-life.js';
+import { emptySkills, RanchLife } from './ranch-life.js';
 import { emptyLineage, applyEgg, resolveForm, eggFromLineage } from './breeding.js';
 import { medalFor, medalRank } from './medals.js';
 import { createHeirlooms, migrateHeirlooms, heirloomMult, heirloomFlag, startHelpers, forSale, ownsHeirloom } from './heirlooms.js';
@@ -122,6 +122,7 @@ export class Sim {
     this.lastFed = null;
     this.recentFoods = [];
     this.ranch = new Ranch(state);
+    this.life = new RanchLife(state, this.ranch, this);   // ranch life: lessons and trips (core/ranch-life.js)
     this.recompute();
   }
 
