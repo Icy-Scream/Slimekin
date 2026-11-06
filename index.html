@@ -159,6 +159,15 @@ body.at-ranch .egg-hint { display: none !important; }
 .emote-fab[aria-expanded="true"] { background: color-mix(in srgb, var(--berry) 20%, var(--panel)); }
 .emote-fab.pulse { animation: btn-pulse 1.2s ease-in-out infinite; }
 .fps { position: fixed; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 4px); transform: translateX(-50%); z-index: 40; font: 700 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace; padding: 4px 8px; border-radius: 99px; background: var(--ink); color: var(--panel-strong); pointer-events: none; }
+/* the Greenhouse camera button (src/ui/camera-button.js): under the top bar on the left (top set in JS from the bar),
+   under the HUD layer (#ui is z-index 5) so a stretched menu sheet covers it */
+.cam-btn { position: fixed; left: max(16px, env(safe-area-inset-left, 0px)); top: calc(env(safe-area-inset-top, 0px) + 14px); z-index: 4; width: 44px; height: 44px; border-radius: 50%; padding: 0; display: grid; place-items: center; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.cam-btn[hidden] { display: none; }
+.cam-btn .ic .gi { width: 25px; height: 25px; vertical-align: 0; display: block; }
+.cam-btn.free { box-shadow: 0 0 0 2.5px color-mix(in srgb, #f08a2c 55%, transparent), 0 14px 34px -18px var(--shade); }
+.cam-btn:active { transform: scale(.94); }
+.cam-btn .tip { position: absolute; left: 52px; top: 50%; transform: translateY(-50%); white-space: nowrap; padding: 5px 10px; border-radius: 99px; background: var(--panel-strong, #fff); color: var(--ink); font: 800 12px/1 var(--body, system-ui); box-shadow: 0 6px 16px -8px var(--shade); opacity: 0; pointer-events: none; transition: opacity .25s; }
+.cam-btn.tipping .tip { opacity: 1; }
 .rotate { display: none; position: fixed; inset: 0; z-index: 60; background: var(--bg); place-items: center; text-align: center; padding: 20px; }
 .rotate > div { display: flex; flex-direction: column; align-items: center; gap: 8px; color: var(--ink-2); font-size: 14px; }
 .rotate b { font-family: var(--display); font-size: 22px; color: var(--ink); }

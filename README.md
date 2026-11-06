@@ -69,7 +69,9 @@ Phone notes: swipe the menu down (or its grip bar) to close it; drag a notificat
 | Secrets | 14 hidden interactions, each with a clue in the Journal. |
 | Grown-up forms | All 22 Settled forms have their own look on top of the diet color: a body shape (teardrop, blocky, lumpy...), a pattern (candy stripes, flames, rivets, circuits...), props (a beating heart inside, amethyst clusters, a chimney, a sunflower, a bee or ladybug friend...) and little effects. Head props hide under hats (spark forms keep theirs and the hat sits on top). |
 | The ranch | A grassy hill behind the cushion where grown-up slimes live. Open the Ranch tab and the camera flies over; tap a slime to visit it up close and stroke it to pet it. They wander, play, and nap in nightcaps after dark. |
-| The meadow | Home is outdoors: grass, flowers, rolling hills behind the ranch, drifting clouds, trees, and a moon at night. Settings → Background → **Classic** turns it all off for the original plain look, with only your slime to look at. |
+| The Greenhouse | Home is a cozy glass greenhouse: plank floor, a braided rug, the slime's mossy stump, a potting bench, jars of snacks, hanging plants, a lantern and fairy lights at night, the garden and sky through the glass, fireflies after dark. It blends from day to night when the theme changes. Every save starts there (an old save on the meadow moves there once; one on Classic stays Classic). Helpers you buy stand in the room. |
+| Turning the camera | In the Greenhouse, the camera button (top left) steps through Front, Wide, Left and Right, and the game remembers the last one. Drag on the background (not on the slime) to turn the camera around your slime, up and down to look from higher or lower, and pinch with two fingers to come nearer or go farther. It stays inside the room. After you turn it, the button shows a little arrow: tap it to go back to Front. Booping, petting, feeding and everything else work the same from every angle. |
+| The meadow | Settings → Background → **Meadow**: home is outdoors: grass, flowers, rolling hills behind the ranch, drifting clouds, trees, and a moon at night. **Classic** turns it all off for the original plain look, with only your slime to look at. The camera stays fixed in both. |
 | Status at a glance | The slime's name, a heart that fills up as your bond grows (with the bond level), and three rings for tummy, joy and energy, all in one slim pill at the top. A ring pulses when it runs low, and the slime shows a little "Hungry!", "Sleepy..." or "Lonely..." bubble. Tap the heart or a ring for the details. |
 | Menu | Four tabs: Shop (Helpers and Upgrades), Outfits, your slime (its page and the Journal) and Ranch. Shop and your slime's tab switch pages with a toggle at the top of the menu. |
 | Moving out (a new generation) | A Settled slime can move to the ranch. That starts a new generation with a new egg: jelly, helpers, upgrades and the Jelly Jar start over; pearls, the ranch, outfits, combos and secrets stay. Each move-out raises the permanent Family Bonus on all jelly: it comes from all the jelly the whole family has ever made (so every slime's jelly counts, and rushing slimes out early no longer pays), and the ranch slime keeps making jelly. |
@@ -111,6 +113,10 @@ src/core/recipe.js    the breeds' recipes and blends (Curly, Dollop, in-betweens
 src/view/forms.js     the 22 grown-up form looks: shapes, patterns, props, effects
 src/view/ranch.js     the ranch hill: scenery, wandering residents, pearls, basket, visit cameras
 src/view/scenery.js   the meadow around home (grass, hills, clouds, flowers, trees, moon); off with the Classic background
+src/view/greenhouse.js the Greenhouse room (baked outside the repo into src/assets/greenhouse/): room, sky, glass, night glows
+src/view/greenhouse-math.js  Greenhouse math without three.js: ground, roof, camera limits and turning, pal hops, spot check
+src/greenhouse-home.js which background home shows (Greenhouse / Meadow / Classic) and the camera you can turn
+src/ui/camera-button.js the Greenhouse camera button
 src/view/face.js      canvas-drawn expressions (eyes, mouth, blush, tears, sweat)
 src/view/stage.js     renderer, camera, lights, sky, cushion, day/night palettes
 src/view/helpers3d.js visible helpers in the world
@@ -123,7 +129,7 @@ src/ui/hud.js         DOM interface
 src/ui/icons.js       drawn icons (sparkle, heart, Journal memory icons, little slime drawings) used instead of emoji
 src/ui/eggs.js        special eggs in the Nursery, a Nursery egg's title, the Breed line on your slime's page
 tools/serve.mjs       local dev server
-tools/build-web.mjs   builds the installable web app (manifest, icons, offline cache) into docs/
+tools/build-web.mjs   builds the installable web app (manifest, icons, offline cache) into docs/ (or the folder given)
 web/                  app icons and the offline service worker template
 docs/                 built web app served by GitHub Pages (do not edit by hand; rebuild instead)
 tools/economy-sim.mjs economy simulator: plays the real rules as an engaged or casual player and prints milestones
@@ -134,6 +140,10 @@ tools/browser-kit.cjs     shared setup for the browser tests (free port, offline
 tools/breeding-test.mjs   breeding rules check in plain node (caps, seeds, sparks, Pure, cooldowns, old saves, cushion egg, new homes)
 tools/jelly-loop-test.mjs jelly loop rules check in plain node (Family Bonus and old saves, medals, heirlooms, Moving Day)
 tools/jelly-loop-smoke.cjs headless jelly loop play-through from an old save (heirlooms, medals, move-out screen, every sign)
+tools/greenhouse-test.mjs  Greenhouse check in plain node (the room's files, helper spots on High and Low, pal hops, camera limits, the move of old saves)
+tools/greenhouse-smoke.cjs headless Greenhouse test with real touches (every angle day and night, drag, pinch, petting, menu sheet, Settings, ranch, helpers, egg)
+tools/greenhouse-offline.cjs the room's own offline cache across two test builds in tools/out/web-test (never docs/)
+src/assets/greenhouse/ the baked room (made outside this repo; do not edit by hand)
 src/core/medals.js    which medal a slime has (from the jelly it made)
 src/core/heirlooms.js heirloom effects over the save (multipliers, starting helpers)
 src/core/movingday.js the Moving Day ratio, its levels and which sign a slime shows
@@ -177,6 +187,9 @@ node tools/build-web.mjs
 ```
 
 GitHub Pages serves the `docs/` folder on `main`. Each build gets a new version number, so installed copies pick up the update the next time they're opened online.
+The Greenhouse room's files (about 3.4 MB) sit in their own offline cache named by a hash of their contents, so an
+update that doesn't change the room doesn't download it again. To try a build without touching `docs/`, give it another
+folder: `node tools/build-web.mjs tools/out/web-test` (and `node tools/greenhouse-offline.cjs` checks the cache).
 
 ## Tuning
 
@@ -216,6 +229,10 @@ difference is the favorite snack it may inherit):
 ```bash
 node tools/economy-sim.mjs 4 casual quiet gen2=1e9 bred
 ```
+
+The Greenhouse: `GREENHOUSE` in `content.js` holds the slime's lights in the room (day and night), the ground (stump, rug,
+floor), the four camera angles and the camera's limits, how far a drag or a pinch turns it, and where each helper
+stands. `node tools/greenhouse-test.mjs` checks it (move a helper spot, then run it).
 
 The jelly loop (all in `content.js`, checked by `node tools/jelly-loop-test.mjs`):
 
