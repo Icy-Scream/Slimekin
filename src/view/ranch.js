@@ -16,6 +16,7 @@ const R_TOP = 7.4;                 // radius of the flat meadow
 const FENCE_R = 6.9;
 const GATE = 0.3;                  // half-angle of the gate gap (faces the nursery)
 const GROWN = STAGES.length - 1;   // residents are grown up (shape number m = 1)
+const RESIDENT_LOD = 2;            // residents you are not visiting reshape every 2nd frame while you watch the ranch
 const ROAM = 5.6;                  // how far residents wander from the middle
 const TAU = Math.PI * 2;
 
@@ -622,8 +623,9 @@ export class RanchView {
     r.timer -= dt;
     r.happyT -= dt;
     av.inner.visible = this.visiting;
-    // while you watch the ranch, only the slime you are visiting reshapes every frame (far away it is already slow)
-    av.lod = this.visiting && this.focusId !== r.id ? 2 : 1;
+    // while you watch the ranch, only the slime you are visiting reshapes every frame and shows its bubbles (far away
+    // it is already slow)
+    av.lod = this.visiting && this.focusId !== r.id ? RESIDENT_LOD : 1;
     if (r.happyT > 0) { Object.assign(av.expr, { eyes: 'happy', mouth: 'open', blush: 0.9 }); }
     else if (r.state === 'nap') Object.assign(av.expr, { eyes: 'sleep', mouth: 'smile', blush: 0.4 });
     else Object.assign(av.expr, { eyes: 'normal', mouth: 'smile', blush: 0.4 });

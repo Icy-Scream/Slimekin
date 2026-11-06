@@ -1221,7 +1221,7 @@ export class SlimeAvatar {
       f.position.set(o.x * 1.02, 0.1 * fk * (1 + sqx * 0.5), o.z * 1.04 + 0.04);
       f.scale.set(0.2 * fk * (1 - sqx * 0.4), 0.13 * fk * (1 + sqx * 0.6), 0.22 * fk);
     }
-    this.fizz.visible = this.inner.visible;
+    this.fizz.visible = this.inner.visible && this.lod === 1;   // (ranch residents far from the camera skip their bubbles)
     if (this.fizz.visible) {
       const cy = CENTER_Y * (1 + sqx);
       for (const bb of this.bubbles) {
