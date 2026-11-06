@@ -459,7 +459,10 @@ export const RANCH_LIFE = {
   lanes:  { start: 1, costs: [60, 150] },
   wagons: { start: 1, costs: [80, 200] },
   trip: {
-    happy: 20,                   // happiness when a full trip comes home (an early return brings its share)
+    // happiness when a full trip comes home (an early return brings its share). Design: 20; tuned to 10 by the pearl
+    // simulator (tools/pearl-sim.mjs): on a ranch checked twice a day the +20 cheered slimes up so much that ranch life
+    // added +68% pearls for a casual player (target: at most +40%); +10 gives +47%, the most -50% can do.
+    happy: 10,
     middleAt: 1,                 // Sturdy stars that open the 3-hour trips
     farAt: 3,                    // Sturdy stars that open the 6-hour trips (`loves.bold.farAt` lowers it)
   },
