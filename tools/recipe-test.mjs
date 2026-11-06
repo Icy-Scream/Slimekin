@@ -244,6 +244,8 @@ console.log('\n# 7. Old saves: every slime, resident and egg becomes a Curly (pl
     // ranch life's fields are new too (tools/ranch-life-test.mjs checks those)
     for (const x of s.ranch.residents) for (const k of ['skills', 'lesson', 'trip']) delete x[k];
     delete s.ranch.life;
+    // and the Greenhouse's settings (tools/greenhouse-test.mjs checks those, with the one-time move)
+    for (const k of ['scene', 'sceneMoved', 'camView']) delete s.settings[k];
     return s;
   };
   for (const f of fs.readdirSync(FIX).filter(f => f.endsWith('.json')).sort()) {
@@ -259,10 +261,11 @@ console.log('\n# 7. Old saves: every slime, resident and egg becomes a Curly (pl
     if (baseSim) {
       Math.random = (() => { let r = 99; return () => ((r = (r * 1103515245 + 12345) % 2147483648) / 2147483648); })();
       const a = baseSim.migrate(clone(raw));
+      delete a.settings.scene;   // a saved Meadow moves to the Greenhouse once (the Greenhouse's move, not the body's)
       Math.random = (() => { let r = 99; return () => ((r = (r * 1103515245 + 12345) % 2147483648) / 2147483648); })();
       const b = strip(migrate(clone(raw)));
       a.createdAt = b.createdAt = 0;
-      ok(JSON.stringify(a) === JSON.stringify(b), `${f}: the same save as the base commit's migration, apart from the new body fields (and ranch life's)`);
+      ok(JSON.stringify(a) === JSON.stringify(b), `${f}: the same save as the base commit's migration, apart from the new body fields (and ranch life's, and the Greenhouse's settings)`);
     }
   }
   if (!baseSim) console.log('(set RECIPE_BASE to a checkout of the base commit to compare migrations byte for byte)');

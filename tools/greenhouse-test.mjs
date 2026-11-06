@@ -171,7 +171,7 @@ const roundTrip = s => JSON.parse(JSON.stringify(s));
 {
   const fresh = createState();
   ok(fresh.settings.scene === 'greenhouse' && fresh.settings.sceneMoved === true && fresh.settings.camView === 'front', 'a new save starts in the Greenhouse (Front camera)');
-  for (const name of ['main-settled.json', 'main-egg.json', 'main-gen3.json', 'pre-jelly-gen2.json']) {
+  for (const name of fs.readdirSync(path.join(root, 'tools/fixtures')).filter(f => f.endsWith('.json')).sort()) {   // every old save
     const old = fixture(name);
     const meadow = roundTrip(old); meadow.settings.scene = 'meadow';
     const a = migrate(roundTrip(meadow));
