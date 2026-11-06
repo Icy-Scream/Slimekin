@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { Sim, createState, migrate } from './core/sim.js';
 import { Requests } from './core/requests.js';
-import { TUNING, FOODS, FOOD_BY_ID, HELPERS, HELPER_BY_ID, UPGRADE_BY_ID, STAGES, TRAITS, TRAIT_IDS, BOND, PERSONALITY, PERSONALITY_IDS, JAR_LEVELS, OUTFITS, OUTFIT_BY_ID, RANCH, BUYER_BY_ID, BREEDING, SPARK_BY_ID, FORM_BY_ID, PURE_LINE, MOVING_DAY } from './data/content.js';
+import { TUNING, FOODS, FOOD_BY_ID, HELPERS, HELPER_BY_ID, UPGRADE_BY_ID, STAGES, TRAITS, TRAIT_IDS, BOND, PERSONALITY, PERSONALITY_IDS, JAR_LEVELS, OUTFITS, OUTFIT_BY_ID, RANCH, BUYER_BY_ID, BREEDING, SPARK_BY_ID, FORM_BY_ID, PURE_LINE, MOVING_DAY, BREEDS } from './data/content.js';
 import { fmt, fmtShort, fmtDuration } from './core/format.js';
 import { Stage, CUSHION_TOP } from './view/stage.js';
 import { SlimeAvatar } from './view/slime.js';
@@ -13,6 +13,9 @@ import { Egg } from './view/egg.js';
 import { addEggSpark } from './view/egg-spark.js';
 import { setMedalPin } from './view/medal-pin.js';
 import { heirloomFlag } from './core/heirlooms.js';
+import { cleanBody, bodyName } from './core/recipe.js';
+import { eggLabel } from './core/breeding.js';
+import { specialEggColors, specialEggRefusal } from './ui/eggs.js';
 import { makeFood, renderIcons, FOOD_MAKERS, HELPER_MAKERS, OUTFIT_MAKERS } from './view/models.js';
 import { Sfx } from './audio/sfx.js';
 import { Hud, esc } from './ui/hud.js';
@@ -51,6 +54,8 @@ export class Game {
     this.slime.root.position.y = SLIME_Y;
     this.scene.add(this.slime.root);
     this.slime.setTraits(this.state.slime.traits);
+    this.slime.setRecipe(this.state.slime, { instant: true });   // its breed (Curly, Dollop or in-between), fixed at the egg
+    this.slime.setStage(this.sim.stageIndex(), this.sim.stageProgress(), true);
     this.slime.size = this.slime.sizeTarget = this.sim.size();
     this.slime.setOutfits(this.state.outfits.worn);
     if (this.state.slime.form) this.slime.setForm(this.state.slime.form.id, { pure: this.state.slime.form.pure });
@@ -239,7 +244,8 @@ export class Game {
       this.egg.mesh.geometry.dispose(); this.egg.mat.dispose(); this.egg.tex.dispose();
     }
     const lin = this.state.slime.lineage || {};
-    this.egg = new Egg({ colors: lin.parents?.length ? this.eggColors(lin.bias) : null });
+    const sp = this.state.egg.bred?.special;   // a special egg (pearls) has its own spot colors
+    this.egg = new Egg({ colors: sp ? specialEggColors(sp) : lin.parents?.length ? this.eggColors(lin.bias) : null });
     this.eggSpark = lin.spark ? addEggSpark(this.egg, { night: this.stage.dark }) : null;
     this.egg.group.position.y = SLIME_Y;
     this.egg.setWarmth(this.state.egg.warmth);
@@ -330,7 +336,9 @@ export class Game {
       this.state.slime.bornAt = Date.now();
       this.state.phase = 'naming';
       const lin = this.state.slime.lineage || {};
-      const from = lin.parents?.length ? `Hatched from ${lin.parents[0].name} and ${lin.parents[1].name}'s egg.${lin.spark ? ' The egg twinkled with a family spark.' : ''}` : 'Hatched from a warm, spotty egg.';
+      const sp = this.state.egg.bred?.special;
+      const from = (lin.parents?.length ? `Hatched from ${lin.parents[0].name} and ${lin.parents[1].name}'s egg.${lin.spark ? ' The egg twinkled with a family spark.' : ''}` : sp ? `Hatched from ${eggLabel(this.state.egg.bred)}.` : 'Hatched from a warm, spotty egg.') +
+        ` A little ${bodyName(this.state.slime)}!`;
       this.sim.remember('🥚', from, 'hatch');
       this.flash({ eyes: 'sleep', mouth: 'o' }, 0.9);
       this.lookOverride = { target: new THREE.Vector3(-3, 1, 2), until: this.time + 2.0 };
@@ -669,7 +677,7 @@ export class Game {
   }
   syncNursery() {
     const rr = this.sim.ranch, now = this.nowMs();
-    this.ranch.setNursery(rr.eggs().map(e => ({ id: e.id, spark: !!e.spark, colors: this.eggColors(e.bias), ready: rr.eggReady(e, now) })));
+    this.ranch.setNursery(rr.eggs().map(e => ({ id: e.id, spark: !!e.spark, colors: e.special ? specialEggColors(e.special) : this.eggColors(e.bias), ready: rr.eggReady(e, now) })));
   }
   openNursery() {
     if ((this.state.phase !== 'play' && this.state.phase !== 'egg') || this.hatching) return;
@@ -715,18 +723,43 @@ export class Game {
     this.saveNow(true);
     return r;
   }
+  // A special egg bought with pearls (recipe body, ui/eggs.js): it waits in the Nursery like any egg.
+  buySpecialEgg(variant) {
+    this.sfx.unlock();
+    const rr = this.sim.ranch, c = rr.canBuySpecialEgg(variant);
+    if (!c.ok) {
+      this.sfx.error();
+      const why = specialEggRefusal(this, variant, c);
+      if (why) this.hud.toast(`<b>Not right now</b>${why}`, '', 3600);
+      this.hud.renderRanch(true);
+      return null;
+    }
+    const r = rr.buySpecialEgg(variant, this.nowMs());
+    this.instantEggs();
+    const def = BREEDS.specialEggs[variant];
+    this.sfx.buy(); this.after(0.3, () => this.sfx.sparkle());
+    this.syncNursery();
+    const nest = this.ranch.nest.getWorldPosition(new THREE.Vector3());
+    this.fx.emit('sparkles', nest.clone().add(new THREE.Vector3(0, 0.4, 0)), { count: 12, color: def.colors[1] });
+    if (r.first) this.remember('🥚', `You brought home a ${def.name} for ${def.price} pearls. A ${BREEDS.variantNames[variant]} will hatch from it.`, 'specialegg');
+    const when = this.state.phase === 'egg' ? 'You can put it on the cushion instead of the egg there now.' : `Choose it when ${esc(this.Name)} moves to the ranch.`;
+    this.hud.toast(`<b>A ${esc(def.name)} in the Nursery</b>It is ${this.debugInstant ? 'ready now (debug: instant eggs)' : `ready in ${fmtDuration(rr.eggWarmSeconds(r.egg))}`}. ${when}`, 'love', 4600);
+    this.hud.renderRanch(true);
+    this.saveNow(true);
+    return r;
+  }
   giveEgg(id) {
     const e = this.sim.ranch.egg(id);
     if (!e) return;
-    const names = `${esc(e.parents[0].name)} and ${esc(e.parents[1].name)}`;
-    this.hud.openModal(`<h2>Give the egg to a neighbor?</h2><p>A kind family down the road would love to raise ${names}'s egg. It frees a spot in the nest. You don't get pearls back.</p>
+    const label = esc(eggLabel(e));
+    this.hud.openModal(`<h2>Give the egg to a neighbor?</h2><p>A kind family down the road would love to raise ${label}. It frees a spot in the nest. You don't get pearls back.</p>
       <div class="actions"><button class="btn" id="geNo">Keep it</button><button class="btn primary" id="geYes">Give it</button></div>`, {
       onOpen: card => {
         card.querySelector('#geNo').addEventListener('click', () => this.hud.closeModal());
         card.querySelector('#geYes').addEventListener('click', () => {
           this.hud.closeModal();
           if (!this.sim.ranch.giveEgg(id)) return;
-          this.remember('💌', `${e.parents[0].name} and ${e.parents[1].name}'s egg went to a neighbor family who will love the baby.`);
+          this.remember('💌', `${eggLabel(e, { cap: true })} went to a neighbor family who will love the baby.`);
           this.hud.toast(`<b>Off to a loving home</b>The neighbors promised to send pictures.`, 'love', 3600);
           this.sfx.sparkle();
           this.syncNursery();
@@ -742,12 +775,12 @@ export class Game {
     const rr = this.sim.ranch, e = rr.egg(id);
     if (!e || this.state.phase !== 'egg' || this.hatching) return;
     const sw = this.sim.cushionSwap(id);
-    const names = `${esc(e.parents[0].name)} and ${esc(e.parents[1].name)}`;
+    const label = esc(eggLabel(e)), Label = esc(eggLabel(e, { cap: true }));
     const left = rr.eggSecondsLeft(e, this.nowMs());
-    const there = sw.old ? `${esc(sw.old.parents[0].name)} and ${esc(sw.old.parents[1].name)}'s egg (on the cushion now)` : 'The egg there now';
+    const there = sw.old ? `${esc(eggLabel(sw.old, { cap: true }))} (on the cushion now)` : 'The egg there now';
     const goes = sw.oldTo === 'nursery' ? 'will go back to the Nursery' : 'will go to a neighbor family who will love the baby';
-    this.hud.openModal(`<h2>Put ${names}'s egg on the cushion?</h2>
-      <p>${there} ${goes}.${left > 0 ? ` ${names}'s egg is still warming: ready in ${fmtDuration(left)}. It can finish warming on the cushion.` : ''}</p>
+    this.hud.openModal(`<h2>Put ${label} on the cushion?</h2>
+      <p>${there} ${goes}.${left > 0 ? ` ${Label} is still warming: ready in ${fmtDuration(left)}. It can finish warming on the cushion.` : ''}</p>
       <div class="actions"><button class="btn" id="cuNo">Not now</button><button class="btn primary" id="cuYes">Put it on the cushion</button></div>`, {
       onOpen: card => {
         card.querySelector('#cuNo').addEventListener('click', () => this.hud.closeModal());
@@ -759,11 +792,12 @@ export class Game {
     this.sfx.unlock();
     const r = this.sim.swapCushionEgg(id, this.nowMs());
     if (!r) { this.sfx.error(); this.hud.renderRanch(true); return; }
-    const [p, q] = r.egg.parents;
-    const old = r.old ? `${r.old.parents[0].name} and ${r.old.parents[1].name}'s egg` : 'The plain egg';
+    const old = r.old ? eggLabel(r.old, { cap: true }) : 'The plain egg';
     const was = r.oldTo === 'nursery' ? `${old} went back to the Nursery.` : `${old} went to a neighbor family who will love the baby.`;
-    this.remember('🥚', `${p.name} and ${q.name}'s egg went on the cushion. ${was}`);
+    this.remember('🥚', `${eggLabel(r.egg, { cap: true })} went on the cushion. ${was}`);
     this.makeEggView();
+    this.slime.setRecipe(this.state.slime, { instant: true });   // the baby in this egg has the egg's own body
+    this.slime.setStage(0, 0, true);
     this.eggWarming = !this.sim.eggReady(this.nowMs());
     this.updateEggHint();
     this.syncNursery();
@@ -771,7 +805,7 @@ export class Game {
     this.saveNow(true);
     // home, to see it on the cushion
     this.leaveRanch();
-    this.hud.toast(`<b>${esc(p.name)} and ${esc(q.name)}'s egg is on the cushion</b>${esc(was)}`, 'love', 4200);
+    this.hud.toast(`<b>${esc(eggLabel(r.egg, { cap: true }))} is on the cushion</b>${esc(was)}`, 'love', 4200);
     this.after(0.6, () => {
       if (!this.egg) return;
       this.egg.tap();
@@ -827,11 +861,11 @@ export class Game {
     return `<div class="sec-title">Which egg comes next?</div><div class="egg-choice" role="radiogroup" aria-label="Which egg comes next">
       <button class="card choice" role="radio" aria-checked="true" data-egg=""><span class="egg-ic" aria-hidden="true"></span><span><b>A new egg</b><span class="sub">A brand-new slime, all its own.</span></span></button>` +
       eggs.map(e => {
-        const ready = rr.eggReady(e, now), [p, q] = e.parents;
-        const cols = this.eggColors(e.bias) || [];
-        const kind = e.spark ? 'It twinkles: a family spark!' : e.pure ? `Both parents are ${esc(FORM_BY_ID[e.pure]?.name || 'the same')}s.` : 'Takes after its parents a little.';
+        const ready = rr.eggReady(e, now);
+        const cols = (e.special ? specialEggColors(e.special) : this.eggColors(e.bias)) || [];
+        const kind = e.special ? esc(BREEDS.specialEggs[e.special]?.blurb || '') : e.spark ? 'It twinkles: a family spark!' : e.pure ? `Both parents are ${esc(FORM_BY_ID[e.pure]?.name || 'the same')}s.` : 'Takes after its parents a little.';
         const note = ready ? kind : `Still warming: ready in ${fmtDuration(rr.eggSecondsLeft(e, now))}, it can finish on the cushion.${e.spark ? ' It twinkles!' : ''}`;
-        return `<button class="card choice${e.spark ? ' spark' : ''}${ready ? '' : ' warming'}" role="radio" aria-checked="false" data-egg="${e.id}"><span class="egg-ic${e.spark ? ' spark' : ''}" style="--a:${cols[0] || '#9eefd3'};--b:${cols[1] || '#ffc2dc'}" aria-hidden="true"></span><span><b>${esc(p.name)} and ${esc(q.name)}'s egg</b><span class="sub">${note}</span></span></button>`;
+        return `<button class="card choice${e.spark ? ' spark' : ''}${ready ? '' : ' warming'}" role="radio" aria-checked="false" data-egg="${e.id}"><span class="egg-ic${e.spark ? ' spark' : ''}" style="--a:${cols[0] || '#9eefd3'};--b:${cols[1] || '#ffc2dc'}" aria-hidden="true"></span><span><b>${esc(eggLabel(e, { cap: true }))}</b><span class="sub">${note}</span></span></button>`;
       }).join('') + '</div>';
   }
   // returns a function that reads the chosen egg id ('' = a plain egg)
@@ -881,7 +915,7 @@ export class Game {
       requestAnimationFrame(() => fade.classList.add('on'));
     });
     this.after(5.3, async () => {
-      const eggOf = egg => egg ? { parents: egg.parents.map(p => p.name), spark: !!egg.spark } : null;
+      const eggOf = egg => egg ? { parents: egg.parents.map(p => p.name), spark: !!egg.spark, label: eggLabel(egg) } : null;
       if (baby) {
         const r = this.sim.rehomeBaby(this.nowMs(), { eggId, buyerId });
         if (!r) { location.reload(); return; }
@@ -921,7 +955,8 @@ export class Game {
     const R = this.state.ranch;
     const left = this.sim.eggSecondsLeft(this.nowMs());
     const warmIt = left > 0 ? `It is still warming: ready in ${fmtDuration(left)}. It can finish warming right there.` : 'Tap it to keep it warm.';
-    const eggLine = j.egg ? `<p>And look: ${esc(j.egg.parents[0])} and ${esc(j.egg.parents[1])}'s egg is on the cushion${j.egg.spark ? ', twinkling' : ''}. ${warmIt}</p>` : '<p>And look: a new egg arrived. Tap it to keep it warm.</p>';
+    const eggName = j.egg ? esc(j.egg.label || `${j.egg.parents[0]} and ${j.egg.parents[1]}'s egg`) : '';
+    const eggLine = j.egg ? `<p>And look: ${eggName} is on the cushion${j.egg.spark ? ', twinkling' : ''}. ${warmIt}</p>` : '<p>And look: a new egg arrived. Tap it to keep it warm.</p>';
     if (j.baby) {
       this.hud.showSimple(`${esc(j.name)} has a new home!`, `<p>${esc(j.name)} went to live at ${esc(j.buyer)}, where they will be loved and looked after. Watch for postcards!</p>${eggLine}`, 'Hello, little egg!');
       this.saveNow(true);
@@ -2002,6 +2037,7 @@ export class Game {
       <button class="btn" data-dbg="glim">Glimmer</button><button class="btn" data-dbg="req">Request</button><button class="btn" data-dbg="bond">+Bond</button>
       <button class="btn" data-dbg="tera">+1T jelly</button><button class="btn" data-dbg="pearls">+100 pearls</button>
       <button class="btn" data-dbg="instant" aria-pressed="${this.debugInstant}">Instant eggs: ${this.debugInstant ? 'On' : 'Off'}</button></div>
+      ${this.bodyDebugHtml()}
       ${this.movingDayDebugHtml()}` : '';
     this.hud.openModal(`<h2>Settings</h2>
       <div class="setting"><span>Sound</span>${seg('sound', [[true, 'On'], [false, 'Off']])}</div>
@@ -2127,8 +2163,29 @@ export class Game {
       <div class="actions md-debug">${Object.keys(MOVING_DAY.signs).map(id => `<button class="btn small" data-dbg="sign:${id}">${esc(name(id))}</button>`).join('')}<button class="btn small" data-dbg="bundle">Travel bundle</button></div>`;
   }
 
+  // Recipe body tester tools (#debug only): set the breed, variant and mix of this slime (and of the egg on the cushion).
+  bodyDebugHtml() {
+    const sl = this.state.slime, b = (k, v, l) => `<button class="btn small" data-dbg="body:${k}:${v}" aria-pressed="${String(sl[k]) === String(v)}">${l}</button>`;
+    return `<div class="sec-title">Body</div><p class="sub" id="bodyStatus">${esc(bodyName(sl))}: breed ${esc(sl.breed)}, variant ${esc(sl.variant)}, mix ${(+sl.mix).toFixed(2)}.</p>
+      <div class="actions body-debug">${b('mix', 0, 'Curly')}${b('mix', 0.25, 'Mix 25%')}${b('mix', 0.5, 'Mix 50%')}${b('mix', 0.75, 'Mix 75%')}${b('mix', 1, 'Dollop')}</div>
+      <div class="actions body-debug">${b('variant', 'plain', 'Plain')}${b('variant', 'ears', 'Cat ears')}${b('variant', 'topknot', 'Topknot')}</div>`;
+  }
+  // Set this slime's body (and the cushion egg's, while it waits); the body morphs over to it. Test hook too.
+  debugBody(patch, { instant = false } = {}) {
+    const st = this.state, sl = st.slime;
+    let mix = 'mix' in patch ? clamp(+patch.mix, 0, 1) : sl.mix;
+    const variant = 'variant' in patch ? patch.variant : sl.variant;
+    if ('variant' in patch && variant !== 'plain' && mix <= 0) mix = 1;   // ears and a topknot only show with some Dollop in it
+    Object.assign(sl, cleanBody({ breed: 'set', mix, variant, genes: sl.genes }));
+    if (st.phase === 'egg' && st.egg.bred) st.egg.bred.body = cleanBody(sl);
+    this.slime.setRecipe(sl, { instant });
+    this.markDirty(true);
+    return cleanBody(sl);
+  }
+
   debug(k) {
     const s = this.state.slime;
+    if (k.startsWith('body:')) { const [, key, v] = k.split(':'); this.debugBody({ [key]: key === 'mix' ? +v : v }); this.openSettings(); return; }
     if (k.startsWith('sign:')) { this.hud.closeModal(); if (this.sim.asleep) this.wakeUp('rested'); this.movingDay.play(k.slice(5), { forced: true }); return; }
     if (k === 'bundle') { this.hud.closeModal(); this.movingDay.showBundle(); return; }
     if (k === 'jelly') this.sim.addJelly(10000);
@@ -2526,6 +2583,7 @@ export class Game {
     this.computeLook();
     this.computeMotion();
     this.slime.sizeTarget = this.sim.size();
+    this.slime.setStage(this.sim.stageIndex(), this.sim.stageProgress());   // the body morphs as it grows
     if (this.departing) this.updateDeparture(dt);
     // (off screen while visiting the ranch, so it can rest)
     if (this.slime.visible && (this.view !== 'ranch' || this.stage.camPos.z > -2)) this.slime.update(dt);

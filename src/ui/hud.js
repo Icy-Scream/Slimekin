@@ -8,6 +8,7 @@ import {
 import { fmt, fmtShort, fmtRate, fmtDuration } from '../core/format.js';
 import { ICON, memIcon, slimeArt, slimeUnknown } from './icons.js';
 import { nextMedal, residentMedal } from '../core/medals.js';
+import { specialEggsHtml, specialEggColors, nurseryEggTitle, nurseryEggNote, breedHtml, eggOrigin } from './eggs.js';   // recipe body
 
 const DROP = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.2c3.7 4.6 6.6 8.4 6.6 12a6.6 6.6 0 0 1-13.2 0c0-3.6 2.9-7.4 6.6-12z"/></svg>';
 const DICE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm2.5 3a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm9 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM12 10.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM7.5 15a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm9 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z"/></svg>';
@@ -64,6 +65,7 @@ export class Hud {
       else if (b.id === 'breedBtn' && this.nurseryPick.length === 2) g.breed(this.nurseryPick[0], this.nurseryPick[1]);
       else if (b.dataset.act === 'giveEgg') g.giveEgg(b.dataset.egg);
       else if (b.dataset.act === 'cushion') g.askCushion(b.dataset.egg);
+      else if (b.dataset.act === 'buySpecial') g.buySpecialEgg(b.dataset.variant);   // recipe body: special eggs (ui/eggs.js)
     });
     this.nurseryPick = [];
     this.pending = 0; this.pendingRate = 0;
@@ -662,7 +664,7 @@ export class Hud {
       html += `<div class="tree-parents">${node(p.name, p.form.name, 'parent', p.form.id, parentMedal(p))}<span class="tree-heart" aria-hidden="true">${ICON.heart}</span>${node(q.name, q.form.name, 'parent', q.form.id, parentMedal(q))}</div>
         <div class="tree-line" aria-hidden="true"></div>`;
     } else {
-      html += `<div class="tree-parents">${node('?', 'A plain egg', 'parent unknown')}</div><div class="tree-line" aria-hidden="true"></div>`;
+      html += `<div class="tree-parents">${node('?', eggOrigin(lin), 'parent unknown')}</div><div class="tree-line" aria-hidden="true"></div>`;
     }
     html += node(me, myForm, 'me' + (s.form?.pure ? ' pure' : '') + (s.form?.spark ? ' spark' : ''), s.form?.id || (st.phase === 'egg' ? null : 'mochi'), st.phase === 'play' ? g.sim.medalShown() : null);
     html += `<span class="sub tree-note">Generation ${R.family.generation} of your family.${lin.line > 1 ? ` ${esc(me)} is number ${lin.line} in its family line.` : ' The first of a new family line.'}</span>`;
@@ -756,6 +758,7 @@ export class Hud {
 
     const traits = TRAIT_IDS.map(k => [k, s.traits[k]]).filter(e => e[1] > 0.05).sort((a, b) => b[1] - a[1]);
     html += '<div class="sec-title">Body</div><div class="card">';
+    html += breedHtml(s);   // recipe body: Curly, Dollop or an in-between (ui/eggs.js)
     if (!traits.length) html += `<span class="sub">No snacks yet. Each snack leaves a trace in ${name}'s body.</span>`;
     const maxT = Math.max(30, ...traits.map(t => t[1]));
     for (const [k, v] of traits) {
@@ -935,15 +938,16 @@ export class Hud {
     if (!eggs.length) html += '<p class="sub">No eggs yet. Pick two parents below.</p>';
     for (const e of eggs) {
       const left = rr.eggSecondsLeft(e, now), ready = left <= 0, [p, q] = e.parents;
-      const cols = g.eggColors(e.bias) || [];
+      const cols = (e.special ? specialEggColors(e.special) : g.eggColors(e.bias)) || [];   // recipe body: special eggs
       const done = 1 - left / rr.eggWarmSeconds(e);
       html += `<div class="card egg-card${e.spark ? ' spark' : ''}"><div class="egg-row"><span class="egg-ic${e.spark ? ' spark' : ''}" style="--a:${cols[0] || '#9eefd3'};--b:${cols[1] || '#ffc2dc'}" aria-hidden="true"></span>
-        <div><b>${pname(p)} and ${pname(q)}'s egg</b><span class="sub">${ready ? (eggPhase ? 'Ready!' : `Ready! Choose it when ${cur} moves to the ranch.`) : `Ready in ${fmtDuration(left)}${eggPhase ? ' (it can finish warming on the cushion)' : ''}`}</span></div></div>
+        <div>${nurseryEggTitle(e)}${nurseryEggNote(e)}<span class="sub">${ready ? (eggPhase ? 'Ready!' : `Ready! Choose it when ${cur} moves to the ranch.`) : `Ready in ${fmtDuration(left)}${eggPhase ? ' (it can finish warming on the cushion)' : ''}`}</span></div></div>
         ${ready ? '' : `<div class="meter"><i style="width:${(done * 100).toFixed(0)}%"></i></div>`}
         ${e.spark ? `<span class="sub spark-line">${ICON.sparkle}It twinkles! ${pname(p)} and ${pname(q)} share a family spark.</span>` : ''}
         ${e.pure ? `<span class="sub">Both parents are ${esc(FORM_BY_ID[e.pure].name)}s. Raised the same way, the baby becomes a ${esc(PURE_LINE.name(FORM_BY_ID[e.pure].name))}.</span>` : ''}
         <div class="egg-acts">${eggPhase ? `<button class="btn small primary" data-act="cushion" data-egg="${e.id}">Put on the cushion</button>` : ''}<button class="btn small" data-act="giveEgg" data-egg="${e.id}">Give to a neighbor</button></div></div>`;
     }
+    html += specialEggsHtml(g);   // recipe body: Cat-ear and Topknot eggs for pearls (ui/eggs.js)
     html += '<div class="sec-title">Pick two parents</div>';
     if (R.residents.length < 2) {
       html += `<div class="card"><span class="sub">Two slimes need to live on the ranch first. When ${cur} is all grown up, move them here too.</span></div>`;

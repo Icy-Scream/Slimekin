@@ -261,3 +261,66 @@ The jelly loop's placeholder emoji now have drawings. Nothing in `content.js` ch
   disc with an emoji; the old disc is the fallback until the image loads. The sprite is a bit bigger (0.34).
 - Phone pill: `#medalBadge` shows again at 17 px next to the name (it was hidden on phones). To make room, the jelly
   rate under the count is shorter on phones: "2.08M /sec" (and "· zzz" while asleep) instead of "jelly per second".
+
+## Recipe body
+
+Every slime is a Curly or a Dollop (or a bred in-between) on one living body (`src/view/slime.js` + `src/view/body.js`,
+recipes in `BREEDS` in `content.js`). New menus live in `src/ui/eggs.js`, called from a few places in `hud.js` marked
+"recipe body".
+
+### The slime itself (3D)
+
+- The body: a Curly is a jelly drop with a curl on top (it sways behind the lean, droops when squashed); a Dollop is a
+  soft gummy dome (Cat-ear and Topknot Dollops keep a smaller ear or knob when grown). Babies have little feet that tuck
+  in as they grow. Growing up and the breed mix only blend numbers, so features grow in or melt away.
+- Touch: the real body counts (the curl, ears and knobs too). Pulling near the curl's tip grabs the tip: it follows the
+  finger, the curl straightens, and it boings back when let go. On a Dollop the same pull stretches the top of the dome.
+- The face is one parametric face: the Curly face (big glossy blue eyes, open smile) slides to the Dollop face (dark
+  oval eyes, a tiny smile that goes away when grown; it still opens to eat, sing and gasp). Cheeks are always a
+  little rosy.
+- The jelly skin: small crisp highlights, a lighter glow low in the body and a rim light in the body's own color, a
+  slow wet ripple (not on Low graphics), bubbles inside; a Dollop is a little deeper in color and gummier.
+- Ranch residents use a lighter body (same look, fewer points); the one you visit reshapes every frame, the others
+  every other frame while you watch.
+
+### Ranch tab: the Nursery (`#body-ranch`, `ranchPage === 'nursery'`)
+
+- New section "Special eggs" (`.sec-title`) above "Pick two parents", with a `.sub` line (bought with pearls, ready time).
+- One `.card.egg-card.special-egg` per special egg (Cat-ear egg, Topknot egg): `.egg-row` with an `.egg-ic` in the egg's
+  own colors (`--a`/`--b`), the name and a `.sub` line ("A Dollop with little cat ears, every time."), a `.special-why`
+  line when it can't be bought (nest full, or "Cat-ear egg costs 75 pearls. You have 40."), and a
+  `.btn.small.primary[data-act="buySpecial"][data-variant]` "Buy · (pearl) 75", disabled when it can't be bought.
+- A special egg waiting in the nest: its card is titled "Cat-ear egg" / "Topknot egg" (instead of "A and B's egg") with
+  the same line under it (`.sub.egg-note`, a block line: one new CSS rule `.egg-row .egg-note` in `index.html`); the
+  rest of the card (warming time, Put on the cushion, Give to a neighbor) as before.
+
+### Move-out modal and the cushion
+
+- The egg choice lists a special egg as "The Cat-ear egg" with its line under it, in its own colors.
+- Texts that named an egg by its parents now say "the Cat-ear egg" for a special egg (put on the cushion, given to a
+  neighbor, the welcome screen after moving out). The egg on the cushion has the special egg's colors.
+
+### Slime tab (`#body-slime`)
+
+- "Body" card: a first `.row-between.breed-line` "Breed: Curly / Dollop / Cat-ear Dollop / Topknot Dollop /
+  Curly × Dollop" with a `.sub` line describing it ("A jelly drop with a curl on top.", "Part Curly, part Dollop (about 64%
+  Dollop). Only the Nursery makes these.").
+- Family tree: a slime from a special egg shows "Cat-ear egg" / "Topknot egg" as its egg instead of "A plain egg".
+
+### Heirlooms tab
+
+- The Wishing Star is for sale (it was "Arrives with rare eggs."): "Rare eggs twice as likely: a plain egg hatches a
+  surprise Cat-ear or Topknot Dollop twice as often."
+
+### Toasts and Journal
+
+- Buying a special egg: toast "A Cat-ear egg in the Nursery" (ready time, and where it can go next); a refusal toast
+  "Not right now" with the reason. Journal line on the first special egg ("You brought home a Cat-ear egg for 75
+  pearls. A Cat-ear Dollop will hatch from it.").
+- The hatch line in the Journal ends with the breed: "... A little Curly!".
+
+### Debug only (`#debug`)
+
+- Settings: "Body" with `#bodyStatus` (breed, variant, mix) and two `.actions.body-debug` rows of `.btn.small` buttons
+  (`data-dbg="body:mix:<0|0.25|0.5|0.75|1>"`, `data-dbg="body:variant:<plain|ears|topknot>"`): they set this slime's
+  body (and the egg's while it waits), and the body morphs over.

@@ -5,6 +5,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { SlimeAvatar } from './slime.js';
 import { setMedalPin } from './medal-pin.js';
 import { residentMedal } from '../core/medals.js';
+import { STAGES } from '../data/content.js';
 import { Egg } from './egg.js';
 import { addEggSpark } from './egg-spark.js';
 
@@ -14,6 +15,8 @@ export const RANCH_TOP = 1.3;      // height of the meadow
 const R_TOP = 7.4;                 // radius of the flat meadow
 const FENCE_R = 6.9;
 const GATE = 0.3;                  // half-angle of the gate gap (faces the nursery)
+const GROWN = STAGES.length - 1;   // residents are grown up (shape number m = 1)
+const RESIDENT_LOD = 2;            // residents you are not visiting reshape every 2nd frame while you watch the ranch
 const ROAM = 5.6;                  // how far residents wander from the middle
 const TAU = Math.PI * 2;
 
@@ -458,6 +461,8 @@ export class RanchView {
     for (const d of list) {
       if (this.residents.has(d.id)) continue;
       const av = new SlimeAvatar({ quality: this.quality, lite: true });
+      av.setRecipe(d, { instant: true });   // its own body (breed, variant, mix, genes), grown up
+      av.setStage(GROWN, 1, true);
       av.setTraits(d.traits || {});
       av.color.copy(av.targetColor);
       if (d.form) av.setForm(d.form.id, { pure: d.form.pure });
@@ -618,6 +623,9 @@ export class RanchView {
     r.timer -= dt;
     r.happyT -= dt;
     av.inner.visible = this.visiting;
+    // while you watch the ranch, only the slime you are visiting reshapes every frame and shows its bubbles (far away
+    // it is already slow)
+    av.lod = this.visiting && this.focusId !== r.id ? RESIDENT_LOD : 1;
     if (r.happyT > 0) { Object.assign(av.expr, { eyes: 'happy', mouth: 'open', blush: 0.9 }); }
     else if (r.state === 'nap') Object.assign(av.expr, { eyes: 'sleep', mouth: 'smile', blush: 0.4 });
     else Object.assign(av.expr, { eyes: 'normal', mouth: 'smile', blush: 0.4 });
