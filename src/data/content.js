@@ -348,6 +348,99 @@ export const PURE_LINE = {
   note: 'Same form as both parents: a pure family line.',
 };
 
+// ---------- Breeds: the recipe body ----------
+// Every slime is the same soft body (view/slime.js) plus a recipe: a short list of numbers (core/recipe.js blends
+// them). Two breeds share the body: Curly (the drop with the curl on top) and Dollop (a soft gummy dome). Growing up,
+// and mixing the two breeds, only blend numbers, so nothing pops: a feature (the curl, ears, a knob) grows or melts
+// away by its size. Eggs hatch pure (Curly or Dollop); in-betweens come only from breeding a Curly with a Dollop.
+//
+// Body numbers (all on the unit body; the ring axis of the curl leans back and to the right):
+//   tall, wide         height of the top half, width              side       cheeks (fuller around the middle)
+//   peak               a pointed top (the baby drop)               flat       a flatter top
+//   lip, lipc, lipw    the goo lip around the bottom: size, height, width;   sag  how far the lip sags to the floor
+//   flowA, flow2       how uneven the lip flows around (3+5 lobes, and a 2-lobe lean); skirtWave  a slow wave above it
+//   crease             a soft crease at the waist                  lump       living lumps drifting over the body
+//   baseFlow           the young body's lower half flowing (the grown has its lip instead)
+//   theta, L, bend     the curl: how wide its base is (radians), length, how much it curls
+//   ra, rt             the curl's thickness at its base and before the tip;   armK  how much curl there is (0 = none)
+//   feet               the baby's two little feet (0 = tucked in)  faceEl     how high the face sits (radians)
+// bumps: [direction, size, softness] soft lumps;  knobs: [direction, size, width, shape] (shape 0 = round knob,
+// 1 = pointed cat ear). Directions are normalized by core/recipe.js.
+export const BREEDS = {
+  ids: ['curly', 'dollop'],
+  names: { curly: 'Curly', dollop: 'Dollop', mixed: 'Curly × Dollop' },
+  // growth: the shape number m for each stage (0 = baby drop .. 1 = grown), blended along a stage's progress;
+  // the body eases toward it (per second), so growing up is a slow morph, never a jump
+  stageM: [0, 0.35, 0.65, 1],   // Hatchling, Sprout, Rascal, Settled
+  growEase: 2.5,
+  mixEase: 3,
+  // Curly: every number goes from the baby value (m = 0) to the grown value (m = 1): evenly, or only between
+  // m = a and m = b (`lin: [a, b]` evenly, `sm: [a, b]` smoothly)
+  curly: {
+    grow: {
+      tall: [1.16, 1.1], wide: [0.9, 1.0], peak: [0.8, 0, { lin: [0, 0.8] }],
+      lip: [0, 0.16, { sm: [0.15, 1] }], crease: [0, 0.045, { sm: [0.3, 1] }], lump: [0.036, 0.045],
+      theta: [0.5, 0.3], L: [0.5, 0.8], bend: [2.4, 2.6], ra: [0.15, 0.17], rt: [0.11, 0.12],
+      feet: [1, 0, { sm: [0.15, 0.7] }], faceEl: [0.06, 0.3], baseFlow: [0.045, 0, { sm: [0.5, 1] }],
+    },
+    fixed: { side: 0, flat: 0, skirtWave: 0, lipc: -0.3, lipw: 0.3, sag: 0.8, flowA: 1, flow2: 0, armK: 1 },
+  },
+  // Dollop: a baby (m = 0), a teen (m = teenAt) and a grown body per variant, each blended to the next. Numbers not
+  // given come from `base`. plain = the mini mochi baby; ears and topknot are the special types (pearl eggs, or a
+  // small surprise from a plain egg) and keep a smaller ear or knob when grown (`keep`), so they still look special.
+  dollop: {
+    teenAt: 0.5,
+    base: { tall: 1, wide: 1, peak: 0, side: 0, flat: 0, lip: 0.1, crease: 0, lump: 0.034, skirtWave: 0, lipc: -0.36, lipw: 0.24,
+      sag: 1.0, flowA: 1.2, flow2: 0.4, baseFlow: 0.03, theta: 0.3, L: 0.5, bend: 2.4, ra: 0.15, rt: 0.11, armK: 0, feet: 0, faceEl: 0.12 },
+    grown: {
+      body: { tall: 0.98, wide: 1.04, side: 0.09, flat: 0.12, lip: 0.2, crease: 0.035, lump: 0.042, skirtWave: 0.05, lipc: -0.46, lipw: 0.22,
+        sag: 0.85, flowA: 1.8, flow2: 0.7, baseFlow: 0, faceEl: 0.2 },
+      bumps: [[[0.45, 0.85, -0.25], 0.085, 0.07], [[-0.42, 0.86, 0.05], 0.05, 0.09], [[0.95, 0.12, 0.25], 0.065, 0.06], [[-0.96, 0.05, 0.28], 0.04, 0.07], [[0.15, -0.05, 1.0], 0.03, 0.1]],
+    },
+    variants: {
+      plain: {
+        baby: { body: { tall: 0.86, wide: 1.0, side: 0.1, flat: 0.1, lip: 0.14, lipc: -0.44, lipw: 0.22, flowA: 1.4, flow2: 0.5, faceEl: 0.14 }, bumps: [[[0.3, 0.9, -0.2], 0.035, 0.08]] },
+        teen: { body: { tall: 0.93, wide: 1.02, side: 0.1, flat: 0.11, lip: 0.17, lipc: -0.45, lipw: 0.22, sag: 0.95, flowA: 1.6, flow2: 0.6, faceEl: 0.18 },
+          bumps: [[[0.42, 0.87, -0.24], 0.06, 0.07], [[-0.4, 0.88, 0.05], 0.04, 0.09], [[0.92, 0.15, 0.25], 0.04, 0.06]] },
+        keep: null,
+      },
+      ears: {
+        baby: { body: { tall: 1.0, wide: 0.9, side: 0.05, lip: 0.12, lipc: -0.42, lipw: 0.2, faceEl: 0.08 }, bumps: [[[0.5, 0.86, -0.12], 0.05, 0.05], [[-0.46, 0.88, -0.05], 0.05, 0.05]],
+          knobs: [[[0.52, 0.84, -0.1], 0.26, 0.3, 1], [[-0.48, 0.86, -0.03], 0.25, 0.3, 1]] },
+        teen: { body: { tall: 1.0, wide: 0.96, side: 0.06, flat: 0.05, lip: 0.15, lipc: -0.44, flowA: 1.5, flow2: 0.6, faceEl: 0.15 },
+          bumps: [[[0.5, 0.84, -0.2], 0.05, 0.05], [[-0.44, 0.88, 0.0], 0.04, 0.05], [[0.9, 0.2, 0.25], 0.04, 0.06]],
+          knobs: [[[0.54, 0.82, -0.16], 0.21, 0.27, 1], [[-0.48, 0.85, 0.0], 0.2, 0.27, 1]] },
+        keep: { knobs: [[[0.55, 0.81, -0.2], 0.17, 0.24, 1], [[-0.5, 0.84, -0.02], 0.16, 0.24, 1]] },
+      },
+      topknot: {
+        baby: { body: { tall: 0.9, wide: 0.95, side: 0.08, lip: 0.2, lipc: -0.64, lipw: 0.12, sag: 2.2, flowA: 1.4, flow2: 0.4, faceEl: 0.05 }, knobs: [[[0.05, 1.0, -0.12], 0.2, 0.34]] },
+        teen: { body: { tall: 0.96, wide: 0.98, side: 0.07, flat: 0.04, lip: 0.19, lipc: -0.56, lipw: 0.17, sag: 1.6, flowA: 1.5, flow2: 0.5, faceEl: 0.13 },
+          knobs: [[[0.26, 0.96, -0.14], 0.12, 0.36], [[-0.22, 0.97, 0.02], 0.09, 0.34]] },
+        keep: { body: { flat: 0.08 }, knobs: [[[0.08, 1.0, -0.1], 0.15, 0.3]] },
+      },
+    },
+  },
+  // genes: small personal quirks, fixed when the egg is made (seeded): tall, wide and lump multiply, side adds
+  geneRange: { tall: 0.08, wide: 0.07, lump: 0.35, side: 0.04 },
+  geneWobble: { tall: 0.015, wide: 0.015, lump: 0.08, side: 0.015 },   // a bred egg: the parents' average, plus this much
+  // a plain egg: which breed hatches (weights), and the small surprise chance of a special Dollop (of Dollop hatches;
+  // the Wishing Star heirloom multiplies it), then which special type (weights)
+  hatch: { curly: 50, dollop: 50 },
+  surprise: 1 / 20,
+  surpriseVariants: { ears: 1, topknot: 1 },
+  // a Curly × Dollop egg: the baby's mix (0 = Curly .. 1 = Dollop) lands this share of the way between its parents'
+  // (Curly × Dollop: 0.25 .. 0.75). Two parents of the same breed (and mix) make a baby of that breed.
+  mixBetween: [0.25, 0.75],
+  passSpecial: 0.5,   // a parent with ears or a topknot: the chance its baby gets it too (else plain)
+  // special eggs, bought with pearls in the Nursery: the type is guaranteed (a Dollop of that variant). They wait in
+  // the Nursery like a bred egg (same warm time, same nest limit). 75 pearls = 3 Nursery eggs.
+  specialEggs: {
+    ears:    { name: 'Cat-ear egg', price: 75, blurb: 'A Dollop with little cat ears, every time.', colors: ['#c9b6ff', '#ffd1ea', '#fff1c9'] },
+    topknot: { name: 'Topknot egg', price: 75, blurb: 'A Dollop with a round topknot, every time.', colors: ['#9ed8ff', '#ffe3a8', '#fff1c9'] },
+  },
+  variantNames: { plain: 'Dollop', ears: 'Cat-ear Dollop', topknot: 'Topknot Dollop' },
+};
+
 // ---------- The jelly loop: medals, heirlooms, Moving Day ----------
 // Slime medals: a step every x10 of a slime's own jelly (s.totalJelly while you raise it, runTotal for a ranch
 // resident), earned live while you raise it. Every grown (Settled) slime has at least the Ribbon; the jelly steps
