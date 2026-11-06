@@ -37,7 +37,7 @@ console.log('# 1. Every recipe and blend is a sound body (breeds x variants x gr
 {
   // directions to sample the body at: rings from the top to the bottom, all the way around
   const dirs = [];
-  for (let el = -80; el <= 85; el += 15) for (let az = 0; az < 360; az += 30) {
+  for (const el of [-75, -60, -45, -30, -15, 0, 15, 30, 45, 60, 75, 85]) for (let az = 0; az < 360; az += 30) {
     const e = el * Math.PI / 180, a = az * Math.PI / 180;
     dirs.push([Math.cos(e) * Math.cos(a), Math.sin(e), Math.cos(e) * Math.sin(a), a]);
   }

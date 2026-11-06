@@ -38,6 +38,8 @@ Phone notes: swipe the menu down (or its grip bar) to close it; drag a notificat
 | Feature | How it plays |
 |---|---|
 | Egg and hatching | Tap the egg to warm it, cracks spread, it hatches, looks around, then you name it. |
+| Two breeds on one body | Every slime is a Curly (a jelly drop with a curl on top) or a Dollop (a soft gummy dome), on one living body: each breed is a recipe of numbers, and growing up only blends them, so the curl or the dome grows in and baby features melt away, never popping. A plain egg hatches a pure Curly or Dollop (about half and half; now and then a surprise Cat-ear or Topknot Dollop), fixed when the egg is made. Grab the curl's tip (or the top of a Dollop's dome) and pull: it follows your finger and boings back. |
+| In-betweens and special eggs | A Curly and a Dollop make an in-between in the Nursery (part curl, part dome; only breeding makes these). Cat-ear and Topknot eggs can be bought with pearls in the Nursery (75 pearls, the type guaranteed); they wait in the nest like any Nursery egg. The Wishing Star heirloom makes surprise special Dollops twice as likely. |
 | Boop (the clicker) | Click or tap the slime. It squishes where you poke it and drops jelly. |
 | Giggle Fever | Boop in a steady rhythm to fill the giggle meter: inside the pink zone boops pay x2 (x3 with an upgrade). Spam past the top and the slime gets dizzy for a few seconds, so a steady rhythm earns more than tapping as fast as you can. A worn-out slime gives little jelly, naps, and can't be poked awake until it has rested a bit. |
 | Petting | Hold and stroke the slime. It closes its eyes, hums happily, leans into your hand, floats hearts. Less jelly than booping, much more joy and bond. The happy hum while petting can be turned off in Settings. |
@@ -102,6 +104,8 @@ src/core/requests.js  slime requests
 src/core/save.js      local + cloud save
 src/core/format.js    number formatting
 src/view/slime.js     the slime: CPU soft-body deformation, face patch, accessories, inner snacks
+src/view/body.js      the recipe body's pure math: ring topology (full for the pet, lite for residents), resting shape, curl frame
+src/core/recipe.js    the breeds' recipes and blends (Curly, Dollop, in-betweens, growth), the body's dice (plain, bred, special eggs)
 src/view/forms.js     the 22 grown-up form looks: shapes, patterns, props, effects
 src/view/ranch.js     the ranch hill: scenery, wandering residents, pearls, basket, visit cameras
 src/view/scenery.js   the meadow around home (grass, hills, clouds, flowers, trees, moon); off with the Classic background
@@ -115,6 +119,7 @@ src/view/fx.js        sprite particles
 src/audio/sfx.js      synthesized sounds and slime "voice" (Web Audio, no files)
 src/ui/hud.js         DOM interface
 src/ui/icons.js       drawn icons (sparkle, heart, Journal memory icons, little slime drawings) used instead of emoji
+src/ui/eggs.js        special eggs in the Nursery, a Nursery egg's title, the Breed line on your slime's page
 tools/serve.mjs       local dev server
 tools/build-web.mjs   builds the installable web app (manifest, icons, offline cache) into docs/
 web/                  app icons and the offline service worker template
@@ -136,6 +141,9 @@ UI-CHANGES.md             every on-screen element the breeding work added or cha
 tools/fixtures/       old saves made with the code from before breeding (tools/fixtures/make-old-saves.mjs) and from
                       just before the jelly loop, plus the Moving Day tester save (tools/fixtures/make-jelly-loop-saves.mjs)
 tools/render-samples.cjs  renders looks day and night and builds labeled contact sheets
+tools/recipe-test.mjs     recipe body check in plain node (recipes, blends, body points, the body's dice, special eggs, old saves)
+tools/recipe-smoke.cjs    headless recipe body play-through (a Curly, a Cat-ear Dollop, an in-between; real touch pulls; the ranch)
+tools/recipe-samples.cjs  recipe body contact sheets (stages, in-betweens, outfits, forms, ranch, Nursery) and its cost (perf.json)
 AGENTS.md, CLAUDE.md  hand-off guide for coding agents (how it ships, how to test, gotchas, roadmap)
 ```
 
@@ -206,6 +214,20 @@ The jelly loop (all in `content.js`, checked by `node tools/jelly-loop-test.mjs`
 
 To try the Moving Day signs: open with `#debug`, Settings shows each sign's button and where this slime is; or load
 `tools/fixtures/moving-day-almost.json` (a slime just under "ready" that gets there after a few minutes of play).
+
+The recipe body (all in `BREEDS` in `content.js`, checked by `node tools/recipe-test.mjs`):
+
+| What | Where | Now |
+| --- | --- | --- |
+| Curly growth | `BREEDS.curly.grow` | each body number from baby to grown (`[baby, grown]`), the curl's size, bend and length |
+| Dollop growth | `BREEDS.dollop.variants` | plain, Cat-ear and Topknot: baby, teen and grown recipes (bumps, ears and knobs) |
+| Growth per stage | `BREEDS.stageM`, `growEase`, `mixEase` | shape number 0 / 0.35 / 0.65 / 1 for the four stages; how fast the body eases |
+| Plain eggs | `BREEDS.hatch`, `BREEDS.surprise` | Curly / Dollop 50 / 50; a surprise Cat-ear or Topknot in 1 of 20 Dollop hatches (x2 with the Wishing Star) |
+| Bred eggs | `BREEDS.mixBetween`, `passSpecial`, `geneWobble` | Curly x Dollop: mix 0.25 ... 0.75; ears or a topknot pass on half the time; genes average plus a small wobble |
+| Genes | `BREEDS.geneRange` | how far a slime's own quirks (taller, wider, lumpier, a lean) can go |
+| Special eggs | `BREEDS.specialEggs` | name, price (75 pearls), egg colors, the line under it in the Nursery |
+
+To try it: open with `#debug`; Settings → Body sets this slime's breed, variant and mix (and the egg's, while it waits).
 
 ## Not in this prototype (from the GDD, deliberately left for later)
 
