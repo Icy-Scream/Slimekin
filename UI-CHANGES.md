@@ -261,3 +261,84 @@ The jelly loop's placeholder emoji now have drawings. Nothing in `content.js` ch
   disc with an emoji; the old disc is the fallback until the image loads. The sprite is a bit bigger (0.34).
 - Phone pill: `#medalBadge` shows again at 17 px next to the name (it was hidden on phones). To make room, the jelly
   rate under the count is shorter on phones: "2.08M /sec" (and "· zzz" while asleep) instead of "jelly per second".
+
+## Ranch life
+
+Everything below is new on the `ranch-life` branch (the Training Center and trips). Rules and plain menus only: no
+new 3D, no new art. All markup is built in `src/ui/ranch-life.js` (`RanchLifeUI`), which `src/ui/hud.js` calls from
+four marked lines (the resident page, the ranch tab row, the resident rows, the Nursery) and `src/game.js` from a few
+more (load, back from hidden, the live tick, refusals, `#debug`). Existing card, button and row styles are used; the
+few new rules are one `<style id="ranchLifeCss">` block made by `ranch-life.js` (listed below). Icons are placeholder
+emoji in `content.js` (`RANCH_LIFE`), shown as text; stars are the ★/☆ glyphs.
+
+### Placeholder emoji (in `content.js`, `RANCH_LIFE`)
+
+- Skills (`skills[].icon`): 🏐 Bounce, 💨 Speed, 🛡️ Sturdy, 📚 Smarts, 🌸 Charm.
+- Places (`places[].icon`): ☕ Puddle Café, 🌻 Willowbend Gardens, ⛏️ Pebblepeak Mine, ♨️ Mistwater Hot Springs,
+  🔭 Starlight Observatory, 🎆 Summer Festival.
+- Souvenirs (`places[].souvenirs[].icon`): 🥤 Paper Cup Hat, 🫙 Sprinkle Jar, 🖍️ Napkin Doodle, 🌱 Seed Packet,
+  🐌 Snail Shell, 🍂 Pressed Leaf, 🪨 Shiny Pebble, 💎 Crystal Chip, ⛏️ Little Pickaxe, 🦆 Rubber Duck, 🧺 Fluffy Towel,
+  🫧 Bath Pebble, 🗺️ Star Map, ☄️ Meteor Bit, 🔭 Tiny Telescope, 🎭 Festival Mask, 🎇 Sparkler, 🪭 Paper Fan.
+- In `ranch-life.js`: 🎓 lessons and 🧳 trips (the Ranch life row, a resident row's status line, Journal lines).
+
+### Ranch tab (`#body-ranch`)
+
+- **Ranch life row**: `.card.rl-card` right after the Nursery card (only with residents): "Ranch life", two
+  `.row-between` lines "🎓 Lessons x / N lanes" and "🧳 Travelers x / N wagons", a hint line, an `.upgrades` grid with
+  `button.upgrade[data-rl="lane"]` "Another lane" and `button.upgrade[data-rl="wagon"]` "Another wagon" (pearl
+  `.cost`; `.poor` when short; gone at three), and `button.btn[data-rl="shelf"]` "Souvenirs x / 18".
+- **Resident rows** (`.card.res`): a busy slime gets `.sub.rl-status` across the row ("🧳 On a trip to Willowbend
+  Gardens, home at 5:10 pm" / "🎓 In a Bounce lesson (star 2), done at 3:40 pm").
+- **A resident's page** (focused): after the personality line, `.sec-title` "Skills · x of 25 stars" and
+  `.card.rl-skills`: five `.row-between` lines (icon + name, stars in `.rl-stars`), "Loves: ... (what it does)." and
+  either `button[data-rl="train"]` Train + `button[data-rl="trip"]` Send on a trip (in `.res .acts`), or while busy
+  `.sub.rl-busy` (the status line) and, for travelers, `button[data-rl="callHome"]` Call home early.
+  A traveler's page has no "Tap or stroke ... to pet them" line, and `#ranchHint` says "... is on a trip".
+- The click handler: any `button[data-rl]` in `#body-ranch` goes to `RanchLifeUI.click()`.
+
+### Modals
+
+- **Train picker** ("Train Pip"): intro + loves line, pearls on hand (or "The Training Center is full"), a list
+  `.egg-choice` of `button.card.choice.rl-pick[data-skill]` (icon `.rl-ic`, name + `.rl-stars`, "Star N: time ·
+  pearls", what each star does; `disabled` when it can't start), "Not now" `#rlNo`. Tapping a skill starts it.
+- **Trip picker** ("Send Pip on a trip"): the six places as `button.card.choice.rl-pick[data-place]` ("1h · about
+  (pearl) 5 · souvenirs 0/3", or "Opens at Sturdy ★★ (Pip has 0)" and `disabled`; "You are a Friend of this place."),
+  "Every wagon is out" when none is free, "Not now".
+- **Call home early?**: `#rlNo` "Let Pip finish", `#rlYes` "Call home" (says how many pearls come now).
+- **Souvenir shelf** ("Souvenirs x / 18"): one `.card` per place (icon, name, x / 3), its souvenirs as an
+  `.owned-list` of chips (found: icon + name; not found: "? ? ?"), the Friend of line; `#rlOk` Done.
+- **Return card** ("Pip is home!", "Lesson done!", or "While you were away" for several): one `.card.rl-return` per
+  trip (place icon, name · place, a `.cost` "+N" pearl chip, the story in `.sub.story` (italic), "Found a souvenir:
+  ...", "Pip brought Clover a garden berry!" or "Pip ate ... on the way home", "Home early: ...", the Friend of line)
+  and one `.card` per lesson that ended while the game was closed (name · skill, stars); `#rlOk` "Yay!". Its title
+  carries `data-rl-card`. It waits until no other card is open (and 3 s after loading, so the welcome-back card goes
+  first); if another card replaces it before it was closed, it comes back when that one closes.
+
+### Toasts and Journal
+
+- Toasts: "Pip started a Bounce lesson", "Pip earned 2 stars in Bounce!" (`.love`), "Pip is off to Willowbend
+  Gardens!" (`.love`), "Pip is home from ...!" (`.love`), "Pip is on a trip / is in a lesson" (refusing a new home or
+  an auction), "Another lane", "Another wagon".
+- Journal (`g.remember`): 🎓 first lesson, each star earned; 🧳 first trip, each return (with the story and the
+  souvenir); 💌 Friend of a place.
+
+### Nursery
+
+- A busy slime's `.parent-pick` is `disabled` with "On a trip" / "In a lesson" (instead of "Resting today");
+  `#breedMsg` explains `canBreed`'s new reasons `away` and `lesson`.
+
+### Ranch scene (3D)
+
+- Travelers are simply not there (`ranch.sync` gets the slimes who are home); one leaving walks out through the gate
+  (`RanchView.leave`) while its page stays open. Slimes in a lesson look as usual. Parked for the new art: a Training
+  Center building, a "gone on a trip" sign in the empty spot, a 3D souvenir shelf.
+
+### `<style id="ranchLifeCss">` (made by `ranch-life.js`)
+
+- `.rl-pick:disabled` (dimmed), `.rl-ic` (24 px emoji column), `.rl-stars` (gold, no wrap), `.res .rl-status`
+  (spans the row), `.rl-card .upgrades` (lane and wagon side by side, also on phones), `.rl-card .upgrades .upgrade`
+  (44 px tall), `.rl-return .story` (italic).
+
+### Debug only (`#debug`)
+
+- Settings → Debug: "Finish lessons" (`data-dbg="rlLessons"`), "Bring travelers home" (`data-dbg="rlTrips"`).
