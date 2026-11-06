@@ -78,8 +78,11 @@ export class Greenhouse {
     this.flies = [];
     this.time = 0;
     this.loadMs = 0;
-    this._c = [new THREE.Color(), new THREE.Color(), new THREE.Color()];
+    this._c = new THREE.Color();
     this.light = { hemi: [new THREE.Color(), new THREE.Color(), 1], key: [new THREE.Color(), 1], rim: [new THREE.Color(), 1], env: 0.5 };
+    // the slime's lights by day and by night (GREENHOUSE.slimeLight), as colors once
+    const col = L => ({ hemi: [new THREE.Color(L.hemi[0]), new THREE.Color(L.hemi[1]), L.hemi[2]], key: [new THREE.Color(L.key[0]), L.key[1]], rim: [new THREE.Color(L.rim[0]), L.rim[1]], env: L.env });
+    this.lights = [col(GREENHOUSE.slimeLight.day), col(GREENHOUSE.slimeLight.night)];
     this.fog = { color: new THREE.Color(), near: 30, far: 200 };
   }
 
@@ -250,15 +253,16 @@ export class Greenhouse {
     }
     if (camera) { this.sky.position.copy(camera.position); this.stars.position.copy(camera.position); }
     // the slime's lights and the fog follow the blend
-    const L = GREENHOUSE.slimeLight, [a, b] = [L.day, L.night], o = this.light, c = this._c;
-    o.hemi[0].lerpColors(c[0].set(a.hemi[0]), c[1].set(b.hemi[0]), nt);
-    o.hemi[1].lerpColors(c[0].set(a.hemi[1]), c[1].set(b.hemi[1]), nt);
+    const [a, b] = this.lights, o = this.light;
+    o.hemi[0].lerpColors(a.hemi[0], b.hemi[0], nt);
+    o.hemi[1].lerpColors(a.hemi[1], b.hemi[1], nt);
     o.hemi[2] = lerp(a.hemi[2], b.hemi[2], nt);
-    o.key[0].lerpColors(c[0].set(a.key[0]), c[1].set(b.key[0]), nt); o.key[1] = lerp(a.key[1], b.key[1], nt);
-    o.rim[0].lerpColors(c[0].set(a.rim[0]), c[1].set(b.rim[0]), nt); o.rim[1] = lerp(a.rim[1], b.rim[1], nt);
+    o.key[0].lerpColors(a.key[0], b.key[0], nt); o.key[1] = lerp(a.key[1], b.key[1], nt);
+    o.rim[0].lerpColors(a.rim[0], b.rim[0], nt); o.rim[1] = lerp(a.rim[1], b.rim[1], nt);
     o.env = lerp(a.env, b.env, nt);
     const fd = this.meta.fog.day, fn = this.meta.fog.night, F = this.fog;
-    F.color.set(fd[0]).lerp(c[2].set(fn[0]), nt).multiplyScalar(this.meta.expo);
+    if (!this.fogCols) this.fogCols = [new THREE.Color(fd[0]), new THREE.Color(fn[0])];
+    F.color.lerpColors(this.fogCols[0], this.fogCols[1], nt).multiplyScalar(this.meta.expo);
     const near = lerp(fd[1], fn[1], nt), depth = lerp(fd[2], fn[2], nt), amt = lerp(fd[3], fn[3], nt);
     F.near = near; F.far = near + depth / amt;
   }

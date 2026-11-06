@@ -209,6 +209,8 @@ export class HelperWorld {
 
   // ---------- where things stand: the meadow (today's spots) or the Greenhouse room ----------
   ground(x, z) { return this.layout === 'greenhouse' ? roomGround(x, z) : groundY(x, z); }
+  // where a pal's body rests (its origin is its middle: PAL_LIFT up from the ground, a little more on the planks)
+  palY(x, z) { return this.layout === 'greenhouse' ? roomGround(x, z) + PAL_LIFT + GREENHOUSE.lift.slimeling : groundY(x, z) + PAL_LIFT; }
 
   planterSpot(i) {
     if (this.layout === 'greenhouse') {
@@ -263,7 +265,7 @@ export class HelperWorld {
   palSpot(out, self = null) {
     if (this.layout === 'greenhouse') {
       const [x, z] = palStart(Math.random, this.blockers(self), this.room);
-      out.set(x, roomGround(x, z) + PAL_LIFT, z);
+      out.set(x, this.palY(x, z), z);
       return out;
     }
     const a = rand(0, Math.PI * 2), R = rand(2.5, 3.4);
@@ -472,14 +474,14 @@ export class HelperWorld {
         s.hopT += dt / 0.55;
         const k = Math.min(1, s.hopT);
         o.position.lerpVectors(s.from, s.target, k);
-        const g0 = this.ground(s.from.x, s.from.z), g1 = this.ground(s.target.x, s.target.z), gm = this.ground(o.position.x, o.position.z);
-        o.position.y = Math.max(gm, g0 + (g1 - g0) * k) + PAL_LIFT + Math.sin(k * Math.PI) * 0.45;
+        const g0 = this.palY(s.from.x, s.from.z), g1 = this.palY(s.target.x, s.target.z), gm = this.palY(o.position.x, o.position.z);
+        o.position.y = Math.max(gm, g0 + (g1 - g0) * k) + Math.sin(k * Math.PI) * 0.45;
         o.rotation.y += (Math.atan2(s.target.x - s.from.x, s.target.z - s.from.z + 0.0001) - o.rotation.y) * 0.2;
         const body = o.children[0];
         const st = 1 + Math.sin(k * Math.PI) * 0.15;
         body.scale.set(1.05 / st, 0.82 * st, 1.05 / st);
         if (k >= 1) {
-          s.hopping = false; s.rest = rand(0.8, 3.2); o.position.y = this.ground(o.position.x, o.position.z) + PAL_LIFT;
+          s.hopping = false; s.rest = rand(0.8, 3.2); o.position.y = this.palY(o.position.x, o.position.z);
           if (s.visit && !s.visit.arrived && o.position.distanceTo(s.visit.target) < 0.15) {
             s.visit.arrived = true;
             s.rest = 1.8;

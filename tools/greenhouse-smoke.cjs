@@ -74,6 +74,20 @@ const FIX = { settled: fixture('main-settled.json'), egg: fixture('main-egg.json
     const calm = () => ev(() => { const g = window.slimekin; g.state.tutorial = 5; g.requests.timer = 1e9; g.glimmerT = 1e9; g.debug('needs'); if (g.sim.asleep) g.wakeUp('rested'); g.idleT = 1e9; g.hud.closeModal(); g.advance(0.5); });
     const cam = () => ev(() => { const g = window.slimekin, h = g.home, p = g.stage.camPos; return { view: h.view, free: h.free, saved: g.state.settings.camView, pos: [p.x, p.y, p.z].map(v => +v.toFixed(3)), fov: +g.stage.camera.fov.toFixed(2), rig: h.rig.free && { yaw: +h.rig.free.yaw.toFixed(4), pitch: +h.rig.free.pitch.toFixed(4), dist: +h.rig.free.dist.toFixed(4) }, btn: !document.getElementById('camBtn').hidden, btnView: document.getElementById('camBtn').dataset.view }; });
     const glide = () => ev(() => window.slimekin.advance(2.5));
+    // a spot of empty background (the canvas is on top there and the slime, its bubbles and its glimmer are not), with room
+    // around it for a swipe of `reach` px
+    const bgPoint = (reach = 0) => ev(r => {
+      const g = window.slimekin, canvas = document.getElementById('scene');
+      const free = (x, y) => {
+        if (document.elementFromPoint(x, y) !== canvas) return false;
+        g.setPointer({ clientX: x, clientY: y });
+        return !g.slime.hit(g.raycaster) && !g.helpers3d.hitBubble(g.raycaster);
+      };
+      for (const y of [560, 520, 600, 480, 440, 400, 360, 320, 280, 240, 200]) for (const x of [60, 333, 40, 353, 90, 303]) {
+        if ([[0, 0], [r, 0], [-r, 0], [0, r], [0, -r]].every(([dx, dy]) => free(x + dx, y + dy))) return [x, y];
+      }
+      return null;
+    }, reach);
     const slimeScreen = () => ev(() => { const g = window.slimekin, c = g.screenOf(g.slime.centerWorld(g.v1.clone())); const top = g.screenOf(g.slime.headTopWorld(g.v2.clone())); return { x: c.x, y: c.y, top: top.y }; });
 
     // ---------- room ----------
@@ -112,7 +126,7 @@ const FIX = { settled: fixture('main-settled.json'), egg: fixture('main-egg.json
       kit.mark('touch');
       await calm();
       // empty background: left of the slime, under the button
-      const bg = [60, 520];
+      const bg = await bgPoint(0);
       const before = await cam();
       await step('one-finger drag on the background', () => drag(line(bg[0], bg[1], bg[0] + 150, bg[1] - 60, 10)));
       await ev(() => window.slimekin.advance(0.6));
@@ -120,14 +134,29 @@ const FIX = { settled: fixture('main-settled.json'), egg: fixture('main-egg.json
       expect(c.free && c.btnView === 'free' && c.rig && Math.abs(c.rig.yaw) > 0.2, 'a one-finger drag turns the camera (the button shows it is off the set angles)', JSON.stringify(c));
       expect(JSON.stringify(c.pos) !== JSON.stringify(before.pos), 'the camera moved', `${before.pos} -> ${c.pos}`);
       await shot('touch-turned', { night: false });
+      // the swipe code on the background still counts (up up down down left right left right tap tap)
+      const sp = await bgPoint(85);
+      expect(!!sp, 'found empty background for the swipe code', JSON.stringify(sp));
+      await step('the secret swipe code', async () => {
+        const [x, y] = sp;
+        const sw = { up: [0, -80], down: [0, 80], left: [-80, 0], right: [80, 0] };
+        for (const d of ['up', 'up', 'down', 'down', 'left', 'right', 'left', 'right']) await drag(line(x, y, x + sw[d][0], y + sw[d][1], 4), { gap: 0.02 });
+        await tap(x, y); await tap(x, y);
+      });
+      await ev(() => window.slimekin.advance(0.3));
+      const rain = await ev(() => ({ secrets: window.slimekin.state.secrets, rainbow: window.slimekin.behave.rainbowUntil > window.slimekin.behave.time }));
+      expect(rain.secrets.includes('rainbow') || rain.rainbow, 'the secret swipe code still makes a rainbow in a turned camera', JSON.stringify(rain));
+      c = await cam();
       const d0 = c.rig.dist;
+      const p1 = await bgPoint(40), sl = await slimeScreen();
       await step('two-finger pinch', async () => {
         const t0 = Date.now() / 1000;
-        // the first finger on the background (left edge), the second anywhere (here on the slime): a pinch, no boop
+        // the first finger on the background, the second anywhere (here on the slime): a pinch, no boop
         const boops = await ev(() => window.slimekin.state.stats.boops);
-        await touch('touchStart', [[40, 330]], t0);
-        await touch('touchStart', [[40, 330], [200, 420]], t0 + 0.02);
-        for (let i = 1; i <= 8; i++) await touch('touchMove', [[40, 330 - i * 12], [200 + i * 8, 420 + i * 12]], t0 + 0.02 + i * 0.03);
+        const [x1, y1] = p1, [x2, y2] = [sl.x, sl.y], [ux, uy] = [(x2 - x1) / Math.hypot(x2 - x1, y2 - y1), (y2 - y1) / Math.hypot(x2 - x1, y2 - y1)];
+        await touch('touchStart', [[x1, y1]], t0);
+        await touch('touchStart', [[x1, y1], [x2, y2]], t0 + 0.02);
+        for (let i = 1; i <= 8; i++) await touch('touchMove', [[x1 - ux * i * 6, y1 - uy * i * 6], [x2 + ux * i * 6, y2 + uy * i * 6]], t0 + 0.02 + i * 0.03);
         await touch('touchEnd', [], t0 + 0.4);
         expect(await ev(() => window.slimekin.state.stats.boops) === boops, 'the pinch\'s second finger on the slime does not boop it');
       });
@@ -137,16 +166,6 @@ const FIX = { settled: fixture('main-settled.json'), egg: fixture('main-egg.json
       const lim = await ev(() => { const g = window.slimekin, h = g.home, p = h.rig.pose(h.pivot()); return { e: h.rig.excess(h.rig.free, h.pivot()), pos: p.pos }; });
       expect(lim.e.every((v, i) => v <= 1e-6 || (i === 3)), 'the turned camera is inside the limits', JSON.stringify(lim));
       await shot('touch-pinched', { night: false });
-      // the swipe code on the background still counts (up up down down left right left right tap tap)
-      await step('the secret swipe code', async () => {
-        const [x, y] = [70, 560];
-        const sw = { up: [0, -80], down: [0, 80], left: [-80, 0], right: [80, 0] };
-        for (const d of ['up', 'up', 'down', 'down', 'left', 'right', 'left', 'right']) await drag(line(x, y, x + sw[d][0], y + sw[d][1], 4), { gap: 0.02 });
-        await tap(x, y); await tap(x, y);
-      });
-      await ev(() => window.slimekin.advance(0.3));
-      const rain = await ev(() => ({ secrets: window.slimekin.state.secrets, rainbow: window.slimekin.behave.rainbowUntil > window.slimekin.behave.time }));
-      expect(rain.secrets.includes('rainbow') || rain.rainbow, 'the secret swipe code still makes a rainbow in a turned camera', JSON.stringify(rain));
       await ev(() => window.slimekin.hud.closeModal());
       await calm();
       // a boop
@@ -262,18 +281,30 @@ const FIX = { settled: fixture('main-settled.json'), egg: fixture('main-egg.json
         g.helpers3d.sync(g.state.helpers);
         g.advance(2);
         const { GREENHOUSE } = await import('/src/data/content.js');
-        const h = g.helpers3d, out = {}, box = new THREE.Box3(), R = GREENHOUSE.radius;
-        const measure = (o, key) => { o.updateMatrixWorld(true); box.setFromObject(o); const p = o.position; const r = Math.max(p.x - box.min.x, box.max.x - p.x, p.z - box.min.z, box.max.z - p.z); out[key] = { r: +r.toFixed(3), limit: R[key], minY: +(box.min.y - g.home.groundY(p.x, p.z)).toFixed(3) }; };
+        const h = g.helpers3d, out = {}, R = GREENHOUSE.radius, v = new THREE.Vector3();
+        // the model's real size: every vertex, how far out from where it stands and how low
+        const measure = (o, key) => {
+          o.updateMatrixWorld(true);
+          const p = o.position;
+          let r = 0, minY = Infinity;
+          o.traverse(m => {
+            if (!m.isMesh || !m.visible) return;
+            const a = m.geometry.attributes.position;
+            for (let i = 0; i < a.count; i++) { v.fromBufferAttribute(a, i).applyMatrix4(m.matrixWorld); r = Math.max(r, Math.hypot(v.x - p.x, v.z - p.z)); minY = Math.min(minY, v.y); }
+          });
+          out[key] = { r: +r.toFixed(3), limit: R[key], minY: +(minY - g.home.groundY(p.x, p.z)).toFixed(3) };
+        };
         for (const id of ['bubbles', 'musicbox', 'fountain', 'observatory', 'spa']) measure(h.singles[id], id);
-        measure(h.planters[0].obj, 'planter');
-        measure(h.lamps[0].obj, 'lamp');
-        measure(h.slimelings[0].obj, 'slimeling');
+        h.planters.forEach((x, i) => measure(x.obj, i ? 'planter' + i : 'planter'));
+        h.lamps.forEach((x, i) => measure(x.obj, i ? 'lamp' + i : 'lamp'));
+        for (let k = 0; k < 40 && h.slimelings.every(s => s.hopping); k++) g.advance(0.1);
+        measure(h.slimelings.find(s => !s.hopping).obj, 'slimeling');
         return { out, counts: { planters: h.planters.length, lamps: h.lamps.length, pals: h.slimelings.length, feathers: h.feathers.length } };
       });
       log('helpers shown (High):', JSON.stringify(sizes.counts));
       for (const [k, v] of Object.entries(sizes.out)) {
-        // a pal hops, so its real width is checked at rest; the lamp's hook overhangs at post height only
-        expect(v.r <= v.limit + 0.02, `${k}: its model fits its radius in GREENHOUSE.radius (${v.r} <= ${v.limit})`);
+        v.limit = v.limit ?? sizes.out[k.replace(/\d+$/, '')].limit;
+        expect(v.r <= v.limit + 0.005, `${k}: its model fits its radius in GREENHOUSE.radius (${v.r} <= ${v.limit})`);
         expect(v.minY > -0.12 && v.minY < 0.08, `${k}: stands on the floor (bottom ${v.minY} from the ground)`);
       }
       const pals = await ev(() => { const g = window.slimekin; g.advance(12); return g.helpers3d.slimelings.map(s => ({ x: +s.obj.position.x.toFixed(2), z: +s.obj.position.z.toFixed(2), y: +(s.obj.position.y - g.home.groundY(s.obj.position.x, s.obj.position.z)).toFixed(3), r: +Math.hypot(s.obj.position.x, s.obj.position.z).toFixed(2), hop: s.hopping })); });

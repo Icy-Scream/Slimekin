@@ -476,6 +476,8 @@ export const GREENHOUSE = {
     pals: { ring: [1.85, 2.6], step: 0.5, spacing: 0.55 },   // pals hop on the rug and the floor around the stump
     rainbow: { pos: [0, -0.6, -9.5], radius: 4.6, tube: 0.2 },   // over the garden behind the back glass
   },
-  radius: { planter: 0.3, lamp: 0.38, bubbles: 0.42, musicbox: 0.5, fountain: 0.63, spa: 0.96, observatory: 0.53, slimeling: 0.26 },
-  lift: { planter: 0.27, bubbles: 0.58, musicbox: 0.2 },   // model origin above the floor (planters and the wand would sink in)
+  radius: { planter: 0.3, lamp: 0.38, bubbles: 0.42, musicbox: 0.5, fountain: 0.63, spa: 0.96, observatory: 0.53, slimeling: 0.28 },
+  // model origin above the floor (the planters and the wand would sink into the planks; a pal sits a bit higher than
+  // on the meadow's grass so its round bottom doesn't dip into the floor)
+  lift: { planter: 0.27, bubbles: 0.58, musicbox: 0.2, slimeling: 0.05 },
 };
