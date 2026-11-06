@@ -49,6 +49,7 @@ export class Hud {
       const b = e.target.closest('button');
       if (!b || b.disabled) return;
       const g = this.g, id = b.dataset.id;
+      if (b.dataset.rl) { g.life.click(b); return; }   // ranch life (ui/ranch-life.js)
       if (b.id === 'moveOutBtn') g.askMoveOut();
       else if (b.id === 'collectBasket') g.collectBasket();
       else if (b.id === 'basketUp') g.buyBasket();
@@ -832,7 +833,7 @@ export class Hud {
     const fm = rr.familyMult();
     const canMove = sim.canMoveOut();
     const eggPhase = st.phase === 'egg';
-    const key = [R.pearls, R.basket.stored, R.basket.level, R.slots, R.residents.map(x => x.id + ':' + Math.round(x.happiness / 5)).join(','), focus && focus.id, canMove, R.placed.length, st.slime.name, rr.eggs().length, st.phase].join('|');
+    const key = [R.pearls, R.basket.stored, R.basket.level, R.slots, R.residents.map(x => x.id + ':' + Math.round(x.happiness / 5)).join(','), focus && focus.id, canMove, R.placed.length, st.slime.name, rr.eggs().length, st.phase, g.life.key()].join('|');
     if (!force && key === this.ranchKey) return;
     this.ranchKey = key;
     const happyWord = h => h > 80 ? 'Very happy' : h > 55 ? 'Happy' : h > 30 ? 'A little lonely' : 'Misses you';
@@ -849,7 +850,7 @@ export class Hud {
         <b>${esc(x.form?.name || 'Slime')}</b><span class="sub">${esc(x.form?.blurb || '')}</span>
         <span class="sub medal-line">${esc(xm.id === 'ribbon' ? 'Grown-Up Ribbon' : `${xm.name} medal: pearls x${xm.pearls}, buyers pay +${Math.round(xm.offers * 100)}%`)} (${fmtShort(x.runTotal || 0)} jelly made growing up).</span>
         <div class="row-between"><span class="sub">${happyWord(x.happiness)}</span><span class="sub">${Math.round(x.happiness)}%</span></div><div class="meter"><i style="width:${x.happiness.toFixed(0)}%;background:linear-gradient(90deg,#ffb0c8,var(--berry))"></i></div>
-        <span class="sub">Tap or stroke ${esc(x.name)} to pet them. Happy slimes make pearls faster.</span>
+        ${x.trip ? '' : `<span class="sub">Tap or stroke ${esc(x.name)} to pet them. Happy slimes make pearls faster.</span>`}
         ${x.lineage?.parents?.length ? `<span class="sub">Child of ${esc(x.lineage.parents[0].name)} (${esc(x.lineage.parents[0].form.name)}) and ${esc(x.lineage.parents[1].name)} (${esc(x.lineage.parents[1].form.name)}).</span>` : ''}</div>`;
       html += `<div class="stat-grid">
         <div class="stat"><div class="k">Jelly</div><div class="v">${fmtRate(x.jps * fm)}/s</div></div>
@@ -857,6 +858,7 @@ export class Hud {
         <div class="stat"><div class="k">Made of</div><div class="v">${esc(traits || 'A bit of everything')}</div></div>
         <div class="stat"><div class="k">Favorite snack</div><div class="v">${esc(FOOD_BY_ID[x.favorite]?.name || '?')}</div></div></div>`;
       if (lean) html += `<p class="sub">Personality: ${esc(lean)}. Bond: ${esc(BOND[x.bondLevel || 0].title)}.</p>`;
+      html += g.life.residentHtml(x);   // ranch life: skills, loves, Train / Send on a trip (ui/ranch-life.js)
       const mem = (x.memories || []).slice(-6).reverse();
       if (mem.length) html += `<div class="sec-title">${esc(x.name)}'s story</div><div class="card">` + mem.map(m => `<div class="sub mem-line">${memIcon(m.icon, esc(m.icon || ''))} <span>${esc(m.text)}</span></div>`).join('') + '</div>';
       html += `<div class="res"><div class="acts"><button class="btn" data-act="place" data-id="${x.id}">Find a new home</button><button class="btn" data-act="auction" data-id="${x.id}">Auction</button></div></div>`;
@@ -880,6 +882,7 @@ export class Hud {
           <span class="sub">${eggPhase && n ? 'Before the egg at home hatches, you can put a Nursery egg on the cushion instead.' : R.residents.length < 2 ? 'When two slimes live here, they can make an egg together.' : eggPhase ? 'Two ranch slimes can make an egg together, then put it on the cushion.' : `Two ranch slimes can make an egg together. Choose it when ${name} moves to the ranch.`}</span>
           <button class="btn" data-act="nursery">Open the Nursery</button></div>`;
       }
+      if (R.residents.length) html += g.life.ranchRowHtml();   // ranch life: lanes, wagons, souvenirs (ui/ranch-life.js)
       if (R.residents.length || R.basket.stored > 0) {
         const cap = rr.basketCap(), next = RANCH.basket[R.basket.level + 1];
         html += `<div class="sec-title">Pearl Basket</div><div class="card"><div class="row-between"><span>Pearls waiting</span><b>${R.basket.stored} / ${cap}</b></div>
@@ -893,7 +896,7 @@ export class Hud {
         for (const x of R.residents) {
           html += `<div class="card res"><span class="nm">${esc(x.name)} ${this.medalChip(residentMedal(x))}</span><span class="sub">Gen ${x.generation}</span>
             <span class="sub">${esc(x.form?.name || 'Slime')}</span><span class="sub">${fmtRate(x.jps * fm)} jelly/s</span>
-            <div class="meter" title="Happiness"><i style="width:${x.happiness.toFixed(0)}%"></i></div><span class="sub">${happyWord(x.happiness)}</span>
+            <div class="meter" title="Happiness"><i style="width:${x.happiness.toFixed(0)}%"></i></div><span class="sub">${happyWord(x.happiness)}</span>${g.life.rowHtml(x)}
             <div class="acts"><button class="btn small" data-act="visit" data-id="${x.id}">Visit</button><button class="btn small" data-act="place" data-id="${x.id}">New home</button><button class="btn small" data-act="auction" data-id="${x.id}">Auction</button></div></div>`;
         }
         const sc = rr.slotCost();
@@ -917,11 +920,11 @@ export class Hud {
   renderNursery(force = false) {
     const g = this.g, st = g.state, R = st.ranch, rr = g.sim.ranch, now = g.nowMs();
     const eggs = rr.eggs();
-    this.nurseryPick = this.nurseryPick.filter(id => rr.resident(id) && !rr.restingToday(rr.resident(id), now));
+    this.nurseryPick = this.nurseryPick.filter(id => rr.resident(id) && !rr.restingToday(rr.resident(id), now) && !g.life.pickNote(rr.resident(id)));
     const pick = this.nurseryPick;
     const eggPhase = st.phase === 'egg';
     const key = ['nursery', R.pearls, eggs.map(e => e.id + ':' + Math.ceil(rr.eggSecondsLeft(e, now) / 60)).join(','),
-      R.residents.map(x => x.id + (rr.restingToday(x, now) ? 'r' : '')).join(','), pick.join(','), JSON.stringify(R.sparks), st.slime.name, st.phase, st.egg.bred?.id || ''].join('|');
+      R.residents.map(x => x.id + (rr.restingToday(x, now) ? 'r' : '')).join(','), pick.join(','), JSON.stringify(R.sparks), st.slime.name, st.phase, st.egg.bred?.id || '', g.life.key()].join('|');
     if (!force && key === this.ranchKey) return;
     this.ranchKey = key;
     const cur = esc(st.slime.name || 'your slime');
@@ -949,14 +952,14 @@ export class Hud {
       html += `<div class="card"><span class="sub">Two slimes need to live on the ranch first. When ${cur} is all grown up, move them here too.</span></div>`;
     } else {
       html += '<div class="parent-grid">' + R.residents.map(x => {
-        const rest = rr.restingToday(x, now), on = pick.includes(x.id);
-        return `<button class="parent-pick" data-act="pickParent" data-id="${x.id}" aria-pressed="${on}" ${rest ? 'disabled' : ''}><b>${pname(x)}</b><span class="sub">${esc(x.form?.name || 'Slime')}</span>${rest ? '<span class="sub">Resting today</span>' : ''}</button>`;
+        const rest = rr.restingToday(x, now), on = pick.includes(x.id), busy = g.life.pickNote(x);   // (ranch life: on a trip / in a lesson)
+        return `<button class="parent-pick" data-act="pickParent" data-id="${x.id}" aria-pressed="${on}" ${rest || busy ? 'disabled' : ''}><b>${pname(x)}</b><span class="sub">${esc(x.form?.name || 'Slime')}</span>${busy ? `<span class="sub">${busy}</span>` : rest ? '<span class="sub">Resting today</span>' : ''}</button>`;
       }).join('') + '</div>';
       const c = pick.length === 2 ? rr.canBreed(pick[0], pick[1], now) : null;
       let msg = pick.length === 0 ? 'Tap two slimes to pick them.' : pick.length === 1 ? 'Now pick one more.' : '';
       if (c && !c.ok) msg = c.reason === 'full' ? (eggPhase ? 'The nest is full. Put a waiting egg on the cushion, or give one to a neighbor.' : `The nest is full. Choose a waiting egg when ${cur} moves to the ranch, or give one to a neighbor.`)
         : c.reason === 'pearls' ? `An egg costs ${BREEDING.cost} pearls. You have ${fmt(R.pearls)}.`
-        : c.reason === 'resting' ? `${esc(c.who.join(' and '))} already made an egg today.` : '';
+        : c.reason === 'resting' ? `${esc(c.who.join(' and '))} already made an egg today.` : g.life.breedReason(c);
       if (c && c.ok) {
         const [a, b] = pick.map(id => rr.resident(id));
         msg = `${pname(a)} and ${pname(b)} would make a lovely egg.`;

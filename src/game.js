@@ -22,6 +22,7 @@ import { MovingDay } from './moving-day.js';
 import { movingDayRatio, movingDayLevel } from './core/movingday.js';
 import { RanchView } from './view/ranch.js';
 import { Scenery } from './view/scenery.js';
+import { RanchLifeUI } from './ui/ranch-life.js';
 
 const SLIME_Y = CUSHION_TOP - 0.03;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -36,6 +37,7 @@ export class Game {
     this.state = save ? migrate(save) : createState();
     this.sim = new Sim(this.state);
     this.requests = new Requests(this.sim);
+    this.life = new RanchLifeUI(this);   // ranch life: lessons and trips (menus in ui/ranch-life.js, rules in core/ranch-life.js)
     this.sfx = new Sfx();
     this.sfx.sound = this.state.settings.sound;
     this.sfx.music = this.state.settings.music;
@@ -62,7 +64,7 @@ export class Game {
     this.ranch = new RanchView(this.scene, { quality: this.resolvedQuality() });
     this.ranch.setTheme(this.stage.dark, this.stage.palette.floor);
     this.stage.onTheme = (dark, p) => { this.ranch.setTheme(dark, p.floor); this.scenery.setTheme(dark); this.eggSpark && this.eggSpark.setNight(dark); this.helpers3d && this.helpers3d.setNight(dark); };
-    this.ranch.sync(this.state.ranch?.residents || []);
+    this.ranch.sync(this.life.homeResidents());   // (travelers are not on the ranch)
     this.ranchPage = null;   // 'nursery' while the Nursery panel is open
     this.nurseryT = 0;
     this.syncNursery();
@@ -134,8 +136,9 @@ export class Game {
     this.rpress = null;
     this.departing = null;
     // The ranch keeps going while the game is closed (in every phase, even while an egg waits).
+    // (ranch life: lessons that ended and travelers who came home meanwhile are finished where they happened)
     const awayAll = (Date.now() - (this.state.savedAt || Date.now())) / 1000;
-    this.ranchAway = awayAll > 5 ? this.sim.ranch.tickAway(awayAll) : { pearls: 0, full: false };
+    this.ranchAway = this.life.passTime(awayAll);
     this.ranch.setBasket(this.state.ranch.basket.stored, this.sim.ranch.basketCap());
 
     this.applySettings();
@@ -534,7 +537,7 @@ export class Game {
     let fov = null;
     if (this.ranchPage === 'nursery' && !this.ranchFocus) fov = this.ranch.cameraNursery(aspect, f.pos, f.look);
     else if (this.ranchFocus) fov = this.ranch.cameraNear(this.ranchFocus, aspect, f.pos, f.look);
-    if (fov === null) { if (this.ranchFocus) this.focusResident(null); fov = this.ranch.cameraFor(aspect, f.pos, f.look); }
+    if (fov === null) { if (this.ranchFocus && !this.life.away(this.ranchFocus)) this.focusResident(null); fov = this.ranch.cameraFor(aspect, f.pos, f.look); }
     f.fov = fov;
   }
 
@@ -544,13 +547,14 @@ export class Game {
     this.ranchFocus = id || null;
     this.ranch.focusId = this.ranchFocus;
     const x = id && this.sim.ranch.resident(id);
-    document.getElementById('ranchHint').textContent = x ? `Tap or stroke ${x.name} to pet them. Tap the grass to step back.` : 'Tap a slime to visit it. Drag to look around.';
+    document.getElementById('ranchHint').textContent = x ? (x.trip ? `${x.name} is on a trip. Tap the grass to step back.` : `Tap or stroke ${x.name} to pet them. Tap the grass to step back.`) : 'Tap a slime to visit it. Drag to look around.';
     if (x) { const r = this.ranch.resident(id); if (r) { r.av.hop(3); r.happyT = 1.2; } this.sfx.mii(); }
     this.hud.renderRanch(true);
   }
 
   // Ranch slimes make pearls even while you're home; while you watch, they pop out into the grass.
   updateRanch(dt) {
+    this.life.update(dt);   // lessons that end and travelers who come home
     const made = this.sim.ranch.tick(dt);
     for (const id of made) {
       if (this.view === 'ranch' && this.ranch.spawnPearl(id)) { this.sfx.plip(); }
@@ -966,7 +970,7 @@ export class Game {
   // ---------- new homes and auctions ----------
   askPlace(id) {
     const x = this.sim.ranch.resident(id);
-    if (!x) return;
+    if (!x || this.life.refuse(x)) return;   // (busy: on a trip or in a lesson)
     const offers = this.sim.ranch.offers(x);
     const hearts = f => { const n = Math.max(1, Math.min(5, Math.round((f - 0.75) / 0.6 * 4) + 1)); return '♥'.repeat(n) + '♡'.repeat(5 - n); };
     const name = esc(x.name);
@@ -1003,7 +1007,7 @@ export class Game {
 
   startAuction(id) {
     const x = this.sim.ranch.resident(id);
-    if (!x) return;
+    if (!x || this.life.refuse(x)) return;   // (busy: on a trip or in a lesson)
     const a = this.sim.ranch.auction(x);
     const name = esc(x.name);
     this.hud.openModal(`<h2>Auction: ${name}</h2><p class="sub" id="aucLine">Buyers are taking their seats...</p>
@@ -1059,8 +1063,8 @@ export class Game {
     if (this.view === 'ranch') {
       const r = this.ranch.resident(x.id);
       if (r) { r.happyT = 3; r.av.hop(5); }
-      this.ranch.leave(x.id, () => this.ranch.sync(this.state.ranch.residents));
-    } else this.ranch.sync(this.state.ranch.residents);
+      this.ranch.leave(x.id, () => this.ranch.sync(this.life.homeResidents()));
+    } else this.ranch.sync(this.life.homeResidents());
     this.sfx.sparkle();
     this.hud.toast(`<b>Bye-bye, ${esc(x.name)}! +${pearls} pearls</b>${esc(line)} ${esc(extra)}`, 'love', 4200);
     this.hud.renderRanch(true);
@@ -2001,7 +2005,8 @@ export class Game {
       <button class="btn" data-dbg="grow">+Growth</button><button class="btn" data-dbg="needs">Fill needs</button>
       <button class="btn" data-dbg="glim">Glimmer</button><button class="btn" data-dbg="req">Request</button><button class="btn" data-dbg="bond">+Bond</button>
       <button class="btn" data-dbg="tera">+1T jelly</button><button class="btn" data-dbg="pearls">+100 pearls</button>
-      <button class="btn" data-dbg="instant" aria-pressed="${this.debugInstant}">Instant eggs: ${this.debugInstant ? 'On' : 'Off'}</button></div>
+      <button class="btn" data-dbg="instant" aria-pressed="${this.debugInstant}">Instant eggs: ${this.debugInstant ? 'On' : 'Off'}</button>
+      <button class="btn" data-dbg="rlLessons">Finish lessons</button><button class="btn" data-dbg="rlTrips">Bring travelers home</button></div>
       ${this.movingDayDebugHtml()}` : '';
     this.hud.openModal(`<h2>Settings</h2>
       <div class="setting"><span>Sound</span>${seg('sound', [[true, 'On'], [false, 'Off']])}</div>
@@ -2151,6 +2156,7 @@ export class Game {
     if (k === 'bond') { const b = this.sim.addBond(60); if (b) this.onBondUp(b); }
     if (k === 'pearls') { this.sim.ranch.addPearls(100); this.hud.renderRanch(true); }
     if (k === 'tera') this.sim.addJelly(1e12);
+    if (k === 'rlLessons' || k === 'rlTrips') { this.hud.closeModal(); this.life.debugFinish(k === 'rlLessons' ? 'lessons' : 'trips'); }
     if (k === 'instant') {
       this.debugInstant = !this.debugInstant;
       try { localStorage.setItem('slimekin.debug.instantEggs', this.debugInstant ? '1' : '0'); } catch { /* private mode */ }
@@ -2236,7 +2242,7 @@ export class Game {
       this.sfx.resume();
       this.behave.morningCheck();
       if (this.hiddenAt) {
-        const ra = this.sim.ranch.tickAway((Date.now() - this.hiddenAt) / 1000);
+        const ra = this.life.passTime((Date.now() - this.hiddenAt) / 1000);   // (ranch life too)
         if (ra.pearls > 0 && this.state.phase === 'play') this.hud.toast(`<b>The ranch made ${ra.pearls} pearl${ra.pearls === 1 ? '' : 's'}</b>They're waiting in the Pearl Basket.`, '', 3200);
         this.checkPostcards();
       }
