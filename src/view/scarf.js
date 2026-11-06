@@ -140,8 +140,8 @@ function underMouth(body, H, g, t, fy, o) {
     const vy = uy - dy, vz = uz - dz, l = Math.hypot(vy, vz) || 1, ny = -vz / l, nz = vy / l;
     // (as in fitScarf: clear the body just above and below too)
     let s = 0;
-    for (const [qy, qz] of [[uy, uz], [dy, dz]]) {
-      const wy = qy - o.y - ny * g, wz = qz - o.z - nz * g, ww = wy * wy + wz * wz, wu = wy * ny + wz * nz;
+    for (let q = 0; q < 2; q++) {
+      const wy = (q ? dy : uy) - o.y - ny * g, wz = (q ? dz : uz) - o.z - nz * g, ww = wy * wy + wz * wz, wu = wy * ny + wz * nz;
       if (ww < g * g) s = Math.max(s, wu + Math.sqrt(Math.max(0, wu * wu - ww + g * g)));
     }
     // (the knit's cross-section: t out from the body, t * fy across; tilted, both reach up)
@@ -177,8 +177,8 @@ export function fitScarf(body, H, parts, sq, X) {
     const ux = nx / l, uy = ny / l, uz = nz / l;
     U[j] = ux; U[j + 1] = uy; U[j + 2] = uz;
     let s = 0;
-    for (const Q of [Qu, Qd]) {
-      const wx = Q[j] - P[j] - ux * g, wy = Q[j + 1] - P[j + 1] - uy * g, wz = Q[j + 2] - P[j + 2] - uz * g;
+    for (let q = 0; q < 2; q++) {
+      const Q = q ? Qd : Qu, wx = Q[j] - P[j] - ux * g, wy = Q[j + 1] - P[j + 1] - uy * g, wz = Q[j + 2] - P[j + 2] - uz * g;
       const ww = wx * wx + wy * wy + wz * wz, wu = wx * ux + wy * uy + wz * uz;
       if (ww < g * g) s = Math.max(s, wu + Math.sqrt(Math.max(0, wu * wu - ww + g * g)));
     }
