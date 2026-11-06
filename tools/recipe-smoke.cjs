@@ -80,49 +80,78 @@ fs.mkdirSync(OUT, { recursive: true });
     const pullTest = async (label, shotName) => step('pull ' + label, async () => {
       // (a notification over the slime would catch the finger first, as it does on a phone: clear them)
       await ev(() => { for (const t of document.querySelectorAll('.toast')) t.remove(); });
-      const at = await ev(() => {
+      const findSpot = () => ev(() => {
         const g = window.slimekin, sl = g.slime, V = g.v1.constructor, cam = g.stage.camera;
         const pos = sl.geo.attributes.position.array, base = sl.base, n = pos.length / 3;
         const A = [0.3, 1, -0.25], l = Math.hypot(...A); A[0] /= l; A[1] /= l; A[2] /= l;
         const curly = sl.S.armK > 0.3;
-        // candidates: on the curl (Curly: from near the tip down), or the highest points (Dollop)
+        // candidates: on the curl (Curly: from near the tip down), or the top of the dome (Dollop)
         const cand = [];
         for (let i = 0; i < n; i++) {
           const c = base[i * 3] * A[0] + base[i * 3 + 1] * A[1] + base[i * 3 + 2] * A[2];
-          if (curly) { if (c > Math.cos(sl.curl.th * 0.45)) cand.push([i, c]); }
-          else cand.push([i, pos[i * 3 + 1]]);
+          // (the upper three quarters of the curl, nearest the tip first: from some angles the tip hides behind the head)
+          if (curly) { if (c > Math.cos(sl.curl.th * 0.82)) cand.push([i, c]); }
+          else cand.push([i, pos[i * 3 + 1] + 0.35 * pos[i * 3 + 2]]);   // the top of the dome, a little toward the front (the very top is the outline)
         }
         cand.sort((a, b) => b[1] - a[1]);
         const scr = (i, out) => { const w = sl.body.localToWorld(new V(pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2])); out.w = w.clone(); const p = w.clone().project(cam); return { x: (p.x + 1) / 2 * innerWidth, y: (1 - p.y) / 2 * innerHeight }; };
         const center = sl.centerWorld(new V()).project(cam), cx = (center.x + 1) / 2 * innerWidth, cy = (1 - center.y) / 2 * innerHeight;
         const hitAt = (x, y) => { g.ndc.set(x / innerWidth * 2 - 1, -(y / innerHeight) * 2 + 1); g.raycaster.setFromCamera(g.ndc, cam); return sl.hit(g.raycaster); };
-        for (const [i] of cand.slice(0, 600)) {
+        const why = { candidates: Math.min(900, cand.length), offScreen: 0, noHit: 0, hidden: 0, edge: 0 };
+        for (const [i] of cand.slice(0, 900)) {
           const o = {}, s = scr(i, o);
+          if (s.x < 10 || s.y < 60 || s.x > innerWidth - 10 || s.y > innerHeight - 200) { why.offScreen++; continue; }
           const h = hitAt(s.x, s.y);
-          if (!h || h.point.distanceTo(o.w) > 0.05) continue;
+          if (!h) { why.noHit++; continue; }
+          if (h.point.distanceTo(o.w) > 0.05) { why.hidden++; continue; }
           // a point a finger can't miss while the body sways a little (software WebGL draws a few frames a second):
           // the slime is under the finger 7 px away in every direction too
-          if (![[7, 0], [-7, 0], [0, 7], [0, -7]].every(([ox, oy]) => hitAt(s.x + ox, s.y + oy))) continue;
+          if (![[7, 0], [-7, 0], [0, 7], [0, -7]].every(([ox, oy]) => hitAt(s.x + ox, s.y + oy))) { why.edge++; continue; }
           // drag away from the body's middle (and a little up)
           let dx = s.x - cx, dy = s.y - cy; const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl; dy -= 0.6; const d2 = Math.hypot(dx, dy); dx /= d2; dy /= d2;
           const el = document.elementFromPoint(s.x, s.y);
           return { x: s.x, y: s.y, dx, dy, vi: i, curly, top0: o.w.toArray(), loc0: [pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2]], tip0: sl.body.localToWorld(new V(pos[0], pos[1], pos[2])).toArray(),
             el: el ? el.tagName + (el.id ? '#' + el.id : '') + (el.className && typeof el.className === 'string' ? '.' + el.className.split(' ')[0] : '') : 'none', modal: g.hud.modalOpen };
         }
-        return null;
+        return { none: { ...why, modal: g.hud.modalOpen, hopY: +sl.hopY.toFixed(3), view: g.view, camY: +cam.position.y.toFixed(2) } };
       });
-      if (!at) { ok(false, `${label}: found a point on the ${'tip'} a finger can touch`); return; }
-      const t0 = Date.now() / 1000, D = 90, steps = 9;
-      await ev(() => { window.__pev = []; });
-      await touch('touchStart', at.x, at.y, t0);
-      at.start = await ev(() => { const g = window.slimekin; return (g.press ? g.press.mode : 'no press') + ' / ' + window.__pev.join(','); });
+      // Aim, then touch. The slime keeps living between the two (idle moments, hops; software WebGL is slow), so a
+      // finger can now and then land beside it: then it is lifted and the test aims again (up to 3 tries, reported).
+      let at = null, tries = 0, t0 = 0;
+      const D = 90, steps = 9;
+      let none = null;
+      for (tries = 1; tries <= 3; tries++) {
+        at = await findSpot();
+        if (at.none) {   // no spot a finger can't miss right now (it may be mid-hop): wait a moment and aim again
+          none = at.none; at = null;
+          log(`  (${label}: no spot to touch on try ${tries}: ${JSON.stringify(none)}; aiming again)`);
+          await ev(() => window.slimekin.advance(1.5));
+          continue;
+        }
+        t0 = Date.now() / 1000;
+        await ev(() => { window.__pev = []; });
+        await touch('touchStart', at.x, at.y, t0);
+        at.start = await ev(() => { const g = window.slimekin; return (g.press ? g.press.mode : 'no press') + ' / ' + window.__pev.join(','); });
+        if (!at.start.startsWith('no press')) break;
+        const now = await ev(a => {   // is the slime under that spot now? (no: it moved; yes: a timing problem)
+          const g = window.slimekin; g.ndc.set(a.x / innerWidth * 2 - 1, -(a.y / innerHeight) * 2 + 1); g.raycaster.setFromCamera(g.ndc, g.stage.camera);
+          return { under: !!g.slime.hit(g.raycaster), hopY: +g.slime.hopY.toFixed(3), modal: g.hud.modalOpen };
+        }, at);
+        log(`  (${label}: the finger landed beside the slime, try ${tries}: slime under that spot now ${now.under}, hop ${now.hopY}, modal ${now.modal}; aiming again)`);
+        await touch('touchEnd', 0, 0, t0 + 0.1);
+        await ev(() => window.slimekin.advance(1.5));
+      }
+      if (!at) { ok(false, `${label}: found a point on the tip a finger can touch`, JSON.stringify(none)); return; }
+      if (at.start.startsWith('no press')) { ok(false, `${label}: a finger landed on the slime in 3 tries`, at.start); return; }
+      at.tries = Math.min(tries, 3);
       for (let i = 1; i <= steps; i++) await touch('touchMove', at.x + at.dx * D * i / steps, at.y + at.dy * D * i / steps, t0 + 0.06 * i);
       const held = await ev(a => {
         const g = window.slimekin, sl = g.slime, V = g.v1.constructor, pos = sl.geo.attributes.position.array;
         g.advance(0.5);
         const p = sl.body.localToWorld(new V(pos[a.vi * 3], pos[a.vi * 3 + 1], pos[a.vi * 3 + 2]));
         const tip = sl.body.localToWorld(new V(pos[0], pos[1], pos[2]));
-        return { pev: window.__pev.join(','), mode: g.press && g.press.mode, tipGrab: sl.tipGrab, amt: sl.pull.amt, moved: p.distanceTo(new V(...a.top0)), tipMoved: tip.distanceTo(new V(...a.tip0)), up: p.y - a.top0[1] };
+        const k = sl.body.scale.x || 1;   // (in the body's own size: a baby is small)
+        return { pev: window.__pev.join(','), mode: g.press && g.press.mode, tipGrab: sl.tipGrab, amt: sl.pull.amt, moved: p.distanceTo(new V(...a.top0)) / k, tipMoved: tip.distanceTo(new V(...a.tip0)) / k, up: p.y - a.top0[1] };
       }, at);
       if (shotName) await shot(shotName, { night: false });
       await touch('touchEnd', 0, 0, t0 + 0.06 * steps + 0.3);
@@ -130,12 +159,12 @@ fs.mkdirSync(OUT, { recursive: true });
         const g = window.slimekin, sl = g.slime, V = g.v1.constructor, pos = sl.geo.attributes.position.array;
         g.advance(2.5);
         // (on the body itself: the slime may hop or turn after a big pull)
-        const i = a.vi * 3, back = Math.hypot(pos[i] - a.loc0[0], pos[i + 1] - a.loc0[1], pos[i + 2] - a.loc0[2]) * sl.body.scale.x;
+        const i = a.vi * 3, back = Math.hypot(pos[i] - a.loc0[0], pos[i + 1] - a.loc0[1], pos[i + 2] - a.loc0[2]);   // body units
         return { amt: sl.pull.amt, tipGrab: sl.tipGrab, back };
       }, at);
       const what = at.curly ? 'the curl tip' : 'the top of the dome';
-      ok(held.mode === 'pull' && held.amt > 0.15 && held.moved > 0.2 && (!at.curly || held.tipGrab > 0),
-        `${label}: a real touch drag pulls ${what}; it follows the finger`, `at (${at.x.toFixed(0)}, ${at.y.toFixed(0)}) on ${at.el}${at.modal ? ' (a modal is open)' : ''}${held.mode === 'pull' ? '' : `, on touch: ${at.start}; then ${held.pev}`}, mode ${held.mode}, tipGrab ${(+held.tipGrab).toFixed(2)}, pull ${held.amt.toFixed(2)}, the grabbed point moved ${held.moved.toFixed(2)} (curl tip ${held.tipMoved.toFixed(2)})`);
+      ok(held.mode === 'pull' && held.amt > 0.15 && held.moved > 0.25 && (!at.curly || held.tipGrab > 0),
+        `${label}: a real touch drag pulls ${what}; it follows the finger`, `${at.tries > 1 ? `try ${at.tries}, ` : ''}at (${at.x.toFixed(0)}, ${at.y.toFixed(0)}) on ${at.el}${at.modal ? ' (a modal is open)' : ''}${held.mode === 'pull' ? '' : `, on touch: ${at.start}; then ${held.pev}`}, mode ${held.mode}, tipGrab ${(+held.tipGrab).toFixed(2)}, pull ${held.amt.toFixed(2)}, the grabbed point moved ${held.moved.toFixed(2)} body units (curl tip ${held.tipMoved.toFixed(2)})`);
       ok(after.amt < 0.05 && after.tipGrab === 0 && after.back < held.moved * 0.5, `${label}: let go, it boings back`, `pull ${after.amt.toFixed(3)}, ${after.back.toFixed(2)} from where it started`);
     }, 300000);
     const perf = label => ev(lbl => {
