@@ -2,14 +2,17 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { feather, planter, slimeling, moonLampPost, rainbowArch, HELPER_MAKERS } from './models.js';
+import { GREENHOUSE } from '../data/content.js';
+import { groundY as roomGround, palWander, palStart, palToward, palSpotOk } from './greenhouse-math.js';
 
 const FEATHER_COLORS = ['#a98bff', '#ff8fbd', '#6fc4ff', '#ffbf47', '#7fd88f'];
 const SLIMELING_COLORS = ['#ffb3d1', '#ffd98a', '#a8d8ff', '#c9b3ff', '#a8f0c8', '#ffc4a3', '#e0b3ff', '#b3f0ec'];
 const rand = (a, b) => a + Math.random() * (b - a);
 
-// Height of whatever is under a point: the cushion (matches its profile in stage.js) or the rug.
+// Height of whatever is under a point in the meadow (and the Classic look): the cushion (matches its profile in
+// stage.js) or the rug. In the Greenhouse the room's own ground is used (greenhouse-math.js).
 const CUSHION_TOP_PROFILE = [[0, 0.27], [0.5, 0.285], [1.2, 0.305], [1.7, 0.285], [1.95, 0.22], [2.06, 0.12], [2.14, 0.006]];
-function groundY(x, z) {
+export function groundY(x, z) {
   const r = Math.hypot(x, z);
   const P = CUSHION_TOP_PROFILE;
   if (r >= P[P.length - 1][0]) return 0.006;
@@ -27,6 +30,15 @@ const LAMP_SPOTS = [[-1.37, -1.91, 1.45], [1.37, -1.91, 1.45], [-2.08, -1.2, 1.3
 
 // The prop limit: how many copies of a helper are drawn. Owning more still earns more; the scene just
 // stops adding copies. Low graphics (picked, or chosen by Auto on a struggling phone) shows fewer.
+// The one-of-a-kind helpers: [id, meadow position, turn, shown size]. The Greenhouse's spots are in content.js.
+const SINGLES = [
+  ['bubbles', [2.35, 0.32, 1.3], -0.6, 2.2],
+  ['musicbox', [-2.5, 0.2, 1.15], 0.7, 2.1],
+  ['fountain', [3.3, 0, -1.6], 0, 2.4],
+  ['observatory', [-3.4, 0, -1.5], 0.6, 2.6],
+  ['spa', [3.55, 0, 0.15], -0.5, 1.9],
+];
+
 const SHOWN = {
   high: { feather: 6, garden: 6, slimeling: 5, lamp: 6 },
   low: { feather: 3, garden: 4, slimeling: 3, lamp: 3 },
@@ -81,6 +93,9 @@ export class HelperWorld {
     this.singles = {};
     this.counts = {};
     this.shown = SHOWN.high;
+    // 'meadow' (also the Classic look) or 'greenhouse': where things stand (GREENHOUSE.spots in content.js)
+    this.layout = 'meadow';
+    this.room = null;         // the Greenhouse room's limits and footprints (gh.json) once it has loaded
     this.bubbleTimer = 1;
     this.tickleTimer = 6;
     this.time = 0;
@@ -145,9 +160,7 @@ export class HelperWorld {
       const sprout = obj.userData.sprout;
       bake(obj, obj.children.filter(c => c !== sprout && c.isMesh), { roughness: 0.7 });
       bake(sprout, sprout.children.filter(c => c.isMesh), { roughness: 0.5 });
-      const a = Math.PI + (i % 2 ? 1 : -1) * (0.35 + Math.floor(i / 2) * 0.32) + (i === 0 ? 0.35 : 0);
-      const R = 2.75 + (i % 3) * 0.25;
-      obj.position.set(Math.sin(a) * R, 0.18, Math.cos(a) * R);
+      obj.position.set(...this.planterSpot(i));
       obj.rotation.y = rand(0, 6);
       this.group.add(obj);
       this.popIn(obj, 1.6);
@@ -159,9 +172,7 @@ export class HelperWorld {
       const obj = slimeling(SLIMELING_COLORS[i % SLIMELING_COLORS.length]);
       const body = obj.userData.body;
       bake(obj, obj.children.filter(c => c !== body && c.isMesh), { roughness: 0.35, under: body.material.color });
-      const a = rand(0, Math.PI * 2), R = rand(2.5, 3.4);
-      obj.position.set(Math.sin(a) * R, 0, Math.cos(a) * R);
-      obj.position.y = groundY(obj.position.x, obj.position.z) + PAL_LIFT;
+      this.palSpot(obj.position);
       this.group.add(obj);
       this.popIn(obj, 1.5);
       this.slimelings.push({ obj, target: obj.position.clone(), hopT: rand(0, 1), hopping: false, from: new THREE.Vector3(), rest: rand(0.5, 2), cheer: 0 });
@@ -169,13 +180,12 @@ export class HelperWorld {
     // Moon Lamps: posts planted in the grass behind the cushion, the moon swaying under the hook
     while (this.lamps.length < want('lamp')) {
       const i = this.lamps.length;
-      const [x, z, h] = LAMP_SPOTS[i % LAMP_SPOTS.length];
+      const h = LAMP_SPOTS[i % LAMP_SPOTS.length][2];
       const obj = moonLampPost(h);
       const swing = obj.userData.swing;
       bake(obj, obj.children.filter(c => c !== swing && c.isMesh), { roughness: 0.5 });
       bake(swing, swing.children.filter(c => c.isMesh), { material: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.45, emissive: '#ffd970', emissiveIntensity: 0.55 }) });
-      obj.position.set(x, groundY(x, z), z);
-      obj.rotation.y = x < 0 ? 0.3 : Math.PI - 0.3;   // the hook leans in toward the slime
+      this.placeLamp(obj, i);
       const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: this.night ? 0.6 : 0.3 }));
       glow.scale.setScalar(0.75);
       glow.position.y = -0.31;
@@ -184,29 +194,115 @@ export class HelperWorld {
       this.popIn(obj, 1);
       this.lamps.push({ obj, swing, glow, phase: rand(0, 6) });
     }
-    const single = (id, pos, rotY, scale) => {
+    for (const [id, , , scale] of SINGLES) {
       if ((helpers[id] || 0) > 0 && !this.singles[id]) {
         const obj = HELPER_MAKERS[id]();
-        obj.position.copy(pos);
-        obj.rotation.y = rotY;
+        this.placeSingle(id, obj);
         this.group.add(obj);
         this.popIn(obj, scale);
         this.singles[id] = obj;
       }
-    };
-    single('bubbles', new THREE.Vector3(2.35, 0.32, 1.3), -0.6, 2.2);
-    single('musicbox', new THREE.Vector3(-2.5, 0.2, 1.15), 0.7, 2.1);
-    single('fountain', new THREE.Vector3(3.3, 0, -1.6), 0, 2.4);
-    single('observatory', new THREE.Vector3(-3.4, 0, -1.5), 0.6, 2.6);
-    single('spa', new THREE.Vector3(3.55, 0, 0.15), -0.5, 1.9);
-    if ((helpers.rainbow || 0) > 0 && !this.singles.rainbow) {
-      const arch = rainbowArch(6.2, 0.22);
-      arch.position.set(0, -0.9, -14);
-      this.group.add(arch);
-      this.popIn(arch, 1);
-      this.singles.rainbow = arch;
     }
+    if ((helpers.rainbow || 0) > 0 && !this.singles.rainbow) this.makeArch(true);
     this.counts = { ...helpers };
+  }
+
+  // ---------- where things stand: the meadow (today's spots) or the Greenhouse room ----------
+  ground(x, z) { return this.layout === 'greenhouse' ? roomGround(x, z) : groundY(x, z); }
+
+  planterSpot(i) {
+    if (this.layout === 'greenhouse') {
+      const [x, z] = GREENHOUSE.spots.planters[i % GREENHOUSE.spots.planters.length];
+      return [x, roomGround(x, z) + GREENHOUSE.lift.planter, z];
+    }
+    const a = Math.PI + (i % 2 ? 1 : -1) * (0.35 + Math.floor(i / 2) * 0.32) + (i === 0 ? 0.35 : 0);
+    const R = 2.75 + (i % 3) * 0.25;
+    return [Math.sin(a) * R, 0.18, Math.cos(a) * R];
+  }
+
+  placeLamp(obj, i) {
+    if (this.layout === 'greenhouse') {
+      const [x, z] = GREENHOUSE.spots.lamps[i % GREENHOUSE.spots.lamps.length];
+      obj.position.set(x, roomGround(x, z), z);
+      obj.rotation.y = Math.atan2(z, -x);   // the hook points at the slime
+      return;
+    }
+    const [x, z] = LAMP_SPOTS[i % LAMP_SPOTS.length];
+    obj.position.set(x, groundY(x, z), z);
+    obj.rotation.y = x < 0 ? 0.3 : Math.PI - 0.3;   // the hook leans in toward the slime
+  }
+
+  placeSingle(id, obj) {
+    const m = SINGLES.find(s => s[0] === id);
+    if (this.layout === 'greenhouse') {
+      const [x, z] = GREENHOUSE.spots[id];
+      obj.position.set(x, roomGround(x, z) + (GREENHOUSE.lift[id] || 0), z);
+      obj.rotation.y = GREENHOUSE.spots.turn[id] ?? m[2];
+      return;
+    }
+    obj.position.set(...m[1]);
+    obj.rotation.y = m[2];
+  }
+
+  // the Rainbow Arch: over the meadow far behind the cushion, or over the garden behind the Greenhouse's back glass
+  makeArch(pop) {
+    const old = this.singles.rainbow;
+    if (old) { this.group.remove(old); dispose(old); }
+    const gh = this.layout === 'greenhouse', A = GREENHOUSE.spots.rainbow;
+    const R = gh ? A.radius : 6.2, tube = gh ? A.tube : 0.22;
+    const arch = rainbowArch(R, tube);
+    arch.position.set(...(gh ? A.pos : [0, -0.9, -14]));
+    arch.userData.R = R - 0.3;   // where its drizzle starts (just under the top band)
+    this.group.add(arch);
+    if (pop) this.popIn(arch, 1);
+    this.singles.rainbow = arch;
+  }
+
+  // a slimeling pal's first spot (meadow: anywhere on a ring around the cushion; Greenhouse: on the rug or the floor,
+  // clear of everything)
+  palSpot(out, self = null) {
+    if (this.layout === 'greenhouse') {
+      const [x, z] = palStart(Math.random, this.blockers(self), this.room);
+      out.set(x, roomGround(x, z) + PAL_LIFT, z);
+      return out;
+    }
+    const a = rand(0, Math.PI * 2), R = rand(2.5, 3.4);
+    out.set(Math.sin(a) * R, 0, Math.cos(a) * R);
+    out.y = groundY(out.x, out.z) + PAL_LIFT;
+    return out;
+  }
+
+  // Everything a Greenhouse pal must keep clear of: the room's footprints, the helpers standing on the floor, and the
+  // other pals (where they are and where they are hopping to).
+  blockers(self = null) {
+    const R = GREENHOUSE.radius, out = this.room ? this.room.footprints.map(f => ({ x: f.x, z: f.z, r: f.r })) : [];
+    for (const p of this.planters) out.push({ x: p.obj.position.x, z: p.obj.position.z, r: R.planter });
+    for (const l of this.lamps) out.push({ x: l.obj.position.x, z: l.obj.position.z, r: R.lamp });
+    for (const [id] of SINGLES) { const o = this.singles[id]; if (o) out.push({ x: o.position.x, z: o.position.z, r: R[id] }); }
+    const pr = GREENHOUSE.spots.pals.spacing / 2;
+    for (const s of this.slimelings) {
+      if (s === self) continue;
+      out.push({ x: s.obj.position.x, z: s.obj.position.z, r: pr });
+      if (s.hopping) out.push({ x: s.target.x, z: s.target.z, r: pr });
+    }
+    return out;
+  }
+
+  // Move everything to the meadow's spots or the Greenhouse room's (room: gh.json, needed for the Greenhouse).
+  setLayout(layout, room = null) {
+    if (room) this.room = room;
+    if (layout === 'greenhouse' && !this.room) layout = 'meadow';
+    if (layout === this.layout) return;
+    this.layout = layout;
+    this.planters.forEach((p, i) => p.obj.position.set(...this.planterSpot(i)));
+    this.lamps.forEach((l, i) => this.placeLamp(l.obj, i));
+    for (const [id] of SINGLES) if (this.singles[id]) this.placeSingle(id, this.singles[id]);
+    if (this.singles.rainbow) this.makeArch(false);
+    for (const s of this.slimelings) {
+      s.hopping = false; s.visit = null; s.rest = rand(0.5, 2);
+      this.palSpot(s.obj.position, s);
+      s.target.copy(s.obj.position);
+    }
   }
 
   spawnBubble(game = false, near = null) {
@@ -249,7 +345,16 @@ export class HelperWorld {
     const free = this.slimelings.filter(s => !s.visit);
     if (!free.length) return null;
     const s = free[Math.floor(Math.random() * free.length)];
-    s.visit = { target: target.clone(), onArrive, arrived: false };
+    target = target.clone();
+    if (this.layout === 'greenhouse') {
+      // the same side of the slime, on a free spot of the rug (the bowl and the lamps stand there too)
+      const a0 = Math.atan2(target.x, target.z), R = Math.hypot(target.x, target.z), bl = this.blockers(s);
+      for (let k = 0; k < 24; k++) {
+        const a = a0 + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 0.12;
+        if (palSpotOk(Math.sin(a) * R, Math.cos(a) * R, bl, undefined, this.room)) { target.set(Math.sin(a) * R, 0, Math.cos(a) * R); break; }
+      }
+    }
+    s.visit = { target, onArrive, arrived: false };
     s.rest = 0;
     return s;
   }
@@ -342,29 +447,39 @@ export class HelperWorld {
           s.hopT = 0;
           s.from.copy(o.position);
           if (s.cheer > 0) { s.target.copy(o.position); s.cheer = 0; }
-          else if (s.visit && !s.visit.arrived) {
+          else if (s.visit && !s.visit.arrived && this.layout === 'greenhouse') {
+            // around the stump, never across it
+            const v = s.visit.target, p = palToward([o.position.x, o.position.z], [v.x, v.z], Math.random, this.blockers(s), this.room);
+            if (p) s.target.set(p[0], 0, p[1]); else s.target.copy(o.position);
+          } else if (s.visit && !s.visit.arrived) {
             s.target.copy(s.visit.target);
             const d = s.target.distanceTo(o.position);
             if (d > 1.3) s.target.lerpVectors(o.position, s.visit.target, 1.3 / d);
           } else {
             if (s.visit && s.visit.arrived && s.visit.left === undefined) s.visit = null;
-            // wander around the ring next to where it is, so it never hops through the cushion
-            const a = Math.atan2(o.position.x, o.position.z) + rand(-0.6, 0.6), R = rand(2.5, 3.5);
-            s.target.set(Math.sin(a) * R, 0, Math.cos(a) * R);
+            if (this.layout === 'greenhouse') {
+              // on the rug and the floor next to where it is, clear of the stump, the furniture and the helpers
+              const p = palWander([o.position.x, o.position.z], Math.random, this.blockers(s), this.room);
+              if (p) s.target.set(p[0], 0, p[1]); else s.target.copy(o.position);
+            } else {
+              // wander around the ring next to where it is, so it never hops through the cushion
+              const a = Math.atan2(o.position.x, o.position.z) + rand(-0.6, 0.6), R = rand(2.5, 3.5);
+              s.target.set(Math.sin(a) * R, 0, Math.cos(a) * R);
+            }
           }
         }
       } else {
         s.hopT += dt / 0.55;
         const k = Math.min(1, s.hopT);
         o.position.lerpVectors(s.from, s.target, k);
-        const g0 = groundY(s.from.x, s.from.z), g1 = groundY(s.target.x, s.target.z), gm = groundY(o.position.x, o.position.z);
+        const g0 = this.ground(s.from.x, s.from.z), g1 = this.ground(s.target.x, s.target.z), gm = this.ground(o.position.x, o.position.z);
         o.position.y = Math.max(gm, g0 + (g1 - g0) * k) + PAL_LIFT + Math.sin(k * Math.PI) * 0.45;
         o.rotation.y += (Math.atan2(s.target.x - s.from.x, s.target.z - s.from.z + 0.0001) - o.rotation.y) * 0.2;
         const body = o.children[0];
         const st = 1 + Math.sin(k * Math.PI) * 0.15;
         body.scale.set(1.05 / st, 0.82 * st, 1.05 / st);
         if (k >= 1) {
-          s.hopping = false; s.rest = rand(0.8, 3.2); o.position.y = groundY(o.position.x, o.position.z) + PAL_LIFT;
+          s.hopping = false; s.rest = rand(0.8, 3.2); o.position.y = this.ground(o.position.x, o.position.z) + PAL_LIFT;
           if (s.visit && !s.visit.arrived && o.position.distanceTo(s.visit.target) < 0.15) {
             s.visit.arrived = true;
             s.rest = 1.8;
@@ -413,8 +528,8 @@ export class HelperWorld {
       this.rainT = (this.rainT || 0) - dt;
       if (this.rainT <= 0) {
         this.rainT = 0.25;
-        const a = 0.25 + Math.random() * (Math.PI - 0.5);
-        const p = new THREE.Vector3(Math.cos(a) * 5.9, Math.sin(a) * 5.9 - 0.9, -14);
+        const a = 0.25 + Math.random() * (Math.PI - 0.5), R = arch.userData.R || 5.9;
+        const p = new THREE.Vector3(Math.cos(a) * R, Math.sin(a) * R, 0).add(arch.position);
         this.fx.emit('drops', p, { count: 1, color: ['#ff8fa8', '#ffe680', '#8fd0ff', '#9ee6a0'][Math.floor(Math.random() * 4)], speed: 0.2, up: 0, size: 0.18, bounce: false, life: 1.6 });
       }
     }
@@ -423,7 +538,9 @@ export class HelperWorld {
       this.starT = (this.starT || 0) - dt;
       if (this.starT <= 0) {
         this.starT = rand(0.6, 1.4);
-        this.fx.emit('glints', new THREE.Vector3(rand(-5, 5), rand(3, 5.5), rand(-5, -2)), { size: rand(0.12, 0.26) });
+        // dream-stars falling in the sky (in the Greenhouse: outside, beyond the back glass)
+        const p = this.layout === 'greenhouse' ? new THREE.Vector3(rand(-4, 4), rand(3.2, 5.6), rand(-9, -6)) : new THREE.Vector3(rand(-5, 5), rand(3, 5.5), rand(-5, -2));
+        this.fx.emit('glints', p, { size: rand(0.12, 0.26) });
       }
     }
   }

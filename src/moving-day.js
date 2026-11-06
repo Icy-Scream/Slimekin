@@ -258,12 +258,14 @@ export class MovingDay {
   showBundle() {
     if (!this.bundle) {
       this.bundle = makeTravelBundle();
-      // on the cushion's front-right edge (the cushion top slopes down to about 0.25 there), clear of a big slime
-      this.bundle.position.set(1.42, CUSHION_TOP - 0.06, 1.08);
       this.bundle.rotation.y = -0.9;
       this.bundle.scale.setScalar(0.001);
       this.g.scene.add(this.bundle);
     }
+    // on the cushion's front-right edge (the cushion top slopes down to about 0.25 there), clear of a big slime; in the
+    // Greenhouse the same spot is on the rug beside the stump
+    const home = this.g.home;
+    this.bundle.position.set(1.42, home && home.inRoom ? home.groundY(1.42, 1.08) - 0.02 : CUSHION_TOP - 0.06, 1.08);
     this.bundleT = MOVING_DAY.bundleSeconds;
   }
   updateBundle(dt) {

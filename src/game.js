@@ -22,6 +22,7 @@ import { MovingDay } from './moving-day.js';
 import { movingDayRatio, movingDayLevel } from './core/movingday.js';
 import { RanchView } from './view/ranch.js';
 import { Scenery } from './view/scenery.js';
+import { Home } from './greenhouse-home.js';
 
 const SLIME_Y = CUSHION_TOP - 0.03;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -61,7 +62,7 @@ export class Game {
     this.debugInstant = DEBUG && (() => { try { return localStorage.getItem('slimekin.debug.instantEggs') === '1'; } catch { return false; } })();
     this.ranch = new RanchView(this.scene, { quality: this.resolvedQuality() });
     this.ranch.setTheme(this.stage.dark, this.stage.palette.floor);
-    this.stage.onTheme = (dark, p) => { this.ranch.setTheme(dark, p.floor); this.scenery.setTheme(dark); this.eggSpark && this.eggSpark.setNight(dark); this.helpers3d && this.helpers3d.setNight(dark); };
+    this.stage.onTheme = (dark, p) => { this.ranch.setTheme(dark, p.floor); this.scenery.setTheme(dark); this.eggSpark && this.eggSpark.setNight(dark); this.helpers3d && this.helpers3d.setNight(dark); this.home && this.home.setNight(dark); };
     this.ranch.sync(this.state.ranch?.residents || []);
     this.ranchPage = null;   // 'nursery' while the Nursery panel is open
     this.nurseryT = 0;
@@ -69,6 +70,7 @@ export class Game {
     this.helpers3d = new HelperWorld(this.scene, this.fx);
     this.helpers3d.setNight(this.stage.dark);
     this.helpers3d.sync(this.state.helpers);
+    this.home = new Home(this);   // [greenhouse] home's world (Greenhouse / Meadow / Classic) and the camera you can turn
     this.hud = new Hud(this);
     this.behave = new Behaviors(this);
     this.movingDay = new MovingDay(this);
@@ -196,10 +198,9 @@ export class Game {
 
   applySettings() {
     const s = this.state.settings;
-    // background: the meadow, or the classic plain nursery (only the slime to look at)
-    if (s.scene !== 'classic' && s.scene !== 'meadow') s.scene = 'meadow';
-    this.scenery.setEnabled(s.scene === 'meadow');
-    this.stage.setClassic(s.scene === 'classic');
+    // background: the Greenhouse (the default), the meadow, or the classic plain nursery (only the slime to look at)
+    if (s.scene !== 'classic' && s.scene !== 'meadow' && s.scene !== 'greenhouse') s.scene = 'greenhouse';
+    this.home.apply();   // [greenhouse]
     this.sfx.setPlayOnSilent(!!s.soundOnSilent);
     this.sfx.setSound(s.sound);
     this.sfx.setMusic(s.music);
@@ -1097,6 +1098,9 @@ export class Game {
     this.pointerPx.y = e.clientY;
     this.ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
     this.raycaster.setFromCamera(this.ndc, this.stage.camera);
+    // [greenhouse] the drag plane in front of the slime faces the camera (straight on in Front, as always)
+    const yaw = this.home ? this.home.yaw() : 0;
+    this.plane.normal.set(Math.sin(yaw), 0, Math.cos(yaw));
     this.raycaster.ray.intersectPlane(this.plane, this.pointerWorld);
     this.parallax.set(this.ndc.x, this.ndc.y);
   }
@@ -1111,6 +1115,7 @@ export class Game {
       if (this.view === 'ranch') { if (!this.hud.modalOpen) this.ranchDown(e); return; }
       const h = this.egg && this.egg.hit(this.raycaster);
       if (h) this.tapEgg(h.point);
+      else this.home.down(e);   // [greenhouse] empty background: turn the camera
       return;
     }
     if (st.phase !== 'play' || this.hud.modalOpen || this.departing) return;
@@ -1120,7 +1125,10 @@ export class Game {
     const b = this.helpers3d.hitBubble(this.raycaster);
     if (b) { this.popBubble(b); return; }
     const hit = this.slime.hit(this.raycaster);
-    if (!hit) this.swipe = { id: e.pointerId, x: e.clientX, y: e.clientY, t: this.time };
+    if (!hit) {
+      this.swipe = { id: e.pointerId, x: e.clientX, y: e.clientY, t: this.time };
+      if (this.home.down(e)) this.swipe = null;   // [greenhouse] a drag here turns the camera; a second finger pinches (no swipe)
+    }
     if (hit) {
       const region = this.slime.faceRegion(this.raycaster);
       this.press = { id: e.pointerId, x: e.clientX, y: e.clientY, t: this.time, moved: 0, petting: false, over: true, lastMoveT: this.time, dir: 0, point: hit.point.clone() };
@@ -1135,6 +1143,7 @@ export class Game {
     this.setPointer(e);
     this.lastPointerMove = this.time;
     if (this.rpress && e.pointerId === this.rpress.id) { this.ranchMove(e); return; }
+    if (this.home.move(e)) return;   // [greenhouse] turning or pinching the camera
     if (this.foodPress && e.pointerId === this.foodPress.pointerId) {
       const fp = this.foodPress;
       if (!fp.dragging && Math.hypot(e.clientX - fp.x, e.clientY - fp.y) > 10) this.startFoodDrag();
@@ -1163,6 +1172,7 @@ export class Game {
 
   onUp(e, cancel = false) {
     if (this.rpress && e.pointerId === this.rpress.id) { this.ranchUp(e, cancel); return; }
+    this.home.up(e);   // [greenhouse]
     if (this.foodPress && e.pointerId === this.foodPress.pointerId) {
       const fp = this.foodPress;
       this.foodPress = null;
@@ -2009,7 +2019,7 @@ export class Game {
       <div class="setting"><span>Happy hum while petting</span>${seg('purr', [[true, 'On'], [false, 'Off']])}</div>
       ${navigator.audioSession ? `<div class="setting"><span>Sound when phone is on silent</span>${seg('soundOnSilent', [[true, 'On'], [false, 'Off']])}</div>` : ''}
       <div class="setting"><span>Sound check<br><span class="sub" id="audioStatus">${esc(this.sfx.status())}</span></span><button class="btn small" id="testSound">Test sound</button></div>
-      <div class="setting"><span>Background<br><span class="sub">Classic hides the meadow and the ranch, so it's just your slime.</span></span>${seg('scene', [['meadow', 'Meadow'], ['classic', 'Classic']])}</div>
+      <div class="setting"><span>Background<br><span class="sub">${this.home.room.failed && st.scene === 'greenhouse' ? 'The Greenhouse could not load here, so the meadow shows for now.' : 'In the Greenhouse, the camera button and a drag on the background turn the view. Classic is just your slime.'}</span></span>${seg('scene', [['greenhouse', 'Greenhouse'], ['meadow', 'Meadow'], ['classic', 'Classic']])}</div>
       <div class="setting"><span>Motion</span>${seg('reducedMotion', [[false, 'Full'], [true, 'Reduced']])}</div>
       <div class="setting"><span>Graphics</span>${seg('quality', [['auto', 'Auto'], ['high', 'High'], ['low', 'Low']])}</div>
       <div class="setting"><span>Speed meter</span>${seg('showFps', [[false, 'Off'], [true, 'On']])}</div>
@@ -2545,8 +2555,8 @@ export class Game {
     this.updateRanch(dt);
     this.nurseryT -= dt;
     if (this.nurseryT <= 0) { this.nurseryT = 1; this.syncNursery(); }
-    // classic background: the ranch only shows while you're over there (or flying there and back)
-    this.ranch.group.visible = this.state.settings.scene !== 'classic' || this.view === 'ranch' || this.stage.camPos.z < 3;
+    // [greenhouse] what home shows (the room, the meadow or the classic nursery; the ranch hill) and the camera's target
+    this.home.update(dt);
     this.ranch.update(dt, this.stage.camera);
     this.scenery.update(dt);
     this.fx.update(dt);

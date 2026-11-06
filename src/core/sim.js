@@ -66,7 +66,10 @@ export function createState() {
     lastMorning: null,
     stats: { boops: 0, feeds: 0, petTime: 0, fevers: 0, dizzies: 0, naps: 0, glimmers: 0, requests: 0, playTime: 0, visits: 1 },
     tutorial: 0,
-    settings: { sound: true, music: true, purr: true, soundOnSilent: true, reducedMotion: false, quality: 'auto', showFps: false },
+    // scene: home's background ('greenhouse' | 'meadow' | 'classic'); sceneMoved: this save has had the one-time move to
+    // the Greenhouse (see migrate); camView: the Greenhouse camera's last set angle ('front' | 'wide' | 'left' | 'right')
+    settings: { sound: true, music: true, purr: true, soundOnSilent: true, reducedMotion: false, quality: 'auto', showFps: false,
+      scene: 'greenhouse', sceneMoved: true, camView: 'front' },
     ranch: createRanch(),
     heirlooms: createHeirlooms(),   // family treasures (core/heirlooms.js): they stay through every move-out
   };
@@ -84,6 +87,13 @@ export function migrate(save) {
   out.helpers = { ...fresh.helpers, ...(save.helpers || {}) };
   out.stats = { ...fresh.stats, ...(save.stats || {}) };
   out.settings = { ...fresh.settings, ...(save.settings || {}) };
+  // The Greenhouse, once: the game used to write 'meadow' into every save (the old default), so a chosen Meadow can't be
+  // told from it. A save from before the Greenhouse moves there one time; a Classic save stays Classic (a real choice).
+  // After the move, a player who picks the Meadow again keeps it.
+  if (!(save.settings && save.settings.sceneMoved)) {
+    if (out.settings.scene !== 'classic') out.settings.scene = 'greenhouse';
+    out.settings.sceneMoved = true;
+  }
   out.egg = { ...fresh.egg, ...(save.egg || {}) };
   out.jar = { ...fresh.jar, ...(save.jar || {}) };
   out.outfits = { ...fresh.outfits, ...(save.outfits || {}) };

@@ -429,3 +429,53 @@ export const MOVING_DAY = {
   },
   clue: 'Grown slimes sometimes dream of the ranch. Watch where they look.',
 };
+
+// The Greenhouse (Settings > Background, the default home): a room baked outside the repo (its files are in
+// src/assets/greenhouse/; gh.json has the room's footprints and glow spots), drawn by src/view/greenhouse.js, and a
+// camera you can turn inside it. Room coordinates: x right, y up, z toward you; the slime's stump is at the origin.
+// Pure math (ground, roof, camera limits, spot check) is in src/view/greenhouse-math.js.
+export const GREENHOUSE = {
+  blend: 3,                    // day <-> night blend speed (1/s): about 3 s, like the test page
+  // The lights on the slime and the helpers (the room's own light is baked into it). Day and night, blended with the room.
+  slimeLight: {
+    day:   { hemi: ['#fff4e6', '#d9b48a', 0.85], key: ['#fff1de', 1.6],  rim: ['#ffe6c2', 1.1], env: 0.45 },
+    night: { hemi: ['#6d64b8', '#2e2140', 0.5],  key: ['#ffcf98', 1.15], rim: ['#ffc27a', 1.5], env: 0.26 },
+  },
+  // Height of the floor: the stump's flat top (the slime sits on it), its side down to the braided rug, the planks.
+  ground: { stumpTop: 0.27, stumpFlat: 0.85, stumpR: 1.14, rugY: 0.06, rugR: 2.3, rugEdge: 0.1, floorY: 0 },
+  // The roof over the room: eaves on the side walls, the ridge over the middle (half = half the roof's width).
+  roof: { eave: 4.7, ridge: 6.7, half: 3.95 },
+  camera: {
+    order: ['front', 'wide', 'left', 'right'],   // the camera button steps through these (Front = the home camera)
+    // Set angles (Front is computed by the stage, unchanged). Left is the test page's Corner, 0.1 nearer the middle so
+    // it is inside the side limit (x 3.4); Right is Left mirrored.
+    views: {
+      wide:  { pos: [0, 4.7, 9.6],   look: [0, 1.3, -2.2],  fov: 58 },
+      left:  { pos: [-3.4, 3.1, 7.6], look: [1.1, 1.3, -3.0], fov: 50 },
+      right: { pos: [3.4, 3.1, 7.6],  look: [-1.1, 1.3, -3.0], fov: 50 },
+    },
+    // Where you can turn it yourself: inside the side walls (|x|), above the floor and under the roof (minus a gap),
+    // not past the front (z), at least near[0] + near[1] x slime size from the point it looks at, and at most `around`
+    // degrees around the slime from straight on (so never from behind it).
+    limits: { x: 3.4, yMin: 0.9, roofGap: 0.3, zMax: 13.5, near: [2.2, 1.2], around: 55, pitch: 80 },
+    turn: 0.0048,              // radians around the slime per pixel dragged sideways (a full phone width is about 105 degrees)
+    tilt: 0.0036,              // radians up or down per pixel dragged up or down
+    glide: 3,                  // how fast the camera glides to a set angle (like the Front camera's own follow)
+    follow: 16,                // how fast it follows your finger while you turn it
+    pinch: [0.5, 2],           // one pinch gesture zooms at most this much (each move is clamped to it)
+  },
+  // Where the helpers you buy stand in the room ([x, z], on the floor; y comes from the ground). Checked by
+  // tools/greenhouse-test.mjs against the room's footprints and walls (gh.json) with each helper's radius below
+  // (measured from its model at the size it is shown at; tools/greenhouse-smoke.cjs measures them again).
+  spots: {
+    planters: [[-0.62, -2.72], [0.42, -2.7], [-0.2, -3.42], [-0.98, -3.95], [0.62, -4.05], [-0.25, -4.65]],
+    lamps: [[-1.66, -0.95], [1.66, -0.95], [-3.2, -2.0], [3.25, -2.35], [-2.0, 2.5], [2.0, 2.5]],
+    bubbles: [2.35, 1.3], musicbox: [-2.5, 1.15], fountain: [-2.6, 3.9], spa: [2.5, 4.3],
+    observatory: [2.05, -3.75],   // the room's telescope spot (gh.json spots.telescope), nudged 0.1 off the stool
+    turn: { bubbles: -0.6, musicbox: 0.5, fountain: 0, observatory: 2.2, spa: -0.5 },   // which way each one faces (radians)
+    pals: { ring: [1.85, 2.6], step: 0.5, spacing: 0.55 },   // pals hop on the rug and the floor around the stump
+    rainbow: { pos: [0, -0.6, -9.5], radius: 4.6, tube: 0.2 },   // over the garden behind the back glass
+  },
+  radius: { planter: 0.3, lamp: 0.38, bubbles: 0.42, musicbox: 0.5, fountain: 0.63, spa: 0.96, observatory: 0.53, slimeling: 0.26 },
+  lift: { planter: 0.27, bubbles: 0.58, musicbox: 0.2 },   // model origin above the floor (planters and the wand would sink in)
+};

@@ -137,13 +137,20 @@ export class Stage {
     scene.add(piping);
     this.buttonMat = new THREE.MeshStandardMaterial({ color: '#fff', roughness: 0.6 });
     const bgeo = new THREE.SphereGeometry(0.06, 12, 8);
+    // the nursery itself (floor, rug, cushion): the Greenhouse hides it and brings its own room (setHabitat)
+    this.habitat = [floor, this.rug, cushion, piping];
     for (let i = 0; i < 10; i++) {
       const a = i / 10 * Math.PI * 2 + 0.3;
       const b = new THREE.Mesh(bgeo, this.buttonMat);
       b.position.set(Math.cos(a) * 1.55, 0.29, Math.sin(a) * 1.55);
       b.scale.y = 0.45;
       scene.add(b);
+      this.habitat.push(b);
     }
+    this.habitatOn = true;
+    this.roomLook = null;   // the Greenhouse while you are home in it: its lights on the slime and its fog
+    this.cam = null;        // a Greenhouse camera angle ({ pos, look, fov, rate }); null = the home camera (Front)
+    this.snapNext = false;  // jump straight to the next camera spot (no glide), once
 
     // drifting motes / fireflies
     const mtex = softDot();
@@ -204,7 +211,30 @@ export class Stage {
     this.scene.environmentIntensity = p.env;
     this.renderer.toneMappingExposure = p.exposure;
     for (const mo of this.motes) { mo.m.material.color.set(p.mote); }
-    this.stars.visible = dark;
+    this.stars.visible = dark && this.habitatOn;
+  }
+
+  // The nursery's own floor, rug, cushion, sky and stars: off while the Greenhouse room is shown instead.
+  setHabitat(on) {
+    if (this.habitatOn === !!on) return;
+    this.habitatOn = !!on;
+    for (const m of this.habitat) m.visible = this.habitatOn;
+    this.sky.visible = this.habitatOn;
+    this.stars.visible = this.habitatOn && !!this.dark;
+  }
+
+  // The Greenhouse's look while you are home in it (its lights on the slime, its fog), or null for the palette's.
+  setRoomLook(room) {
+    if (this.roomLook === room) return;
+    this.roomLook = room;
+    if (!room) {
+      const p = this.palette;
+      this.scene.fog.color.set(p.fog);
+      this.hemi.color.set(p.hemi[0]); this.hemi.groundColor.set(p.hemi[1]); this.hemi.intensity = p.hemi[2];
+      this.key.color.set(p.key[0]); this.key.intensity = p.key[1];
+      this.rim.color.set(p.rim[0]); this.rim.intensity = p.rim[1];
+      this.scene.environmentIntensity = p.env;
+    }
   }
 
   resize(w, h, offX = 0, offY = 0) {
@@ -234,20 +264,41 @@ export class Stage {
       this.camPos.lerp(this._fp.copy(f.pos).add(this._fo.set(tx * 2, ty * 2, 0)), 1 - Math.exp(-dt * 2.2));
       this.camLook.lerp(f.look, 1 - Math.exp(-dt * 2.6));
     }
+    const room = this.focus ? null : this.roomLook;
+    if (room) {
+      // home in the Greenhouse: its fog and its lights on the slime (blended day to night by the room)
+      const F = room.fog, L = room.light, fog = this.scene.fog;
+      if (fog) { fog.color.copy(F.color); fog.near = F.near; fog.far = F.far; }
+      this.hemi.color.copy(L.hemi[0]); this.hemi.groundColor.copy(L.hemi[1]); this.hemi.intensity = L.hemi[2];
+      this.key.color.copy(L.key[0]); this.key.intensity = L.key[1];
+      this.rim.color.copy(L.rim[0]); this.rim.intensity = L.rim[1];
+      this.scene.environmentIntensity = L.env;
+    }
     const fogFar = this.focus ? 80 : this.fogFar;
-    if (this.scene.fog && Math.abs(this.scene.fog.far - fogFar) > 0.1) {
+    if (!room && this.scene.fog && Math.abs(this.scene.fog.far - fogFar) > 0.1) {
       this.scene.fog.far += (fogFar - this.scene.fog.far) * (1 - Math.exp(-dt * 2));
       this.scene.fog.near = this.fogNear + (this.scene.fog.far - this.fogFar) * 0.6;
     }
     // zoom out when a phone menu covers most of the screen, so the slime still fits above it
     this.zoom += ((this.focus ? 1 : this.fitZoom) - this.zoom) * (1 - Math.exp(-dt * 5));
-    const fov = this.focus && this.focus.fov ? this.focus.fov : 30;
-    if (Math.abs(this.camera.fov - fov) > 0.05) { this.camera.fov += (fov - this.camera.fov) * (1 - Math.exp(-dt * 2.4)); this.camera.updateProjectionMatrix(); }
-    if (!this.focus) {
+    const cam = this.focus ? null : this.cam;
+    const snap = this.snapNext && !this.focus;   // a Greenhouse angle change with Reduced motion: no glide
+    this.snapNext = false;
+    const fov = this.focus && this.focus.fov ? this.focus.fov : cam ? cam.fov : 30;
+    if (Math.abs(this.camera.fov - fov) > 0.05) { this.camera.fov += (fov - this.camera.fov) * (snap ? 1 : 1 - Math.exp(-dt * 2.4)); this.camera.updateProjectionMatrix(); }
+    if (cam) {
+      // a Greenhouse angle (Wide, Left, Right, or turned by hand): glide there; a phone menu zooms out about the
+      // point it looks at, like the home camera does
+      const look = this._fl.set(cam.look[0], cam.look[1], cam.look[2]);
+      const pos = this._fp.set(cam.pos[0], cam.pos[1], cam.pos[2]).sub(look).multiplyScalar(this.zoom).add(look);
+      const k = snap ? 1 : 1 - Math.exp(-dt * cam.rate);
+      this.camPos.lerp(pos, k);
+      this.camLook.lerp(look, k);
+    } else if (!this.focus) {
       const look = this._fl.set(0, CUSHION_TOP + 0.35 + size * 0.42, 0);
       const pos = this._fp.set(tx, 2.25 + size * 0.75 + ty, dist).sub(look).multiplyScalar(this.zoom).add(look);
-      this.camPos.lerp(pos, 1 - Math.exp(-dt * 3));
-      this.camLook.lerp(look, 1 - Math.exp(-dt * 3));
+      this.camPos.lerp(pos, snap ? 1 : 1 - Math.exp(-dt * 3));
+      this.camLook.lerp(look, snap ? 1 : 1 - Math.exp(-dt * 3));
     }
     this.camera.position.copy(this.camPos);
     this.camera.lookAt(this.camLook);
