@@ -35,6 +35,12 @@ export class FaceRenderer {
     this.grown = 0;
   }
 
+  // The smile's size (1 = the Curly's open smile; a Dollop baby's tiny one; none on a grown Dollop).
+  smileK() { return lerp(1, lerp(0.36, 0, this.grown), this.mixK); }
+  // How far under mouthY (canvas px) the mouth reaches in its everyday shapes, drawn 1.3x: the smile, or the mouth
+  // open to eat (a grin and the rest stay higher; only a sleepy yawn reaches a little further). The scarf stays under it.
+  mouthLow() { return 1.3 * Math.max(30.6 * this.smileK(), 27.6); }
+
   draw(e, look, blink, t) {
     const c = this.ctx;
     c.clearRect(0, 0, W, H);
@@ -279,7 +285,7 @@ export class FaceRenderer {
 
   // The baseline open smile; it shrinks to a Dollop baby's tiny smile, then away for a grown Dollop.
   smile(cx, cy) {
-    const f = lerp(1, lerp(0.36, 0, this.grown), this.mixK);
+    const f = this.smileK();
     if (f < 0.06) return;
     const c = this.ctx, w = 34 * f, h = 38 * f, top = cy - 7 * f;
     const path = () => {

@@ -105,6 +105,7 @@ src/core/save.js      local + cloud save
 src/core/format.js    number formatting
 src/view/slime.js     the slime: CPU soft-body deformation, face patch, accessories, inner snacks
 src/view/body.js      the recipe body's pure math: ring topology (full for the pet, lite for residents), resting shape, curl frame
+src/view/scarf.js     the Cozy Scarf's fit (pure math): every frame it follows the body's real outline just under the mouth
 src/core/recipe.js    the breeds' recipes and blends (Curly, Dollop, in-betweens, growth), the body's dice (plain, bred, special eggs)
 src/view/forms.js     the 22 grown-up form looks: shapes, patterns, props, effects
 src/view/ranch.js     the ranch hill: scenery, wandering residents, pearls, basket, visit cameras
@@ -141,9 +142,11 @@ UI-CHANGES.md             every on-screen element the breeding work added or cha
 tools/fixtures/       old saves made with the code from before breeding (tools/fixtures/make-old-saves.mjs) and from
                       just before the jelly loop, plus the Moving Day tester save (tools/fixtures/make-jelly-loop-saves.mjs)
 tools/render-samples.cjs  renders looks day and night and builds labeled contact sheets
-tools/recipe-test.mjs     recipe body check in plain node (recipes, blends, body points, the body's dice, special eggs, old saves)
+tools/recipe-test.mjs     recipe body check in plain node (recipes, blends, body points, the body's dice, special eggs, old saves,
+                          the scarf's fit on every body; that last part needs three.js, as the browser tests do)
 tools/recipe-smoke.cjs    headless recipe body play-through (a Curly, a Cat-ear Dollop, an in-between; real touch pulls; the ranch)
-tools/recipe-samples.cjs  recipe body contact sheets (stages, in-betweens, outfits, forms, ranch, Nursery) and its cost (perf.json)
+tools/recipe-samples.cjs  recipe body contact sheets (stages, in-betweens, outfits, the scarf, forms, ranch, Nursery) and its cost
+                          (perf.json)
 AGENTS.md, CLAUDE.md  hand-off guide for coding agents (how it ships, how to test, gotchas, roadmap)
 ```
 

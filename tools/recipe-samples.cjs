@@ -3,6 +3,8 @@
 //   stages-day / stages-night   Curly and Dollop (plain, Cat-ear, Topknot) at the four stages
 //   inbetweens                  bred in-betweens (a few mix values), baby and grown
 //   outfits                     every outfit (and the nightcap) on a grown Curly and a grown Dollop
+//   scarf                       the Cozy Scarf on every body: front and 3/4, night, mid-squash and mid-boop
+//                               (--before <B1's 3-outfits.png> adds its two scarf tiles as "before")
 //   forms-curly / forms-dollop  the 22 grown-up forms and 4 spark looks on both breeds (known rough until the refit)
 //   ranch                       the ranch with 10 residents, day and night, and a visit
 //   nursery                     the Nursery's special eggs, the full nest, the move-out choice, the Breed line
@@ -13,7 +15,7 @@
 // Setup as in tools/smoke-test.cjs (playwright + three@0.170.0 outside the repo, found through NODE_PATH); its own
 // dev server on a free loopback port, offline (tools/browser-kit.cjs). Sheets need ffmpeg on the PATH.
 //   node tools/recipe-samples.cjs [--out DIR] [--dpr 2] [--only stages,inbetweens,outfits,forms,ranch,nursery]
-//        [--outfit scarf,...] [--sheets-only]
+//        [--outfit scarf,...] [--before 3-outfits.png] [--sheets-only]
 const path = require('path');
 const fs = require('fs');
 const { execFileSync } = require('child_process');
@@ -28,6 +30,7 @@ const DPR = Number(arg('dpr', 2));
 const ONLY = arg('only', '');
 const want = k => !ONLY || ONLY.split(',').includes(k);
 const OUTFIT = arg('outfit', '');   // --outfit scarf,bowtie: only these outfits (with --only outfits)
+const BEFORE = arg('before', '');   // B1's 3-outfits.png: its Cozy Scarf tiles go on the scarf sheet as "before"
 const VIEW = { width: 393, height: 852 };
 fs.mkdirSync(FRAMES, { recursive: true });
 fs.mkdirSync(OUT, { recursive: true });
@@ -41,6 +44,22 @@ const BREEDS4 = [
   { key: 'topknot', label: 'Topknot Dollop', body: { mix: 1, variant: 'topknot' } },
 ];
 const MIXES = [0, 0.25, 0.5, 0.75, 1];
+// the Cozy Scarf sheet: every body that changes the scarf's outline or height (front and 3/4, day; one at night)
+const SCARF_BODIES = [
+  { key: 'curly', label: 'Curly', body: { mix: 0, variant: 'plain' }, stage: 3, views: ['front', 'side'] },
+  { key: 'dollop', label: 'Dollop', body: { mix: 1, variant: 'plain' }, stage: 3, views: ['front', 'side', 'night'] },
+  { key: 'ears', label: 'Cat-ear Dollop', body: { mix: 1, variant: 'ears' }, stage: 3, views: ['front', 'side'] },
+  { key: 'topknot', label: 'Topknot Dollop', body: { mix: 1, variant: 'topknot' }, stage: 3, views: ['front', 'side'] },
+  { key: 'mix25', label: 'mix 0.25', body: { mix: 0.25, variant: 'plain' }, stage: 3, views: ['front', 'side'] },
+  { key: 'mix75', label: 'mix 0.75', body: { mix: 0.75, variant: 'plain' }, stage: 3, views: ['front', 'side'] },
+  { key: 'rascal', label: 'Dollop, Rascal', body: { mix: 1, variant: 'plain' }, stage: 2, views: ['front', 'side'] },
+  { key: 'mallow', label: 'Dollop, Marshmallow', body: { mix: 1, variant: 'plain' }, stage: 3, form: 'mochi', views: ['front', 'side', 'night'] },
+  { key: 'mallowc', label: 'Curly, Marshmallow', body: { mix: 0, variant: 'plain' }, stage: 3, form: 'mochi', views: ['front', 'side'] },
+  { key: 'babyc', label: 'Curly, Hatchling', body: { mix: 0, variant: 'plain' }, stage: 0, views: ['front'] },
+  { key: 'babyd', label: 'Dollop, Hatchling', body: { mix: 1, variant: 'plain' }, stage: 0, views: ['front'] },
+  { key: 'babyt', label: 'Topknot, Hatchling', body: { mix: 1, variant: 'topknot' }, stage: 0, views: ['front'] },
+  { key: 'sproute', label: 'Cat-ear, Sprout', body: { mix: 1, variant: 'ears' }, stage: 1, views: ['front'] },
+];
 // a diet color for each form (its traits), as in tools/render-samples.cjs
 const FORM_TRAITS = id => {
   if (id === 'mochi') return { sweet: 6, heat: 5, nature: 5, mineral: 4, spark: 4, prism: 4 };
@@ -194,6 +213,60 @@ async function render() {
         await shot(framePath(id, 'day')); await clipPet(id, 'day', { name: o.name });
       }
       perf.outfits = outfits;
+    }
+
+    // ----- (3b) the Cozy Scarf on every body: front and 3/4, day; night; a squash and a boop (held still) -----
+    if (want('scarf')) {
+      const turn = a => ev(a => { const g = window.slimekin, sl = g.slime; sl.turnTarget = a; sl.turnYaw = a; g.advance(0.4); }, a);
+      // (the game's own loop keeps running between the shots: hold the slime still mid-squash by drawing without updating)
+      const freeze = on => ev(on => { const g = window.slimekin; if (on) { g._upd = g.update; g.update = () => g.stage.render(); } else if (g._upd) { g.update = g._upd; g._upd = null; } }, on);
+      const scarfInfo = () => ev(() => { const it = window.slimekin.slime.outfit.neck; const H = it && it.fit && it.fit.T; return H ? { el: +H.el.toFixed(3), t: +H.t.toFixed(3), top: +H.top.toFixed(3), chin: +H.yChin.toFixed(3), neck: H.neck } : null; });
+      for (const b of SCARF_BODIES) for (const view of b.views) {
+        const id = `scarf-${b.key}-${view}`;
+        const r = await step(id, () => pose({ body: b.body, stage: b.stage, traits: b.form ? FORM_TRAITS(b.form) : PLAIN_TRAITS, form: b.form || null, worn: { neck: 'scarf' } }));
+        if (r.bad) errors.push(`${id}: ${r.bad} non-finite points`);
+        if (view === 'side') await turn(-0.75);
+        const dark = view === 'night';
+        if (dark) { await setTheme(true); await ev(() => window.slimekin.advance(1.5)); }
+        await shot(framePath(id, 'day')); await clipPet(id, 'day', { name: b.label, info: await scarfInfo() });
+        if (dark) await setTheme(false);
+        await turn(0);
+      }
+      // its cost: the outline fit (every frame the body is reshaped) and the height (when the body changes, else 4x a second)
+      perf.scarf = await ev(async () => {
+        const g = window.slimekin, sl = g.slime, Sc = await import('/src/view/scarf.js');
+        const ms = fn => { fn(); const t0 = performance.now(); for (let k = 0; k < 60; k++) fn(); return +((performance.now() - t0) / 60).toFixed(3); };
+        const res = {};
+        for (const [k, mix] of [['curly', 0], ['dollop', 1]]) {
+          g.debugBody({ mix, variant: 'plain' }, { instant: true });
+          sl.setOutfits({ head: null, face: null, neck: 'scarf' }); g.advance(2);
+          const it = sl.outfit.neck, X = Sc.scarfScratch(), H = { ...it.fit.H }, chin = it.fit.chin;
+          res[k] = { fitMs: ms(() => Sc.fitScarf(sl, H, it.fit.parts, 0, X)), heightMs: ms(() => Sc.scarfHeight(sl.calmView(), chin, {})), updateMs: ms(() => sl.update(1 / 60)) };
+          sl.setOutfits({ head: null, face: null, neck: null }); g.advance(0.5);
+          res[k].updateMsWithout = ms(() => sl.update(1 / 60));
+        }
+        return res;
+      });
+      log('perf scarf', JSON.stringify(perf.scarf));
+      // the same Dollop mid-squash (a squish) and mid-boop (a poke on the front-right), front and 3/4
+      for (const [kind, view] of [['squash', 'front'], ['squash', 'side'], ['boop', 'front']]) {
+        const id = `scarf-dollop-${kind}-${view}`;
+        await step(id, () => pose({ body: { mix: 1, variant: 'plain' }, stage: 3, traits: PLAIN_TRAITS, worn: { neck: 'scarf' } }));
+        if (view === 'side') await turn(-0.75);
+        const sq = await ev(kind => {
+          const g = window.slimekin, sl = g.slime;
+          if (kind === 'squash') sl.squish(1.3);
+          else sl.poke(sl.body.localToWorld(g.v1.clone().set(0.45, 0.55, 0.95)), 1.2);
+          // run to the deepest point of the squash, then hold it
+          let prev = 9; for (let i = 0; i < 40; i++) { g.advance(1 / 60, 1 / 60); if (sl.sq.x > prev) break; prev = sl.sq.x; }
+          return +sl.sq.x.toFixed(3);
+        }, kind);
+        await freeze(true);
+        await shot(framePath(id, 'day')); await clipPet(id, 'day', { name: kind, sq });
+        await freeze(false);
+        await turn(0);
+        log(id, 'squash', sq);
+      }
     }
 
     // ----- (4) the 22 forms and 4 spark looks on both breeds (not refit yet) -----
@@ -379,6 +452,26 @@ function buildSheets() {
     const rows = [];
     for (const b of BREEDS4.slice(0, 2)) for (const part of [outfitIds.slice(0, half), outfitIds.slice(half)]) rows.push({ header: `${b.label}, grown`, w: 250, h: 250, tiles: part.map(id => tile(`outfit-${b.key}-${id}`, 'day', nameOf(id), b.label)) });
     sheet('3-outfits.png', 'Every outfit on a grown Curly and a grown Dollop', 'does it sit on the body? (Marshmallow form)', rows, 1400);
+  }
+  {
+    const t = (key, view, label, note) => tile(`scarf-${key}-${view}`, 'day', label, note);
+    const rowOf = (keys, view, note) => keys.map(k => t(k, view, SCARF_BODIES.find(b => b.key === k).label, note));
+    const before = [];
+    if (BEFORE && have(BEFORE)) {
+      // B1's sheet (1400 wide, 250 px tiles): the Cozy Scarf is the 4th tile of the 2nd and 4th rows
+      for (const [k, y] of [['curly', 548], ['dollop', 1288]]) {
+        const f = path.join(FRAMES, `scarf-before-${k}.png`);
+        execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', BEFORE, '-vf', `crop=250:250:835:${y}`, f]);
+        before.push(full(f, `Before: ${k === 'curly' ? 'Curly' : 'Dollop'}`, 'B1, Marshmallow form'));
+      }
+    }
+    sheet('3b-scarf.png', 'The Cozy Scarf fits every body', 'it follows the body\'s real outline just under the mouth; the tail hangs at the front-right on the body',
+      [{ header: 'Grown, from the front', w: 260, h: 260, tiles: rowOf(['curly', 'dollop', 'ears', 'topknot', 'mix25', 'mix75'], 'front', 'front') },
+        { header: 'Grown, from a 3/4 angle (the tail side)', w: 260, h: 260, tiles: rowOf(['curly', 'dollop', 'ears', 'topknot', 'mix25', 'mix75'], 'side', '3/4') },
+        { header: 'Marshmallow form and a Rascal: front and 3/4', w: 260, h: 260, tiles: [...rowOf(['mallow', 'mallowc', 'rascal'], 'front', 'front'), ...rowOf(['mallow', 'mallowc', 'rascal'], 'side', '3/4')] },
+        { header: 'Younger stages, and at night', w: 260, h: 260, tiles: [...rowOf(['babyc', 'babyd', 'babyt', 'sproute'], 'front', 'front'), ...rowOf(['dollop', 'mallow'], 'night', 'night')] },
+        { header: 'It rides the body: a held squash and a boop (Dollop)' + (before.length ? '; before this slice' : ''), w: 260, h: 260,
+          tiles: [t('dollop', 'squash-front', 'Squash', 'front'), t('dollop', 'squash-side', 'Squash', '3/4'), t('dollop', 'boop-front', 'Boop', 'front, front-right'), ...before] }], 1700);
   }
   const formIds = fs.existsSync(FRAMES) ? [...new Set(fs.readdirSync(FRAMES).filter(f => /^form-curly-.*-day\.png$/.test(f)).map(f => f.replace(/^form-curly-|-day\.png$/g, '')))] : [];
   const formName = (b, id) => { try { return JSON.parse(fs.readFileSync(path.join(FRAMES, `form-${b}-${id}-day.json`), 'utf8')).name; } catch { return id; } };

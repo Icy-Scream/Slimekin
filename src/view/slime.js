@@ -9,6 +9,7 @@ import { makeFood, OUTFIT_MAKERS } from './models.js';
 import { FORM_LOOKS, PROP_MAKERS, makePattern } from './forms.js';
 import { TRAITS, TRAIT_IDS, FOOD_BY_ID, BREEDS } from '../data/content.js';
 import { recipeFor, stageM, cleanBody } from '../core/recipe.js';
+import { scarfLayout, scarfHeight, scarfScratch, fitScarf } from './scarf.js';
 
 // How long each snack takes to fully dissolve (seconds of play), and what it breaks into.
 const DIGEST = { cookie: 150, chili: 110, iron: 320, moss: 180, berry: 120, crystal: 360 };
@@ -36,23 +37,41 @@ function dyeTexture() {
 // Belly contents draw over the jelly but under the face, so they stay readable inside it.
 const BELLY_ORDER = 1.5;
 // Where each outfit sits. dir: point on the body; align: which model axis points out of the surface.
-// ring: worn around the body at this height (on the unit sphere).
+// ring: worn around the body at this height (on the unit sphere). fit: follows the body's real outline (the scarf,
+// view/scarf.js: its height comes from the mouth and the neck, not from here).
 const OUTFIT_SPECS = {
   bow:     { dir: [-0.5, 0.8, 0.34], off: 0.03, align: 'up' },
   beret:   { dir: [0.12, 1, 0.14], off: -0.06, align: 'up' },
   party:   { dir: [0.2, 1, 0.1], off: -0.04, align: 'up' },
   crown:   { dir: [0, 1, 0.06], off: -0.03, align: 'up' },
   flowers: { ring: 0.8, off: 0.0 },
-  scarf:   { ring: -0.2, off: 0.0, hug: true },
+  scarf:   { fit: true },
   bowtie:  { dir: [0, -0.33, 0.94], off: 0.04, align: 'front' },
   glasses: { dir: [0, 0.215, 0.977], off: 0.07, align: 'front' },
   shades:  { dir: [0, 0.215, 0.977], off: 0.08, align: 'front' },
 };
 // Face and neck pieces follow the face up and down the body (its elevation `faceEl` changes with the breed and as it
-// grows): the directions above fit a face at OUTFIT_FACE_EL. Neck pieces sit higher than they were drawn for (the
-// recipe body's mouth is higher on the face than the old one's): a bow tie by OUTFIT_NECK_RAISE, the scarf's ring a
-// little less (it is thick, and must stay under the mouth).
-const OUTFIT_FACE_EL = 0.2, OUTFIT_NECK_RAISE = 0.11, OUTFIT_RING_RAISE = 0.04;
+// grows): the directions above fit a face at OUTFIT_FACE_EL. The bow tie sits higher than it was drawn for (the
+// recipe body's mouth is higher on the face than the old one's), by OUTFIT_NECK_RAISE.
+const OUTFIT_FACE_EL = 0.2, OUTFIT_NECK_RAISE = 0.11;
+// The face canvas covers this much of the body's elevation (radians), top to bottom.
+const FACE_EL_SPAN = 0.9;
+// The Cozy Scarf's meshes baked into the scarf's own space (the worn copy only: models.js makes a fresh one each time),
+// with each vertex's place on the ring (view/scarf.js). Their vertices move every frame, so the bounds are generous.
+export function scarfParts(obj) {
+  const parts = [];
+  for (const m of obj.children) {
+    if (!m.isMesh || !m.userData.fit) continue;
+    m.updateMatrix();
+    m.geometry.applyMatrix4(m.matrix);
+    m.position.set(0, 0, 0); m.rotation.set(0, 0, 0); m.scale.set(1, 1, 1);
+    const P = m.geometry.attributes.position, Nm = m.geometry.attributes.normal;
+    P.setUsage(THREE.DynamicDrawUsage); Nm.setUsage(THREE.DynamicDrawUsage);
+    m.geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 3);
+    parts.push({ mesh: m, L: scarfLayout(P.array, Nm.array, m.userData.fit === 'tail'), pos: P.array, nrm: Nm.array });
+  }
+  return parts;
+}
 function bellyMaterial(mat, opacity) {
   mat.transparent = true;
   mat.opacity = opacity;
@@ -392,7 +411,7 @@ export class SlimeAvatar {
   }
   // Where the face sits (its elevation on the body, radians); the mouth and face points follow it.
   setFaceEl(el0) {
-    const uv = this.faceGeo.attributes.uv.array, fd = this.faceDirs, AZ = 1.32, EL = 0.9;
+    const uv = this.faceGeo.attributes.uv.array, fd = this.faceDirs, AZ = 1.32, EL = FACE_EL_SPAN;
     for (let i = 0; i < fd.length / 3; i++) {
       const az = (uv[i * 2] - 0.5) * AZ, el = el0 + (uv[i * 2 + 1] - 0.5) * EL;
       fd[i * 3] = Math.sin(az) * Math.cos(el); fd[i * 3 + 1] = Math.sin(el); fd[i * 3 + 2] = Math.cos(az) * Math.cos(el);
@@ -606,8 +625,39 @@ export class SlimeAvatar {
         this.body.add(obj);
         const sp = OUTFIT_SPECS[id];
         this.outfit[slot] = { id, obj, spec: sp, dir: sp.dir ? new THREE.Vector3(...sp.dir).normalize() : null, grow: 0, rot0: obj.rotation.clone() };
+        if (sp.fit) this.outfit[slot].fit = { parts: scarfParts(obj), H: {}, T: {}, S: null, F: null, chin: NaN, wait: 0, fitted: false };
       }
     }
+  }
+
+  // This body without its quick moves (squash, lean, boops, wobble, gulps, little hands, pulls): its shape() is the
+  // goo at rest, slow lumps and all.
+  calmView() {
+    return this._calmView || (this._calmView = Object.assign(Object.create(this), { wobble: 0, dents: [], gulp: null, nubList: [], pull: { amt: 0 }, sq: { x: 0 }, leanX: { x: 0 }, leanZ: { x: 0 } }));
+  }
+  // The Cozy Scarf follows the body's real outline (view/scarf.js). Its height is worked out on the calm body (a boop
+  // never makes it jump) when the recipe, the form or the face moves, and a few times a second as the goo's slow lumps
+  // drift (eased); the outline every frame the body is reshaped (every other frame for a resident you are not
+  // visiting, in step with its body).
+  placeScarf(it, pop, dt) {
+    const fit = it.fit, f = this.face;
+    // the mouth's lowest everyday point on the face's center line (the scarf stays under it)
+    const chinEl = this.faceEl + (0.5 - (f.mouthY + f.mouthLow()) / FACE_H) * FACE_EL_SPAN;
+    fit.wait -= dt;
+    if (fit.S !== this.S || fit.F !== this.formShape || fit.chin !== chinEl || fit.wait <= 0) {
+      scarfHeight(this.calmView(), chinEl, fit.T);
+      if (!fit.S) Object.assign(fit.H, fit.T);
+      fit.S = this.S; fit.F = this.formShape; fit.chin = chinEl; fit.wait = 0.25;
+    }
+    const H = fit.H, T = fit.T, k = 1 - Math.exp(-dt * 6);
+    H.el += (T.el - H.el) * k; H.t += (T.t - H.t) * k; H.yC += (T.yC - H.yC) * k;
+    if (this._reshaped || !fit.fitted) {
+      const C0 = fitScarf(this, H, fit.parts, this.sq.x, this._scarfX || (this._scarfX = scarfScratch()));
+      it.obj.position.set(C0[0], C0[1], C0[2]);
+      for (const p of fit.parts) { const a = p.mesh.geometry.attributes; a.position.needsUpdate = true; a.normal.needsUpdate = true; }
+      fit.fitted = true;
+    }
+    it.obj.scale.setScalar(pop);
   }
 
   placeOutfits(dt) {
@@ -622,18 +672,19 @@ export class SlimeAvatar {
       if (!it.obj.visible) continue;
       const pop = it.grow * (1 + Math.sin(Math.min(1, it.grow) * Math.PI) * 0.12);
       const sp = it.spec;
+      if (sp.fit) { this.placeScarf(it, pop, dt); continue; }
       const fe = this.faceEl > -0.5 ? this.faceEl : OUTFIT_FACE_EL;
-      const tilt = slot === 'head' ? 0 : fe - OUTFIT_FACE_EL + (slot === 'neck' ? (sp.ring !== undefined ? OUTFIT_RING_RAISE : OUTFIT_NECK_RAISE) : 0);
+      const tilt = slot === 'head' ? 0 : fe - OUTFIT_FACE_EL + (slot === 'neck' ? OUTFIT_NECK_RAISE : 0);
       if (sp.ring !== undefined) {
         const ry = Math.sin(Math.asin(sp.ring) + tilt);
         this.shape(0, ry, 0, 0, o);
         const cx = o.x, cy = o.y, cz = o.z;
         const rx = Math.sqrt(1 - ry * ry);
         // the body's width around that ring (square forms, lumps and the goo lip are not round): a crown rests on the
-        // widest part, a scarf hugs the body (its average width, a little snug at the corners)
-        let rMax = 0, rSum = 0;
-        for (let k = 0; k < 8; k++) { const a = k * TAU / 8; this.shape(rx * Math.cos(a), ry, rx * Math.sin(a), a, o); const d = Math.hypot(o.x - cx, o.z - cz); rMax = Math.max(rMax, d); rSum += d; }
-        const r = (sp.hug ? rSum / 8 * 1.03 : rMax) + 0.02;
+        // widest part
+        let rMax = 0;
+        for (let k = 0; k < 8; k++) { const a = k * TAU / 8; this.shape(rx * Math.cos(a), ry, rx * Math.sin(a), a, o); rMax = Math.max(rMax, Math.hypot(o.x - cx, o.z - cz)); }
+        const r = rMax + 0.02;
         it.obj.position.set(cx, cy + sp.off + lift, cz);
         it.obj.scale.set(r * pop, r * pop * (1 + this.sq.x), r * pop);
         continue;
@@ -1210,7 +1261,8 @@ export class SlimeAvatar {
     if (this.pure) this.mat.iridescenceThicknessRange[1] = 420 + 180 * Math.sin(t * 0.7);
 
     // deform body (every lod-th frame)
-    if (++this._lodN % this.lod === 0) this.deform();
+    this._reshaped = ++this._lodN % this.lod === 0;
+    if (this._reshaped) this.deform();
     const o = this._o;
     // the baby's feet (they tuck in as it grows) and the bubbles inside, riding the body
     const sqx = this.sq.x, fk = this.S.feet;

@@ -265,5 +265,113 @@ console.log('\n# 7. Old saves: every slime, resident and egg becomes a Curly (pl
   if (!baseSim) console.log('(set RECIPE_BASE to a checkout of the base commit to compare migrations byte for byte)');
 }
 
+// ---------- 8. the Cozy Scarf fits every body ----------
+// The avatar's own shape() (view/slime.js, every physics term) on a stand-in for the avatar, so this checks exactly
+// what is drawn; view/slime.js imports three.js, so this section needs it (as the browser tests do, through NODE_PATH).
+console.log('\n# 8. The Cozy Scarf follows the body\'s real outline just under the mouth (every body, stage, form; squash, lean, wobble, boops)');
+{
+  const mod = await import('node:module');
+  let three = null;
+  try { three = path.resolve(path.dirname(mod.createRequire(import.meta.url).resolve('three')), '..'); } catch { /* not installed */ }
+  if (three && (mod.registerHooks || mod.register)) {
+    const to = f => url.pathToFileURL(path.join(three, f)).href;
+    if (mod.registerHooks) mod.registerHooks({ resolve: (s, c, next) => s === 'three' ? { url: to('build/three.module.js'), shortCircuit: true }
+      : s.startsWith('three/addons/') ? { url: to('examples/jsm/' + s.slice(13)), shortCircuit: true } : next(s, c) });
+    else mod.register('data:text/javascript,' + encodeURIComponent(`const M=${JSON.stringify(to('build/three.module.js'))},A=${JSON.stringify(to('examples/jsm/'))};
+      export async function resolve(s,c,n){return s==='three'?{url:M,shortCircuit:true}:s.startsWith('three/addons/')?{url:A+s.slice(13),shortCircuit:true}:n(s,c);}`));
+  }
+  const V = three ? await import(SRC + '/view/slime.js').catch(e => (console.log(String(e)), null)) : null;
+  if (!V) ok(false, 'the scarf check needs three.js next to the browser tests (npm install --no-save three@0.170.0, see tools/smoke-test.cjs)');
+  else {
+    const Sc = await import(SRC + '/view/scarf.js');
+    const { FORM_LOOKS } = await import(SRC + '/view/forms.js');
+    const { OUTFIT_MAKERS } = await import(SRC + '/view/models.js');
+    const { FACE_H, FaceRenderer } = await import(SRC + '/view/face.js');
+    const P = V.SlimeAvatar.prototype, F = FaceRenderer.prototype, TAU = Math.PI * 2, o = { x: 0, y: 0, z: 0 };
+    // face.js draws the mouth at mouthY 196 on the face canvas, which covers 0.9 radians of the body (slime.js
+    // setFaceEl); the mouth reaches mouthLow() px under that (the Curly's smile, or the mouth open to eat)
+    const MOUTH_Y = 196, FACE_EL = 0.9;
+    const avatar = (body, m, form = null, T = 0, dyn = {}) => {
+      const S = R.recipeFor(body, m), look = form ? FORM_LOOKS[form] : null;
+      const face = { mixK: body.mix, grown: Body.smooth(0.5, 1, m), smileK: F.smileK };
+      return { S, curl: null, time: T, formShape: look && look.shape ? { tall: 1, wide: 1, lumpy: 0, square: 0, ...look.shape } : null,
+        wobble: dyn.wobble || 0, dents: dyn.dents || [], gulp: null, nubList: [], pull: { amt: 0 }, sq: { x: dyn.sq || 0 }, leanX: { x: dyn.lx || 0 },
+        leanZ: { x: dyn.lz || 0 }, tipGrab: 0, liveSizes: P.liveSizes, shape: P.shape,
+        chinEl: S.faceEl + (0.5 - (MOUTH_Y + F.mouthLow.call(face)) / FACE_H) * FACE_EL };
+    };
+    // the body's radius around the ring's axis at height y, at azimuth phi (the direction found by bisection)
+    const surface = (av, phi, y, C) => {
+      let dp = phi;
+      for (let it = 0; it < 2; it++) {
+        let lo = -1.5, hi = 1.5;
+        for (let k = 0; k < 24; k++) { const e = (lo + hi) / 2; av.shape(Math.cos(e) * Math.cos(dp), Math.sin(e), Math.cos(e) * Math.sin(dp), dp, o); if (o.y < y) lo = e; else hi = e; }
+        const d = Math.atan2(o.z - C[2], o.x - C[0]) - phi; dp -= Math.atan2(Math.sin(d), Math.cos(d));
+      }
+      return Math.hypot(o.x - C[0], o.z - C[2]);
+    };
+    const parts = V.scarfParts(OUTFIT_MAKERS.scarf()), X = Sc.scarfScratch();
+    // fit the scarf on a body and measure it: the knit's inside against the body at each of the knit's 48 angles, any
+    // vertex inside the body, the knit's top at the front against the mouth, its bottom, the tail's end
+    const measure = av => {
+      const H = Sc.scarfHeight(P.calmView.call(av), av.chinEl, {});
+      const C = Sc.fitScarf(av, H, parts, av.sq.x, X);
+      const near = new Map();
+      let inside = 0, worst = 0, top = -9, bottom = 9, low = 9, tailEnd = 9, n = 0;
+      for (const p of parts) for (let i = 0; i < p.L.n; i++) {
+        const x = p.pos[i * 3] + C[0], y = p.pos[i * 3 + 1] + C[1], z = p.pos[i * 3 + 2] + C[2], phi = Math.atan2(z - C[2], x - C[0]);
+        const d = Math.hypot(x - C[0], z - C[2]) - surface(av, phi, y, C);
+        n++;
+        if (d < -0.002) { inside++; worst = Math.min(worst, d); }
+        if (p.L.tail) { tailEnd = Math.min(tailEnd, y); continue; }
+        const k = Math.round(((phi / TAU) % 1 + 1) % 1 * 48) % 48;
+        near.set(k, Math.min(near.get(k) ?? 9, d));
+        if (Math.abs(phi - Math.PI / 2) < 0.15) top = Math.max(top, y);
+        if (Math.abs(phi - Math.PI / 2) < 0.4) bottom = Math.min(bottom, y);
+        low = Math.min(low, y);
+      }
+      av.shape(0, Math.sin(av.chinEl), Math.cos(av.chinEl), Math.PI / 2, o);
+      const gaps = [...near.values()];
+      return { H, n, inside, worst, gapMin: Math.min(...gaps), gapMax: Math.max(...gaps), top, mouth: o.y, bottom, low, tailEnd };
+    };
+    const BODIES8 = [['Curly', { mix: 0, variant: 'plain' }], ['Dollop', { mix: 1, variant: 'plain' }], ['Cat-ear Dollop', { mix: 1, variant: 'ears' }],
+      ['Topknot Dollop', { mix: 1, variant: 'topknot' }], ['mix 0.25', { mix: 0.25, variant: 'plain' }], ['mix 0.5', { mix: 0.5, variant: 'plain' }], ['mix 0.75', { mix: 0.75, variant: 'plain' }]];
+    const shapeForms = Object.keys(FORM_LOOKS).filter(id => FORM_LOOKS[id].shape);
+    const runs = [];   // [label, measure, rest?]
+    for (const [name, b] of BODIES8) for (const m of [0, 0.2, 0.35, 0.5, 0.65, 0.8, 1]) for (const genes of GENE_SETS) for (const T of [0, 7.3, 15.1])
+      runs.push([`${name} m ${m}`, measure(avatar({ ...b, genes }, m, null, T)), true]);
+    for (const [name, b] of BODIES8) for (const f of shapeForms) runs.push([`${name} ${FORM_LOOKS[f].title}`, measure(avatar({ ...b, genes: R.neutralGenes() }, 1, f, 3)), true]);
+    const DYN = [['squashed', { sq: -0.2 }], ['squashed hard', { sq: -0.3 }], ['stretched', { sq: 0.25 }], ['leaning', { lx: 0.12, lz: -0.08 }],
+      ['wobbling', { wobble: 0.08 }], ['booped', { dents: [{ x: 0.42, y: 0.12, z: 0.9, a: 0.12 }], sq: -0.15, wobble: 0.04 }]];
+    for (const [name, b] of BODIES8) for (const [m, f] of [[0, null], [0.65, null], [1, null], [1, 'mochi']]) for (const [dn, dyn] of DYN)
+      runs.push([`${name} m ${m}${f ? ' Marshmallow' : ''} ${dn}`, measure(avatar({ ...b, genes: R.neutralGenes() }, m, f, 3, dyn)), false]);
+    const rest = runs.filter(r => r[2]), live = runs.filter(r => !r[2]);
+    const span = (rs, k) => `${Math.min(...rs.map(r => r[1][k])).toFixed(4)}..${Math.max(...rs.map(r => r[1][k])).toFixed(4)}`;
+    const verts = runs.reduce((s, r) => s + r[1].n, 0);
+    let bad = runs.filter(r => r[1].inside);
+    ok(!bad.length, `nothing inside the body: ${verts} scarf vertices (knit, stripe, tail) on ${runs.length} bodies (${rest.length} resting: every breed, mix, stage, gene set, form with a shape; ${live.length} squashed, stretched, leaning, wobbling, booped)`,
+      bad.length ? bad.slice(0, 3).map(r => `${r[0]}: ${r[1].inside} inside, ${r[1].worst.toFixed(4)}`).join('; ') : 'none more than 0.002 inside');
+    bad = rest.filter(r => r[1].gapMin < 0 || r[1].gapMax > 0.015);
+    ok(!bad.length, 'touching all the way round, at rest: at each of the knit\'s 48 angles its inside is 0 .. 0.015 from the body (no gap, nothing sunk in)',
+      bad.length ? bad.slice(0, 3).map(r => `${r[0]}: ${r[1].gapMin.toFixed(4)}..${r[1].gapMax.toFixed(4)}`).join('; ') : `${span(rest, 'gapMin')} (closest) .. ${span(rest, 'gapMax')} (furthest)`);
+    bad = live.filter(r => r[1].gapMin < 0 || r[1].gapMax > 0.025);
+    ok(!bad.length, 'it rides the body: squashed, stretched, leaning, wobbling or booped, the inside stays 0 .. 0.025 from the body',
+      bad.length ? bad.slice(0, 3).map(r => `${r[0]}: ${r[1].gapMin.toFixed(4)}..${r[1].gapMax.toFixed(4)}`).join('; ') : `${span(live, 'gapMin')} .. ${span(live, 'gapMax')}`);
+    bad = rest.filter(r => r[1].top > r[1].mouth + 0.005);
+    ok(!bad.length, 'just under the mouth: at rest the knit\'s top stays under the mouth\'s lowest everyday point (smile, or open to eat)',
+      bad.length ? bad.slice(0, 3).map(r => `${r[0]}: top ${r[1].top.toFixed(3)}, mouth ${r[1].mouth.toFixed(3)}`).join('; ') : `top - mouth ${span(rest.map(r => [r[0], { d: r[1].top - r[1].mouth }]), 'd')}`);
+    // (under the face, where the lip shows; all the way round the ring follows the goo's lumps, so only the floor counts)
+    const held = rest.filter(r => r[1].H.yLip > 0 && r[1].bottom < r[1].H.yLip - 0.002);
+    bad = rest.filter(r => r[1].bottom < r[1].H.yLip - 0.03 || r[1].low < 0.06);
+    ok(!bad.length, 'never in the goo lip or the puddle: under the face the knit\'s bottom stays above the lip (a baby with little room may touch its top: the mouth wins), and all the way round off the floor',
+      bad.length ? bad.slice(0, 3).map(r => `${r[0]}: bottom ${r[1].bottom.toFixed(3)}, lip ${r[1].H.yLip.toFixed(3)}, lowest ${r[1].low.toFixed(3)}`).join('; ')
+        : `bottom - lip ${span(rest.filter(r => r[1].H.yLip > 0).map(r => [r[0], { d: r[1].bottom - r[1].H.yLip }]), 'd')}; lowest point ${Math.min(...rest.map(r => r[1].low)).toFixed(3)}; ${held.length} bod${held.length === 1 ? 'y' : 'ies'} touching the lip's top (${held.slice(0, 2).map(r => r[0]).join(', ')}${held.length > 2 ? ', ...' : ''})`);
+    bad = runs.filter(r => r[1].tailEnd < 0.02);
+    ok(!bad.length, 'the tail hangs above the floor', bad.length ? bad.slice(0, 3).map(r => `${r[0]}: ${r[1].tailEnd.toFixed(3)}`).join('; ') : `lowest end ${Math.min(...runs.map(r => r[1].tailEnd)).toFixed(3)}`);
+    const necks = rest.filter(r => r[1].H.neck > 0);
+    if (VERBOSE) for (const [name, r] of runs) console.log(`  ${name}: el ${r.H.el.toFixed(2)} t ${r.H.t.toFixed(3)} gap ${r.gapMin.toFixed(4)}..${r.gapMax.toFixed(4)} top ${r.top.toFixed(3)} mouth ${r.mouth.toFixed(3)} bottom ${r.bottom.toFixed(3)} (lowest ${r.low.toFixed(3)}) lip ${r.H.yLip.toFixed(3)} tail ${r.tailEnd.toFixed(3)}`);
+    console.log(`(${necks.length} resting bod${necks.length === 1 ? 'y settles' : 'ies settle'} into a narrower neck below the mouth${necks.length ? ': ' + necks.slice(0, 4).map(r => r[0]).join(', ') : ''})`);
+  }
+}
+
 console.log(`\n${passes} passed, ${fails} failed`);
 process.exit(fails ? 1 : 0);
