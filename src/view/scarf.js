@@ -116,6 +116,7 @@ export function scarfHeight(body, chinEl, out = {}) {
   while (e < eMouth - 1e-9 && knit(e).bottom < yLow) e = Math.min(eMouth, e + STEP);
   const kn = knit(e);
   out.el = e; out.t = t; out.yC = kn.cy; out.top = kn.top; out.bottom = kn.bottom; out.yChin = yChin; out.yLip = yLip; out.neck = j * NECK_STEP;
+  out.chinEl = chinEl;
   return out;
 }
 
@@ -125,11 +126,39 @@ export function scarfScratch(N = SCARF.samples) {
   return { P: v3(), Qu: v3(), Qd: v3(), U: v3(), Sp: new Float64Array(N), D: new Float64Array((SCARF.drape + 1) * 2), o: { x: 0, y: 0, z: 0 }, C0: [0, 0, 0] };
 }
 
+// The ring's elevation this frame: H.el, unless a quick move (a squash is wider at the bottom, which tilts the knit up)
+// lifts the knit's top past the mouth; then the ring slides down the body by that much for the moment.
+// g: the knit's center out from the body; t, fy: its radius, and how flat a squash makes it.
+function underMouth(body, H, g, t, fy, o) {
+  const front = e => body.shape(0, Math.sin(e), Math.cos(e), Math.PI / 2, o);
+  const limit = front(H.chinEl).y - SCARF.clear;
+  let el = H.el;
+  for (let pass = 0; pass < 3; pass++) {
+    front(el + REACH); const uy = o.y, uz = o.z;
+    front(el - REACH); const dy = o.y, dz = o.z;
+    front(el);
+    const vy = uy - dy, vz = uz - dz, l = Math.hypot(vy, vz) || 1, ny = -vz / l, nz = vy / l;
+    // (as in fitScarf: clear the body just above and below too)
+    let s = 0;
+    for (const [qy, qz] of [[uy, uz], [dy, dz]]) {
+      const wy = qy - o.y - ny * g, wz = qz - o.z - nz * g, ww = wy * wy + wz * wz, wu = wy * ny + wz * nz;
+      if (ww < g * g) s = Math.max(s, wu + Math.sqrt(Math.max(0, wu * wu - ww + g * g)));
+    }
+    // (the knit's cross-section: t out from the body, t * fy across; tilted, both reach up)
+    const over = o.y + ny * (g + s) + t * Math.hypot(ny, fy * nz) - limit;
+    if (over <= 0.001 || el < H.el - 0.3) break;
+    el -= Math.min(0.15, 1.15 * over / Math.max(0.3, vy / (2 * REACH)));
+  }
+  return el;
+}
+
 // Every frame: sample the body (body.shape: the avatar's own, every physics term) around the ring at H.el and write
 // each part's vertices (relative to the ring's center, returned) and normals into its pos / nrm arrays.
-// parts: [{ L, pos, nrm }]. sq: the body's squash (a squash flattens the knit and shortens the tail, like the body).
+// parts: [{ L, pos, nrm }]. sq: the body's squash (a squash flattens the knit, like the body).
 export function fitScarf(body, H, parts, sq, X) {
-  const N = SCARF.samples, { P, U, D, Qu, Qd, Sp, o } = X, el = H.el;
+  const N = SCARF.samples, { P, U, D, Qu, Qd, Sp, o } = X;
+  const t = H.t, kk = t / SCARF.tube, g = SCARF.gap + t, nD = SCARF.drape + 1, fy = 1 + Math.min(0, sq);
+  const el = H.chinEl === undefined ? H.el : underMouth(body, H, g, t, fy, o);
   const ce = Math.cos(el), se = Math.sin(el), cu = Math.cos(el + REACH), su = Math.sin(el + REACH), cd = Math.cos(el - REACH), sd = Math.sin(el - REACH);
   body.shape(0, se, 0, 0, o);
   const C0 = X.C0; C0[0] = o.x; C0[1] = o.y; C0[2] = o.z;
@@ -139,7 +168,6 @@ export function fitScarf(body, H, parts, sq, X) {
     body.shape(cu * ca, su, cu * sa, a, o); Qu[j] = o.x; Qu[j + 1] = o.y; Qu[j + 2] = o.z;
     body.shape(cd * ca, sd, cd * sa, a, o); Qd[j] = o.x; Qd[j + 1] = o.y; Qd[j + 2] = o.z;
   }
-  const t = H.t, kk = t / SCARF.tube, g = SCARF.gap + t, nD = SCARF.drape + 1, fy = 1 + Math.min(0, sq);
   // the surface's outward normal at each sample (up the body, crossed with along the ring), and how much further out
   // the knit must sit to clear the body above and below it too (a crease tighter than the knit)
   for (let k = 0; k < N; k++) {
@@ -160,11 +188,11 @@ export function fitScarf(body, H, parts, sq, X) {
     const L = part.L, pos = part.pos, nrm = part.nrm;
     let ks = 1;
     if (L.tail) {
-      // the tail's length: as much as fits above the floor (on the calm body), squashed along with the body
-      ks = clamp((H.yC - SCARF.tailFloor) / (-L.dyMin * kk), SCARF.tailMin, 1) * (1 + Math.min(0, sq));
       // under the tail: how far the body pushes out below the ring (out from the ring's center, at the tail's angle)
       const a = L.aMid, ca = Math.cos(a), sa = Math.sin(a);
       body.shape(ce * ca, se, ce * sa, a, o);
+      // the tail's length: as much as fits above the floor from where the ring is now (a squash shortens it)
+      ks = clamp((o.y - SCARF.tailFloor) / (-L.dyMin * kk), SCARF.tailMin * fy, 1);
       const px = o.x, pz = o.z, hl = Math.hypot(px - C0[0], pz - C0[2]) || 1, hx = (px - C0[0]) / hl, hz = (pz - C0[2]) / hl;
       D[0] = o.y; D[1] = 0;
       for (let m = 1; m < nD; m++) {

@@ -360,6 +360,9 @@ console.log('\n# 8. The Cozy Scarf follows the body\'s real outline just under t
     ok(!bad.length, 'just under the mouth: at rest the knit\'s top stays under the mouth\'s lowest everyday point (smile, or open to eat)',
       bad.length ? bad.slice(0, 3).map(r => `${r[0]}: top ${r[1].top.toFixed(3)}, mouth ${r[1].mouth.toFixed(3)}`).join('; ') : `top - mouth ${span(rest.map(r => [r[0], { d: r[1].top - r[1].mouth }]), 'd')}`);
     // (under the face, where the lip shows; all the way round the ring follows the goo's lumps, so only the floor counts)
+    bad = live.filter(r => r[1].top > r[1].mouth + 0.005);
+    ok(!bad.length, 'and while it moves: squashed, stretched, leaning, wobbling or booped, the knit\'s top stays under the mouth (the ring slides down the body for the moment)',
+      bad.length ? bad.slice(0, 3).map(r => `${r[0]}: top ${r[1].top.toFixed(3)}, mouth ${r[1].mouth.toFixed(3)}`).join('; ') : `top - mouth ${span(live.map(r => [r[0], { d: r[1].top - r[1].mouth }]), 'd')}`);
     const held = rest.filter(r => r[1].H.yLip > 0 && r[1].bottom < r[1].H.yLip - 0.002);
     bad = rest.filter(r => r[1].bottom < r[1].H.yLip - 0.03 || r[1].low < 0.06);
     ok(!bad.length, 'never in the goo lip or the puddle: under the face the knit\'s bottom stays above the lip (a baby with little room may touch its top: the mouth wins), and all the way round off the floor',

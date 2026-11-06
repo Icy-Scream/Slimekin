@@ -650,7 +650,7 @@ export class SlimeAvatar {
       fit.S = this.S; fit.F = this.formShape; fit.chin = chinEl; fit.wait = 0.25;
     }
     const H = fit.H, T = fit.T, k = 1 - Math.exp(-dt * 6);
-    H.el += (T.el - H.el) * k; H.t += (T.t - H.t) * k; H.yC += (T.yC - H.yC) * k;
+    H.el += (T.el - H.el) * k; H.t += (T.t - H.t) * k; H.yC += (T.yC - H.yC) * k; H.chinEl = chinEl;
     if (this._reshaped || !fit.fitted) {
       const C0 = fitScarf(this, H, fit.parts, this.sq.x, this._scarfX || (this._scarfX = scarfScratch()));
       it.obj.position.set(C0[0], C0[1], C0[2]);
