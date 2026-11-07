@@ -11,15 +11,22 @@
 // In the app:
 // - Save backup. iOS may clear a web view's localStorage when the phone is short on storage. Every local save
 //   ('slimekin.save.v1' only) is copied into Preferences (iOS UserDefaults): at most once every MIRROR_MS, and at once
-//   when the app goes to the background or the page unloads. At boot, if localStorage has no save but the copy does,
-//   the copy is written back before the game reads it. "Start over" drops the copy too. Deleting the app deletes
-//   both; the Save Code in Settings stays the backup and the way to move a slime to another device.
+//   when the app goes to the background or the page unloads. At boot, if localStorage has no save, or one that can't
+//   be read, the copy is written back before the game reads it (the unreadable text is kept in slimekin.save.broken;
+//   if the device's own previous save, slimekin.save.prev, is newer, that one is used instead: src/core/save.js).
+//   Only a save that reads back is ever copied, and if the phone did not answer at boot while the copy was needed,
+//   nothing is copied over it until a later boot has looked at it. "Start over" drops the copy too. Deleting the app
+//   deletes both; the Save Code in Settings stays the backup and the way to move a slime to another device.
 // - Haptics. buzz(ms) becomes a light tap (a medium one for a buzz longer than 20 ms; never heavy).
 // - A brand-new game starts with "Sound when phone is on silent" Off (freshState); the web keeps it On.
 // - Slots for later, both null: `store` (in-app purchases, slice W2) and `ads` (not decided).
 
+import { readSave, isBrandNew } from '../core/save-check.js';
+import { keepBroken, PREV_KEY } from '../core/save.js';
+
 export const SAVE_KEY = 'slimekin.save.v1';            // the key src/core/save.js writes; the only one mirrored
 const CLEARED_KEY = 'slimekin.platform.cleared';       // "Start over" ran: the next boot drops the copy, not restores it
+const UNCHECKED_KEY = 'slimekin.platform.unchecked';   // the copy was needed at boot but the phone did not answer
 export const MIRROR_MS = 3000;                         // at most one copy every 3 s while the game is on screen
 const RESTORE_MS = 1500;                               // boot waits at most this long for the phone's answer
 const HAPTIC_GAP_MS = 60;                              // taps closer than this make one tap
@@ -46,7 +53,10 @@ function quietly(call) {
 }
 const within = (promise, ms) => Promise.race([promise, new Promise(r => setTimeout(() => r(null), ms))]);
 
-// Boot, before the game reads its save: bring back a save iOS cleared from localStorage. True when one came back.
+// Boot, before the game reads its save: bring back a save iOS cleared from localStorage, or one that can't be read.
+// True when the copy came back. lastRestore tells the game what happened ({ broken }: an unreadable save was set aside).
+export let lastRestore = null;
+let held = false;   // the copy could not be looked at this visit: never write over it
 export async function restoreSave() {
   if (!isNative) return false;
   try {
@@ -55,14 +65,38 @@ export async function restoreSave() {
     if (localStorage.getItem(CLEARED_KEY)) {
       await within(quietly(() => prefs.remove({ key: SAVE_KEY })), RESTORE_MS);
       localStorage.removeItem(CLEARED_KEY);
+      localStorage.removeItem(UNCHECKED_KEY);
       return false;
     }
-    if (localStorage.getItem(SAVE_KEY)) return false;
+    const raw = localStorage.getItem(SAVE_KEY);
+    const local = readSave(raw);
+    const unchecked = !!localStorage.getItem(UNCHECKED_KEY);
+    if (local && !unchecked) return false;              // a readable save and nothing pending: the fast path
     const r = await within(quietly(() => prefs.get({ key: SAVE_KEY })), RESTORE_MS);
+    if (!r) {                                          // no answer: play on, but never copy over what the phone holds
+      held = true;
+      try { localStorage.setItem(UNCHECKED_KEY, '1'); } catch { /* storage blocked */ }
+      if (raw && !local) keepBroken(raw);
+      return false;
+    }
+    localStorage.removeItem(UNCHECKED_KEY);
     const json = r && typeof r.value === 'string' ? r.value : '';
-    if (!json) return false;
-    JSON.parse(json);                                  // only a readable save is written back
+    const copy = readSave(json);                       // only a readable save is written back
+    if (local) {                                       // (a boot the phone did not answer before)
+      if (!copy || !isBrandNew(local) || isBrandNew(copy)) return false;   // only a brand-new egg gives way to the copy
+      localStorage.setItem(SAVE_KEY, json);
+      lastRestore = { broken: false };
+      return true;
+    }
+    if (raw) keepBroken(raw);                          // the unreadable save's text is kept, never deleted
+    if (!copy) {
+      if (json && !localStorage.getItem('slimekin.save.broken')) keepBroken(json);
+      return false;
+    }
+    const prev = readSave(localStorage.getItem(PREV_KEY));
+    if (prev && (prev.savedAt || 0) > (copy.savedAt || 0)) return false;   // this device's own previous save is newer
     localStorage.setItem(SAVE_KEY, json);
+    lastRestore = { broken: !!raw };
     return true;
   } catch { return false; }
 }
@@ -83,6 +117,7 @@ let timer = null;
 let leaving = false;
 function flush() {
   if (timer) { clearTimeout(timer); timer = null; }
+  if (held) { pending = null; return; }
   if (pending === null) return;
   const value = pending;
   pending = null;
@@ -90,8 +125,9 @@ function flush() {
   if (prefs) quietly(() => prefs.set({ key: SAVE_KEY, value }));
 }
 // Queue a copy of this save (a JSON string). Written within MIRROR_MS, or at once while the app is hidden or leaving.
+// Nothing while the copy is held (the phone did not answer at boot when the copy was needed).
 export function mirrorSave(json) {
-  if (!isNative || typeof json !== 'string' || !json) return;
+  if (!isNative || held || typeof json !== 'string' || !json) return;
   pending = json;
   let hidden = leaving;
   try { hidden = hidden || document.visibilityState === 'hidden'; } catch { /* no document */ }
@@ -106,13 +142,23 @@ function forget() {
   if (prefs) quietly(() => prefs.remove({ key: SAVE_KEY }));
 }
 // Hooks a SaveStore (src/core/save.js) so each local save is mirrored and "Start over" drops the copy. The copy is
-// read back from localStorage, so it is always exactly what the game wrote there. Returns the same store.
+// read back from localStorage, so it is always exactly what the game wrote there, and only when it reads back as a
+// save (src/core/save-check.js). Returns the same store; saveLocal still returns whether the write worked.
 export function mirrorSaves(saveStore) {
   if (!isNative || !saveStore) return saveStore;
-  const save = saveStore.saveLocal, clear = saveStore.clearLocal;
+  const save = saveStore.saveLocal, clear = saveStore.clearLocal, replace = saveStore.replaceWith;
+  const copy = () => {
+    try { const json = localStorage.getItem(SAVE_KEY); if (readSave(json)) mirrorSave(json); } catch { /* storage blocked */ }
+  };
   saveStore.saveLocal = function (obj) {
-    save.call(this, obj);
-    try { mirrorSave(localStorage.getItem(SAVE_KEY)); } catch { /* storage blocked */ }
+    const ok = save.call(this, obj);
+    if (ok) copy();
+    return ok;
+  };
+  if (replace) saveStore.replaceWith = function (obj) {
+    const ok = replace.call(this, obj);
+    if (ok) copy();
+    return ok;
   };
   saveStore.clearLocal = function () {
     clear.call(this);
