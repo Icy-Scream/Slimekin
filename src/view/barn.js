@@ -568,22 +568,24 @@ export class BarnView {
     if (onStand && !this.empty) this.av.headTopWorld(start);
     else { const a = (Math.random() < 0.5 ? -1 : 1) * (0.9 + Math.random() * 0.5); start.set(Math.sin(a) * 1.05, 0.55, -Math.abs(Math.cos(a)) * 0.5); }
     m.position.copy(start);
-    // where it lands: on the straw around the stand, in front and to the sides, inside the aisle
-    const room = this.meta.room, [r0, r1] = BARN.pearlRing, keep = [{ x: this.basketAt.x, z: this.basketAt.z, r: BARN.basket.r + 0.15 }, { x: BARN.nest.x, z: BARN.nest.z, r: BARN.nest.r + 0.15 }];
-    let tx = 0, tz = r0;
-    for (let k = 0; k < 30; k++) {
-      const a = (Math.random() - 0.5) * 2 * 1.9, r = r0 + Math.random() * (r1 - r0);
+    // where it lands: in the stand's straw ring in front of the slime (BARN.pearlRing), apart from the other pearls
+    const ring = BARN.pearlRing;
+    let tx = 0, tz = ring.r[0];
+    for (let k = 0; k < 20; k++) {
+      const a = (Math.random() * 2 - 1) * ring.arc * Math.PI / 180, r = ring.r[0] + Math.random() * (ring.r[1] - ring.r[0]);
       tx = Math.sin(a) * r; tz = Math.cos(a) * r;
-      if (Math.abs(tx) < room.aisle_half - 0.3 && !keep.some(o => Math.hypot(tx - o.x, tz - o.z) < o.r)) break;
+      if (!this.pearls.some(o => Math.hypot(o.tx - tx, o.tz - tz) < 0.22)) break;
     }
-    const T = 0.75, g = 12, floor = 0.012 + 0.12 * PEARL_SCALE;
+    const T = 0.75, g = 12, floor = this.floorAt(tx, tz);
     const vel = new THREE.Vector3((tx - start.x) / T, (floor - start.y + 0.5 * g * T * T) / T, (tz - start.z) / T);
-    const pearl = { mesh: m, spark, vel, landed: false, t: 0, floor };
+    const pearl = { mesh: m, spark, vel, landed: false, t: 0, floor, tx, tz };
     if (onStand && !this.empty) this.av.squish(0.6);
     this.group.add(m);
     this.pearls.push(pearl);
     return pearl;
   }
+  // the height a pearl rests at: on the stand's straw, or on the barn floor
+  floorAt(x, z) { const R = this.meta.room; return (Math.hypot(x, z) < R.stand_r - 0.04 ? R.stand_top + 0.05 : 0.012) + 0.12 * PEARL_SCALE; }
   removePearl(p) { this.group.remove(p.mesh); this.pearls = this.pearls.filter(x => x !== p); }
   clearPearls() { for (const p of this.pearls) this.group.remove(p.mesh); this.pearls = []; }
   pearlWorld(p, out) { return p.mesh.getWorldPosition(out); }
@@ -597,8 +599,10 @@ export class BarnView {
         pos.addScaledVector(p.vel, dt);
         if (pos.y <= p.floor) {
           pos.y = p.floor;
+          // it stays where it fell in the straw (it bounces straight up, a little)
+          p.vel.x = p.vel.z = 0;
           if (Math.abs(p.vel.y) < 1.2) { p.landed = true; p.vel.set(0, 0, 0); }
-          else { p.vel.y *= -0.35; p.vel.x *= 0.3; p.vel.z *= 0.3; }
+          else p.vel.y *= -0.35;
         }
         pos.x = THREE.MathUtils.clamp(pos.x, -room.aisle_half + 0.2, room.aisle_half - 0.2);
       } else if (p.t > life || p.rolling) {
@@ -608,6 +612,7 @@ export class BarnView {
         if (d < 0.25) { this.removePearl(p); continue; }
         const sp = Math.min(d, 2.5 * dt);
         pos.x += dx / d * sp; pos.z += dz / d * sp;
+        p.floor += (this.floorAt(pos.x, pos.z) - p.floor) * Math.min(1, dt * 10);   // (off the stand's edge, down to the floor)
         pos.y = p.floor + Math.abs(Math.sin(p.t * 9)) * 0.08;
         p.mesh.rotation.x += dt * 8;
       } else {

@@ -6,6 +6,8 @@
 import { ICON } from './icons.js';
 import { swipeDir } from '../view/barn-math.js';
 
+const stamp = e => (e && e.timeStamp > 0 ? e.timeStamp : performance.now());   // the touch's own time (ms)
+
 const CSS = `
   .barn-card { position: fixed; left: 50%; bottom: 120px; transform: translateX(-50%); z-index: 7; box-sizing: border-box;
     width: min(340px, calc(100vw - 32px)); padding: 9px 16px 9px; border-radius: 22px; text-align: center; color: var(--ink);
@@ -48,11 +50,11 @@ export class BarnCard {
     card.hidden = true;
     document.body.appendChild(card);
     let down = null;
-    card.addEventListener('pointerdown', e => { down = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now() }; try { card.setPointerCapture(e.pointerId); } catch { /* ignore */ } });
+    card.addEventListener('pointerdown', e => { down = { id: e.pointerId, x: e.clientX, y: e.clientY, t: stamp(e) }; try { card.setPointerCapture(e.pointerId); } catch { /* ignore */ } });
     card.addEventListener('pointerup', e => {
       const d = down; down = null;
       if (!d || d.id !== e.pointerId) return;
-      const dx = e.clientX - d.x, dy = e.clientY - d.y, dir = swipeDir(dx, dy, performance.now() - d.t);
+      const dx = e.clientX - d.x, dy = e.clientY - d.y, dir = swipeDir(dx, dy, stamp(e) - d.t);
       if (dir) this.on.swipe(dir);
       else if (Math.hypot(dx, dy) < 12) this.on.open();
     });

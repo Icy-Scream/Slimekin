@@ -760,7 +760,10 @@ export const BARN = {
   // x 1.29, z 0.95), inside the aisle and clear of the stand; drawn only while the Nursery has eggs.
   nest: { x: -1.29, z: 0.95, r: 0.38 },
   basket: { r: 0.42, shown: 12 },   // the basket's tap target around its pearls; live pearls on top show how full it is
-  pearlRing: [1.3, 1.75],    // pearls made while you watch land on the straw this far from the stand's middle
+  // Pearls made while you watch land in the stand's straw ring in front of the slime (the floor in front of the stand is
+  // under the name card, and its sides are at the screen's edges): this far from the stand's middle, within this many
+  // degrees either side of the front. Left there, they roll off to the basket as on the meadow ranch.
+  pearlRing: { r: [1.0, 1.1], arc: 62 },
   // Framing: the stand, the nest, the basket and the slime (up to `top`) stay between the top bar and the name card.
   frame: { top: 2.35, bottom: 0, front: 1.25, side: 1.3, gap: 8 },
 };

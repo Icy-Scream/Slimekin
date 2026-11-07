@@ -14,6 +14,9 @@ import { BarnView } from './view/barn.js';
 import { BarnCard } from './ui/barn-card.js';
 import { standOrder, stepId, startId, nextAfterGone, swipeDir, pastSwipe, cardLine, cardCount, fitView, fovFor } from './view/barn-math.js';
 
+// when a touch happened (ms): the event's own time (right even when frames are slow), else now
+export const stamp = e => (e && e.timeStamp > 0 ? e.timeStamp : performance.now());
+
 export class BarnRanch {
   constructor(game) {
     this.g = game;
@@ -62,7 +65,7 @@ export class BarnRanch {
     v.setNight(g.stage.dark, true);
     v.setQuality(g.resolvedQuality());
     v.clock += 5;   // (no landing spring left over from last time)
-    this.order = standOrder(g.state.ranch.residents);
+    this.order = this.homeOrder();
     this.queued = null;
     this.putOn(startId(this.order, g.ranchFocus, this.lastId), false);
     g.syncNursery();
@@ -89,6 +92,7 @@ export class BarnRanch {
       if (v.sw.worn === false) this.putOn(this.target, false);
     }
     this.queued = null;
+    this.gapT = false;
     this.press = null;
     v.group.visible = false;
     this.card.show(false);
@@ -99,6 +103,8 @@ export class BarnRanch {
   }
 
   // ---------- who is on the stand ----------
+  // the ranch's own order without the travelers (Ranch life's homeResidents, the list every ranch sync uses)
+  homeOrder() { return standOrder(this.g.life ? this.g.life.homeResidents() : this.g.state.ranch.residents); }
   resident(id) { return id ? this.g.sim.ranch.resident(id) : null; }
   // Dress the stand (null: nobody). follow: a resident page that is open follows the stand (a swap you asked for).
   putOn(id, follow) {
@@ -123,7 +129,7 @@ export class BarnRanch {
   }
   go(req) {
     const v = this.view;
-    if (v.swapping) { this.queued = req; return; }
+    if (v.swapping || this.gapT) { this.queued = req; return; }
     const to = req.id !== undefined ? req.id : stepId(this.order, this.curId, req.dir);
     if (to === this.curId) { if (to) v.hop(3, 0.8); return; }   // one resident: a little hop instead
     this.target = to;
@@ -135,9 +141,15 @@ export class BarnRanch {
   }
   landed() {
     if (this.target) this.g.after(0.05, () => this.g.sfx.mii && this.active && this.g.sfx.mii());
-    const q = this.queued;
-    this.queued = null;
-    if (q) this.g.after(BARN.swap.queueGap, () => { if (this.active) this.go(q); });
+    if (!this.queued) return;
+    // one more swap was asked for: it starts a moment after this one lands (it stays queued until then)
+    this.gapT = true;
+    this.g.after(BARN.swap.queueGap, () => {
+      this.gapT = false;
+      const q = this.queued;
+      this.queued = null;
+      if (q && this.active) this.go(q);
+    });
   }
   // The ranch's order changed: someone left (a new home, an auction, a trip) or came home (a traveler, a new resident).
   orderChanged(order) {
@@ -176,8 +188,8 @@ export class BarnRanch {
     const g = this.g;
     if (!this.active) return;
     g.sfx.unlock && g.sfx.unlock();
+    g.hud.openTab('ranch');   // (opens the menu sheet when it is closed)
     if (this.curId) g.focusResident(this.curId);
-    else g.hud.openTab('ranch');
   }
   hint() {
     const g = this.g, x = this.resident(g.ranchFocus);
@@ -192,7 +204,7 @@ export class BarnRanch {
   // ---------- touch on the barn ----------
   down(e) {
     const g = this.g, hit = this.view.pick(g.raycaster);
-    const p = this.press = { id: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, minX: e.clientX, maxX: e.clientX, t0: performance.now(), hit, petted: false, petT: -9, done: false };
+    const p = this.press = { id: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, minX: e.clientX, maxX: e.clientX, t0: stamp(e), hit, petted: false, petT: -9, done: false };
     try { g.canvas.setPointerCapture(e.pointerId); } catch { /* ignore */ }
     if (!hit) return;
     if (hit.type === 'pearl') { g.pickRanchPearl(hit.pearl); p.done = true; }
@@ -205,7 +217,7 @@ export class BarnRanch {
     p.x = e.clientX; p.y = e.clientY;
     p.minX = Math.min(p.minX, p.x); p.maxX = Math.max(p.maxX, p.x);
     // stroking the slime keeps petting it, but only once the press can no longer be a quick swipe
-    if (p.done || !p.hit || p.hit.type !== 'slime' || !pastSwipe(p, performance.now())) return;
+    if (p.done || !p.hit || p.hit.type !== 'slime' || !pastSwipe(p, stamp(e))) return;
     const g = this.g;
     if (g.time - p.petT > BARN.strokeEvery) { g.petResident(p.hit.id, p.petted); p.petT = g.time; p.petted = true; }
   }
@@ -213,7 +225,7 @@ export class BarnRanch {
     const p = this.press;
     this.press = null;
     if (!p || cancel || p.done) return;
-    const dir = p.petted ? 0 : swipeDir(e.clientX - p.x0, e.clientY - p.y0, performance.now() - p.t0);
+    const dir = p.petted ? 0 : swipeDir(e.clientX - p.x0, e.clientY - p.y0, stamp(e) - p.t0);
     if (dir) { this.request(dir); return; }   // a quick sideways swipe swaps, and does not pet
     if (p.hit && p.hit.type === 'slime' && !p.petted && p.hit.id === this.curId) this.g.petResident(p.hit.id);   // a tap pets
   }
@@ -233,7 +245,7 @@ export class BarnRanch {
     if (!this.on) return;
     const g = this.g;
     if (g.view !== 'ranch') { this.leave(); return; }
-    const order = standOrder(g.state.ranch.residents);
+    const order = this.homeOrder();
     if (order.length !== this.order.length || order.some((id, i) => id !== this.order[i])) this.orderChanged(order);
     // home is not drawn in the barn (the pet, the egg)
     g.slime.root.visible = false;
@@ -271,7 +283,7 @@ export class BarnRanch {
       this.fit = fitView(nt, nb, h, topBar + F.gap, bottom - cardH - F.gap);
     }
     const fit = this.fit || { scale: 1, off: 0 };
-    this.scale = snap ? fit.scale : this.scale + (fit.scale - this.scale) * (1 - Math.exp(-dt * 6));
+    this.scale = snap || Math.abs(fit.scale - this.scale) < 0.002 ? fit.scale : this.scale + (fit.scale - this.scale) * (1 - Math.exp(-dt * 6));
     g.viewGoal.set(x, fit.off);
     if (snap) {
       g.viewOff.set(x, fit.off);

@@ -143,7 +143,8 @@ const nest = { ...BARN.nest, name: 'the nest' };
 ok(near(nest.x, -basket.x, 0.02) && near(nest.z, basket.z, 0.02), `the nest is the basket's spot mirrored (x ${nest.x}, z ${nest.z})`);
 ok(!spotProblems(nest, R, [{ ...basket, name: 'the basket' }]).length, `the nest (r ${nest.r}) is inside the aisle, clear of the stand and of the basket`, spotProblems(nest, R, [{ ...basket, name: 'the basket' }]).join(', '));
 ok(spotProblems({ x: 0, z: 0.5, r: 0.3 }, R).includes('on the stand') && spotProblems({ x: 1.9, z: 1, r: 0.3 }, R).includes('outside the aisle'), 'the spot check catches a spot on the stand and one outside the aisle');
-ok(BARN.pearlRing[0] > R.stand_r && BARN.pearlRing[1] < R.aisle_half, `pearls land on the straw around the stand (${BARN.pearlRing.join(' to ')} from its middle)`);
+const ring = BARN.pearlRing, slimeBase = 0.97;   // the slime's base radius on the stand at BARN.size (measured on screen: 0.97)
+ok(ring.r[0] - 0.1 > slimeBase - 0.1 && ring.r[1] + 0.1 <= R.stand_r + 0.05 && ring.arc < 90, `pearls land in the stand's straw ring in front of the slime (${ring.r.join(' to ')} from its middle, ${ring.arc} degrees either side)`);
 
 // ---------- 8. framing ----------
 console.log('# 8. framing');
