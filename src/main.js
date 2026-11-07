@@ -1,13 +1,19 @@
 import { Game } from './game.js';
-import { SaveStore } from './core/save.js';
+import { SaveStore, KEY } from './core/save.js';
+import { checkSave } from './core/save-check.js';
+import { showBootSnag } from './ui/notice.js';
 import * as platform from './platform/index.js';
 
 let game = null;
 
 async function boot(hotData) {
-  await platform.restoreSave();                          // iPhone app only: bring back a save iOS cleared (no-op on the web)
+  // iPhone app only: bring back a save iOS cleared, or one that can't be read, from the phone's backup (no-op on the web)
+  const restored = await platform.restoreSave();
   const store = platform.mirrorSaves(new SaveStore());   // iPhone app only: back up each local save (no-op on the web)
-  let save = hotData && hotData.save ? hotData.save : store.loadLocal();
+  // the save, or (missing or unreadable) the previous good save; an unreadable save's text is kept (core/save.js)
+  let start = hotData && hotData.save && checkSave(hotData.save).ok ? { save: hotData.save, from: 'hot' } : store.loadBoot();
+  if (restored && start.from === 'local') start = { ...start, from: 'backup', broken: !!platform.lastRestore?.broken, savedAt: start.save.savedAt };
+  let save = start.save;
   let lateCloud = null;
   const connected = await store.connect(2500);
   if (connected) {
@@ -17,12 +23,17 @@ async function boot(hotData) {
     else if (quick && (!save || (quick.savedAt || 0) > (save.savedAt || 0))) save = quick;
   }
 
+  if (save !== start.save) start = { save, from: 'cloud' };
+
   const bootEl = document.getElementById('boot');
   try {
-    game = new Game({ canvas: document.getElementById('scene'), save, store });
+    game = new Game({ canvas: document.getElementById('scene'), save, store, start });
   } catch (e) {
     console.error(e);
-    bootEl.innerHTML = '<div style="max-width:340px;text-align:center;font-family:var(--body);font-size:15px;line-height:1.5;padding:0 16px">This slime needs 3D graphics (WebGL), and this browser could not start them. Try another browser, or turn on hardware acceleration.</div>';
+    // honest: "needs WebGL" only when this browser really has none; anything else says the save was not changed
+    let raw = null;
+    try { raw = localStorage.getItem(KEY); } catch { /* blocked */ }
+    showBootSnag(bootEl, e, { store, raw });
     return;
   }
   window.claude?.hot?.snapshot?.(() => ({ save: game.serialize() }));

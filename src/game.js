@@ -18,7 +18,11 @@ import { eggLabel } from './core/breeding.js';
 import { specialEggColors, specialEggRefusal } from './ui/eggs.js';
 import { makeFood, renderIcons, FOOD_MAKERS, HELPER_MAKERS, OUTFIT_MAKERS } from './view/models.js';
 import { Sfx } from './audio/sfx.js';
-import { Hud, esc } from './ui/hud.js';
+import { Hud } from './ui/hud.js';
+import { esc } from './ui/esc.js';
+import { showNotice, copyText, agoText } from './ui/notice.js';
+import { readSaveCode, makeSaveCode } from './core/save-check.js';
+import { BROKEN_KEY } from './core/save.js';
 import { ICON, memIcon } from './ui/icons.js';
 import { Behaviors } from './behaviors.js';
 import { MovingDay } from './moving-day.js';
@@ -36,11 +40,18 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const ease = t => 1 - Math.pow(1 - clamp(t, 0, 1), 3);
 const DEBUG = location.hash === '#debug' && !isNative;   // no debug tools in the iPhone app
 const an = w => (/^[aeiou]/i.test(w) ? 'an ' : 'a ') + w;
+const TROUBLE_FAILS = 3;   // save safety: failed frames in a row (each clean frame takes 0.1 off) before the hiccup card
 
 export class Game {
-  constructor({ canvas, save, store }) {
+  constructor({ canvas, save, store, start = null }) {
     this.canvas = canvas;
     this.store = store;
+    // save safety: how this visit started (main.js: 'local' | 'prev' | 'backup' | 'cloud' | 'hot' | 'none', broken), the
+    // frame health (failed frames; the autosave only follows a clean frame), the hiccup card (trouble: no more saving)
+    this.start = start;
+    this.health = { fails: 0, lastFailed: false, logged: 0 };
+    this.trouble = false;
+    this.glLost = false;
     this.state = save ? migrate(save) : freshState(createState());   // freshState: the iPhone app's defaults (no-op on the web)
     this.sim = new Sim(this.state);
     this.requests = new Requests(this.sim);
@@ -161,6 +172,8 @@ export class Game {
     this.onShown = [];
     this.whenShown(() => this.after(2.5, () => this.checkPostcards()));
     if (this.state.ranch.justMoved) { const j = this.state.ranch.justMoved; delete this.state.ranch.justMoved; this.whenShown(() => this.after(1.4, () => this.showMovedIn(j))); }
+    this.whenShown(() => this.after(0.8, () => this.startNote()));   // save safety: a save that came back from a copy, or could not be read
+    this.watchContext();   // save safety: the phone can take the 3D picture away (WebGL context lost)
     this.bindInput();
     this.watchTheme();
     this.resize();
@@ -181,8 +194,8 @@ export class Game {
       const dt = Math.min(0.05, Math.max(0, gap / 1000));
       this.last = now;
       const t0 = performance.now();
-      try { this.update(dt); } catch (e) { console.error(e); }
-      this.trackSpeed(gap, target, performance.now() - t0);
+      try { this.update(dt); } catch (e) { this.frameDone(0, e); }   // (update() catches its own; this is the last net)
+      try { this.trackSpeed(gap, target, performance.now() - t0); } catch (e) { console.error(e); }
     };
     requestAnimationFrame(loop);
   }
@@ -2068,8 +2081,7 @@ export class Game {
   }
 
   saveCode() {
-    const json = JSON.stringify(this.serialize());
-    return 'SLIMEKIN1:' + btoa(unescape(encodeURIComponent(json)));
+    return makeSaveCode(this.serialize());
   }
 
   copySaveCode() {
@@ -2089,27 +2101,55 @@ export class Game {
     } catch { show(false); }
   }
 
+  // Save safety: a code is checked (core/save-check.js: an empty, cut or changed code, or one that holds no slime, is
+  // refused with a clear message), then the game asks before it replaces the slime here; the replaced one is kept as
+  // this device's previous good save (slimekin.save.prev).
   loadSaveCode() {
     this.hud.openModal(`<h2>Load a save code</h2>
-      <p>Paste a code copied from Settings on your other device. This replaces the slime on this device.</p>
+      <p>Paste a code copied from Settings on your other device. The game shows which slime it holds before anything changes.</p>
       <textarea class="save-code" id="saveCodeIn" placeholder="SLIMEKIN1:..." autofocus></textarea>
-      <p class="sub" id="codeMsg"></p>
+      <p class="sub code-msg" id="codeMsg" role="status"></p>
       <div class="actions"><button class="btn primary" id="codeLoad">Load</button><button class="btn" id="codeCancel">Cancel</button></div>`, {
       onOpen: card => {
         card.querySelector('#codeCancel').addEventListener('click', () => this.hud.closeModal());
-        card.querySelector('#codeLoad').addEventListener('click', async () => {
-          const raw = card.querySelector('#saveCodeIn').value.trim();
-          const msg = card.querySelector('#codeMsg');
-          let save = null;
-          try {
-            if (!raw.startsWith('SLIMEKIN1:')) throw new Error('prefix');
-            save = migrate(JSON.parse(decodeURIComponent(escape(atob(raw.slice(10).replace(/\s+/g, ''))))));
-          } catch { msg.textContent = "That code didn't work. Copy the whole code again, from SLIMEKIN1: to the end."; return; }
-          if (!save || !save.slime) { msg.textContent = "That code didn't work."; return; }
-          this.resetting = true;
+        card.querySelector('#codeLoad').addEventListener('click', () => {
+          const r = readSaveCode(card.querySelector('#saveCodeIn').value);
+          if (!r.ok) {
+            const msg = card.querySelector('#codeMsg');
+            msg.textContent = r.msg;
+            msg.classList.add('bad');
+            this.sfx.error();
+            return;
+          }
+          this.confirmLoadCode(r.save);
+        });
+      },
+    });
+  }
+
+  confirmLoadCode(code) {
+    const save = migrate(code);
+    const st = this.state;
+    const who = s => (s.phase === 'egg' || !s.slime.name ? (s.phase === 'egg' ? 'your egg' : 'your slime') : s.slime.name);
+    const mine = esc(who(st)), Mine = mine.charAt(0).toUpperCase() + mine.slice(1);
+    const gen = save.ranch.family.generation;
+    const theirs = `${save.phase === 'egg' ? 'an egg' : esc(save.slime.name || 'a slime')} (generation ${gen}${save.ranch.residents.length ? `, ${save.ranch.residents.length} on the ranch` : ''})`;
+    this.hud.openModal(`<h2>Replace ${mine}?</h2>
+      <p>This code holds ${theirs}. It takes ${mine}'s place on this device.</p>
+      <p>${Mine} is kept as this device's last good save, just in case.</p>
+      <div class="actions"><button class="btn primary" id="codeKeep">Keep ${mine}</button><button class="btn danger" id="codeReplace">Replace ${mine}</button></div>`, {
+      onOpen: card => {
+        card.querySelector('#codeKeep').addEventListener('click', () => this.hud.closeModal());
+        card.querySelector('#codeReplace').addEventListener('click', async () => {
+          this.saveNow();                    // the slime here as it is right now...
+          this.resetting = true;             // ...then nothing more is saved from this page
           save.savedAt = Date.now();
-          this.store.saveLocal(save);
-          await this.store.saveCloud(save);
+          if (!this.store.replaceWith(save)) {   // (it becomes .prev inside replaceWith)
+            this.resetting = false;
+            this.hud.showSimple('That did not work', '<p>This device would not save the new slime (its storage may be full). Nothing was changed.</p>');
+            return;
+          }
+          try { await Promise.race([this.store.saveCloud(save), new Promise(res => setTimeout(res, 2500))]); } catch { /* the local copy is what counts */ }
           location.reload();
         });
       },
@@ -2307,17 +2347,27 @@ export class Game {
     this.state.slime.belly = this.slime.bellySnapshot();
     return this.state;
   }
+  // Save safety: nothing is saved while starting over, after the hiccup card, or right after a frame that failed (its
+  // state may be half-done); the next clean frame's autosave catches up.
+  canSave() { return !this.resetting && !this.trouble && !this.health.lastFailed; }
   saveNow(cloud = false) {
-    if (this.resetting) return;
+    if (!this.canSave()) return;
     const data = this.serialize();
-    this.store.saveLocal(data);
+    this.saved(this.store.saveLocal(data));
     if (cloud || this.cloudSoon) { this.store.saveCloud(data); this.lastCloud = this.time; this.cloudDirty = false; this.cloudSoon = false; }
   }
+  // A save that did not go through (storage full or blocked): tell the player once per visit, not on every save.
+  saved(ok) {
+    if (ok !== false || this.saveWarned) return;
+    this.saveWarned = true;
+    try { this.hud.toast(`<b>Saving didn't work</b>This device's storage is full or blocked. To keep ${esc(this.Name)} safe, copy a save code in Settings.`, '', 7000); } catch (e) { console.error(e); }
+  }
   updateSave(dt) {
+    if (!this.canSave()) return;
     this.saveT -= dt;
     if (this.saveT <= 0) {
       this.saveT = 6;
-      this.store.saveLocal(this.serialize());
+      this.saved(this.store.saveLocal(this.serialize()));
     }
     if (this.cloudDirty && (this.cloudSoon ? this.time - this.lastCloud > 5 : this.time - this.lastCloud > 60)) {
       this.store.saveCloud(this.serialize());
@@ -2518,7 +2568,108 @@ export class Game {
     }
   }
 
+  // One frame: the world, the picture, the bubbles over the slime. Each part runs on its own, so an error early in the
+  // frame never skips drawing; then frameDone() (save safety) autosaves after a clean frame, or counts the failure.
   update(dt) {
+    let err = null;
+    try { this.updateWorld(dt); } catch (e) { err = e; }
+    try { this.draw(dt); } catch (e) { err = err || e; }
+    try { this.updateOverlay(dt); } catch (e) { err = err || e; }
+    this.frameDone(dt, err);
+  }
+
+  // Save safety: a frame with an error saves nothing; a few failed frames in a row (TROUBLE_FAILS; each clean frame
+  // takes 0.1 off) stop all saving and show the hiccup card (Reload / Restore last good save).
+  frameDone(dt, err) {
+    const h = this.health;
+    if (!err) {
+      h.lastFailed = false;
+      h.fails = Math.max(0, h.fails - 0.1);
+      const ph = this.state.phase;
+      if (ph === 'play' || ph === 'egg') {   // (the ranch keeps going while the egg waits; nothing to save while naming)
+        try { this.updateSave(dt); } catch (e) { err = e; }
+      }
+      if (!err) return;
+    }
+    h.lastFailed = true;
+    h.fails += 1;
+    if (h.logged < 5) { h.logged++; console.error(err); }
+    if (h.fails >= TROUBLE_FAILS && !this.trouble) this.showTrouble(err);
+  }
+
+  showTrouble(err) {
+    this.trouble = true;
+    let prev = null;
+    try { prev = this.store.prevSave(); } catch { /* none */ }
+    const name = esc((this.state && this.state.slime && this.state.slime.name) || 'Your slime');
+    const buttons = [{ id: 'reload', label: 'Reload', primary: true, onClick: () => location.reload() }];
+    if (prev) buttons.push({ id: 'restore', label: 'Restore last good save', onClick: () => { this.store.restorePrev(); location.reload(); } });
+    showNotice({
+      key: 'trouble',
+      title: 'Oops, a hiccup!',
+      body: `<p>Something in the game keeps going wrong. ${name} is safe: saving is paused, so nothing gets mixed up.</p><p>Reloading usually fixes it.${prev ? ` The last good save is from ${esc(agoText(prev.savedAt))}.` : ''}</p>`,
+      buttons,
+      note: 'Details: ' + String((err && (err.message || err)) || 'unknown').slice(0, 160),
+    });
+  }
+
+  // The phone can take the 3D picture away when it is short on memory (iOS Safari does). The game keeps its place and
+  // saves; a card offers a reload, and if the picture comes back by itself, carrying on.
+  watchContext() {
+    const c = this.canvas;
+    if (!c || !c.addEventListener) return;
+    c.addEventListener('webglcontextlost', e => {
+      e.preventDefault();   // lets the browser give the picture back later
+      this.glLost = true;
+      this.saveNow(true);
+      const name = esc(this.Name);
+      this.glNotice = showNotice({
+        key: 'gl',
+        title: 'The picture fell asleep',
+        body: `<p>The phone needed its graphics memory back for a moment. ${name} is safe and saved.</p><p>Reload to wake the picture up.</p>`,
+        buttons: [{ id: 'reload', label: 'Reload', primary: true, onClick: () => location.reload() }],
+      });
+    });
+    c.addEventListener('webglcontextrestored', () => {
+      this.glLost = false;
+      const name = esc(this.Name);
+      this.glNotice?.set({
+        title: 'The picture is back',
+        body: `<p>${name} is right where you left them. If anything looks odd, reload.</p>`,
+        buttons: [{ id: 'go', label: 'Carry on', primary: true, onClick: n => n.close() }, { id: 'reload', label: 'Reload', onClick: () => location.reload() }],
+      });
+    });
+  }
+
+  // How this visit started (main.js): a save that came back from a copy gets a short welcome; a save that could not be
+  // read (and no copy that could) gets a gentle card. The unreadable text stays on this device (slimekin.save.broken).
+  startNote() {
+    const st = this.start;
+    if (!st) return;
+    if ((st.from === 'prev' || st.from === 'backup') && this.state.phase !== 'egg') {
+      this.hud.toast(`<b>Welcome back, ${esc(this.Name)}!</b>Your save had a hiccup, so the game used the copy from ${esc(agoText(st.savedAt))}.`, 'love', 6000);
+    } else if (st.from === 'prev' || st.from === 'backup') {
+      this.hud.toast(`<b>Welcome back!</b>Your save had a hiccup, so the game used the copy from ${esc(agoText(st.savedAt))}.`, 'love', 6000);
+    } else if (st.from === 'none' && st.broken) {
+      showNotice({
+        key: 'broken',
+        title: 'A fresh egg, for now',
+        body: '<p>The old save on this device could not be read, so a new egg is here.</p><p>The old save is kept safe on this device, in case a grown-up can fix it.</p>',
+        buttons: [
+          { id: 'ok', label: 'OK', primary: true, onClick: n => n.close() },
+          { id: 'copy', label: 'Copy the old save', onClick: async n => {
+            let raw = '';
+            try { raw = localStorage.getItem(BROKEN_KEY) || ''; } catch { /* blocked */ }
+            const ok = raw && await copyText(raw);
+            n.set({ body: `<p>${ok ? 'The old save is copied. Paste it into a message to a grown-up who can look at it.' : 'Copying did not work here.'}</p>`,
+              buttons: [{ id: 'ok', label: 'OK', primary: true, onClick: m => m.close() }] });
+          } },
+        ],
+      });
+    }
+  }
+
+  updateWorld(dt) {
     this.time += dt;
     if (this.timeline.length) {
       const due = this.timeline.filter(e => e.t <= this.time);
@@ -2555,11 +2706,9 @@ export class Game {
         this.tossFood('cookie', null, { auto: true });
       }
       this.sfx.setMusicWanted(st.helpers.musicbox > 0);
-      this.updateSave(dt);
     } else if (st.phase === 'egg') {
       this.updateEggWait(dt);
       this.hud.updateEggPhase(dt);
-      this.updateSave(dt);   // the ranch keeps going while the egg waits
     }
     if (this.egg) {
       this.egg.update(dt, this.scene);
@@ -2596,7 +2745,9 @@ export class Game {
     this.ranch.update(dt);
     this.scenery.update(dt);
     this.fx.update(dt);
+  }
 
+  draw(dt) {
     // smooth view offset toward the free area of the screen
     if (Math.abs(this.viewOff.x - this.viewGoal.x) > 0.5 || Math.abs(this.viewOff.y - this.viewGoal.y) > 0.5) {
       this.viewOff.lerp(this.viewGoal, 1 - Math.exp(-dt * 6));
@@ -2604,9 +2755,13 @@ export class Game {
       this.stage.camera.updateProjectionMatrix();
     }
     this.stage.update(dt, this.slime.size, this.parallax, this.reduced);
-    if (!this.noRender) this.stage.render();
-    this.home.afterRender(!this.noRender);   // [r3b] the loading screen's wait, the room's cross-fade
+    const drawn = !this.noRender && !this.glLost;   // (no picture to draw into while the phone has taken it away)
+    if (drawn) this.stage.render();
+    this.home.afterRender(drawn);   // [r3b] the loading screen's wait, the room's cross-fade
+  }
 
+  updateOverlay(dt) {
+    const st = this.state;
     if (st.phase === 'play' || st.phase === 'naming') {
       if (st.phase === 'play') this.hud.update(dt);
       // Steady anchor above the head (ignores breathing and hops) so buttons don't jitter.

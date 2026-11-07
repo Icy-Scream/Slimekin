@@ -347,6 +347,10 @@ body.at-ranch .egg-hint { display: none !important; }
 .modal { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 20px max(16px, env(safe-area-inset-right, 0px)) 20px max(16px, env(safe-area-inset-left, 0px)); background: color-mix(in srgb, var(--bg) 45%, transparent); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
 .modal-card { width: min(420px, 100%); max-height: calc(100% - 20px); overflow-y: auto; border-radius: 28px; background: var(--panel-strong); border: 1.5px solid var(--edge); box-shadow: 0 30px 60px -24px var(--shade); padding: 24px 22px 20px; display: flex; flex-direction: column; gap: 12px; animation: card-in .4s cubic-bezier(.3, 1.4, .6, 1); }
 @keyframes card-in { from { opacity: 0; transform: translateY(20px) scale(.92); } }
+/* save safety cards (src/ui/notice.js): above everything, the loading screen included */
+.modal.notice { z-index: 60; }
+.modal-card .notice-note { font-size: 12px; line-height: 1.4; opacity: .7; word-break: break-word; }
+.modal-card .code-msg.bad { color: var(--berry); font-weight: 800; }
 .modal-card h2 { margin: 0; font-family: var(--display); font-weight: 700; font-size: 26px; line-height: 1.15; text-wrap: balance; }
 .modal-card p { margin: 0; line-height: 1.55; color: var(--ink-2); font-size: 14.5px; }
 .modal-card .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }

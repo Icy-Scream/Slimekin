@@ -225,8 +225,10 @@ function fakePhone({ seeds }) {
       await page.waitForSelector('#setDone');
       await page.click('#loadSave');
       await page.fill('#saveCodeIn', CODE);
-      const nav = page.waitForNavigation({ waitUntil: 'commit', timeout: 90000 });
       await page.click('#codeLoad');
+      await page.waitForSelector('#codeReplace');   // the game asks first ("Replace your egg?")
+      const nav = page.waitForNavigation({ waitUntil: 'commit', timeout: 90000 });
+      await page.click('#codeReplace');
       await nav;
       await booted();
     });
