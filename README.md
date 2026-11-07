@@ -183,6 +183,12 @@ tools/build-ios.mjs   builds native/www/ for the iPhone app (offline: three.js a
 tools/check-ios-www.mjs   gate for native/www/: no links, no network calls in the game code (only the room's reads of its own
                           bundled files), every import resolves
 tools/platform-test.cjs   headless test of src/platform/ with a fake Capacitor and without one
+src/core/save-check.js the shape a save must have (checkSave, readSave), number repair (num) and the save code's text
+src/core/save.js      the save on this device: slimekin.save.v1, .prev (the previous good save), .broken (a save that
+                      could not be read, kept); loadBoot picks the best readable one
+src/ui/notice.js      the save safety cards (start-up snag, hiccup, lost picture, unreadable save), plain DOM
+tools/save-safety-test.mjs save safety in plain node: broken saves and backups, .prev, save codes, number repair
+tools/health-smoke.cjs    save safety in the real game at 375 px, a screenshot of every card and toast (tools/out/health/)
 tools/check-store-pages.mjs  App Store pages (web/pages/) ready to submit? (only before a submission)
 native/               the iPhone app (Capacitor 8): MAC-GUIDE.md, mac-build.sh, APP-STORE-NOTES.md, the Xcode
                       project in native/ios/, its settings as code in native/tools/ (patch-ios, check-ios)

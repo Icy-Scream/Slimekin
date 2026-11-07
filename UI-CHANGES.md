@@ -527,3 +527,29 @@ old hop toward the hill (a grown slime) and the hops off to the side (a baby).
 | "Pebble moved to the ranch!" (`showMovedIn`) | Pebble is settling in on the hill behind the cushion, with 7 other slimes. | Pebble is settling in at the barn, with 7 other slimes. |
 
 (Still saying "hill", not in this slice's list: the Family Statue heirloom's "on the ranch hill" in `HEIRLOOMS`.)
+
+## Save safety (H1)
+
+New on-screen elements, all plain DOM in `src/ui/notice.js` (`showNotice`), using the page's own `.modal`, `.modal-card`
+and `.btn` styles in a separate layer (`.modal.notice`, z-index 60, above the loading screen), so they work even when the
+game or its HUD did not start. Screenshots at 375 px: `tools/health-smoke.cjs` (tools/out/health/).
+
+| Card / toast | When | Buttons |
+|---|---|---|
+| "A fresh egg, for now" | the save on this device could not be read and no copy could (the text stays in `slimekin.save.broken`) | OK, Copy the old save |
+| Toast "Welcome back, Pebble!" | the save could not be read, so the game used the phone's backup or `slimekin.save.prev` | (toast) |
+| "Oops, a hiccup!" | a few frames in a row hit an error (`TROUBLE_FAILS`): saving stops | Reload, Restore last good save (when there is one); a small "Details" line |
+| "The picture fell asleep" / "The picture is back" | the phone took the 3D picture away (`webglcontextlost`) / gave it back | Reload / Carry on, Reload |
+| Toast "Saving didn't work" | a save was refused by storage (once per visit) | (toast) |
+| "Slimekin hit a snag" | the game could not start for a reason other than missing WebGL (that one keeps its old message) | Try again, Copy save code, Restore last good save (when there is one) |
+
+Changed:
+
+| Where | Before | Now |
+|---|---|---|
+| Load a save code | any JSON replaced the slime at once | a message under the box for an empty, cut, changed or slime-less code (`.code-msg.bad`); a good code opens "Replace Pebble?" (Keep Pebble / Replace Pebble) naming the incoming slime |
+| The top bar pill (`.slime-card`) | a name was cut with an ellipsis (at 375 px about 50 px: "Pe...") | a name that does not fit gets the first line to itself (`.long-name`, 63 px tall); a name that fits keeps the one-line pill |
+| Ranch life row, Ranch life card, return card | raw 🧳 and 🎓 | drawn icons (`memIcon`; a new suitcase drawing in `icons.js`) |
+| The Ranch page heading | Slime Ranch | The Barn |
+| The Meadow hill's gate sign | Slime Ranch | The Barn |
+| Heirloom "It will live ..." | along the ranch fence / on the ranch hill | by the barn door / in the barn |

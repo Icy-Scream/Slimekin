@@ -45,7 +45,13 @@ it up the next time it is opened online (sometimes it takes two opens). Never ed
   `UPGRADES`, `BOND`, `RANCH`, `BUYERS`, forms...). Balance there, not in logic.
 - Saves: `localStorage` key `slimekin.save.v1`. Old saves must keep working: add new fields to
   `createState()` and let `migrate()` fill them in; never remove or rename a field without a
-  migration. `migrateRanch()` does the same for `state.ranch`.
+  migration. `migrateRanch()` does the same for `state.ranch`. A new number field: run it through `num()`
+  (`core/save-check.js`) in `migrate()` so a string or NaN in it can't reach the game.
+- Save safety (H1): only a save that passes `checkSave` is loaded, written, mirrored to the phone or accepted as a
+  code. `slimekin.save.prev` is the previous good save (kept once per visit, every 30 min, and when a code replaces
+  the slime); `slimekin.save.broken` keeps an unreadable save's text (never delete it). Boot falls back phone backup ->
+  .prev -> new egg. Saving stops after a few failed frames (the hiccup card); don't call `store.saveLocal` directly
+  from new code, use `saveNow()` (it respects that).
 
 ## Gotchas (learned the hard way)
 
@@ -101,6 +107,8 @@ it up the next time it is opened online (sometimes it takes two opens). Never ed
 - Economy: `node tools/economy-sim.mjs 12 quiet` (engaged), add `casual`, `spam`, or `gen2=1e9`.
   Spamming must never beat normal play. Targets are in the README. `bred` makes the gen-2 baby from a
   Nursery egg.
+- Save safety: `node tools/save-safety-test.mjs` (plain node) and `node tools/health-smoke.cjs` (the cards and toasts at
+  375 px, `--only broken,prev,code,hiccup,gl,savefail,boot,name`).
 - Playtest fixes: `node tools/playtest-smoke.cjs` (menu sheet drags with real touch events, warming egg at
   move-out, swapping the cushion egg, a baby's new home; `--only sheet,egg,swap,rehome`, `--dpr 1 --quick`).
 - Jelly loop: `node tools/jelly-loop-test.mjs` (plain node) and `node tools/jelly-loop-smoke.cjs` (headless, from an old save;
