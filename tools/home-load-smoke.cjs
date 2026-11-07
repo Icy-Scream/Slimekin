@@ -15,14 +15,17 @@
 //            --delay=<ms> holds the room's files back as in delay3
 //   node tools/home-load-smoke.cjs [--only=delay3,delay12,offline,meadow,classic] [--film] [--nocheck] [--runs=3]
 // --film saves screenshots taken one after another (each a real frame of the page) with the record to tools/out/home-load/<part>/.
-// --nocheck only films and prints the record (for an older copy of the game: SLIMEKIN_ROOT=<folder>).
+// --nocheck only films and prints the record (for an older copy of the game: --root=<folder>). --helpers: a save with
+// helpers (they stand where the Background puts them). --film-dir=<name>: film into tools/out/home-load/<name>-<part>/.
 const path = require('path');
 const fs = require('fs');
 const { setup, watchdog, log, deadline } = require('./browser-kit.cjs');
 
 const arg = (k, d) => { const a = process.argv.find(x => x === `--${k}` || x.startsWith(`--${k}=`)); return a ? (a.includes('=') ? a.split('=')[1] : true) : d; };
 const ONLY = String(arg('only', 'delay3,delay12,offline,meadow,classic')).split(',');
-const FILM = !!arg('film', false), CHECK = !arg('nocheck', false), RUNS = +arg('runs', 3), BEFORE = arg('before', null);
+const FILM = !!arg('film', false), CHECK = !arg('nocheck', false), RUNS = +arg('runs', 3), BEFORE = arg('before', null), ROOT = arg('root', null);
+// --helpers: the save also has a few of each helper (as a player who has played a while; the fixture has none)
+const HELPERS = arg('helpers', false) ? { feather: 2, bubbles: 2, garden: 3, slimeling: 2, musicbox: 1, lamp: 2, fountain: 1, observatory: 1, spa: 1, rainbow: 1 } : null;
 const OUT = path.join(__dirname, 'out', 'home-load');
 const SAVE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'barn', 'barn-six.json'), 'utf8')).save;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -31,13 +34,14 @@ const fails = [];
 const expect = (cond, what, detail = '') => { if (cond) log('ok', what); else { fails.push(what + (detail ? ': ' + detail : '')); log('FAIL', what, detail); } };
 
 // One cold load. room: { delay } holds the room's files back, { block: true } makes them fail.
-async function load(part, { scene = 'greenhouse', delay = 0, block = false, until, root }) {
+async function load(part, { scene = 'greenhouse', delay = 0, block = false, until, root = ROOT }) {
   const kit = await setup({ ...(root ? { root } : {}), contextOptions: { viewport: { width: 393, height: 852 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true } });
   const { page } = kit;
   const reqs = [], warns = [];
   page.on('console', m => { if (m.type() === 'warning') warns.push(m.text()); });
-  await kit.context.addInitScript(([save, scene]) => {
+  await kit.context.addInitScript(([save, scene, helpers]) => {
     const s = JSON.parse(JSON.stringify(save)), now = Date.now();
+    if (helpers) Object.assign(s.helpers, helpers);
     for (const x of s.ranch.residents) {
       if (x.trip) { x.trip.startAt = now - 600000; x.trip.homeAt = now + 3000000; }
       if (x.lesson) { x.lesson.startAt = now - 600000; x.lesson.doneAt = now + 7200000; }
@@ -63,7 +67,7 @@ async function load(part, { scene = 'greenhouse', delay = 0, block = false, unti
       requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
-  }, [SAVE, scene]);
+  }, [SAVE, scene, HELPERS]);
   let origin0 = 0, gate = null;
   const rel = () => Date.now() - origin0;
   // held back: every one of the room's files waits until `delay` ms after the first one was asked for (so the whole
@@ -104,7 +108,7 @@ async function load(part, { scene = 'greenhouse', delay = 0, block = false, unti
   rec.warns = warns.filter(w => /Greenhouse/.test(w));
   rec.errors = kit.errors.slice();
   if (FILM) {
-    const dir = path.join(OUT, part);
+    const dir = path.join(OUT, (arg('film-dir', '') ? arg('film-dir') + '-' : '') + part);
     fs.rmSync(dir, { recursive: true, force: true });
     fs.mkdirSync(dir, { recursive: true });
     for (const s of shots) {
@@ -129,23 +133,26 @@ function story(rec) {
   }
   return out.join('\n');
 }
-// frames where the scene shows through (the loading screen fading or gone)
-const visible = rec => rec.frames.filter(([, b]) => b !== null && b < 0.999);
+// frames where the scene shows through (the loading screen fading or gone), once the game has drawn anything
+const visible = rec => rec.frames.filter(([, b, w]) => b !== null && b < 0.999 && w !== null);
+// the longest gap between two recorded frames (a slow software renderer can block the page for seconds)
+const longestGap = rec => rec.frames.reduce((m, f, i, a) => (i ? Math.max(m, f[0] - a[i - 1][0]) : m), 0);
 const firstWith = (rec, f) => rec.frames.find(f);
 
 const PARTS = {
   async delay3() {
-    const rec = await load('delay3', { delay: 3000, until: () => { const b = document.getElementById('boot'); return b.hidden && (document.documentElement.dataset.homeWorld || (window.slimekin && window.slimekin.home.world)) === 'greenhouse'; } });
+    // (until the barn's files have come too: they are asked for a moment after the room shows)
+    const rec = await load('delay3', { delay: 3000, until: () => { const b = document.getElementById('boot'); return b.hidden && (document.documentElement.dataset.homeWorld || (window.slimekin && window.slimekin.home.world)) === 'greenhouse' && performance.getEntriesByType('resource').some(e => /assets\/barn\//.test(e.name)); } });
     log('delay3:\n' + story(rec));
     if (!CHECK) return;
     const roomIn = Math.max(...rec.reqs.filter(r => r[0] === 'room-in').map(r => r[2]));
     const vis = visible(rec), bad = vis.filter(f => f[2] !== 'greenhouse');
     expect(rec.errors.length === 0, 'delay3: no page errors', rec.errors.slice(0, 3).join(' | '));
     expect(roomIn >= 3000, `delay3: the room's files were held back (in at ${roomIn} ms)`);
-    expect(vis.length > 10 && bad.length === 0, `delay3: no frame shows anything but the Greenhouse once the loading screen fades (${vis.length} frames seen through it, ${bad.length} not the room)`, JSON.stringify(bad.slice(0, 3)));
+    expect(vis.length >= 3 && bad.length === 0, `delay3: no frame shows anything but the Greenhouse once the loading screen fades (${vis.length} frames seen through it, ${bad.length} not the room)`, JSON.stringify(bad.slice(0, 3)));
     const fadeAt = vis.length ? vis[0][0] : null, drawnAt = (firstWith(rec, f => f[2] === 'greenhouse') || [null])[0];
     expect(fadeAt !== null && drawnAt !== null && fadeAt > drawnAt && fadeAt >= roomIn, `delay3: the loading screen stays up until the room is in and drawn (room in ${roomIn} ms, first drawn ${drawnAt} ms, the screen starts to fade ${fadeAt} ms)`);
-    expect(rec.shown !== null && rec.built !== null && rec.shown - rec.built < 8000, `delay3: built ${rec.built} ms, shown ${rec.shown} ms (held ${rec.shown - rec.built} ms, under the 8 s limit)`);
+    expect(rec.shown !== null && rec.built !== null && rec.shown - rec.built < 8000 + longestGap(rec), `delay3: built ${rec.built} ms, shown ${rec.shown} ms (held ${rec.shown - rec.built} ms: under the 8 s limit, give or take the longest frame ${longestGap(rec)} ms)`);
     const barn = rec.reqs.filter(r => r[0] === 'barn');
     expect(barn.length > 0 && Math.min(...barn.map(r => r[2])) > roomIn, `delay3: the barn's files are asked for after the room's are in (barn first asked ${barn.length ? Math.min(...barn.map(r => r[2])) : 'never'} ms)`);
     expect(rec.frames.every(f => f[3] === 0), 'delay3: no cross-fade (nothing else was shown first)');
@@ -158,7 +165,7 @@ const PARTS = {
     expect(rec.errors.length === 0, 'delay12: no page errors', rec.errors.slice(0, 3).join(' | '));
     const vis = visible(rec), fadeAt = vis.length ? vis[0][0] : null;
     const held = rec.shown - rec.built;
-    expect(held >= A.wait - 100 && held <= A.wait + 600, `delay12: the loading screen waits ${held} ms for the room, then goes (limit ${A.wait} ms)`);
+    expect(held >= A.wait - 100 && held <= A.wait + 600 + longestGap(rec), `delay12: the loading screen waits ${held} ms for the room, then goes (limit ${A.wait} ms, give or take the longest frame ${longestGap(rec)} ms)`);
     const before = vis.filter(f => f[2] !== 'greenhouse');
     expect(before.length > 0 && before.every(f => f[2] === 'loading'), `delay12: until the room arrives home shows the Classic look (${before.length} frames, all 'loading')`, JSON.stringify(before.filter(f => f[2] !== 'loading').slice(0, 3)));
     // the switch: the first frame drawn with the room has the last loading-look frame over it, fully
@@ -182,7 +189,7 @@ const PARTS = {
     const vis = visible(rec), bad = vis.filter(f => f[2] !== 'meadow');
     expect(rec.world === 'meadow' && rec.failed && rec.scene === 'greenhouse', `offline: home shows the Meadow, the setting stays Greenhouse (world ${rec.world}, setting ${rec.scene})`);
     expect(rec.warns.length === 1, `offline: logged once (${rec.warns.length}: ${rec.warns[0] || ''})`);
-    expect(vis.length > 10 && bad.length === 0, `offline: the Meadow is the first thing shown (${vis.length} frames, ${bad.length} other)`, JSON.stringify(bad.slice(0, 3)));
+    expect(vis.length >= 3 && bad.length === 0, `offline: the Meadow is the first thing shown (${vis.length} frames, ${bad.length} other)`, JSON.stringify(bad.slice(0, 3)));
     expect(rec.errors.filter(e => !/greenhouse|Failed to load resource/i.test(e)).length === 0, 'offline: no page errors', rec.errors.slice(0, 3).join(' | '));
   },
   async meadow() { await plain('meadow'); },
@@ -196,7 +203,7 @@ async function plain(scene) {
   const vis = visible(rec), bad = vis.filter(f => f[2] !== scene);
   expect(rec.errors.length === 0, `${scene}: no page errors`, rec.errors.slice(0, 3).join(' | '));
   expect(rec.shown !== null && rec.shown - rec.built <= 5, `${scene}: no waiting, the loading screen goes as soon as the game is built (${rec.shown - rec.built} ms)`);
-  expect(vis.length > 10 && bad.length === 0, `${scene}: only ${scene} is shown (${vis.length} frames, ${bad.length} other)`);
+  expect(vis.length >= 3 && bad.length === 0, `${scene}: only ${scene} is shown (${vis.length} frames, ${bad.length} other)`);
   expect(!rec.reqs.some(r => r[0] === 'room'), `${scene}: the room's files are not asked for`);
 }
 

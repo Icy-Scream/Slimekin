@@ -294,7 +294,13 @@ class Veil {
     c.width = src.width;
     c.height = src.height;
     try {
-      c.getContext('2d').drawImage(src, 0, 0);   // the frame just drawn (still there until this task ends)
+      const ctx = c.getContext('2d');
+      ctx.drawImage(src, 0, 0);   // the frame just drawn (still there until this task ends)
+      // a browser that hands back an empty picture: the loading screen's colour instead (still a soft fade, not a pop)
+      if (ctx.getImageData(c.width >> 1, c.height >> 2, 1, 1).data[3] === 0) {
+        ctx.fillStyle = getComputedStyle(document.getElementById('boot')).backgroundColor;
+        ctx.fillRect(0, 0, c.width, c.height);
+      }
     } catch (e) {
       this.off();   // no picture: the world just changes
       return;
