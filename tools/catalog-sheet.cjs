@@ -18,6 +18,7 @@
 //                                                    empty labeled cell, never a stand-in)
 //   node tools/catalog-sheet.cjs --out DIR           where the sheets, the single renders and index.html go
 //                                                    (default tools/out/catalog/sheet)
+//   node tools/catalog-sheet.cjs --frames DIR        where the raw frames go (default tools/out/catalog/frames)
 // Output: 00-overview.jpg, 01-single-flavor.jpg, 02-two-flavor-a.jpg, 02-two-flavor-b.jpg, 03-balanced-and-spark.jpg,
 // looks/<form>--<body>.jpg (one labeled render per look), index.html (tap to enlarge) and catalog.json (what rendered,
 // what failed and why, and the checks per look).
@@ -30,7 +31,7 @@ const ROOT = path.resolve(__dirname, '..');
 const arg = (name, def) => { const i = process.argv.indexOf('--' + name); return i > 0 ? process.argv[i + 1] : def; };
 const flag = name => process.argv.includes('--' + name);
 const OUT = path.resolve(arg('out', path.join(__dirname, 'out', 'catalog', 'sheet')));
-const FRAMES = path.join(__dirname, 'out', 'catalog', 'frames');
+const FRAMES = path.resolve(arg('frames', path.join(__dirname, 'out', 'catalog', 'frames')));
 const DPR = Number(arg('dpr', 2));
 const ONLY = arg('only', '');
 const BODY = arg('body', '');
@@ -324,7 +325,7 @@ function overview(file, forms, bodies, have) {
   console.log('sheet', out, Math.round(fs.statSync(out).size / 1024) + ' KB');
 }
 
-function buildAll(forms, bodies) {
+function buildAll(forms, bodies, allForms = forms) {
   fs.mkdirSync(path.join(OUT, 'looks'), { recursive: true });
   const meta = (f, b) => { try { return JSON.parse(fs.readFileSync(framePath(f, b, 'json'), 'utf8')); } catch { return null; } };
   const have = (f, b) => fs.existsSync(framePath(f, b)) && meta(f, b) ? framePath(f, b) : null;
@@ -345,11 +346,13 @@ function buildAll(forms, bodies) {
   const rowsOf = fl => fl.map(f => ({ name: f.name, flavors: f.flavors, note: f.note,
     tiles: bodies.map(b => { const src = have(f, b), m = meta(f, b); return { img: src, label: f.name.replace(/ Slime$/, ''), note: src ? (m.ok ? b.name : 'CHECK: ' + m.problems[0]) : b.name + ': not rendered' }; }) }));
   const G = g => forms.filter(f => f.group === g);
-  const pair = G('pair'), cut = Math.ceil(pair.length / 2);
+  // the two-flavor forms split 8/7 as in the full list (also when --only picks a few)
+  const allPair = allForms.filter(f => f.group === 'pair'), firstHalf = new Set(allPair.slice(0, Math.ceil(allPair.length / 2)).map(f => f.id));
+  const pair = G('pair');
   const sheets = [
     ['01-single-flavor.jpg', 'Single-flavor forms', 'one favorite flavor', G('single')],
-    ['02-two-flavor-a.jpg', 'Two-flavor forms (1 of 2)', 'its top two flavors', pair.slice(0, cut)],
-    ['02-two-flavor-b.jpg', 'Two-flavor forms (2 of 2)', 'its top two flavors', pair.slice(cut)],
+    ['02-two-flavor-a.jpg', 'Two-flavor forms (1 of 2)', 'its top two flavors', pair.filter(f => firstHalf.has(f.id))],
+    ['02-two-flavor-b.jpg', 'Two-flavor forms (2 of 2)', 'its top two flavors', pair.filter(f => !firstHalf.has(f.id))],
     ['03-balanced-and-spark.jpg', 'The balanced form and the family spark forms', 'Marshmallow: no single favorite; sparks come only from breeding', [...G('balanced'), ...G('spark')]],
   ];
   const made = [];
@@ -421,7 +424,7 @@ big.addEventListener('click', () => big.classList.remove('on'));
   if (!flag('sheets-only')) errors = await render(forms, bodies);
   console.log(`render time ${((Date.now() - t0) / 1000).toFixed(0)} s`);
   if (!flag('no-sheets')) {
-    try { buildAll(forms, bodies); } catch (e) { errors.push('sheet error: ' + (e.stderr ? e.stderr.toString() : e.message)); }
+    try { buildAll(forms, bodies, allForms); } catch (e) { errors.push('sheet error: ' + (e.stderr ? e.stderr.toString() : e.message)); }
   }
   fs.rmSync(TXT, { recursive: true, force: true });
   if (errors.length) { console.log('\nFAILED\n' + errors.join('\n')); process.exit(1); }
