@@ -4,14 +4,15 @@
 // the stand (tap and stroke pet, a quick swipe swaps and does not pet; pearls, the basket and the Nursery's nest), fills
 // the name card, and fits the stand and the card above the menu sheet. game.js calls in from a few marked places
 // ([barn]). The barn's 3D: view/barn.js; its plain math: view/barn-math.js; the card and buttons: ui/barn-card.js.
-//   - The barn's files load on the first ranch visit. Until they are ready, and whenever they cannot load (offline on
-//     the very first run, a copy of the game without them), the ranch is the meadow ranch, quietly (logged once). When
-//     they come in during that first visit, the barn takes over at once.
+//   - The barn's files load ahead of time, in idle time once home has shown (preloadTick). The meadow ranch is never the
+//     ranch screen: Ranch tapped before the files are in keeps you home with a short "Off to the barn" moment and opens
+//     the barn the moment they arrive; when they cannot load (offline on the very first run, a copy of the game without
+//     them) you stay home with one friendly toast, and the next tap tries again.
 //   - At home nothing changes (the Meadow keeps its ranch hill; the Greenhouse hides it).
 import * as THREE from 'three';
 import { BARN } from './data/content.js';
 import { BarnView } from './view/barn.js';
-import { BarnCard } from './ui/barn-card.js';
+import { BarnCard, BarnWait } from './ui/barn-card.js';
 import { standOrder, stepId, startId, nextAfterGone, swipeDir, pastSwipe, cardLine, cardCount, fitView, fovFor } from './view/barn-math.js';
 
 // when a touch happened (ms): the event's own time (right even when frames are slow), else now
@@ -24,6 +25,9 @@ export class BarnRanch {
     this.view.onWear = () => this.putOn(this.target, this.follow);
     this.view.onLanded = () => this.landed();
     this.card = new BarnCard({ prev: () => this.request(-1), next: () => this.request(1), open: () => this.openPage(), swipe: d => this.request(d) });
+    this.wait = new BarnWait();   // "Off to the barn": Ranch tapped before the barn's files are in
+    this.waiting = false;
+    this.pre = { frames: 0, t: 0, asked: false };   // loading the barn ahead of time
     this.on = false;          // the barn is the ranch screen right now
     this.curId = null;        // the resident on the stand
     this.lastId = null;       // the one seen last (the barn opens on it next time)
@@ -39,26 +43,55 @@ export class BarnRanch {
   }
   get active() { return this.on && this.g.view === 'ranch'; }
 
-  // ---------- going to the ranch and back ----------
-  // From goRanch (the ranch view is already set): true when the barn shows; false = the meadow ranch this time.
-  enter() {
-    const v = this.view;
-    if (v.ready) { this.switchIn(); return true; }
-    if (!v.failed && !this.loadAsked) {
-      this.loadAsked = true;
-      v.load().then(ok => { if (ok && this.g.view === 'ranch' && !this.on) this.switchIn(true); });
-    }
-    return false;
+  // ---------- the barn's files, ahead of time ----------
+  // Each frame: once home has shown its first frames (the Greenhouse room first, when that is home), the barn's files
+  // start loading in idle time, so the game's start is never slowed and Ranch opens the barn at once.
+  preloadTick(dt) {
+    const p = this.pre, P = BARN.preload, home = this.g.home;
+    if (p.asked) return;
+    if (!home || !home.world || home.world === 'loading') return;
+    p.frames++; p.t += dt;
+    if (p.frames < P.frames || p.t < P.after) return;
+    p.asked = true;
+    const go = () => { if (!this.view.ready && !this.view.loading) this.view.load(); };
+    if (window.requestIdleCallback) window.requestIdleCallback(go, { timeout: P.idle });
+    else setTimeout(go, 0);
   }
-  // late: the meadow ranch was showing while the barn's files came in
-  switchIn(late = false) {
+  // From goRanch when the barn is not in yet: stay home with "Off to the barn" and open it the moment it is ready.
+  // It can't load: stay home (back on the page you came from), one friendly toast; the next tap tries again.
+  waitFor() {
+    const g = this.g, v = this.view;
+    if (this.waiting) return;
+    if (v.failed) v.retry();
+    this.waiting = true;
+    this.wait.show(true, { still: g.reduced });
+    const back = this.lastTab && this.lastTab !== 'ranch' ? this.lastTab : 'helpers';
+    v.load().then(ok => {
+      if (!this.waiting) return;   // called off: another tab, a goodbye
+      this.waiting = false;
+      this.wait.show(false);
+      if (ok) { if (g.hud.tab === 'ranch') g.goRanch(); return; }
+      g.ranchPage = null;
+      g.ranchFocus = null;
+      if (g.hud.tab === 'ranch') g.hud.selectTab(back);
+      g.layoutChanged();
+      g.hud.toast('<b>The barn needs the internet the first time.</b>Try again in a moment.', '', 3600);
+    });
+  }
+  cancelWait() {
+    if (!this.waiting) return;
+    this.waiting = false;
+    this.wait.show(false);
+  }
+  // the menu page shown before Ranch (where a failed wait goes back to)
+  noteTab(t) { if (t !== 'ranch') this.lastTab = t; }
+
+  // ---------- going to the ranch and back ----------
+  // From goRanch, once the barn is ready (the ranch view is already set): the barn shows.
+  enter() {
     const g = this.g, v = this.view, m = v.meta;
     this.on = true;
     this.justIn = true;
-    g.ranch.visiting = false;
-    g.ranch.focusId = null;
-    g.stage.focus = null;
-    g.stage.zoom = 1;
     this.cam = { pos: m.cam.pos, look: m.cam.look, fov: m.cam.fov };
     v.group.visible = true;
     v.setNight(g.stage.dark, true);
@@ -76,7 +109,6 @@ export class BarnRanch {
     this.scale = 1;
     this.frame(0, true);
     g.stage.snapNext = true;
-    if (late) g.hud.renderRanch(true);
     g.layoutChanged();
   }
   // From leaveRanch: back home.
@@ -241,6 +273,7 @@ export class BarnRanch {
 
   // ---------- each frame ----------
   update(dt) {
+    this.preloadTick(dt);
     if (!this.on) return;
     const g = this.g;
     if (g.view !== 'ranch') { this.leave(); return; }
@@ -299,6 +332,6 @@ export class BarnRanch {
   // (test hook) what the barn shows now
   info() {
     const v = this.view;
-    return { on: this.on, ready: v.ready, failed: v.failed, cur: this.curId, order: [...this.order], swapping: v.swapping, empty: v.empty, straw: v.liveStraw(), scale: this.scale, fit: this.fit, queued: !!this.queued, nest: v.nest ? v.nest.visible : false, pearls: v.pearls.length };
+    return { on: this.on, ready: v.ready, failed: v.failed, waiting: this.waiting, preloaded: this.pre.asked, cur: this.curId, order: [...this.order], swapping: v.swapping, empty: v.empty, straw: v.liveStraw(), scale: this.scale, fit: this.fit, queued: !!this.queued, nest: v.nest ? v.nest.visible : false, pearls: v.pearls.length };
   }
 }

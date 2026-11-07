@@ -110,7 +110,7 @@ export class BarnView {
   }
 
   // Loads the barn once. Resolves true when it is ready, false when it could not load (offline on the very first run,
-  // or a copy of the game that does not carry the barn's files): the ranch stays the meadow ranch (logged once).
+  // or a copy of the game that does not carry the barn's files): the game stays home (logged once per try).
   load() {
     if (!this.loading) {
       const t0 = performance.now();
@@ -120,11 +120,18 @@ export class BarnView {
         return true;
       }, e => {
         this.failed = true;
-        console.warn('Barn: the barn could not load, the meadow ranch stays for now.', e && e.message ? e.message : e);
+        console.warn('Barn: the barn could not load; the ranch waits until it can.', e && e.message ? e.message : e);
         return false;
       });
     }
     return this.loading;
+  }
+  // After a failed load: the next load() tries again. Only when nothing was built (it failed while fetching the files).
+  retry() {
+    if (!this.failed || this.group.children.length) return false;
+    this.failed = false;
+    this.loading = null;
+    return true;
   }
 
   async build() {

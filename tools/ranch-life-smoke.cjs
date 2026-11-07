@@ -168,6 +168,7 @@ const HOUR = 3600e3;
     // ---------- 5. Call home early ----------
     mark('5. call home early');
     await page.click('#tab-ranch');
+    await page.waitForFunction(() => { const b = window.slimekin.barnRanch; return b.on || b.view.failed; }, null, { timeout: 120000 });   // (the barn loads ahead of time, a moment after the page starts)
     await ev(() => window.slimekin.advance(3));
     await ev(id => { window.slimekin.focusResident(id); window.slimekin.advance(2); }, pebble);
     await page.click('#body-ranch [data-rl="trip"]');

@@ -29,19 +29,32 @@ const CSS = `
   .barn-arrow .gi { width: 22px; height: 22px; }
   .barn-arrow:active { transform: scale(.94); }
   #barnPrev { left: 10px; } #barnNext { right: 10px; }
-  .barn-card[hidden], .barn-arrow[hidden] { display: none; }`;
+  .barn-card[hidden], .barn-arrow[hidden] { display: none; }
+  .barn-wait { position: fixed; left: 50%; top: 96px; transform: translateX(-50%); z-index: 8; display: flex; align-items: center;
+    gap: 9px; padding: 9px 18px 9px 14px; border-radius: 22px; font-family: var(--display); font-weight: 700; font-size: 17px;
+    color: var(--ink); white-space: nowrap; pointer-events: none; animation: bw-in .25s ease-out; }
+  .barn-wait svg { width: 22px; height: 22px; fill: #6b4bd6; flex: none; }
+  .barn-wait .bw-dots { display: inline-flex; gap: 4px; margin-left: 1px; }
+  .barn-wait .bw-dots u { width: 6px; height: 6px; border-radius: 3px; background: #6b4bd6; opacity: .35; animation: bw-dot 1.1s ease-in-out infinite; }
+  .barn-wait .bw-dots u:nth-child(2) { animation-delay: .16s; } .barn-wait .bw-dots u:nth-child(3) { animation-delay: .32s; }
+  .barn-wait.still, .barn-wait.still .bw-dots u { animation: none; } .barn-wait.still .bw-dots u { opacity: .7; }
+  @keyframes bw-dot { 0%, 70%, 100% { transform: translateY(0); opacity: .35; } 35% { transform: translateY(-4px); opacity: 1; } }
+  @keyframes bw-in { from { opacity: 0; transform: translate(-50%, -6px); } }
+  .barn-wait[hidden] { display: none; }`;
+function addCss() {
+  if (document.getElementById('barnCss')) return;
+  const css = document.createElement('style');
+  css.id = 'barnCss';
+  css.textContent = CSS;
+  document.head.appendChild(css);
+}
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 export class BarnCard {
   // on: { prev(), next(), open(), swipe(dir) }
   constructor(on) {
     this.on = on;
-    if (!document.getElementById('barnCss')) {
-      const css = document.createElement('style');
-      css.id = 'barnCss';
-      css.textContent = CSS;
-      document.head.appendChild(css);
-    }
+    addCss();
     const card = this.el = document.createElement('div');
     card.id = 'barnCard';
     card.className = 'barn-card glass';
@@ -106,4 +119,31 @@ export class BarnCard {
     for (const a of this.arrows) if (a.style.top !== t) a.style.top = t;
   }
   height() { return this.el.offsetHeight || 0; }
+}
+
+// "Off to the barn": the short loading moment at home when Ranch is tapped before the barn's files are in (they load
+// ahead of time, so this is rare: a slow network on the first visit). The barn house is the Ranch tab's own icon.
+// Under the top bar, in the middle; it takes no touches. still: Reduced motion (the dots don't bounce).
+const BARN_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" d="M12 2.6l9 6.8v11.8H3V9.4zm-2.6 18.6h5.2v-6.4H9.4zM10 9.2h4v3h-4z"/></svg>';
+export class BarnWait {
+  constructor() {
+    addCss();
+    const el = this.el = document.createElement('div');
+    el.id = 'barnWait';
+    el.className = 'barn-wait glass';
+    el.setAttribute('role', 'status');
+    el.innerHTML = `${BARN_ICON}<span>Off to the barn</span><i class="bw-dots" aria-hidden="true"><u></u><u></u><u></u></i>`;
+    el.hidden = true;
+    document.body.appendChild(el);
+  }
+  show(on, { still = false } = {}) {
+    const el = this.el;
+    if (on) {
+      const top = document.querySelector('.top');
+      el.style.top = Math.round((top ? top.getBoundingClientRect().bottom : 60) + 14) + 'px';
+      el.classList.toggle('still', !!still);
+    }
+    el.hidden = !on;
+  }
+  get shown() { return !this.el.hidden; }
 }

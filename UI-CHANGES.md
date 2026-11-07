@@ -435,8 +435,8 @@ The baked Greenhouse room is home's default background (`src/view/greenhouse.js`
 
 The ranch screen is the baked barn (`src/view/barn.js`, coordinated by `src/barn-ranch.js`): one resident at a time on
 the show stand, a fixed camera, the burrow swap between residents. Home is unchanged (the Meadow keeps its ranch hill).
-Until the barn's files are in, or when they cannot load, the ranch is the meadow ranch as before (none of the elements
-below show then).
+The meadow ranch is never the ranch screen (R3): the barn's files load ahead of time, and until they are in Ranch shows
+the loading moment below at home.
 
 - Name card `#barnCard.barn-card.glass` (`src/ui/barn-card.js`, CSS in `<style id="barnCss">` made by that file),
   `role="button"`, `tabindex="0"`: centered over the picture, `width: min(340px, 100vw - 32px)`, `z-index: 7`, placed
@@ -457,8 +457,9 @@ below show then).
   with two or more residents on the stand's list.
   - Icons: two new drawn icons, `ICON.chevronLeft` / `ICON.chevronRight` (`src/ui/icons.js`, a soft purple chevron).
 - `#ranchHint` in the barn: "Swipe for the next slime. Tap or stroke to pet." (one resident: "Tap or stroke to pet.";
-  none: "Your ranch slimes live here."; the Nursery: "The Nursery. Pick two parents below."). The meadow ranch keeps its
-  own lines.
+  none: "Your ranch slimes live here."; the Nursery: "The Nursery. Pick two parents below."). (R3: the meadow ranch's
+  own lines, "Tap a slime to visit it. Drag to look around." and "... Tap the grass to step back.", are gone with it;
+  `index.html` still has the first as the element's starting text, never shown.)
 - `body.in-barn` while the barn shows (no CSS uses it yet).
 - Gestures in the barn: a quick sideways swipe anywhere (more than 60 px, mostly sideways, under 0.7 s; left = next)
   swaps and does not pet; a tap on the slime pets; a press on it pets once it cannot be a swipe any more (it turned
@@ -467,3 +468,17 @@ below show then).
 - 3D (tappable): the slime on the stand, the loose pearls (they land in the stand's straw in front of the slime), the
   baked Pearl Basket at the front right (collects; live pearls on its heap show how full it is), the Nursery's straw
   nest at the front left (only while the Nursery has eggs; opens the Nursery). Nothing else in the barn is tappable.
+
+### The barn ahead of time (R3)
+
+- The barn's files load in the background soon after home shows (no element). Ranch (the tab, the pearl counter, a
+  resident's Visit, the Nursery link under the egg) tapped before they are in:
+  - Loading moment `#barnWait.barn-wait.glass` (`src/ui/barn-card.js`, CSS in `<style id="barnCss">`),
+    `role="status"`: a pill under the top bar, in the middle, `z-index: 8`, takes no touches. The Ranch tab's own
+    barn-house icon in purple (`#6b4bd6`, the card's dot colour), "Off to the barn" (the display font, 17 px) and three
+    small purple dots that bounce one after another (still with Reduced motion). Home stays (the menu shows the Ranch
+    page); the barn opens the moment its files are in. Another tab, "← Back home" on the Ranch page, or a goodbye
+    calls it off.
+  - The barn can't load (offline on the very first run, files missing): the pill goes, the menu goes back to the page
+    it was on, and one toast: **"The barn needs the internet the first time."** / "Try again in a moment." The next tap
+    on Ranch tries again.

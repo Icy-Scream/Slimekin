@@ -3,8 +3,8 @@
 //   - The Greenhouse room loads after the first frame; until it is ready home shows the plain Classic look. If it
 //     cannot load (offline on the very first run, or a copy of the game without the room's files) home stays on the
 //     Meadow, the setting is not changed, and it is logged once.
-//   - In the Greenhouse the nursery's floor, rug, cushion, sky and stars, the meadow and the ranch hill are hidden at
-//     home; while visiting the ranch the room hides and the meadow shows (the ranch stands on it), as on the test page.
+//   - In the Greenhouse the nursery's floor, rug, cushion, sky and stars, the meadow and the ranch hill are hidden. The
+//     ranch screen is the Barn ranch in every Background (barn-ranch.js): nothing of home is drawn there.
 //   - The camera turns only in the Greenhouse, at home, with no modal open: the camera button steps through the set
 //     angles; a one-finger drag that starts on empty background turns it around the slime; two fingers pinch to zoom.
 import { GREENHOUSE } from './data/content.js';
@@ -45,7 +45,7 @@ export class Home {
     }
     if (world === this.world) return;
     this.world = world;
-    g.scenery.setEnabled(world === 'meadow' || world === 'greenhouse');   // (in the Greenhouse only while visiting the ranch)
+    g.scenery.setEnabled(world === 'meadow' || world === 'greenhouse');   // (in the Greenhouse it stays hidden)
     g.stage.setClassic(world === 'classic' || world === 'loading');
     g.helpers3d.setLayout(world === 'greenhouse' ? 'greenhouse' : 'meadow', this.room.meta);
     if (world === 'greenhouse') this.room.setNight(g.stage.dark, true);
@@ -66,7 +66,7 @@ export class Home {
 
   // Each frame (before the stage renders): who is visible, the room's blend, the camera's target, the button.
   frameWorld() {
-    const g = this.g, st = g.stage, home = g.view !== 'ranch';
+    const g = this.g, st = g.stage;
     if (g.barnRanch && g.barnRanch.active) {   // [barn] the ranch screen is the barn: nothing of home is drawn
       this.room.group.visible = false;
       g.scenery.group.visible = false;
@@ -79,19 +79,19 @@ export class Home {
     }
     st.setMotes(true);
     if (this.inRoom) {
-      this.room.group.visible = home;
-      g.scenery.group.visible = !home;
-      st.setHabitat(!home);
-      st.setRoomLook(home ? this.room : null);
-      g.helpers3d.group.visible = home;
-      g.ranch.group.visible = !home;
+      this.room.group.visible = true;
+      g.scenery.group.visible = false;
+      st.setHabitat(false);
+      st.setRoomLook(this.room);
+      g.helpers3d.group.visible = true;
+      g.ranch.group.visible = false;
     } else {
       this.room.group.visible = false;
       st.setHabitat(true);
       st.setRoomLook(null);
       g.helpers3d.group.visible = true;
-      // the Classic look (and while the room loads): the ranch only shows while you're over there (or flying there and back)
-      g.ranch.group.visible = (this.world !== 'classic' && this.world !== 'loading') || g.view === 'ranch' || st.camPos.z < 3;
+      // the ranch hill behind home in the Meadow (not in the Classic look, nor while the room loads)
+      g.ranch.group.visible = this.world !== 'classic' && this.world !== 'loading';
     }
   }
 

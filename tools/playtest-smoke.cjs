@@ -189,8 +189,12 @@ const FIXTURE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'mai
       g.state.totalJelly = 3e9;
       g.advance(1); g.hud.closeModal();
     });
+    // the Barn ranch opens once its files are in (they load ahead of time, a moment after each page starts): wait for it
+    const barnOn = () => page.waitForFunction(() => { const b = window.slimekin.barnRanch; return b.on || b.view.failed; }, null, { timeout: 120000 });
     const breedInNursery = async (a, b) => {
-      await ev(() => { const g = window.slimekin; if (g.view !== 'ranch') g.hud.openTab('ranch'); g.advance(2); g.openNursery(); g.advance(2); });
+      await ev(() => { const g = window.slimekin; if (g.view !== 'ranch') g.hud.openTab('ranch'); });
+      await barnOn();
+      await ev(() => { const g = window.slimekin; g.advance(2); g.openNursery(); g.advance(2); });
       await page.click(`.parent-pick:has-text("${a}")`); await page.click(`.parent-pick:has-text("${b}")`);
       await page.click('#breedBtn');
       await ev(() => window.slimekin.advance(2));
@@ -208,7 +212,7 @@ const FIXTURE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'mai
       expect(e0.n === 1 && e0.readyIn >= 59, 'Juniper and Pebble made an egg in the Nursery (still warming)', JSON.stringify(e0));
       await ev(() => window.slimekin.leaveRanch());
       await growUp();
-      await page.click('#tab-ranch'); await ev(() => window.slimekin.advance(3));
+      await page.click('#tab-ranch'); await barnOn(); await ev(() => window.slimekin.advance(3));
       await page.click('#moveOutBtn');
       await page.waitForSelector('.egg-choice');
       const choice = await ev(() => [...document.querySelectorAll('.egg-choice .choice')].map(b => ({ egg: b.dataset.egg, disabled: b.disabled, text: b.innerText.replace(/\s+/g, ' ') })));
@@ -268,7 +272,7 @@ const FIXTURE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'mai
       await ev(() => window.slimekin.leaveRanch());
       await growUp();
       const mover = await ev(() => window.slimekin.state.slime.name);
-      await page.click('#tab-ranch'); await ev(() => window.slimekin.advance(3));
+      await page.click('#tab-ranch'); await barnOn(); await ev(() => window.slimekin.advance(3));
       await page.click('#moveOutBtn');
       await page.waitForSelector('.egg-choice');
       await keepClock();
@@ -284,6 +288,7 @@ const FIXTURE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'mai
       await shot('08-egg-with-ranch-tab');
       // to the Nursery from the link under the egg; the slime that just moved out makes an egg with Juniper
       await page.click('#eggAlt');
+      await barnOn();
       await ev(() => window.slimekin.advance(3));
       const view = await ev(() => ({ view: window.slimekin.view, page: window.slimekin.ranchPage, sheet: window.slimekin.hud.sheetState() }));
       expect(view.view === 'ranch' && view.page === 'nursery' && view.sheet === 'normal', 'the link opens the Nursery on the ranch (while the egg waits at home)', JSON.stringify(view));
@@ -414,6 +419,7 @@ const FIXTURE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'mai
         'a postcard from the baby, written by a baby, with no pearls in it', JSON.stringify(pc));
       await shot('17-baby-postcard', { night: false });
       await page.click('#tab-ranch');
+      await barnOn();
       await ev(() => { const g = window.slimekin; g.advance(2); const b = document.getElementById('body-ranch'); b.scrollTop = b.scrollHeight; g.advance(0.5); });
       const elsewhere = await ev(() => document.getElementById('body-ranch').innerText.replace(/\s+/g, ' '));
       expect(elsewhere.includes(`${before.name}`) && /growing up there/.test(elsewhere), 'the ranch lists the baby under "Living elsewhere" (growing up there)', elsewhere.slice(-200));

@@ -1,5 +1,5 @@
 // The Barn ranch in a headless phone (393 x 852): the ranch screen is the baked barn, one resident on the stand.
-//   node tools/barn-smoke.cjs [--quick] [--only=open,swipe,touch,card,life,pearls,nursery,leave,sheet,low,reduced,empty,fail]
+//   node tools/barn-smoke.cjs [--quick] [--only=open,swipe,touch,card,life,pearls,nursery,leave,sheet,low,reduced,empty,fail,slow]
 // From tools/fixtures/barn/barn-six.json (7 residents: Curlys, a Dollop, a Cat-ear Dollop, a Topknot Dollop in a lesson, an
 // in-between, and Bubblegum on a trip). Real touches are CDP Input.dispatchTouchEvent (each with its own timestamp).
 //   open     the Ranch tab opens the barn with no page errors; home is hidden; the stand shows the first resident; the
@@ -20,7 +20,11 @@
 //   low      Low graphics: half the straw, the slime in one pass (fewer triangles)
 //   reduced  Reduced motion: a fade, no straw
 //   empty    nobody home (everyone on a trip; then nobody at all): an empty stand and a card that says so
-//   fail     the barn's files can't load: the ranch is the meadow ranch, logged once
+//   fail     the barn's files can't load: the preload fails quietly; Ranch stays home (back on the page it came from),
+//            one toast, no meadow ranch drawn, logged once per try; the next tap tries again and opens the barn
+//   slow     the barn's files are slow: they load ahead of time (before Ranch is tapped); Ranch while they are still
+//            coming: home stays with "Off to the barn", the meadow ranch is never drawn (every frame checked), another
+//            tab calls it off, and the barn opens the moment they arrive (Greenhouse and Meadow homes)
 // Screenshots: tools/out/barn/. Runs offline on its own server (tools/browser-kit.cjs).
 const path = require('path');
 const fs = require('fs');
@@ -30,7 +34,7 @@ const OUT = path.join(__dirname, 'out', 'barn');
 fs.mkdirSync(OUT, { recursive: true });
 const arg = (k, d) => { const a = process.argv.find(x => x.startsWith(`--${k}=`)); return a ? a.split('=')[1] : (process.argv.includes('--' + k) ? true : d); };
 const QUICK = !!arg('quick', false);
-const ONLY = String(arg('only', 'open,swipe,touch,card,life,pearls,nursery,leave,sheet,low,reduced,empty,fail')).split(',');
+const ONLY = String(arg('only', 'open,swipe,touch,card,life,pearls,nursery,leave,sheet,low,reduced,empty,fail,slow')).split(',');
 const FIX = { six: JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'barn', 'barn-six.json'), 'utf8')).save };
 
 (async () => {
@@ -121,6 +125,26 @@ const FIX = { six: JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', '
     });
     const part = (name, fn) => step(name, fn, 900000);   // one part of the test (each check inside has its own wait)
     const sheetClosed = async () => { await ev(() => window.slimekin.hud.setSheet('closed', false)); await page.waitForTimeout(500); await settle(); };
+    // Every frame drawn from now on: is any of it the meadow ranch as the ranch screen? (the ranch view without the
+    // barn on, the meadow ranch drawn in the Greenhouse, the camera flying over to the hill, the barn shown before it is
+    // on); and how many frames showed "Off to the barn".
+    const watchRanch = () => ev(() => {
+      const g = window.slimekin, w = window.__rw = { frames: 0, ranchScreen: 0, waitFrames: 0, pill: 0, why: [] };
+      if (!g.stage.__render) g.stage.__render = g.stage.render.bind(g.stage);
+      g.stage.render = () => {
+        const W = window.__rw;
+        W.frames++;
+        const why = g.view === 'ranch' && !g.barnRanch.on ? 'ranch view without the barn'
+          : g.ranch.group.visible && g.home.world !== 'meadow' ? 'the meadow ranch drawn (' + g.home.world + ')'
+          : g.stage.camPos.z < 3 ? 'the camera over at the hill' : g.barnRanch.view.group.visible && !g.barnRanch.on ? 'the barn drawn before it is on' : '';
+        if (why) { W.ranchScreen++; if (W.why.length < 3) W.why.push(why); }
+        if (g.barnRanch.waiting) W.waitFrames++;
+        if (!document.getElementById('barnWait').hidden) W.pill++;
+        return g.stage.__render();
+      };
+    });
+    const watched = () => ev(() => window.__rw);
+    const toastsWith = re => ev(r => [...document.querySelectorAll('#toasts .toast')].filter(t => new RegExp(r).test(t.innerText)).length, re);
 
     // ---------- open ----------
     if (ONLY.includes('open')) await part('open', async () => {
@@ -128,8 +152,8 @@ const FIX = { six: JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', '
       const t0 = Date.now();
       await openRanch();
       const i = await info();
-      const home = await ev(() => { const g = window.slimekin; return { room: g.home.room.group.visible, pet: g.slime.root.visible, meadow: g.ranch.group.visible, helpers: g.helpers3d.group.visible, barn: g.barnRanch.view.group.visible, motes: g.stage.motes.some(m => m.m.visible), focus: !!g.stage.focus, counts: g.barnRanch.view.counts() }; });
-      log('barn:', JSON.stringify(home.counts), `Ranch tab to barn ready ${Date.now() - t0} ms (headless, loopback; first visit)`);
+      const home = await ev(() => { const g = window.slimekin; return { room: g.home.room.group.visible, pet: g.slime.root.visible, meadow: g.ranch.group.visible, helpers: g.helpers3d.group.visible, barn: g.barnRanch.view.group.visible, motes: g.stage.motes.some(m => m.m.visible), counts: g.barnRanch.view.counts() }; });
+      log('barn:', JSON.stringify(home.counts), `Ranch tab to barn ready ${Date.now() - t0} ms (headless, loopback; first visit; ${i.preloaded ? 'loaded ahead of time' : 'not asked ahead yet'})`);
       expect(i.on && i.ready && home.barn, 'the Ranch tab opens the barn');
       expect(!home.room && !home.pet && !home.meadow && !home.helpers && !home.motes, 'home is not drawn in the barn (the room, the pet, the meadow ranch, the helpers, the motes)', JSON.stringify(home));
       const order = await ev(() => window.slimekin.state.ranch.residents.filter(x => !x.trip).map(x => x.id));
@@ -468,24 +492,102 @@ const FIX = { six: JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', '
       await page.route('**/src/assets/barn/**', r => { blocked++; return r.abort(); });
       await boot();
       consoleLines.length = 0;
-      await page.click('#tab-ranch');
+      await watchRanch();
+      // ahead of time, in the background: it fails quietly (no toast, home as it is)
       await page.waitForFunction(() => window.slimekin.barnRanch.view.failed, null, { timeout: 120000 });
       await settle(2);
-      const s = await ev(() => { const g = window.slimekin; return { view: g.view, barn: g.barnRanch.on, meadow: g.ranch.group.visible, visiting: g.ranch.visiting, card: !document.getElementById('barnCard').hidden }; });
-      const warns = consoleLines.filter(l => /Barn: the barn could not load/.test(l));
-      expect(s.view === 'ranch' && !s.barn && s.meadow && s.visiting && !s.card, 'the barn can\'t load: the ranch is the meadow ranch (no card)', JSON.stringify(s));
-      await ev(() => { const g = window.slimekin; g.leaveRanch(); });
-      await page.waitForTimeout(300);
-      await ev(() => window.slimekin.hud.openTab('ranch'));
+      const pre = await ev(() => ({ asked: window.slimekin.barnRanch.pre.asked, view: window.slimekin.view, tab: window.slimekin.hud.tab }));
+      const preToasts = await toastsWith('barn needs the internet');
+      expect(pre.asked && pre.view === 'home' && preToasts === 0 && blocked > 0, 'the barn loads ahead of time; when it can\'t, nothing shows (home as it is, no toast)', JSON.stringify(pre));
+      // the Ranch tab (a real tap): it tries again, fails, and home stays
+      await page.click('#tab-ranch');
+      await page.waitForFunction(() => !window.slimekin.barnRanch.waiting, null, { timeout: 120000 });
       await settle(2);
-      const again = consoleLines.filter(l => /Barn: the barn could not load/.test(l)).length;
-      expect(warns.length === 1 && again === 1 && blocked > 0, `logged once (${again}), across two visits: ${warns[0] || ''}`);
-      await page.screenshot({ path: path.join(OUT, 'fail-meadow-day.png') });
+      const s = await ev(() => { const g = window.slimekin; return { view: g.view, barn: g.barnRanch.on, ranchBar: !document.getElementById('ranchBar').hidden, atRanch: document.body.classList.contains('at-ranch'), card: !document.getElementById('barnCard').hidden, pill: !document.getElementById('barnWait').hidden, tab: g.hud.tab, room: g.home.room.group.visible }; });
+      const toasts1 = await toastsWith('barn needs the internet the first time');
+      const toastText = await ev(() => [...document.querySelectorAll('#toasts .toast')].map(t => t.innerText.replace(/\n/g, ' ')).find(t => /barn needs/.test(t)) || '');
+      expect(s.view === 'home' && !s.barn && !s.ranchBar && !s.atRanch && !s.card && !s.pill && s.room, 'the barn can\'t load: Ranch keeps you home (no ranch bar, no card, the room still drawn)', JSON.stringify(s));
+      expect(toasts1 === 1 && /^The barn needs the internet the first time\. ?Try again in a moment\.$/.test(toastText), 'one friendly toast', toastText);
+      expect(s.tab === 'helpers', 'the menu goes back to the page it was on (Helpers)', s.tab);
+      await page.screenshot({ path: path.join(OUT, 'fail-toast-day.png') });
+      // the next tap tries again (a second try, a second toast)
+      await page.waitForTimeout(400);
+      await page.click('#tab-ranch');
+      await page.waitForFunction(() => !window.slimekin.barnRanch.waiting, null, { timeout: 120000 });
+      await settle(2);
+      const warns = consoleLines.filter(l => /Barn: the barn could not load/.test(l)).length;
+      const tries = await ev(() => window.slimekin.view);
+      expect(tries === 'home' && warns === 3, `each try is one more load, logged once each (3 tries: ahead of time and two taps; ${warns} lines)`);
+      // the files come back: the next tap opens the barn
       await page.unroute('**/src/assets/barn/**');
+      await ev(() => window.slimekin.advance(4));   // (the toasts go)
+      await page.click('#tab-ranch');
+      await page.waitForFunction(() => window.slimekin.barnRanch.on || (window.slimekin.barnRanch.view.failed && !window.slimekin.barnRanch.waiting), null, { timeout: 120000 });
+      await settle(2);
+      const back = await ev(() => ({ on: window.slimekin.barnRanch.on, view: window.slimekin.view, card: !document.getElementById('barnCard').hidden }));
+      expect(back.on && back.view === 'ranch' && back.card, 'the files are back: the next tap opens the barn', JSON.stringify(back));
+      const w = await watched();
+      expect(w.ranchScreen === 0 && w.frames > 0, `the meadow ranch was never drawn (${w.frames} frames checked)`, w.why.join('; '));
       // the blocked files' own "Failed to load resource" lines are expected here; any other page error still fails
       const expected = kit.errors.filter(e => /^console: Failed to load resource: net::ERR_FAILED$/.test(e)).length;
       for (let i = kit.errors.length - 1; i >= errAt; i--) if (/^console: Failed to load resource: net::ERR_FAILED$/.test(kit.errors[i])) kit.errors.splice(i, 1);
       log('fail:', `${expected} expected "Failed to load resource" lines for the ${blocked} blocked requests`);
+    });
+
+    // ---------- the barn's files are slow ----------
+    if (ONLY.includes('slow')) await part('slow', async () => {
+      for (const scene of ['greenhouse', 'meadow']) {
+        let release = null, held = 0;
+        const gate = new Promise(r => { release = r; });
+        await page.route('**/src/assets/barn/**', async r => { held++; await gate; return r.continue().catch(() => {}); });
+        await boot();
+        if (scene === 'meadow') await ev(() => { const g = window.slimekin; g.state.settings.scene = 'meadow'; g.applySettings(); });
+        await watchRanch();
+        // ahead of time: the barn's files are asked for before anyone taps Ranch (and held here)
+        await page.waitForFunction(() => window.slimekin.barnRanch.pre.asked && !!window.slimekin.barnRanch.view.loading, null, { timeout: 120000 });
+        for (let i = 0; i < 100 && !held; i++) await page.waitForTimeout(100);
+        const asked = await ev(() => ({ asked: window.slimekin.barnRanch.pre.asked, ready: window.slimekin.barnRanch.view.ready, t: Math.round(performance.now()) }));
+        expect(asked.asked && !asked.ready && held > 0, `${scene}: the barn's files are asked for ahead of time, before Ranch is tapped (${held} held)`, JSON.stringify(asked));
+        await page.click('#tab-ranch');
+        await settle(2);
+        const a = await ev(() => { const g = window.slimekin, p = document.getElementById('barnWait'); return { view: g.view, waiting: g.barnRanch.waiting, pill: !p.hidden, text: p.innerText.trim(), tab: g.hud.tab, ranchBar: !document.getElementById('ranchBar').hidden, cam: g.stage.camPos.z.toFixed(2) }; });
+        expect(a.view === 'home' && a.waiting && a.pill && /^Off to the barn$/.test(a.text) && a.tab === 'ranch' && !a.ranchBar, `${scene}: Ranch while they are still coming: home stays, "Off to the barn" shows`, JSON.stringify(a));
+        if (scene === 'greenhouse') {
+          for (const dark of [false, true]) {
+            await ev(d => document.documentElement.setAttribute('data-theme', d ? 'dark' : 'light'), dark);
+            await page.waitForTimeout(300);
+            await ev(() => window.slimekin.advance(3.2));
+            await page.screenshot({ path: path.join(OUT, `slow-wait-${dark ? 'night' : 'day'}.png`), timeout: 120000 });
+          }
+          await ev(() => document.documentElement.setAttribute('data-theme', 'light'));
+          // another tab calls it off; Ranch again waits again
+          await page.click('#tab-shop');
+          await settle(2);
+          const off = await ev(() => ({ waiting: window.slimekin.barnRanch.waiting, pill: !document.getElementById('barnWait').hidden, tab: window.slimekin.hud.tab }));
+          expect(!off.waiting && !off.pill && off.tab !== 'ranch', 'another tab while waiting calls it off (the pill goes)', JSON.stringify(off));
+          await page.click('#tab-ranch');
+          await settle(1);
+        } else {
+          await page.screenshot({ path: path.join(OUT, 'slow-wait-meadow-day.png'), timeout: 120000 });
+          // the Ranch page's "Back home" calls it off too (home, the menu closed)
+          await page.click('#ranchHome');
+          await settle(2);
+          const off = await ev(() => ({ waiting: window.slimekin.barnRanch.waiting, pill: !document.getElementById('barnWait').hidden, tab: window.slimekin.hud.tab, sheet: window.slimekin.hud.sheetState(), view: window.slimekin.view }));
+          expect(!off.waiting && !off.pill && off.tab === 'helpers' && off.sheet === 'closed' && off.view === 'home', '"Back home" while waiting calls it off (home, the menu closed)', JSON.stringify(off));
+          await page.click('#tab-ranch');
+          await settle(1);
+        }
+        await page.waitForTimeout(1200);
+        const t0 = Date.now();
+        release();
+        await page.waitForFunction(() => window.slimekin.barnRanch.on, null, { timeout: 120000 });
+        await settle(2);
+        const b = await ev(() => { const g = window.slimekin; return { view: g.view, on: g.barnRanch.on, pill: !document.getElementById('barnWait').hidden, card: !document.getElementById('barnCard').hidden, cur: g.barnRanch.curId }; });
+        const w = await watched();
+        expect(b.view === 'ranch' && b.on && !b.pill && b.card && !!b.cur, `${scene}: the barn opens the moment they arrive (${Date.now() - t0} ms after; the pill goes)`, JSON.stringify(b));
+        expect(w.ranchScreen === 0 && w.waitFrames > 0 && w.pill > 0, `${scene}: while waiting, the meadow ranch was never drawn (${w.frames} frames checked, ${w.waitFrames} of them waiting)`, w.why.join('; '));
+        await page.unroute('**/src/assets/barn/**');
+      }
     });
   } catch (e) {
     errors.push(String(e && e.stack || e));

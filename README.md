@@ -68,7 +68,7 @@ Phone notes: swipe the menu down (or its grip bar) to close it; drag a notificat
 | Playing with the room | It pops nearby bubbles, swats tickle feathers, slimeling pals hop over to visit, dance breaks to the music box, stargazing with the telescope. |
 | Secrets | 14 hidden interactions, each with a clue in the Journal. |
 | Grown-up forms | All 22 Settled forms have their own look on top of the diet color: a body shape (teardrop, blocky, lumpy...), a pattern (candy stripes, flames, rivets, circuits...), props (a beating heart inside, amethyst clusters, a chimney, a sunflower, a bee or ladybug friend...) and little effects. Head props hide under hats (spark forms keep theirs and the hat sits on top). |
-| The ranch | Grown-up slimes live in a cozy barn. Open the Ranch tab (or tap the pearl counter) and you are in the barn, with one slime at a time on the round show stand. Swipe sideways (or tap ‹ ›) for the next one: it wiggles, burrows into the straw nest in a poof of straw and the next one pops up. Tap or stroke the slime on the stand to pet it, tap its name card for its page. Pearls pop out into the straw; the Pearl Basket at the front right collects them. At home, the Meadow background still shows the ranch hill behind the cushion, where the slimes wander, play and nap in nightcaps after dark (and the barn falls back to that hill if it can't load). |
+| The ranch | Grown-up slimes live in a cozy barn. Open the Ranch tab (or tap the pearl counter) and you are in the barn, with one slime at a time on the round show stand. Swipe sideways (or tap ‹ ›) for the next one: it wiggles, burrows into the straw nest in a poof of straw and the next one pops up. Tap or stroke the slime on the stand to pet it, tap its name card for its page. Pearls pop out into the straw; the Pearl Basket at the front right collects them. At home, the Meadow background still shows the ranch hill behind the cushion, where the slimes wander, play and nap in nightcaps after dark. The barn loads in the background a moment after the game starts; tap Ranch before it is in and "Off to the barn" shows at home until it opens (the very first time offline, a toast asks to try again in a moment). |
 | The Greenhouse | Home is a cozy glass greenhouse: plank floor, a braided rug, the slime's mossy stump, a potting bench, jars of snacks, hanging plants, a lantern and fairy lights at night, the garden and sky through the glass, fireflies after dark. It blends from day to night when the theme changes. Every save starts there (an old save on the meadow moves there once; one on Classic stays Classic). Helpers you buy stand in the room. |
 | Turning the camera | In the Greenhouse, the camera button (top left) steps through Front, Wide, Left and Right, and the game remembers the last one. Drag on the background (not on the slime) to turn the camera around your slime, up and down to look from higher or lower, and pinch with two fingers to come nearer or go farther. It stays inside the room. After you turn it, the button shows a little arrow: tap it to go back to Front. Booping, petting, feeding and everything else work the same from every angle. |
 | The meadow | Settings → Background → **Meadow**: home is outdoors: grass, flowers, rolling hills behind the ranch, drifting clouds, trees, and a moon at night. **Classic** turns it all off for the original plain look, with only your slime to look at. The camera stays fixed in both. |
@@ -111,7 +111,7 @@ src/view/body.js      the recipe body's pure math: ring topology (full for the p
 src/view/scarf.js     the Cozy Scarf's fit (pure math): every frame it follows the body's real outline just under the mouth
 src/core/recipe.js    the breeds' recipes and blends (Curly, Dollop, in-betweens, growth), the body's dice (plain, bred, special eggs)
 src/view/forms.js     the 22 grown-up form looks: shapes, patterns, props, effects
-src/view/ranch.js     the ranch hill (home's Meadow, and the ranch while the barn can't load): residents, pearls, basket
+src/view/ranch.js     the ranch hill behind home in the Meadow background: residents wandering, the basket, the nest
 src/view/scenery.js   the meadow around home (grass, hills, clouds, flowers, trees, moon); off with the Classic background
 src/view/greenhouse.js the Greenhouse room (baked outside the repo into src/assets/greenhouse/): room, sky, glass, night glows
 src/view/greenhouse-math.js  Greenhouse math without three.js: ground, roof, camera limits and turning, pal hops, spot check
@@ -145,13 +145,14 @@ tools/greenhouse-smoke.cjs headless Greenhouse test with real touches (every ang
 tools/greenhouse-offline.cjs each asset folder's own offline cache (the room, the barn) across test builds in tools/out/web-test (never docs/)
 tools/greenhouse-samples.cjs contact sheet of the new slime body in the Greenhouse (four bodies, Front vs the Meadow, Wide, Left, outfits, eggs, the Cuddly sign)
 src/assets/greenhouse/ the baked room (made outside this repo; do not edit by hand)
-src/assets/barn/      the baked barn for the ranch (made in Blender outside this repo; loaded on the first ranch visit)
+src/assets/barn/      the baked barn for the ranch (made in Blender outside this repo; loaded ahead of time, after home shows)
 src/view/barn.js      the Barn ranch's 3D: the barn, sky, glows, the slime on the stand, the burrow swap, straw, nest, pearls
 src/view/barn-math.js the Barn ranch's plain math (swap pose curve, order and wrap, swipe, name card line, framing, spots)
 src/barn-ranch.js     the Barn ranch: who is on the stand, swaps, touch, the name card, fitting it above the menu
-src/ui/barn-card.js   the Barn ranch's name card and ‹ › buttons
+src/ui/barn-card.js   the Barn ranch's name card and ‹ › buttons, and the "Off to the barn" loading moment
 tools/barn-test.mjs   Barn ranch check in plain node (the barn's files, the swap curve, the order, the card, the spots)
-tools/barn-smoke.cjs  headless Barn ranch test with real touches (swipes, petting, the card, Ranch life, pearls, Nursery, Low, fallback)
+tools/barn-smoke.cjs  headless Barn ranch test with real touches (swipes, petting, the card, Ranch life, pearls, Nursery, Low, slow and failed loads)
+tools/barn-start-probe.cjs the game's start measured with the barn loading ahead of time (and an older copy with --before)
 src/core/medals.js    which medal a slime has (from the jelly it made)
 src/core/heirlooms.js heirloom effects over the save (multipliers, starting helpers)
 src/core/movingday.js the Moving Day ratio, its levels and which sign a slime shows

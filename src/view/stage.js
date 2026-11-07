@@ -101,8 +101,7 @@ export class Stage {
     this.camera = new THREE.PerspectiveCamera(30, 1, 0.1, 120);
     this.camPos = new THREE.Vector3(0, 2.6, 9);
     this.camLook = new THREE.Vector3(0, 0.8, 0);
-    this.focus = null;
-    this._fp = new THREE.Vector3(); this._fo = new THREE.Vector3(); this._fl = new THREE.Vector3();
+    this._fp = new THREE.Vector3(); this._fl = new THREE.Vector3();
     this.zoom = 1; this.fitZoom = 1;
     this.portrait = false;
 
@@ -258,13 +257,7 @@ export class Stage {
     const dist = (7.6 + size * 2.4) * portraitBoost;
     const sway = reduced ? 0 : 1;
     const tx = pointer.x * 0.35 * sway, ty = pointer.y * 0.18 * sway;
-    if (this.focus) {
-      // visiting somewhere else (the ranch): glide over, then sway gently with the pointer
-      const f = this.focus;
-      this.camPos.lerp(this._fp.copy(f.pos).add(this._fo.set(tx * 2, ty * 2, 0)), 1 - Math.exp(-dt * 2.2));
-      this.camLook.lerp(f.look, 1 - Math.exp(-dt * 2.6));
-    }
-    const room = this.focus ? null : this.roomLook;
+    const room = this.roomLook;
     if (room) {
       // home in the Greenhouse: its fog and its lights on the slime (blended day to night by the room)
       const F = room.fog, L = room.light, fog = this.scene.fog;
@@ -274,17 +267,17 @@ export class Stage {
       this.rim.color.copy(L.rim[0]); this.rim.intensity = L.rim[1];
       this.scene.environmentIntensity = L.env;
     }
-    const fogFar = this.focus ? 80 : this.fogFar;
+    const fogFar = this.fogFar;
     if (!room && this.scene.fog && Math.abs(this.scene.fog.far - fogFar) > 0.1) {
       this.scene.fog.far += (fogFar - this.scene.fog.far) * (1 - Math.exp(-dt * 2));
       this.scene.fog.near = this.fogNear + (this.scene.fog.far - this.fogFar) * 0.6;
     }
     // zoom out when a phone menu covers most of the screen, so the slime still fits above it
-    this.zoom += ((this.focus ? 1 : this.fitZoom) - this.zoom) * (1 - Math.exp(-dt * 5));
-    const cam = this.focus ? null : this.cam;
-    const snap = this.snapNext && !this.focus;   // a Greenhouse angle change with Reduced motion: no glide
+    this.zoom += (this.fitZoom - this.zoom) * (1 - Math.exp(-dt * 5));
+    const cam = this.cam;
+    const snap = this.snapNext;   // a Greenhouse angle change with Reduced motion: no glide
     this.snapNext = false;
-    const fov = this.focus && this.focus.fov ? this.focus.fov : cam ? cam.fov : 30;
+    const fov = cam ? cam.fov : 30;
     if (Math.abs(this.camera.fov - fov) > 0.05) { this.camera.fov += (fov - this.camera.fov) * (snap ? 1 : 1 - Math.exp(-dt * 2.4)); this.camera.updateProjectionMatrix(); }
     if (cam) {
       // a Greenhouse angle (Wide, Left, Right, or turned by hand): glide there; a phone menu zooms out about the
@@ -294,7 +287,7 @@ export class Stage {
       const k = snap ? 1 : 1 - Math.exp(-dt * cam.rate);
       this.camPos.lerp(pos, k);
       this.camLook.lerp(look, k);
-    } else if (!this.focus) {
+    } else {
       const look = this._fl.set(0, CUSHION_TOP + 0.35 + size * 0.42, 0);
       const pos = this._fp.set(tx, 2.25 + size * 0.75 + ty, dist).sub(look).multiplyScalar(this.zoom).add(look);
       this.camPos.lerp(pos, snap ? 1 : 1 - Math.exp(-dt * 3));

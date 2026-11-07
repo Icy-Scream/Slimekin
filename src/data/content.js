@@ -766,4 +766,8 @@ export const BARN = {
   pearlRing: { r: [1.0, 1.1], arc: 62 },
   // Framing: the stand, the nest, the basket and the slime (up to `top`) stay between the top bar and the name card.
   frame: { top: 2.35, bottom: 0, front: 1.25, side: 1.3, gap: 8 },
+  // The barn's files load ahead of time, in the background, once home has shown (they never slow the game's start):
+  // after this many frames and seconds of home (the Greenhouse room comes in first when it is home), in idle time (at
+  // most `idle` ms later). Ranch tapped before they are in: home stays and a short "Off to the barn" moment shows.
+  preload: { frames: 10, after: 1.5, idle: 2000 },
 };
