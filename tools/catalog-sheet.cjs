@@ -116,6 +116,27 @@ async function render(forms, bodies) {
       camera: [...cam.position.toArray(), ...cam.quaternion.toArray(), cam.fov].map(r3) };
   }, o);
 
+  // where the form's props are on screen (their bounding boxes, projected): a prop box past the crop's edge is noted
+  // (boxes are bigger than what shows, so this is a hint to look, not a failure)
+  const propBox = clip => ev(clip => {
+    const g = window.slimekin, sl = g.slime, V = () => g.v1.clone().set(0, 0, 0);
+    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9, n = 0;
+    sl.root.updateMatrixWorld(true);
+    for (const p of sl.formProps) for (const ob of [p.obj, ...(p.extra || [])]) ob.traverseVisible(c => {
+      if (!c.isMesh || !c.geometry) return;
+      if (!c.geometry.boundingBox) c.geometry.computeBoundingBox();
+      const bb = c.geometry.boundingBox;
+      for (let i = 0; i < 8; i++) {
+        const w = V().set(i & 1 ? bb.max.x : bb.min.x, i & 2 ? bb.max.y : bb.min.y, i & 4 ? bb.max.z : bb.min.z).applyMatrix4(c.matrixWorld);
+        const s = g.screenOf(w); x0 = Math.min(x0, s.x); y0 = Math.min(y0, s.y); x1 = Math.max(x1, s.x); y1 = Math.max(y1, s.y); n++;
+      }
+    });
+    if (!n) return null;
+    const r = v => Math.round(v);
+    return { x0: r(x0 - clip.x), y0: r(y0 - clip.y), x1: r(x1 - clip.x), y1: r(y1 - clip.y),
+      outside: x0 < clip.x || y0 < clip.y || x1 > clip.x + clip.width || y1 > clip.y + clip.height };
+  }, clip);
+
   const looks = [];
   for (const f of forms) for (const b of bodies) looks.push({ f, b });
   const done = [];
@@ -149,13 +170,14 @@ async function render(forms, bodies) {
       });
     });
     // one crop for every look, from a reference pose (a grown Dollop, Marshmallow form), so the camera, crop and size are
-    // the same on every tile: from just under the feet to well above the head (room for flames, clouds and crowns)
+    // the same on every tile: the screen's full width (the S'more's cracker is nearly that wide), from just under the
+    // feet up (room for flames, clouds and crowns)
     const clip = await step('the crop', async () => {
       await pose({ body: BODIES[1].body, form: 'mochi', traits: FORM_TRAITS('mochi') });
       return ev(() => {
         const g = window.slimekin, sl = g.slime, V = () => g.v1.clone().set(0, 0, 0);
         const b = g.screenOf(sl.root.getWorldPosition(V())), t = g.screenOf(sl.headTopWorld(V()));
-        const h = b.y - t.y, side = Math.round(Math.min(h * 2.3, innerWidth)), bottom = b.y + h * 0.32;
+        const h = b.y - t.y, side = innerWidth, bottom = b.y + h * 0.32;
         const x = Math.round(Math.max(0, Math.min(innerWidth - side, b.x - side / 2))), y = Math.round(Math.max(0, bottom - side));
         return { x, y, width: side, height: side, ref: { h: +h.toFixed(1), bx: +b.x.toFixed(1), by: +b.y.toFixed(1) } };
       });
@@ -175,6 +197,8 @@ async function render(forms, bodies) {
           await page.screenshot({ path: file, clip: { x: clip.x, y: clip.y, width: clip.width, height: clip.height }, timeout: 120000 });
         });
         Object.assign(rec, r);
+        rec.propBox = await propBox(clip);
+        if (rec.propBox && rec.propBox.outside) rec.notes = ['a prop\'s box reaches past the crop: check the tile edge'];
         if (r.bad) rec.problems.push(`${r.bad} body points are not numbers`);
         if (r.formId !== f.id) rec.problems.push(`the form's look did not go on (formId ${r.formId})`);
         if (Math.abs(r.mix - b.body.mix) > 1e-3 || r.variant !== b.body.variant) rec.problems.push(`body is mix ${r.mix} ${r.variant}, asked ${b.body.mix} ${b.body.variant}`);
@@ -192,7 +216,7 @@ async function render(forms, bodies) {
       rec.ms = Date.now() - t0;
       if (fs.existsSync(file)) fs.writeFileSync(framePath(f, b, 'json'), JSON.stringify({ ...rec, clip, dpr: DPR }, null, 1));
       done.push(rec);
-      log(rec.ok ? 'ok' : 'PROBLEM', id, rec.ok ? `${rec.ms} ms, props ${rec.props}` : rec.problems.join('; '));
+      log(rec.ok ? 'ok' : 'PROBLEM', id, rec.ok ? `${rec.ms} ms, props ${rec.props}${rec.notes ? ' (' + rec.notes.join('; ') + ')' : ''}` : rec.problems.join('; '));
     }
     await freeze(false);
   } catch (e) {
@@ -314,7 +338,8 @@ function buildAll(forms, bodies) {
         '-map', '[out]', ...JPG, path.join(OUT, rel)]);
     } else fs.rmSync(path.join(OUT, rel), { force: true });
     list.push({ form: f.id, formName: f.name, flavors: f.flavors, group: f.group, body: b.id, bodyName: b.name, file: src ? rel : null,
-      ok: !!(src && m && m.ok), problems: m ? m.problems : ['not rendered (no frame)'], checks: m ? { props: m.props, mix: m.mix, variant: m.variant, formId: m.formId, camera: m.camera, ms: m.ms } : null });
+      ok: !!(src && m && m.ok), problems: m ? m.problems : ['not rendered (no frame)'], notes: (m && m.notes) || [],
+      checks: m ? { props: m.props, propBox: m.propBox, mix: m.mix, variant: m.variant, formId: m.formId, camera: m.camera, ms: m.ms } : null });
   }
   const cols = bodies.map(b => ({ name: b.name, note: b.note }));
   const rowsOf = fl => fl.map(f => ({ name: f.name, flavors: f.flavors, note: f.note,
@@ -361,6 +386,7 @@ h1 { font-size: 22px; margin: 4px 0; } h2 { font-size: 18px; margin: 22px 0 6px;
 .sheets a { display: block; margin: 8px 0; } .sheets img { width: 100%; max-width: 900px; border-radius: 8px; }
 .wrap { overflow-x: auto; } table { border-collapse: collapse; } th, td { padding: 3px; vertical-align: middle; }
 th { font-size: 13px; } th.form { text-align: left; min-width: 96px; }
+a { -webkit-tap-highlight-color: transparent; }
 .look img { width: 120px; height: auto; display: block; border-radius: 6px; } .look.warn img { outline: 3px solid #c0392b; }
 .missing { width: 120px; height: 120px; display: flex; flex-direction: column; justify-content: center; text-align: center; background: #f3e6da; color: #c0392b; border-radius: 6px; font-size: 13px; }
 #big { position: fixed; inset: 0; background: rgba(40, 30, 45, 0.92); display: none; align-items: center; justify-content: center; flex-direction: column; z-index: 9; }
@@ -371,7 +397,7 @@ th { font-size: 13px; } th.form { text-align: left; min-width: 96px; }
 Tap any picture to see it big; tap again to close.</p>
 <h2>The sheets</h2><div class="sheets">${sheets.map(s => `<a href="${s.file}">${esc(s.title)}<img loading="lazy" src="${s.file}" alt="${esc(s.title)}"></a>`).join('')}</div>
 ${groups.map(([g, t]) => { const fl = forms.filter(f => f.group === g); return fl.length ? `<h2>${esc(t)}</h2><div class="wrap">${table(fl)}</div>` : ''; }).join('\n')}
-<div id="big"><img alt=""><p></p></div>
+<div id="big"><img alt="" src="data:,"><p></p></div>
 <script>
 const big = document.getElementById('big');
 for (const a of document.querySelectorAll('a.look')) a.addEventListener('click', e => {
