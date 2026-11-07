@@ -80,6 +80,10 @@ fs.mkdirSync(OUT, { recursive: true });
     const pullTest = async (label, shotName) => step('pull ' + label, async () => {
       // (a notification over the slime would catch the finger first, as it does on a phone: clear them)
       await ev(() => { for (const t of document.querySelectorAll('.toast')) t.remove(); });
+      // The body eases into a new stage over a few seconds after hatching or growing (slime.js updateRecipe: m -> mTarget).
+      // A pull measured while it still morphs compares two different shapes: that was the flake ("let go, it boings
+      // back", 0.17-0.19 from where it started). So let the morph finish first (at most 8 s of game time).
+      await ev(() => { const g = window.slimekin, sl = g.slime; let w = 0; while (Math.abs(sl.m - sl.mTarget) > 0.002 && w < 8) { g.advance(0.1); w += 0.1; } });
       const findSpot = () => ev(() => {
         const g = window.slimekin, sl = g.slime, V = g.v1.constructor, cam = g.stage.camera;
         const pos = sl.geo.attributes.position.array, base = sl.base, n = pos.length / 3;
@@ -162,17 +166,19 @@ fs.mkdirSync(OUT, { recursive: true });
         // before this point: its squash and stretch move every point of the body for about a second (measured on the PC,
         // 40 pulls: a hop 0.03 s before the check moved the point 0.14 body units; with idle moments off the worst was
         // 0.11 of the pull). So wait until such a moment has played out (at most 3 s more), then measure the boing.
-        const busy = () => sl.hopY > 0.002 || Math.abs(sl.hopV) > 0.05 || Math.abs(sl.sq.v) > 0.2 || Math.abs(sl.sq.x - sl.sq.target) > 0.02 || Math.abs(sl.leanX.v) > 0.2 || Math.abs(sl.leanZ.v) > 0.2;
+        // (also the curl's own sway spring behind the lean, and a stage morph still easing in)
+        const busy = () => sl.hopY > 0.002 || Math.abs(sl.hopV) > 0.05 || Math.abs(sl.sq.v) > 0.2 || Math.abs(sl.sq.x - sl.sq.target) > 0.02 || Math.abs(sl.leanX.v) > 0.2 || Math.abs(sl.leanZ.v) > 0.2
+          || Math.abs(sl.dyn.vx) > 0.1 || Math.abs(sl.dyn.vz) > 0.1 || Math.abs(sl.m - sl.mTarget) > 0.002;
         let waited = 0;
         while (busy() && waited < 3) { g.advance(0.1); waited += 0.1; }
         // (on the body itself: the slime may hop or turn after a big pull)
         const i = a.vi * 3, back = Math.hypot(pos[i] - a.loc0[0], pos[i + 1] - a.loc0[1], pos[i + 2] - a.loc0[2]);   // body units
-        return { amt: sl.pull.amt, tipGrab: sl.tipGrab, back, waited: +waited.toFixed(1), still: !busy() };
+        return { amt: sl.pull.amt, tipGrab: sl.tipGrab, back, waited: +waited.toFixed(1), still: !busy(), morph: +(sl.m - sl.mTarget).toFixed(4) };
       }, at);
       const what = at.curly ? 'the curl tip' : 'the top of the dome';
       ok(held.mode === 'pull' && held.amt > 0.15 && held.moved > 0.25 && (!at.curly || held.tipGrab > 0),
         `${label}: a real touch drag pulls ${what}; it follows the finger`, `${at.tries > 1 ? `try ${at.tries}, ` : ''}at (${at.x.toFixed(0)}, ${at.y.toFixed(0)}) on ${at.el}${at.modal ? ' (a modal is open)' : ''}${held.mode === 'pull' ? '' : `, on touch: ${at.start}; then ${held.pev}`}, mode ${held.mode}, tipGrab ${(+held.tipGrab).toFixed(2)}, pull ${held.amt.toFixed(2)}, the grabbed point moved ${held.moved.toFixed(2)} body units (curl tip ${held.tipMoved.toFixed(2)})`);
-      ok(after.amt < 0.05 && after.tipGrab === 0 && after.still && after.back < held.moved * 0.5, `${label}: let go, it boings back`, `pull ${after.amt.toFixed(3)}, ${after.back.toFixed(2)} from where it started${after.waited ? `; waited ${after.waited} s more for an idle moment (hop or kick) to play out` : ''}${after.still ? '' : '; still moving after 3 s more'}`);
+      ok(after.amt < 0.05 && after.tipGrab === 0 && after.still && after.back < held.moved * 0.5, `${label}: let go, it boings back`, `pull ${after.amt.toFixed(3)}, ${after.back.toFixed(2)} from where it started${after.waited ? `; waited ${after.waited} s more for an idle moment (hop or kick) to play out` : ''}${after.still ? '' : '; still moving after 3 s more'}${after.morph ? `; stage morph ${after.morph}` : ''}`);
     }, 300000);
     const perf = label => ev(lbl => {
       const g = window.slimekin, sl = g.slime, o = { x: 0, y: 0, z: 0 };
