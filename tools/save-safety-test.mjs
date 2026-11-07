@@ -136,6 +136,40 @@ async function bootAndPlay(p, { saves = 3 } = {}) {
   const p2 = await platform();   // the next start: the phone answers; the new egg was never touched, so Pebble comes back
   const second = await bootAndPlay(p2);
   check(second.restored && second.start.save.slime.name === 'Pebble' && nameIn(prefs.m.get(KEY)) === 'Pebble', '(a) app: the next start looks again: Pebble comes back over the brand-new egg', second.start.save?.slime?.name);
+  check(JSON.parse(localStorage.getItem(PREV_KEY) || 'null')?.phase === 'egg', '(a) app: ...and the egg from the visit the phone was silent is kept as .prev');
+}
+{
+  reset();   // same, but the game played meanwhile got a name and boops: Pebble (a different game) still comes back
+  prefs.m.set(KEY, pebbleText);
+  prefs.mute = true;
+  const p = await platform();
+  await p.restoreSave();
+  const store = p.mirrorSaves(new SaveStore());
+  const other = createState(); other.phase = 'play'; other.slime.name = 'Newbie'; other.stats.boops = 40; other.createdAt = Date.now() + 5;
+  store.saveLocal(other);
+  fire('pagehide'); fire('pageshow');
+  prefs.mute = false;
+  const p2 = await platform();
+  sessionStorage.clear();
+  const r = await p2.restoreSave();
+  const next = p2.mirrorSaves(new SaveStore());   // (one store per page, as in main.js)
+  const start = next.loadBoot();
+  check(r && start.save.slime.name === 'Pebble' && nameIn(localStorage.getItem(PREV_KEY)) === 'Newbie', '(a) app: a game played while the phone was silent: Pebble comes back, the other game is kept as .prev', `${start.save?.slime?.name} / prev ${nameIn(localStorage.getItem(PREV_KEY))}`);
+  const st = migrate(start.save);
+  for (let i = 0; i < 3; i++) { st.savedAt = Date.now() + i * 6000; next.saveLocal(st); }
+  check(nameIn(localStorage.getItem(PREV_KEY)) === 'Newbie', '(a) app: ...and .prev still holds it after this visit\'s saves');
+  fire('pagehide'); fire('pageshow');   // (write what is pending now, so nothing spills into the next case)
+  await wait(5);
+}
+{
+  reset();   // the phone answers with an older copy of this same game: the newer local save stays
+  const same = JSON.parse(pebbleText);
+  localStorage.setItem(KEY, JSON.stringify({ ...same, jelly: 999999, savedAt: Date.now() }));
+  localStorage.setItem('slimekin.platform.unchecked', '1');
+  prefs.m.set(KEY, pebbleText);
+  const p = await platform();
+  const r = await p.restoreSave();
+  check(!r && JSON.parse(localStorage.getItem(KEY)).jelly === 999999, '(a) app: an older copy of the same game never replaces the newer save');
 }
 {
   reset();   // the mirror only copies a save that reads back

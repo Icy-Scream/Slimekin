@@ -15,14 +15,15 @@
 //   be read, the copy is written back before the game reads it (the unreadable text is kept in slimekin.save.broken;
 //   if the device's own previous save, slimekin.save.prev, is newer, that one is used instead: src/core/save.js).
 //   Only a save that reads back is ever copied, and if the phone did not answer at boot while the copy was needed,
-//   nothing is copied over it until a later boot has looked at it. "Start over" drops the copy too. Deleting the app
+//   nothing is copied over it until a later boot has looked at it (if the copy is a different game, it comes back and
+//   the game played meanwhile becomes slimekin.save.prev). "Start over" drops the copy too. Deleting the app
 //   deletes both; the Save Code in Settings stays the backup and the way to move a slime to another device.
 // - Haptics. buzz(ms) becomes a light tap (a medium one for a buzz longer than 20 ms; never heavy).
 // - A brand-new game starts with "Sound when phone is on silent" Off (freshState); the web keeps it On.
 // - Slots for later, both null: `store` (in-app purchases, slice W2) and `ads` (not decided).
 
-import { readSave, isBrandNew } from '../core/save-check.js';
-import { keepBroken, PREV_KEY } from '../core/save.js';
+import { readSave } from '../core/save-check.js';
+import { keepBroken, PREV_KEY, KEEP_PREV_KEY } from '../core/save.js';
 
 export const SAVE_KEY = 'slimekin.save.v1';            // the key src/core/save.js writes; the only one mirrored
 const CLEARED_KEY = 'slimekin.platform.cleared';       // "Start over" ran: the next boot drops the copy, not restores it
@@ -82,8 +83,11 @@ export async function restoreSave() {
     localStorage.removeItem(UNCHECKED_KEY);
     const json = r && typeof r.value === 'string' ? r.value : '';
     const copy = readSave(json);                       // only a readable save is written back
-    if (local) {                                       // (a boot the phone did not answer before)
-      if (!copy || !isBrandNew(local) || isBrandNew(copy)) return false;   // only a brand-new egg gives way to the copy
+    if (local) {   // a boot the phone did not answer before: the copy may be a different game (the one this phone lost)
+      if (!copy || copy.createdAt === local.createdAt) return false;   // nothing there, or a copy of this same game
+      // a different game: it comes back, and the game played meanwhile is kept as .prev (and stays there next page)
+      localStorage.setItem(PREV_KEY, raw);
+      try { sessionStorage.setItem(KEEP_PREV_KEY, '1'); } catch { /* none */ }
       localStorage.setItem(SAVE_KEY, json);
       lastRestore = { broken: false };
       return true;
@@ -155,9 +159,9 @@ export function mirrorSaves(saveStore) {
     if (ok) copy();
     return ok;
   };
-  if (replace) saveStore.replaceWith = function (obj) {
+  if (replace) saveStore.replaceWith = function (obj) {   // (a save code: the player chose it, so the copy follows)
     const ok = replace.call(this, obj);
-    if (ok) copy();
+    if (ok) { held = false; try { localStorage.removeItem(UNCHECKED_KEY); } catch { /* blocked */ } copy(); }
     return ok;
   };
   saveStore.clearLocal = function () {

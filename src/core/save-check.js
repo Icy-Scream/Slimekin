@@ -34,9 +34,6 @@ export function readSave(text) {
   return checkSave(obj).ok ? obj : null;
 }
 
-// A brand-new game: an egg in the first generation that was never booped (nothing to lose by replacing it).
-export const isBrandNew = s => isObj(s) && s.phase === 'egg' && (s.ranch?.family?.generation || 1) === 1 && !(s.stats?.boops > 0);
-
 // ---------- numbers ----------
 export function num(v, d) {
   if (typeof v === 'number') return Number.isFinite(v) ? v : d;

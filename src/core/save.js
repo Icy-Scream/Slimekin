@@ -14,7 +14,7 @@ import { readSave, checkSave } from './save-check.js';
 export const KEY = 'slimekin.save.v1';
 export const PREV_KEY = 'slimekin.save.prev';
 export const BROKEN_KEY = 'slimekin.save.broken';
-const KEEP_PREV = 'slimekin.save.keepPrev';   // sessionStorage: the next page keeps .prev as it is (a code or "go back" set it)
+export const KEEP_PREV_KEY = 'slimekin.save.keepPrev';   // sessionStorage: the next page keeps .prev as it is (a code or "go back" set it)
 export const PREV_EVERY_MS = 30 * 60 * 1000;
 
 const timeout = (ms) => new Promise(r => setTimeout(() => r(null), ms));
@@ -42,7 +42,7 @@ export class SaveStore {
     this.prevAt = undefined;  // .prev's savedAt (undefined: not read yet; null: none that reads)
     this.kept = false;        // this visit has kept its .prev
     this.failed = false;      // the last write failed (storage full or blocked)
-    try { if (sessionStorage.getItem(KEEP_PREV)) { sessionStorage.removeItem(KEEP_PREV); this.kept = true; } } catch { /* none */ }
+    try { if (sessionStorage.getItem(KEEP_PREV_KEY)) { sessionStorage.removeItem(KEEP_PREV_KEY); this.kept = true; } } catch { /* none */ }
   }
 
   // The save to start from: { save, from: 'local' | 'prev' | 'none', broken } (broken: a save that could not be read
@@ -122,7 +122,7 @@ export class SaveStore {
     return local.set(KEY, prevText);
   }
 
-  markKeepPrev() { try { sessionStorage.setItem(KEEP_PREV, '1'); } catch { /* none */ } }
+  markKeepPrev() { try { sessionStorage.setItem(KEEP_PREV_KEY, '1'); } catch { /* none */ } }
 
   // "Start over": the save and its previous copy go (a broken save's text stays).
   clearLocal() {
