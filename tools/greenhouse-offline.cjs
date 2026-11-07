@@ -147,7 +147,9 @@ const expect = (cond, what, detail = '') => { if (cond) log('ok', what); else { 
     const barnOnDisk = ['barn.json', 'barn.bin', 'floor_day.jpg', 'floor_night.jpg'].map(f => fs.statSync(path.join(OUT, 'src/assets/barn', f)).size);
     expect(JSON.stringify(barn) === JSON.stringify(barnOnDisk), `4. offline: the barn's 4 files come from their cache (${barn.join(', ')} bytes)`, JSON.stringify({ barn, barnOnDisk }));
     // and the game's own barn (the Barn ranch, slice R2): going to the ranch offline opens the barn from that cache
-    await ev(() => { const g = window.slimekin; g.hud.closeModal(); g.goRanch(); });
+    // (through the Ranch tab, as a player does: since R3 the barn opens once its files are in only while that tab is
+    // still chosen; before, a direct goRanch() showed the meadow ranch first)
+    await ev(() => { const g = window.slimekin; g.hud.closeModal(); g.hud.openTab('ranch'); });
     const offBarn = await deadline(page.waitForFunction(() => { const b = window.slimekin.barnRanch; return (b.on || b.view.failed) && { on: b.on, failed: b.view.failed }; }, null, { timeout: 120000 }).then(h => h.jsonValue()), 125000, 'the barn offline');
     expect(offBarn.on && !offBarn.failed, '4. offline: the ranch opens the barn (its files from their cache)', JSON.stringify(offBarn));
     await ev(() => window.slimekin.leaveRanch());
