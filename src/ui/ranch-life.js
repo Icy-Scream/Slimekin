@@ -291,6 +291,7 @@ export class RanchLifeUI {
         } else this.pending.push(r);
       } else {
         sync = true;
+        g.barnRanch && g.barnRanch.noteBack(r);   // [barn] the name card says "just back from ..." for a while
         const p = PLACE_BY_ID[r.place];
         g.remember('🧳', `${r.name} came home from ${p.name}${r.early ? ' early' : ''}. ${r.story}${r.souvenir ? ` Found: ${r.souvenir.name}.` : ''}`);
         if (r.friend) g.remember('💌', `A thank-you postcard from ${p.name}: the family is a Friend of ${p.name} now (+${r.gift} pearls).`);

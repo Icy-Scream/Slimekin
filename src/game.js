@@ -28,6 +28,7 @@ import { Scenery } from './view/scenery.js';
 import { RanchLifeUI } from './ui/ranch-life.js';
 import { isNative, haptic, freshState } from './platform/index.js';
 import { Home } from './greenhouse-home.js';
+import { BarnRanch } from './barn-ranch.js';
 
 const SLIME_Y = CUSHION_TOP - 0.03;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -79,6 +80,7 @@ export class Game {
     this.helpers3d.setNight(this.stage.dark);
     this.helpers3d.sync(this.state.helpers);
     this.home = new Home(this);   // [greenhouse] home's world (Greenhouse / Meadow / Classic) and the camera you can turn
+    this.barnRanch = new BarnRanch(this);   // [barn] the ranch screen: the baked barn, one resident on the stand (barn-ranch.js)
     this.hud = new Hud(this);
     this.behave = new Behaviors(this);
     this.movingDay = new MovingDay(this);
@@ -218,6 +220,7 @@ export class Game {
     this.fx.reduced = this.reduced;
     this.slime.setQuality(this.resolvedQuality());
     this.helpers3d.setQuality(this.resolvedQuality());
+    this.barnRanch.view.setQuality(this.resolvedQuality());   // [barn]
     if (s.quality === 'low') this.stage.setPixelRatio(1);
     else if (s.quality === 'high') this.stage.setPixelRatio(2);
     else this.stage.setPixelRatio(this.perf.level >= 1 ? 1.25 : 2);
@@ -508,13 +511,17 @@ export class Game {
     document.body.classList.add('at-ranch');
     document.getElementById('ranchBar').hidden = false;
     this.hud.toggleEmotes(false);
-    this.stage.focus = { pos: this.stage.camPos.clone(), look: this.stage.camLook.clone(), fov: 30 };
-    this.updateRanchCamera();
+    // [barn] the ranch is the barn once its files are in (the meadow ranch until then, or when they can't load)
+    if (!this.barnRanch.enter()) {
+      this.stage.focus = { pos: this.stage.camPos.clone(), look: this.stage.camLook.clone(), fov: 30 };
+      this.updateRanchCamera();
+    }
     this.sfx.whee ? this.sfx.whee() : this.sfx.sparkle();
     const R = this.state.ranch;
     if (R.residents.length && this.sim.ranch.visit()) {
       this.after(1.6, () => {
         for (const r of this.ranch.residents.values()) { r.av.hop(4 + Math.random() * 2); r.happyT = 1.8; }
+        if (this.barnRanch.active) this.barnRanch.view.hop(4 + Math.random() * 2);   // [barn] the one on the stand
         this.sfx.mii();
         this.hud.toast('<b>Everyone is happy to see you!</b>A visit cheers up all your ranch slimes.', 'love', 2600);
       });
@@ -525,6 +532,7 @@ export class Game {
   leaveRanch(selectTab = true) {
     if (this.view !== 'ranch') return;
     this.view = 'home';
+    this.barnRanch.leave();   // [barn]
     this.ranch.visiting = false;
     this.ranchFocus = null;
     this.ranchPage = null;
@@ -542,7 +550,7 @@ export class Game {
 
   updateRanchCamera() {
     const f = this.stage.focus;
-    if (this.view !== 'ranch' || !f) return;
+    if (this.view !== 'ranch' || !f || this.barnRanch.active) return;   // [barn] (its camera never moves)
     const aspect = innerWidth / innerHeight;
     let fov = null;
     if (this.ranchPage === 'nursery' && !this.ranchFocus) fov = this.ranch.cameraNursery(aspect, f.pos, f.look);
@@ -555,8 +563,14 @@ export class Game {
     if (id && this.view !== 'ranch') this.hud.openTab('ranch');
     if (id) this.ranchPage = null;
     this.ranchFocus = id || null;
-    this.ranch.focusId = this.ranchFocus;
     const x = id && this.sim.ranch.resident(id);
+    if (this.barnRanch.active) {   // [barn] the one picked comes up on the stand (the camera stays)
+      this.barnRanch.hint();
+      if (x) { this.barnRanch.show(id); this.sfx.mii(); }
+      this.hud.renderRanch(true);
+      return;
+    }
+    this.ranch.focusId = this.ranchFocus;
     document.getElementById('ranchHint').textContent = x ? (x.trip ? `${x.name} is on a trip. Tap the grass to step back.` : `Tap or stroke ${x.name} to pet them. Tap the grass to step back.`) : 'Tap a slime to visit it. Drag to look around.';
     if (x) { const r = this.ranch.resident(id); if (r) { r.av.hop(3); r.happyT = 1.2; } this.sfx.mii(); }
     this.hud.renderRanch(true);
@@ -567,14 +581,16 @@ export class Game {
     this.life.update(dt);   // lessons that end and travelers who come home
     const made = this.sim.ranch.tick(dt);
     for (const id of made) {
-      if (this.view === 'ranch' && this.ranch.spawnPearl(id)) { this.sfx.plip(); }
+      if (this.view === 'ranch' && (this.barnRanch.active ? this.barnRanch.spawnPearl(id) : this.ranch.spawnPearl(id))) { this.sfx.plip(); }   // [barn]
     }
     if (made.length) this.markDirty(false);
     this.ranch.setBasket(this.state.ranch.basket.stored, this.sim.ranch.basketCap());
+    this.barnRanch.view.setBasket(this.state.ranch.basket.stored, this.sim.ranch.basketCap());   // [barn]
     this.updateRanchCamera();
   }
 
   ranchDown(e) {
+    if (this.barnRanch.active) { this.rpress = { id: e.pointerId, barn: true }; this.barnRanch.down(e); return; }   // [barn]
     const hit = this.ranch.pick(this.raycaster);
     const rp = this.rpress = { id: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, t: this.time, hit, moved: 0, orbit0: this.ranch.orbit, done: false, petT: 0 };
     try { this.canvas.setPointerCapture(e.pointerId); } catch { /* ignore */ }
@@ -590,6 +606,7 @@ export class Game {
 
   ranchMove(e) {
     const rp = this.rpress;
+    if (rp.barn) { this.barnRanch.move(e); return; }   // [barn]
     rp.moved += Math.abs(e.clientX - rp.x);
     rp.x = e.clientX;
     if (rp.hit && rp.hit.type === 'slime' && this.ranchFocus === rp.hit.id) {
@@ -603,6 +620,7 @@ export class Game {
   ranchUp(e, cancel) {
     const rp = this.rpress;
     this.rpress = null;
+    if (rp.barn) { this.barnRanch.up(e, cancel); return; }   // [barn]
     if (cancel || rp.done) return;
     const tap = Math.hypot(e.clientX - rp.x0, e.clientY - rp.y0) < 10 && this.time - rp.t < 0.6;
     if (tap && (!rp.hit || rp.hit.type === 'ranch') && (this.ranchFocus || this.ranchPage)) { this.ranchPage = null; this.focusResident(null); }
@@ -611,7 +629,7 @@ export class Game {
   petResident(id, stroke = false) {
     const r = this.sim.ranch.pet(id);
     if (!r) return;
-    const v = this.ranch.pet(id);
+    const v = this.barnRanch.active ? this.barnRanch.view.pet() : this.ranch.pet(id);   // [barn] the one on the stand
     if (v) {
       const head = v.av.headTopWorld(new THREE.Vector3());
       this.fx.emit('hearts', head, { count: stroke ? 2 : 4 });
@@ -625,8 +643,9 @@ export class Game {
 
   pickRanchPearl(p) {
     const got = this.sim.ranch.pickPearl();
-    const pos = this.ranch.pearlWorld(p, new THREE.Vector3());
-    this.ranch.removePearl(p);
+    const rv = this.barnRanch.active ? this.barnRanch.view : this.ranch;   // [barn] (the same pearl methods)
+    const pos = rv.pearlWorld(p, new THREE.Vector3());
+    rv.removePearl(p);
     if (!got) return;
     this.fx.emit('sparkles', pos, { count: 8, color: '#ffe6f6' });
     const sp = this.screenOf(pos);
@@ -641,7 +660,8 @@ export class Game {
     const n = this.sim.ranch.collectBasket();
     if (n <= 0) return;
     this.ranch.clearPearls();
-    const pos = this.ranch.basketWorld(new THREE.Vector3());
+    this.barnRanch.view.clearPearls();   // [barn]
+    const pos = (this.barnRanch.active ? this.barnRanch.view : this.ranch).basketWorld(new THREE.Vector3());
     if (this.view === 'ranch') {
       this.fx.emit('sparkles', pos, { count: 16, color: '#ffe6f6', speed: 2.4 });
       const sp = this.screenOf(pos);
@@ -683,7 +703,9 @@ export class Game {
   }
   syncNursery() {
     const rr = this.sim.ranch, now = this.nowMs();
-    this.ranch.setNursery(rr.eggs().map(e => ({ id: e.id, spark: !!e.spark, colors: e.special ? specialEggColors(e.special) : this.eggColors(e.bias), ready: rr.eggReady(e, now) })));
+    const eggs = rr.eggs().map(e => ({ id: e.id, spark: !!e.spark, colors: e.special ? specialEggColors(e.special) : this.eggColors(e.bias), ready: rr.eggReady(e, now) }));
+    this.ranch.setNursery(eggs);
+    if (this.barnRanch?.active) this.barnRanch.view.setNursery(eggs);   // [barn] the nest at the front left of the stand (built before the barn)
   }
   openNursery() {
     if ((this.state.phase !== 'play' && this.state.phase !== 'egg') || this.hatching) return;
@@ -693,6 +715,7 @@ export class Game {
     this.ranchPage = 'nursery';
     document.getElementById('body-ranch').scrollTop = 0;
     document.getElementById('ranchHint').textContent = 'The Nursery. Pick two parents below. Tap the grass to step back.';
+    if (this.barnRanch.active) this.barnRanch.hint();   // [barn]
     this.hud.openTab('ranch');
     this.hud.renderRanch(true);
     this.sfx.mii();
@@ -701,6 +724,7 @@ export class Game {
     this.ranchPage = null;
     document.getElementById('body-ranch').scrollTop = 0;
     document.getElementById('ranchHint').textContent = 'Tap a slime to visit it. Drag to look around.';
+    if (this.barnRanch.active) this.barnRanch.hint();   // [barn]
     this.hud.renderRanch(true);
   }
   breed(aId, bId) {
@@ -713,7 +737,7 @@ export class Game {
     this.sfx.buy(); this.after(0.3, () => this.sfx.sparkle());
     for (const id of [aId, bId]) { const v = this.ranch.resident(id); if (v) { v.av.hop(5); v.happyT = 2.4; } }
     this.syncNursery();
-    const nest = this.ranch.nest.getWorldPosition(new THREE.Vector3());
+    const nest = (this.barnRanch.active ? this.barnRanch.view : this.ranch).nest.getWorldPosition(new THREE.Vector3());   // [barn]
     this.fx.emit('hearts', nest.clone().add(new THREE.Vector3(0, 0.5, 0)), { count: 6 });
     if (r.egg.spark) {
       this.fx.emit('sparkles', nest.clone().add(new THREE.Vector3(0, 0.4, 0)), { count: 14, color: '#ffe08a' });
@@ -745,7 +769,7 @@ export class Game {
     const def = BREEDS.specialEggs[variant];
     this.sfx.buy(); this.after(0.3, () => this.sfx.sparkle());
     this.syncNursery();
-    const nest = this.ranch.nest.getWorldPosition(new THREE.Vector3());
+    const nest = (this.barnRanch.active ? this.barnRanch.view : this.ranch).nest.getWorldPosition(new THREE.Vector3());   // [barn]
     this.fx.emit('sparkles', nest.clone().add(new THREE.Vector3(0, 0.4, 0)), { count: 12, color: def.colors[1] });
     if (r.first) this.remember('🥚', `You brought home a ${def.name} for ${def.price} pearls. A ${BREEDS.variantNames[variant]} will hatch from it.`, 'specialegg');
     const when = this.state.phase === 'egg' ? 'You can put it on the cushion instead of the egg there now.' : `Choose it when ${esc(this.Name)} moves to the ranch.`;
@@ -1244,6 +1268,7 @@ export class Game {
   onKey(e) {
     const tag = (e.target && e.target.tagName) || '';
     if (tag === 'INPUT' || tag === 'TEXTAREA' || this.hud.modalOpen) return;
+    if (this.barnRanch.active && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { this.barnRanch.request(e.key === 'ArrowRight' ? 1 : -1); return; }   // [barn]
     if (this.state.phase === 'egg' && this.view !== 'ranch' && (e.key === ' ' || e.key === 'Enter') && this.egg && e.target === this.canvas) {
       e.preventDefault();
       this.sfx.unlock();
@@ -2278,6 +2303,7 @@ export class Game {
     let x = 0, y = 0, zoom = 1;
     const mobileTop = window.matchMedia('(max-width: 860px)').matches;
     this.topLimit = mobileTop ? document.querySelector('.top').getBoundingClientRect().bottom : 0;
+    if (this.view === 'ranch' && this.barnRanch.active) { this.stage.fitZoom = 1; return; }   // [barn] it fits its stand each frame
     if (this.state.phase === 'play' || this.view === 'ranch') {
       const mobile = window.matchMedia('(max-width: 860px)').matches;
       const panelEl = document.getElementById('panel');
@@ -2605,7 +2631,7 @@ export class Game {
     this.slime.setStage(this.sim.stageIndex(), this.sim.stageProgress());   // the body morphs as it grows
     if (this.departing) this.updateDeparture(dt);
     // (off screen while visiting the ranch, so it can rest)
-    if (this.slime.visible && (this.view !== 'ranch' || this.stage.camPos.z > -2)) this.slime.update(dt);
+    if (this.slime.visible && !this.barnRanch.active && (this.view !== 'ranch' || this.stage.camPos.z > -2)) this.slime.update(dt);   // [barn] (not drawn in the barn)
     this.updateFood(dt);
     const center = this.slime.centerWorld(new THREE.Vector3());
     this.helpers3d.update(dt, {
@@ -2624,6 +2650,7 @@ export class Game {
     if (this.nurseryT <= 0) { this.nurseryT = 1; this.syncNursery(); }
     // [greenhouse] what home shows (the room, the meadow or the classic nursery; the ranch hill) and the camera's target
     this.home.update(dt);
+    this.barnRanch.update(dt);   // [barn] the ranch screen (the barn), when it shows
     this.ranch.update(dt, this.stage.camera);
     this.scenery.update(dt);
     this.fx.update(dt);

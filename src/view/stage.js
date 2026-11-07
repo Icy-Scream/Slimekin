@@ -317,5 +317,12 @@ export class Stage {
 
   shake(a) { this.shakeAmt = Math.max(this.shakeAmt || 0, a); }
 
+  // Home's drifting motes: off in the Barn ranch (it has its own hay dust and fireflies; 42 sprites, a draw call each)
+  setMotes(on) {
+    if (this.motesOff === !on) return;
+    this.motesOff = !on;
+    for (const mo of this.motes) mo.m.visible = !!on;
+  }
+
   render() { this.renderer.render(this.scene, this.camera); }
 }

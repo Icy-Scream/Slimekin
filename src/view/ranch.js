@@ -93,9 +93,9 @@ export function pearlMaterial(color = '#ffffff') {
     iridescence: 1, iridescenceIOR: 1.7, sheen: 1, sheenColor: new THREE.Color('#ffe2f0'), emissive: c, emissiveIntensity: 0.08,
   });
 }
-const PEARL_GEO = new THREE.SphereGeometry(0.12, 20, 14);
+export const PEARL_GEO = new THREE.SphereGeometry(0.12, 20, 14);   // (the barn draws the same pearls)
 let SPARK_TEX = null;
-function sparkTexture() {
+export function sparkTexture() {
   if (SPARK_TEX) return SPARK_TEX;
   SPARK_TEX = canvasTex(64, 64, (x) => {
     const g = x.createRadialGradient(32, 32, 0, 32, 32, 30);

@@ -16,6 +16,9 @@ export const ICON = {
   hourglass: svg('<path d="M6 2.5h12M6 21.5h12" stroke="#8a6fb2" stroke-width="2" stroke-linecap="round"/><path d="M7.5 3.5h9c0 4-2.8 5.4-4.5 8.5-1.7-3.1-4.5-4.5-4.5-8.5zM7.5 20.5h9c0-3.4-2.8-4.6-4.5-7.4-1.7 2.8-4.5 4-4.5 7.4z" fill="#d9ccf0"/><path d="M9.6 19.6h4.8c-.4-1.6-1.4-2.4-2.4-3.4-1 1-2 1.8-2.4 3.4z" fill="#ffb3cc"/>'),
   // the Greenhouse camera button: a little camera; `cameraBack` adds a curved arrow (you turned it: tap for the front view)
   camera: svg('<path d="M8.2 5.6l1.3-1.9h5l1.3 1.9h3A2.6 2.6 0 0 1 21.4 8.2v9.4a2.6 2.6 0 0 1-2.6 2.6H5.2a2.6 2.6 0 0 1-2.6-2.6V8.2a2.6 2.6 0 0 1 2.6-2.6z" fill="#8a6fd6"/><circle cx="12" cy="12.8" r="4.6" fill="#f3ecff"/><circle cx="12" cy="12.8" r="2.9" fill="#5e4a8c"/><circle cx="10.9" cy="11.7" r="1" fill="#fff"/><circle cx="18.2" cy="8.6" r="1" fill="#ffd36a"/>', 'gi cam'),
+  // the Barn ranch's previous / next buttons (a soft chevron)
+  chevronLeft: svg('<path d="M14.8 5.2L8 12l6.8 6.8" stroke="#6b4bd6" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>', 'gi chev'),
+  chevronRight: svg('<path d="M9.2 5.2L16 12l-6.8 6.8" stroke="#6b4bd6" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>', 'gi chev'),
   cameraBack: svg('<path d="M7.4 6.4l1.1-1.6h4.2l1.1 1.6h2.5a2.2 2.2 0 0 1 2.2 2.2v7.8a2.2 2.2 0 0 1-2.2 2.2H4.8a2.2 2.2 0 0 1-2.2-2.2V8.6a2.2 2.2 0 0 1 2.2-2.2z" fill="#8a6fd6"/><circle cx="10.6" cy="12.6" r="3.8" fill="#f3ecff"/><circle cx="10.6" cy="12.6" r="2.3" fill="#5e4a8c"/><path d="M15.6 20.6a5.2 5.2 0 0 0 5.6-6.4" stroke="#f08a2c" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M18.6 13.4l2.8.4.6-2.7" stroke="#f08a2c" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>', 'gi cam'),
 };
 

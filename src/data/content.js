@@ -723,3 +723,44 @@ export const GREENHOUSE = {
   // on the meadow's grass so its round bottom doesn't dip into the floor)
   lift: { planter: 0.27, bubbles: 0.58, musicbox: 0.2, slimeling: 0.05 },
 };
+
+// ---------- The Barn ranch (the ranch screen) ----------
+// The ranch is the baked barn (src/assets/barn/, lit and baked in Blender outside this repo, the same format as the
+// Greenhouse room): one resident at a time on the show stand, swiped through with the burrow swap. The camera, the
+// stand, the lanterns, the bulbs and the Pearl Basket come from barn.json; what you can tune is here. Timings and
+// counts copy the barn test page the captain played (and the Blender clip its swap copies).
+export const BARN = {
+  blend: 3,                  // day <-> night blend speed (1/s): about 3 s, like the test page and the Greenhouse
+  size: 0.86,                // the resident on the stand (the size a resident has on the meadow ranch)
+  // The burrow swap, in seconds (Slow motion = the test page's x3 is not in the game). It wiggles, sinks into the straw
+  // nest, the straw poofs while it is hidden (the next resident is put on then), it pops up and lands with a spring.
+  swap: {
+    wiggle: 0.14, sink: 0.33, under: 0.4, rise: 0.55, land: 0.68,   // where each part ends
+    wiggleDeg: 9, wiggleEvery: 0.07, wiggleSquash: 0.08,              // the wiggle: lean (degrees), its period, a little squash
+    depth: 1.6, hide: 1.5, over: 0.35,                                // how deep it sinks, where it waits, how high it pops
+    stretch: { sink: 0.18, under: 1.36, rise: 0.1, land: 0.26 },      // taller while it sinks, under the straw, rising, landing
+    burst1: 0.28, wear: 0.36, burst2: 0.42,                          // the big straw poof, the new resident put on, the small poof
+    clip: [0.12, 0.6],                                               // the clip plane is on in between (it sinks INTO the nest)
+    spring: { squash: 0.24, decay: 0.085, period: 0.24, length: 1.2 },  // the landing spring
+    queueGap: 0.12,                                                  // a swap asked for during a swap starts this long after it
+    fade: 0.36,                                                      // Reduced motion: a fade out and in instead (no straw)
+  },
+  // Straw strips (one instanced mesh) and how many fly in each poof; Low graphics draws half.
+  straw: { high: { strips: 760, burst1: 520, burst2: 110 }, low: { strips: 380, burst1: 260, burst2: 55 } },
+  dust: 0.36,                // the hay dust puffs' life (s)
+  sparkle: { life: 0.45, stagger: 0.04 },   // the landing sparkles: each one's life (s), one after another
+  // A quick sideways swipe anywhere on the barn (swipe left = next, like turning a page). Petting needs the finger to
+  // stay on the slime: a press only pets once it can no longer be a swipe (it turned back, went mostly up or down, or
+  // lasted longer than a swipe can), or when it ends without being one (a tap).
+  swipe: { minPx: 60, ratio: 1.5, maxMs: 700, turnPx: 14, upPx: 30 },
+  strokeEvery: 0.35,         // stroking keeps petting this often (today's ranch)
+  dots: 8,                   // the name card shows a dot per resident up to this many, then "3 of 12"
+  justBack: 1800,            // "just back from Puddle Café" for this long after a trip (seconds; not saved)
+  // The Nursery's straw nest: the Pearl Basket's spot mirrored to the front left of the stand (barn.json pearls:
+  // x 1.29, z 0.95), inside the aisle and clear of the stand; drawn only while the Nursery has eggs.
+  nest: { x: -1.29, z: 0.95, r: 0.38 },
+  basket: { r: 0.42, shown: 12 },   // the basket's tap target around its pearls; live pearls on top show how full it is
+  pearlRing: [1.3, 1.75],    // pearls made while you watch land on the straw this far from the stand's middle
+  // Framing: the stand, the nest, the basket and the slime (up to `top`) stay between the top bar and the name card.
+  frame: { top: 2.35, bottom: 0, front: 1.25, side: 1.3, gap: 8 },
+};

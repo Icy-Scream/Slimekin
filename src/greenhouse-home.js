@@ -67,6 +67,17 @@ export class Home {
   // Each frame (before the stage renders): who is visible, the room's blend, the camera's target, the button.
   frameWorld() {
     const g = this.g, st = g.stage, home = g.view !== 'ranch';
+    if (g.barnRanch && g.barnRanch.active) {   // [barn] the ranch screen is the barn: nothing of home is drawn
+      this.room.group.visible = false;
+      g.scenery.group.visible = false;
+      st.setHabitat(false);
+      st.setRoomLook(g.barnRanch.view);
+      g.helpers3d.group.visible = false;
+      g.ranch.group.visible = false;
+      st.setMotes(false);
+      return;
+    }
+    st.setMotes(true);
     if (this.inRoom) {
       this.room.group.visible = home;
       g.scenery.group.visible = !home;
@@ -188,6 +199,7 @@ export class Home {
   // Where the stage's camera should be this frame (null = the home camera, Front).
   frameCamera(dt) {
     const g = this.g, st = g.stage;
+    if (g.barnRanch && g.barnRanch.active) { this.button.show(false); return; }   // [barn] (its own fixed camera)
     if (!this.inRoom) { st.cam = null; this.button.show(false); return; }
     if (this.free) {
       const p = this.rig.pose(this.pivot());

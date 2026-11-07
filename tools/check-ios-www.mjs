@@ -32,6 +32,9 @@ const LOCAL_READS = [
   { file: 'src/view/greenhouse.js', folder: 'src/assets/greenhouse', n: 1,
     base: /^const BASE = new URL\('\.\.\/assets\/greenhouse\/', import\.meta\.url\);$/m, call: /\bfetch\(new URL\(name, BASE\)\)/g,
     why: "the Greenhouse room's own files (gh.json, gh.bin), bundled in the app" },
+  { file: 'src/view/barn.js', folder: 'src/assets/barn', n: 1,
+    base: /^const BASE = new URL\('\.\.\/assets\/barn\/', import\.meta\.url\);$/m, call: /\bfetch\(new URL\(name, BASE\)\)/g,
+    why: "the Barn ranch's own files (barn.json, barn.bin), bundled in the app" },
 ];
 const BINARY = new Set(['.woff2', '.woff', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico', '.bin']);
 
