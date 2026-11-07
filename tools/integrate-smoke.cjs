@@ -69,8 +69,19 @@ const FIXTURE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'mai
     const clearToasts = () => ev(() => { for (const t of document.querySelectorAll('.toast')) t.remove(); });
     const modalText = () => ev(() => (window.slimekin.hud.modalOpen ? document.getElementById('modalCard').innerText : ''));
     const resident = id => ev(id => window.slimekin.state.ranch.residents.find(x => x.id === id) || null, id);
-    // the resident as the ranch scene draws it: its avatar's body (null when it is not in the scene)
-    const drawn = id => ev(id => { const r = window.slimekin.ranch.resident(id); return r && r.state !== 'leave' ? { breed: r.av.bodyInfo.breed, mix: r.av.mixS, variant: r.av.bodyInfo.variant } : null; }, id);
+    // the resident as the ranch scene draws it: its avatar's body (null when it is not in the scene). The Barn ranch draws
+    // one resident at a time, on the stand: a resident on the stand's list is brought up (as the menu's Visit does) and
+    // the stand's avatar is read; one not on the list (a traveler, gone) is not drawn.
+    const drawn = id => ev(id => {
+      const g = window.slimekin, b = g.barnRanch;
+      if (b && b.active) {
+        if (!b.order.includes(id)) return null;
+        b.show(id); g.advance(1.2);
+        const av = b.view.av;
+        return b.curId === id && av.root.visible ? { breed: av.bodyInfo.breed, mix: av.mixS, variant: av.bodyInfo.variant } : { notOnStand: b.curId };
+      }
+      const r = g.ranch.resident(id); return r && r.state !== 'leave' ? { breed: r.av.bodyInfo.breed, mix: r.av.mixS, variant: r.av.bodyInfo.variant } : null;
+    }, id);
 
     // ---------- 1. the old save ----------
     await step('open the game', () => page.goto(`${kit.server.origin}/#debug`));
@@ -202,9 +213,12 @@ const FIXTURE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'mai
     await calm();
     await ev(() => { window.slimekin.sim.ranch.addPearls(300); window.slimekin.advance(1); });
     await page.click('#tab-ranch');
+    // the ranch is the Barn ranch: its files load on the first visit, so wait for it (or its fallback) first
+    await page.waitForFunction(() => { const b = window.slimekin.barnRanch; return b.on || b.view.failed; }, null, { timeout: 120000 });
+    ok(await ev(() => window.slimekin.barnRanch.on), 'the Ranch tab opens the barn');
     await ev(() => { const g = window.slimekin; g.advance(4); g.hud.setSheet('closed'); g.advance(2); });
     const d0 = { j: await drawn(J), p: await drawn(D) };
-    ok(d0.j && d0.j.breed === 'curly' && d0.j.mix === 0 && d0.p && d0.p.breed === 'dollop' && d0.p.mix === 1, 'the ranch scene draws Juniper as a Curly and Pebble as a Dollop', JSON.stringify(d0));
+    ok(d0.j && d0.j.breed === 'curly' && d0.j.mix === 0 && d0.p && d0.p.breed === 'dollop' && d0.p.mix === 1, 'the barn\'s stand draws Juniper as a Curly and Pebble as a Dollop', JSON.stringify(d0));
     await shot('03-ranch-curly-and-dollop');
 
     // ---------- 4a. the Curly trains (the Train page), the lesson ends with g.advance ----------

@@ -11,7 +11,8 @@
 //      folder's files, the old version cache is gone, the asset caches are kept, and the game's room comes from its cache
 //   3. a release with a different room (the room's cache name changed): the room downloads again, the old room cache
 //      goes; the barn's cache stays and the barn is not downloaded again
-//   4. offline: the game still opens and shows the room; the barn's files come from their cache
+//   4. offline: the game still opens and shows the room; the barn's files come from their cache, and going to the
+//      ranch opens the barn from there
 // Runs offline like the other browser tests (three.js from node_modules, every outside request aborted).
 const { execFileSync } = require('child_process');
 const http = require('http');
@@ -141,10 +142,15 @@ const expect = (cond, what, detail = '') => { if (cond) log('ok', what); else { 
     await page.reload();
     r = await roomShown();
     expect(r.ready && r.world === 'greenhouse', '4. offline: the game opens and shows the room', JSON.stringify(r));
-    // the barn is not in the game yet (next slice): read its files the way the game will, through the worker
+    // the barn's files, read the way the game reads them (through the worker)
     const barn = await ev(() => Promise.all(['barn.json', 'barn.bin', 'floor_day.jpg', 'floor_night.jpg'].map(f => fetch('src/assets/barn/' + f).then(x => x.ok ? x.arrayBuffer().then(b => b.byteLength) : -x.status, () => 'failed'))));
     const barnOnDisk = ['barn.json', 'barn.bin', 'floor_day.jpg', 'floor_night.jpg'].map(f => fs.statSync(path.join(OUT, 'src/assets/barn', f)).size);
     expect(JSON.stringify(barn) === JSON.stringify(barnOnDisk), `4. offline: the barn's 4 files come from their cache (${barn.join(', ')} bytes)`, JSON.stringify({ barn, barnOnDisk }));
+    // and the game's own barn (the Barn ranch, slice R2): going to the ranch offline opens the barn from that cache
+    await ev(() => { const g = window.slimekin; g.hud.closeModal(); g.goRanch(); });
+    const offBarn = await deadline(page.waitForFunction(() => { const b = window.slimekin.barnRanch; return (b.on || b.view.failed) && { on: b.on, failed: b.view.failed }; }, null, { timeout: 120000 }).then(h => h.jsonValue()), 125000, 'the barn offline');
+    expect(offBarn.on && !offBarn.failed, '4. offline: the ranch opens the barn (its files from their cache)', JSON.stringify(offBarn));
+    await ev(() => window.slimekin.leaveRanch());
     expect(seen.length === 0, '4. offline: nothing reached the server', JSON.stringify(seen.slice(0, 5)));
     await page.screenshot({ path: path.join(SHOTS, 'offline-4-offline.png') });
     await context.setOffline(false);

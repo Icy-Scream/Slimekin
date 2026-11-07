@@ -75,7 +75,8 @@ const FIX = { settled: fixture('main-settled.json'), egg: fixture('main-egg.json
     const boot = async (fx = '') => {
       await page.goto(`${kit.server.origin}/${fx ? '?fx=' + fx : ''}#debug`);
       await page.waitForFunction(() => window.slimekin && window.slimekin.state && window.slimekin.home, null, { timeout: 120000 });
-      await page.waitForFunction(() => window.slimekin.home.room.ready || window.slimekin.home.room.failed, null, { timeout: 120000 });
+      // (and the "Warming the nest" screen gone: during its 0.5 s fade it takes the touches meant for the game)
+      await page.waitForFunction(() => (window.slimekin.home.room.ready || window.slimekin.home.room.failed) && document.getElementById('boot').hidden, null, { timeout: 120000 });
       await ev(() => { const g = window.slimekin; g.behave.hour = () => 14; g.state.settings.quality = 'high'; g.applySettings(); g.hud.closeModal(); });
     };
     const calm = () => ev(() => { const g = window.slimekin; g.state.tutorial = 5; g.requests.timer = 1e9; g.glimmerT = 1e9; g.debug('needs'); if (g.sim.asleep) g.wakeUp('rested'); g.idleT = 1e9; g.hud.closeModal(); g.advance(0.5); });
@@ -307,14 +308,16 @@ const FIX = { settled: fixture('main-settled.json'), egg: fixture('main-egg.json
       kit.mark('ranch');
       await ev(() => { const g = window.slimekin; g.home.setView('wide'); g.advance(2); });
       await page.click('#tab-ranch');
+      // the ranch is the Barn ranch (its files load on the first visit: wait for it)
+      await page.waitForFunction(() => { const b = window.slimekin.barnRanch; return b.on || b.view.failed; }, null, { timeout: 120000 });
       await ev(() => window.slimekin.advance(4));
-      let w = await ev(() => { const g = window.slimekin; return { view: g.view, room: g.home.room.group.visible, meadow: g.scenery.group.visible, ranch: g.ranch.group.visible, helpers: g.helpers3d.group.visible, btn: !document.getElementById('camBtn').hidden }; });
-      expect(w.view === 'ranch' && !w.room && w.meadow && w.ranch && !w.btn, 'at the ranch: the room hides, the meadow and the ranch show, no camera button', JSON.stringify(w));
+      let w = await ev(() => { const g = window.slimekin; return { view: g.view, room: g.home.room.group.visible, meadow: g.scenery.group.visible, ranch: g.ranch.group.visible, barn: g.barnRanch.view.group.visible, helpers: g.helpers3d.group.visible, btn: !document.getElementById('camBtn').hidden }; });
+      expect(w.view === 'ranch' && !w.room && w.barn && !w.meadow && !w.ranch && !w.helpers && !w.btn, 'at the ranch: the room hides, the barn shows (not the meadow ranch), no camera button', JSON.stringify(w));
       await shot('ranch-visit', { night: false });
       await page.click('#ranchHome');
       await ev(() => window.slimekin.advance(4));
-      w = await ev(() => { const g = window.slimekin; return { view: g.view, room: g.home.room.group.visible, meadow: g.scenery.group.visible, ranch: g.ranch.group.visible, btn: !document.getElementById('camBtn').hidden, camView: g.home.view }; });
-      expect(w.view === 'home' && w.room && !w.meadow && !w.ranch && w.btn && w.camView === 'wide', 'back home: the room is back, on the same angle (Wide)', JSON.stringify(w));
+      w = await ev(() => { const g = window.slimekin; return { view: g.view, room: g.home.room.group.visible, meadow: g.scenery.group.visible, ranch: g.ranch.group.visible, barn: g.barnRanch.view.group.visible, btn: !document.getElementById('camBtn').hidden, camView: g.home.view }; });
+      expect(w.view === 'home' && w.room && !w.meadow && !w.ranch && !w.barn && w.btn && w.camView === 'wide', 'back home: the room is back, on the same angle (Wide); the barn hides', JSON.stringify(w));
       await shot('ranch-back', { night: false });
       await ev(() => { const g = window.slimekin; g.home.setView('front'); g.advance(2); });
     }
@@ -383,7 +386,7 @@ const FIX = { settled: fixture('main-settled.json'), egg: fixture('main-egg.json
       const ev2 = (fn, a) => p2.evaluate(fn, a);
       await step('open a fresh egg', async () => {
         await p2.goto(`${kit.server.origin}/?fx=egg#debug`);
-        await p2.waitForFunction(() => window.slimekin && window.slimekin.egg && window.slimekin.home && (window.slimekin.home.room.ready || window.slimekin.home.room.failed), null, { timeout: 120000 });
+        await p2.waitForFunction(() => window.slimekin && window.slimekin.egg && window.slimekin.home && (window.slimekin.home.room.ready || window.slimekin.home.room.failed) && document.getElementById('boot').hidden, null, { timeout: 120000 });
       }, 200000);
       const e = await ev2(() => { const g = window.slimekin; g.advance(1); return { phase: g.state.phase, world: g.home.world, y: g.egg.group.position.y, warmth: g.state.egg.warmth, btn: !document.getElementById('camBtn').hidden }; });
       expect(e.phase === 'egg' && e.world === 'greenhouse' && Math.abs(e.y - 0.27) < 0.01, 'a fresh egg sits on the stump in the Greenhouse', JSON.stringify(e));
@@ -426,7 +429,7 @@ const FIX = { settled: fixture('main-settled.json'), egg: fixture('main-egg.json
       p4.on('console', m => { if (m.type() === 'error') errors.push('console (life page): ' + m.text()); });
       await step('open the old save with a resident (main-gen2)', async () => {
         await p4.goto(`${kit.server.origin}/?fx=gen2#debug`);
-        await p4.waitForFunction(() => window.slimekin && window.slimekin.home && (window.slimekin.home.room.ready || window.slimekin.home.room.failed), null, { timeout: 120000 });
+        await p4.waitForFunction(() => window.slimekin && window.slimekin.home && (window.slimekin.home.room.ready || window.slimekin.home.room.failed) && document.getElementById('boot').hidden, null, { timeout: 120000 });
         await ev4(() => { const g = window.slimekin; g.behave.hour = () => 14; g.state.settings.quality = 'high'; g.applySettings(); g.hud.closeModal(); g.state.tutorial = 5; g.requests.timer = 1e9; g.glimmerT = 1e9; g.advance(1); });
       }, 200000);
       const o = await ev4(() => { const g = window.slimekin, s = g.state; return { world: g.home.world, scene: s.settings.scene, slime: s.slime.breed, res: s.ranch.residents.map(x => ({ id: x.id, name: x.name, breed: x.breed, skills: x.skills, trip: x.trip })) }; });
@@ -437,10 +440,12 @@ const FIX = { settled: fixture('main-settled.json'), egg: fixture('main-egg.json
       expect(sent.trip && sent.place === 'cafe', 'Juniper leaves on a trip (Puddle Café) while home is the Greenhouse', JSON.stringify(sent));
       await ev4(() => { for (const t of document.querySelectorAll('.toast')) t.remove(); });
       await p4.click('#tab-ranch');
+      await p4.waitForFunction(() => { const b = window.slimekin.barnRanch; return b.on || b.view.failed; }, null, { timeout: 120000 });
       await ev4(() => window.slimekin.advance(4));
-      let w = await ev4(J => { const g = window.slimekin, r = g.ranch.resident(J); return { view: g.view, room: g.home.room.group.visible, meadow: g.scenery.group.visible, ranch: g.ranch.group.visible, helpers: g.helpers3d.group.visible, btn: !document.getElementById('camBtn').hidden, traveler: r && r.state !== 'leave' ? 'drawn' : null }; }, J);
-      expect(w.view === 'ranch' && !w.room && w.meadow && w.ranch && !w.btn, 'at the ranch from the Greenhouse: the room hides, the meadow ranch shows, no camera button', JSON.stringify(w));
-      expect(w.traveler === null, 'the traveler is not drawn on the ranch', JSON.stringify(w));
+      // the Barn ranch: the traveler (the only resident) is not on the stand's list, the stand is empty and the card says so
+      let w = await ev4(J => { const g = window.slimekin, b = g.barnRanch; return { view: g.view, room: g.home.room.group.visible, meadow: g.scenery.group.visible, ranch: g.ranch.group.visible, barn: b.view.group.visible, helpers: g.helpers3d.group.visible, btn: !document.getElementById('camBtn').hidden, traveler: b.order.includes(J) || b.curId === J || b.view.av.root.visible ? 'drawn' : null, card: document.getElementById('barnCard').innerText.replace(/\n/g, ' / ') }; }, J);
+      expect(w.view === 'ranch' && !w.room && w.barn && !w.meadow && !w.ranch && !w.btn, 'at the ranch from the Greenhouse: the room hides, the barn shows, no camera button', JSON.stringify(w));
+      expect(w.traveler === null && /Juniper is on a trip/.test(w.card), 'the traveler is not drawn on the ranch (an empty stand; the card says it is on a trip)', JSON.stringify(w));
       // the Ranch tab's row for the traveler says where it is (one resident: the Nursery has no parent list to show)
       const row = await ev4(() => { const el = document.querySelector('#body-ranch .res .rl-status'); return el ? el.innerText : ''; });
       expect(/On a trip/.test(row), 'the Ranch tab: the traveler\'s row says it is on a trip', JSON.stringify(row));
@@ -450,13 +455,14 @@ const FIX = { settled: fixture('main-settled.json'), egg: fixture('main-egg.json
       await p4.click('#body-ranch [data-act="buySpecial"][data-variant="ears"]');
       await ev4(() => window.slimekin.advance(1));
       const bought = await ev4(() => { const n = window.slimekin.state.ranch.nursery; return n.eggs.map(e => ({ special: e.special, breed: e.body && e.body.breed, variant: e.body && e.body.variant })); });
-      expect(bought.length === 1 && bought[0].special === 'ears' && bought[0].variant === 'ears', 'a Cat-ear egg bought from the Nursery waits in the nest', JSON.stringify(bought));
+      const nest = await ev4(() => { const v = window.slimekin.barnRanch.view; return { shown: v.nest.visible, eggs: v.nestEggs.size }; });
+      expect(bought.length === 1 && bought[0].special === 'ears' && bought[0].variant === 'ears' && nest.shown && nest.eggs === 1, 'a Cat-ear egg bought from the Nursery waits in the nest (the barn\'s nest shows it)', JSON.stringify({ bought, nest }));
       await p4.screenshot({ path: path.join(OUT, 'life-nursery-day.png') });
       await ev4(() => { const g = window.slimekin; g.closeNursery(); for (const t of document.querySelectorAll('.toast')) t.remove(); g.advance(1); });
       await p4.click('#ranchHome');
       await ev4(() => window.slimekin.advance(4));
-      w = await ev4(() => { const g = window.slimekin; return { view: g.view, room: g.home.room.group.visible, meadow: g.scenery.group.visible, ranch: g.ranch.group.visible, helpers: g.helpers3d.group.visible, btn: !document.getElementById('camBtn').hidden, camView: g.home.view }; });
-      expect(w.view === 'home' && w.room && !w.meadow && !w.ranch && w.helpers && w.btn && w.camView === 'left', 'back home: the room is back on the same angle (Left)', JSON.stringify(w));
+      w = await ev4(() => { const g = window.slimekin; return { view: g.view, room: g.home.room.group.visible, meadow: g.scenery.group.visible, ranch: g.ranch.group.visible, barn: g.barnRanch.view.group.visible, helpers: g.helpers3d.group.visible, btn: !document.getElementById('camBtn').hidden, camView: g.home.view }; });
+      expect(w.view === 'home' && w.room && !w.meadow && !w.ranch && !w.barn && w.helpers && w.btn && w.camView === 'left', 'back home: the room is back on the same angle (Left); the barn hides', JSON.stringify(w));
       await p4.screenshot({ path: path.join(OUT, 'life-home-left-day.png') });
     }
 
@@ -473,7 +479,7 @@ const FIX = { settled: fixture('main-settled.json'), egg: fixture('main-egg.json
       kit.page = p3;
       await step('open with the room blocked', async () => {
         await p3.goto(`${kit.server.origin}/#debug`);
-        await p3.waitForFunction(() => window.slimekin && window.slimekin.home && (window.slimekin.home.room.ready || window.slimekin.home.room.failed), null, { timeout: 120000 });
+        await p3.waitForFunction(() => window.slimekin && window.slimekin.home && (window.slimekin.home.room.ready || window.slimekin.home.room.failed) && document.getElementById('boot').hidden, null, { timeout: 120000 });
       }, 200000);
       const f = await p3.evaluate(() => { const g = window.slimekin; g.hud.closeModal(); g.advance(1); return { failed: g.home.room.failed, world: g.home.world, scene: g.state.settings.scene, meadow: g.scenery.group.visible, roomShown: g.home.room.group.visible, btn: !document.getElementById('camBtn').hidden, cam: !!g.stage.cam }; });
       expect(f.failed && f.world === 'meadow' && f.meadow && !f.roomShown, 'the room can\'t load: home shows the Meadow', JSON.stringify(f));

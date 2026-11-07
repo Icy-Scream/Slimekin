@@ -1,4 +1,5 @@
-// Makes tools/fixtures/barn-six.json (run from the repo root): the Barn ranch's test save, made by the current rules.
+// Makes tools/fixtures/barn/barn-six.json: the Barn ranch's test save, made by the current rules (so it lives in its own
+// folder: the node tests read every tools/fixtures/*.json as an OLD save).
 //   node tools/fixtures/make-barn-save.mjs
 // From main-gen2.json (generation 2, the baby Pebble at home, Juniper on the ranch), migrated, with six more residents,
 // one of each kind the barn shows: Juniper (Curly, the old resident), Mochi (Curly with stars), Peaches (Dollop),
@@ -41,5 +42,5 @@ st.savedAt = clock;
 const again = migrate(JSON.parse(JSON.stringify(st)));
 if (JSON.stringify(again) !== JSON.stringify(st)) throw new Error('migrating the barn save again changes it');
 const out = { note: 'Barn ranch test save: 7 residents (Curly, Curly with stars, Dollop, Cat-ear Dollop, Topknot Dollop in a lesson, an in-between, a Curly on a trip), 8 slots. Made by tools/fixtures/make-barn-save.mjs from main-gen2.json.', madeWith: 'art (barn R2)', save: st };
-fs.writeFileSync(path.join(HERE, 'barn-six.json'), JSON.stringify(out, null, 1) + '\n');
-console.log('wrote barn-six.json | residents', st.ranch.residents.map(x => `${x.name} (${x.breed}${x.variant !== 'plain' ? ' ' + x.variant : ''}${x.trip ? ', trip' : ''}${x.lesson ? ', lesson' : ''})`).join(', '));
+fs.writeFileSync(path.join(HERE, 'barn', 'barn-six.json'), JSON.stringify(out, null, 1) + '\n');
+console.log('wrote barn/barn-six.json | residents', st.ranch.residents.map(x => `${x.name} (${x.breed}${x.variant !== 'plain' ? ' ' + x.variant : ''}${x.trip ? ', trip' : ''}${x.lesson ? ', lesson' : ''})`).join(', '));

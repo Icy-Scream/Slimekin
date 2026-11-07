@@ -117,6 +117,7 @@ const FIXTURE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'mai
     // ---------- 2. the Nursery on the ranch ----------
     mark('2. the Nursery');
     await page.click('#tab-ranch');
+    await page.waitForFunction(() => { const b = window.slimekin.barnRanch; return b.on || b.view.failed; }, null, { timeout: 120000 });   // (the Barn ranch loads on the first visit)
     await ev(() => window.slimekin.advance(4));
     await shot('01-ranch-with-nursery');
     await page.click('[data-act="nursery"]');

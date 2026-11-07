@@ -430,3 +430,40 @@ The baked Greenhouse room is home's default background (`src/view/greenhouse.js`
   pinch to zoom, a mouse wheel zooms on a computer (the swipe code still counts).
 - 3D: helpers stand on the Greenhouse's spots (`GREENHOUSE.spots` in `content.js`); while the room loads, home shows
   the plain Classic look for a moment.
+
+## Barn ranch
+
+The ranch screen is the baked barn (`src/view/barn.js`, coordinated by `src/barn-ranch.js`): one resident at a time on
+the show stand, a fixed camera, the burrow swap between residents. Home is unchanged (the Meadow keeps its ranch hill).
+Until the barn's files are in, or when they cannot load, the ranch is the meadow ranch as before (none of the elements
+below show then).
+
+- Name card `#barnCard.barn-card.glass` (`src/ui/barn-card.js`, CSS in `<style id="barnCss">` made by that file),
+  `role="button"`, `tabindex="0"`: centered over the picture, `width: min(340px, 100vw - 32px)`, `z-index: 7`, placed
+  every frame just above the menu sheet (or above the ranch bar when the sheet is closed). Hidden at home.
+  - `<b>` the resident's name (the display font, 22 px); `.bc-line` its body's name and one line from real data,
+    "Curly · Bounce ★★★", "Topknot Dollop · in a lesson: Bounce, 2h left", "Dollop · just back from Puddle Café",
+    "Curly · 4.2 pearls an hour" (no stars yet); the stars in honey.
+  - `.bc-dots` one dot per resident on the stand's list (up to `BARN.dots` = 8; the one on the stand is a wider purple
+    pill), else `.bc-count` "3 of 12".
+  - Empty stand (`.empty`): "Everyone is on a trip" / "Juniper is on a trip" + "Juniper is home at 7:05 pm."; or
+    "Nobody lives here yet" + today's empty-ranch line ("When Pebble is all grown up (Settled), they can move to the
+    ranch.").
+  - Tap: opens the menu sheet on that resident's page (the page tapping a resident opened before). A quick sideways
+    swipe on the card swaps like a swipe on the barn. `aria-label` "Juniper, Curly, 4.2 pearls an hour. Open Juniper's
+    page".
+- Previous / next buttons `#barnPrev` / `#barnNext` (`.barn-arrow.glass`, `<button>`): 44 x 44 round, 10 px from the
+  screen's left / right edge, at the slime's middle height; `aria-label` "Previous slime" / "Next slime". Shown only
+  with two or more residents on the stand's list.
+  - Icons: two new drawn icons, `ICON.chevronLeft` / `ICON.chevronRight` (`src/ui/icons.js`, a soft purple chevron).
+- `#ranchHint` in the barn: "Swipe for the next slime. Tap or stroke to pet." (one resident: "Tap or stroke to pet.";
+  none: "Your ranch slimes live here."; the Nursery: "The Nursery. Pick two parents below."). The meadow ranch keeps its
+  own lines.
+- `body.in-barn` while the barn shows (no CSS uses it yet).
+- Gestures in the barn: a quick sideways swipe anywhere (more than 60 px, mostly sideways, under 0.7 s; left = next)
+  swaps and does not pet; a tap on the slime pets; a press on it pets once it cannot be a swipe any more (it turned
+  back, went mostly up or down, or lasted 0.7 s), then stroking keeps petting. No camera drag. Arrow keys ← → swap on a
+  computer.
+- 3D (tappable): the slime on the stand, the loose pearls (they land in the stand's straw in front of the slime), the
+  baked Pearl Basket at the front right (collects; live pearls on its heap show how full it is), the Nursery's straw
+  nest at the front left (only while the Nursery has eggs; opens the Nursery). Nothing else in the barn is tappable.

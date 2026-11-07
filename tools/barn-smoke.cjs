@@ -1,6 +1,6 @@
 // The Barn ranch in a headless phone (393 x 852): the ranch screen is the baked barn, one resident on the stand.
 //   node tools/barn-smoke.cjs [--quick] [--only=open,swipe,touch,card,life,pearls,nursery,leave,sheet,low,reduced,empty,fail]
-// From tools/fixtures/barn-six.json (7 residents: Curlys, a Dollop, a Cat-ear Dollop, a Topknot Dollop in a lesson, an
+// From tools/fixtures/barn/barn-six.json (7 residents: Curlys, a Dollop, a Cat-ear Dollop, a Topknot Dollop in a lesson, an
 // in-between, and Bubblegum on a trip). Real touches are CDP Input.dispatchTouchEvent (each with its own timestamp).
 //   open     the Ranch tab opens the barn with no page errors; home is hidden; the stand shows the first resident; the
 //            traveler is never in the order; draw calls and triangles by day and by night (sheet closed)
@@ -31,7 +31,7 @@ fs.mkdirSync(OUT, { recursive: true });
 const arg = (k, d) => { const a = process.argv.find(x => x.startsWith(`--${k}=`)); return a ? a.split('=')[1] : (process.argv.includes('--' + k) ? true : d); };
 const QUICK = !!arg('quick', false);
 const ONLY = String(arg('only', 'open,swipe,touch,card,life,pearls,nursery,leave,sheet,low,reduced,empty,fail')).split(',');
-const FIX = { six: JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'barn-six.json'), 'utf8')).save };
+const FIX = { six: JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'barn', 'barn-six.json'), 'utf8')).save };
 
 (async () => {
   const errors = [];
