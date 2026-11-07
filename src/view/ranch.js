@@ -210,7 +210,7 @@ export class RanchView {
       g.add(rail);
     }
     // gate sign
-    this.signMat = new THREE.MeshStandardMaterial({ map: signTexture('Slime Ranch'), roughness: 0.8 });
+    this.signMat = new THREE.MeshStandardMaterial({ map: signTexture('The Barn'), roughness: 0.8 });
     const sign = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.62, 0.08), [M.wood, M.wood, M.wood, M.wood, this.signMat, M.wood]);
     sign.position.set(0, RANCH_TOP + 1.38, FENCE_R + 0.02);
     g.add(sign);
