@@ -20,7 +20,8 @@ const GROUP_OF = { helpers: 'shop', upgrades: 'shop', outfits: 'outfits', slime:
 const GROUP_TAB = { shop: 'tab-shop', outfits: 'tab-outfits', me: 'tab-slime', ranch: 'tab-ranch', heirlooms: 'tab-heirlooms' };
 const SUB_ID = { helpers: 'tab-helpers', upgrades: 'tab-upgrades', slime: 'sub-slime', journal: 'tab-journal' };
 
-export const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+import { esc } from './esc.js';
+export { esc };   // (one shared copy: ./esc.js)
 
 export class Hud {
   constructor(game) {

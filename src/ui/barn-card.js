@@ -5,6 +5,7 @@
 // Listed in UI-CHANGES.md "Barn ranch".
 import { ICON } from './icons.js';
 import { swipeDir } from '../view/barn-math.js';
+import { esc } from './esc.js';
 
 const stamp = e => (e && e.timeStamp > 0 ? e.timeStamp : performance.now());   // the touch's own time (ms)
 
@@ -48,7 +49,6 @@ function addCss() {
   css.textContent = CSS;
   document.head.appendChild(css);
 }
-const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 export class BarnCard {
   // on: { prev(), next(), open(), swipe(dir) }

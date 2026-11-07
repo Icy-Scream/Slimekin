@@ -7,7 +7,8 @@ import { fmt, fmtDuration } from '../core/format.js';
 import { stars, lovesDef, busy, SOUVENIR_TOTAL } from '../core/ranch-life.js';
 
 const L = RANCH_LIFE;
-const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+import { esc } from './esc.js';
+import { memIcon } from './icons.js';
 const starText = n => '★'.repeat(n) + '☆'.repeat(L.maxStars - n);
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 const pearlCost = n => `<span class="cost"><i class="pearl"></i>${fmt(n)}</span>`;
