@@ -33,7 +33,14 @@ function seedPage({ seeds }) {
   if (!sessionStorage.getItem('h1.' + h)) {
     sessionStorage.setItem('h1.' + h, '1');
     localStorage.clear();
-    for (const [k, v] of Object.entries(seeds[h] || {})) if (!k.startsWith('!')) localStorage.setItem(k, v);
+    // (a save's savedAt is set to half a minute ago when the page opens, so no "missed you" card comes up mid-check on
+    // a slow renderer; a cut-off save is stored as it is)
+    for (const [k, v] of Object.entries(seeds[h] || {})) {
+      if (k.startsWith('!')) continue;
+      let text = v;
+      try { const o = JSON.parse(v); if (o && typeof o === 'object' && 'savedAt' in o) { o.savedAt = Date.now() - 30000; text = JSON.stringify(o); } } catch { /* cut off */ }
+      localStorage.setItem(k, text);
+    }
   }
   const s = seeds[h] || {};
   if (s['!snag']) {   // the game's constructor throws (window.matchMedia is used while it applies the settings)
@@ -75,7 +82,12 @@ function seedPage({ seeds }) {
     }, 200000);
     const open = (h, ready = 'game') => step(`open (${h})`, async () => {
       await page.goto(`${kit.server.origin}/?h=${h}#debug`);
-      if (ready === 'game') await page.waitForFunction(() => window.slimekin && document.getElementById('boot')?.hidden === true, null, { timeout: 150000 });
+      if (ready === 'game') {
+        await page.waitForFunction(() => window.slimekin && document.getElementById('boot')?.hidden === true, null, { timeout: 150000 });
+        // no requests, Lucky Glimmers or tutorial hints opening things in the middle of a check (a slow renderer gives
+        // them time to)
+        await ev(() => { const g = window.slimekin; g.state.tutorial = 5; g.requests.timer = 1e9; g.glimmerT = 1e9; });
+      }
     }, 200000);
     const ls = k => ev(k => localStorage.getItem(k), k);
     const nameOf = t => { try { return JSON.parse(t).slime.name; } catch { return t == null ? '(none)' : '(unreadable)'; } };
@@ -120,19 +132,14 @@ function seedPage({ seeds }) {
       const msg = () => ev(() => document.getElementById('codeMsg')?.innerText || '');
       await loadCode('');
       check(/Paste a save code first/.test(await msg()), 'code: an empty code is refused', JSON.stringify(await msg()));
-      await page.fill('#saveCodeIn', 'SLIMEKIN1:' + Buffer.from('{}').toString('base64'));
-      await page.click('#codeLoad');
-      await page.waitForTimeout(300);
+      await loadCode('SLIMEKIN1:' + Buffer.from('{}').toString('base64'));
       check(/doesn't hold a slime/.test(await msg()), 'code: "{}" is refused', JSON.stringify(await msg()));
-      await page.fill('#saveCodeIn', 'SLIMEKIN1:eyJ2IjoxLCJwaGFzZ');
-      await page.click('#codeLoad');
-      await page.waitForTimeout(300);
+      await loadCode('SLIMEKIN1:eyJ2IjoxLCJwaGFzZ');
       check(/cut short/.test(await msg()), 'code: a cut-off code is refused', JSON.stringify(await msg()));
       await shot('3-code-refused');
       check(nameOf(await ls(KEY)) === 'Pebble', 'code: nothing changed after the refusals');
       const good = 'SLIMEKIN1:' + Buffer.from(JSON.stringify(mochi), 'utf8').toString('base64');
-      await page.fill('#saveCodeIn', good);
-      await page.click('#codeLoad');
+      await loadCode(good);
       await page.waitForSelector('#codeReplace');
       const ask = await ev(() => document.getElementById('modalCard').innerText);
       check(/Replace Pebble\?/.test(ask) && /Mochi/.test(ask) && /kept/.test(ask), 'code: a good code asks "Replace Pebble?" and names Mochi', JSON.stringify(ask.slice(0, 140)));
@@ -216,7 +223,8 @@ function seedPage({ seeds }) {
       await page.waitForFunction(() => document.getElementById('notice-boot'), null, { timeout: 60000 });
       const text = await card('boot');
       check(/hit a snag/.test(text) && /save was not changed/.test(text) && !/WebGL/.test(text), 'boot: another start-up error says "hit a snag", not "needs WebGL"', JSON.stringify(text.slice(0, 100)));
-      check(await ls(KEY) === pebbleText, 'boot: the save is untouched');
+      const kept = await ls(KEY), same = o => JSON.stringify({ ...o, savedAt: 0 });
+      check(kept && same(JSON.parse(kept)) === same(PEBBLE), 'boot: the save is untouched');
       await shot('9-boot-snag');
       await open('nogl', 'none');
       await page.waitForFunction(() => /needs 3D graphics/.test(document.getElementById('boot')?.innerText || ''), null, { timeout: 60000 });
