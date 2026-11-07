@@ -415,6 +415,10 @@ body.at-ranch .egg-hint { display: none !important; }
 .need.low { animation: need-ring 1.2s ease-in-out infinite; }
 @keyframes need-ring { 50% { transform: scale(1.14); } }
 .slime-card .icon-btn { width: 32px; height: 32px; }
+/* a name too long for the one-line pill (hud.js fitName) gets the first line to itself */
+.slime-card.long-name { border-radius: 24px !important; }
+.slime-card.long-name .name-row { flex-wrap: wrap; row-gap: 3px; }
+.slime-card.long-name .name { flex: 1 0 100%; max-width: none; padding-right: 6px; }
 /* a little bubble by the slime when a need runs low */
 .say.need-say { display: flex; align-items: center; gap: 6px; font-size: 15px; padding: 6px 12px 6px 8px; }
 .say.need-say svg { width: 20px; height: 20px; flex: none; }

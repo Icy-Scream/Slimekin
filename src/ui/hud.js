@@ -1040,6 +1040,7 @@ export class Hud {
       this.slowT = 0.25;
       const nb = this.$('nameBtn');
       if (nb.textContent !== (s.name || 'Slime')) nb.textContent = s.name || 'Slime';
+      this.fitName(nb);
       this.updateMedalBadge();
       this.$('stagePill').textContent = sim.stage().name;
       this.$('bondTitle').textContent = BOND[sim.bondLevel()].title;
@@ -1356,6 +1357,19 @@ export class Hud {
     for (const t of ['pointerup', 'pointercancel']) window.addEventListener(t, () => { this.panelPress = false; }, true);
     // tapping the grip still closes it
     this.$('sheetGrip').addEventListener('click', () => this.setSheet('closed'));
+  }
+
+  // A name that does not fit next to the rings (narrow phones: 375 px left about 50 px, "Pebble" became "Pe...") gets
+  // the pill's first line to itself; a name that fits keeps the one-line pill. Measured only when the name, the
+  // width, the fonts or the pill's visibility change.
+  fitName(nb) {
+    const card = nb.closest('.slime-card');
+    if (!card) return;
+    const key = `${nb.textContent}|${innerWidth}|${nb.offsetParent ? 1 : 0}|${document.fonts ? document.fonts.status : ''}`;
+    if (key === this.nameFitKey) return;
+    this.nameFitKey = key;
+    card.classList.remove('long-name');
+    if (nb.offsetParent && nb.scrollWidth > nb.clientWidth + 1) card.classList.add('long-name');
   }
 
   // ---------- modals ----------
