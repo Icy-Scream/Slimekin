@@ -357,7 +357,7 @@ const FIXTURE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'mai
         'one confirm step: the family that suits the baby, no pearls, and the same egg choice (warming eggs allowed)', ask.slice(0, 400));
       await page.click('.choice.warming');
       await shot('14-rehome-confirm');
-      // the goodbye: a wave, then hops off to the side toward the new family
+      // the goodbye: a wave, then the travel bubble floats it up, drifting a little toward the new family
       await keepClock();
       const nav = page.waitForNavigation({ waitUntil: 'commit', timeout: 90000 });
       await ev(() => { document.getElementById('panel').style.transition = 'none'; });   // (the menu closes at once, for the first frame)
@@ -370,14 +370,15 @@ const FIXTURE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'mai
         const g = window.slimekin;
         if (say) g.hud.say(say, 60000);
         g.advance(Math.max(0, t - g.departing.t)); g.stage.render(); g.last = Infinity;
-        return { t: +g.departing.t.toFixed(2), x: +g.slime.root.position.x.toFixed(2) };
+        return { t: +g.departing.t.toFixed(2), x: +g.slime.root.position.x.toFixed(2), y: +g.slime.root.position.y.toFixed(2), bubble: g.sendOff.info() };
       }, { t, say });
       const still = async name => { await page.waitForTimeout(300); await page.screenshot({ path: path.join(OUT, name + '-day.png'), timeout: 120000 }); note('screenshot', name); };
       const f1 = await frameAt(1.0, bye.say);
       await still('15-rehome-goodbye-wave');
-      const f2 = await frameAt(3.3);
-      await still('15-rehome-goodbye-hop');
-      expect(f2.x > f1.x + 1, 'it hops off to the side, toward its new family', `x ${f1.x} at ${f1.t} s -> ${f2.x} at ${f2.t} s`);
+      const f2 = await frameAt(3.0);
+      await still('15-rehome-goodbye-bubble');
+      // (by 3 s it has risen about 2.2: SENDOFF.side x that is 0.7 toward the family, less at most 0.16 of sway)
+      expect(f2.bubble && f2.bubble.shown && f2.bubble.step === 'float' && f2.y > f1.y + 1.5 && f2.x > f1.x + 0.4, 'a travel bubble floats it up, drifting a little toward its new family (+x)', `x ${f1.x}, y ${f1.y} at ${f1.t} s -> x ${f2.x}, y ${f2.y} at ${f2.t} s (bubble r ${f2.bubble && f2.bubble.r})`);
       await ev(() => { const g = window.slimekin; document.getElementById('panel').style.transition = ''; g.last = performance.now(); g.hud.say('', 1); g.advance(3); });
       await nav;
       await boot();

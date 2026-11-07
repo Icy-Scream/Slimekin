@@ -482,3 +482,34 @@ the loading moment below at home.
   - The barn can't load (offline on the very first run, files missing): the pill goes, the menu goes back to the page
     it was on, and one toast: **"The barn needs the internet the first time."** / "Try again in a moment." The next tap
     on Ranch tries again.
+
+## The send-off: a travel bubble (R3)
+
+The goodbye when a grown slime moves to the ranch, and when a baby goes to a new home (`src/send-off.js`, the bubble
+`src/view/travel-bubble.js`, its rule `src/view/bubble-math.js`, numbers in `SENDOFF` in `content.js`). It replaces the
+old hop toward the hill (a grown slime) and the hops off to the side (a baby).
+
+- The start is as before: hearts, the say line, the happy face; the menu sheet closes.
+- 0.2 s: it waves (the nub a baby always waved with; now a grown slime waves too); a baby looks toward where its new
+  family waits (as before).
+- 1.0 s: a see-through soap bubble grows around it (no art files: a thin-film rainbow rim that drifts, a thin bright
+  outline, a soft window glint upper left and a small one lower right, a gentle wobble) with a ring of rainbow sparkles
+  and the `wobble` sound. Its bottom stays just over the cushion; the slime is lifted onto the bubble's floor.
+- 1.6 s: it lifts off (`whee`), sparkly eyes, and floats up with a gentle sway, a little toward the camera, a trail of
+  small pastel glints behind it (a baby drifts a little toward its family's side), and leaves the top of the picture.
+- Where the room would be seen meeting it first (the Greenhouse roof in the Wide, Left and Right angles, or turned by
+  hand), it pops instead: it swells a little and fades, the slime shrinks into a burst of rainbow and gold sparkles
+  (`pop` + `sparkle`); near the room the sparkles spread less and drift down. By 3.95 s it pops anyway.
+- 4.2 s the white fade and 5.3 s the move and the reload, as before.
+- Reduced motion: no float; the bubble forms, glows and fades out in place with the slime (from 2.4 s over 1.2 s).
+- Low graphics: the bubble draws only its near side (one pass); High also draws its far side faintly first.
+
+### Copy changed (the hill is now the barn)
+
+| Where | Before | Now |
+|---|---|---|
+| "Move Pebble to the ranch?" (`askMoveOut`) | Pebble will live on the hill behind the cushion, making jelly and pearls, ... | Pebble will live at the ranch barn, making jelly and pearls, ... |
+| The say line as it leaves (`moveOut`) | I'll be on the hill! ♥ | See you at the barn! ♥ |
+| "Pebble moved to the ranch!" (`showMovedIn`) | Pebble is settling in on the hill behind the cushion, with 7 other slimes. | Pebble is settling in at the barn, with 7 other slimes. |
+
+(Still saying "hill", not in this slice's list: the Family Statue heirloom's "on the ranch hill" in `HEIRLOOMS`.)

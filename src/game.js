@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { Sim, createState, migrate } from './core/sim.js';
 import { Requests } from './core/requests.js';
-import { TUNING, FOODS, FOOD_BY_ID, HELPERS, HELPER_BY_ID, UPGRADE_BY_ID, STAGES, TRAITS, TRAIT_IDS, BOND, PERSONALITY, PERSONALITY_IDS, JAR_LEVELS, OUTFITS, OUTFIT_BY_ID, BUYER_BY_ID, BREEDING, SPARK_BY_ID, FORM_BY_ID, PURE_LINE, MOVING_DAY, BREEDS } from './data/content.js';
+import { TUNING, FOODS, FOOD_BY_ID, HELPERS, HELPER_BY_ID, UPGRADE_BY_ID, STAGES, TRAITS, TRAIT_IDS, BOND, PERSONALITY, PERSONALITY_IDS, JAR_LEVELS, OUTFITS, OUTFIT_BY_ID, BUYER_BY_ID, BREEDING, SPARK_BY_ID, FORM_BY_ID, PURE_LINE, MOVING_DAY, BREEDS, SENDOFF } from './data/content.js';
 import { fmt, fmtShort, fmtDuration } from './core/format.js';
 import { Stage, CUSHION_TOP } from './view/stage.js';
 import { SlimeAvatar } from './view/slime.js';
@@ -29,6 +29,7 @@ import { RanchLifeUI } from './ui/ranch-life.js';
 import { isNative, haptic, freshState } from './platform/index.js';
 import { Home } from './greenhouse-home.js';
 import { BarnRanch } from './barn-ranch.js';
+import { SendOff } from './send-off.js';
 
 const SLIME_Y = CUSHION_TOP - 0.03;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -80,6 +81,7 @@ export class Game {
     this.helpers3d.setNight(this.stage.dark);
     this.helpers3d.sync(this.state.helpers);
     this.home = new Home(this);   // [greenhouse] home's world (Greenhouse / Meadow / Classic) and the camera you can turn
+    this.sendOff = new SendOff(this);   // [bubble] the goodbye's travel bubble (send-off.js)
     this.barnRanch = new BarnRanch(this);   // [barn] the ranch screen: the baked barn, one resident on the stand (barn-ranch.js)
     this.hud = new Hud(this);
     this.behave = new Behaviors(this);
@@ -807,7 +809,7 @@ export class Game {
     const medalHtml = m ? `<div class="card mv-medal"><span class="medal-row">${this.hud.medalChip(m, 'big')}<b>${name} takes ${m.id === 'ribbon' ? 'the Grown-Up Ribbon' : `the ${esc(m.name)} medal`}</b></span><span class="sub">${m.id === 'ribbon' ? 'Every grown slime gets one.' : `On the ranch it makes pearls x${m.pearls} and buyers pay +${Math.round(m.offers * 100)}%.`}</span></div>` : '';
     const leftHtml = left >= 1 ? `<div class="card mv-leftover"><b>You still have ${fmtShort(left)} jelly.</b><span class="sub">It stays behind when ${name} moves out. Visit the Heirlooms first?</span><button class="btn" id="mvHeirlooms">Visit the Heirlooms</button></div>` : '';
     this.hud.openModal(`<h2>Move ${name} to the ranch?</h2>
-      <p>${name} will live on the hill behind the cushion, making jelly and pearls, and you can visit any time. ${eggs.length ? 'Then an egg goes on the cushion' : 'A new egg arrives'} and you raise a new baby.</p>
+      <p>${name} will live at the ranch barn, making jelly and pearls, and you can visit any time. ${eggs.length ? 'Then an egg goes on the cushion' : 'A new egg arrives'} and you raise a new baby.</p>
       ${medalHtml}
       ${choice}
       <div class="card mv-bonus"><b>Family Bonus +${pv.bonusNow.toFixed(1)}% → +${pv.bonusAfter.toFixed(1)}%</b><span class="sub">to all jelly, forever. It grows from all the jelly your family has ever made, so every bit ${name} makes counts.</span></div>
@@ -857,11 +859,11 @@ export class Game {
 
   moveOut(eggId = null) {
     if (this.departing || !this.sim.canMoveOut()) return;
-    this.depart({ eggId, say: "I'll be on the hill! ♥" });
+    this.depart({ eggId, say: 'See you at the barn! ♥' });
   }
 
-  // The goodbye: hearts, a hop away (to the hill, or for a baby a wave and hops off to the side, toward its new
-  // family), a white fade, then the rule runs and the page reloads into the egg on the cushion.
+  // The goodbye: hearts, a wave, then the travel bubble carries it up and out of the picture (send-off.js; a baby waves
+  // and drifts a little toward its new family), a white fade, then the rule runs and the page reloads into the egg.
   depart({ eggId = null, buyerId = null, say }) {
     this.leaveRanch();
     // the goodbye happens in view: a menu still open (the Slime tab) closes first
@@ -869,28 +871,23 @@ export class Game {
     const baby = !!buyerId;
     this.movingDay.stop();
     this.slime.root.position.x = this.slime.root.position.z = 0;
-    this.departing = { t: 0, z: 0, x: 0, hopT: 0.4, side: baby };
+    this.departing = { t: 0 };
     const name = this.Name;
     this.press = null;
     this.flash({ eyes: 'happy', mouth: 'grin', blush: 1 }, 3);
     this.sfx.mii();
     this.hud.say(say, 2200);
     this.fx.emit('hearts', this.slime.headTopWorld(this.v1), { count: 10 });
-    if (baby) {
-      // a goodbye wave, looking toward where its new family waits
-      this.slime.nub('wave', new THREE.Vector3(0.9, 0.32, 0.3), 0.46, { wave: 0.45, snap: 3 });
-      this.after(1.7, () => this.slime.nubIn('wave'));
-      this.lookOverride = { target: new THREE.Vector3(6, 1.2, 2), until: this.time + 6 };
-    }
-    this.after(1.2, () => { if (!baby) this.slime.spin(); this.slime.hop(6); this.sfx.whee ? this.sfx.whee() : this.sfx.sparkle(); });
-    this.after(2.2, () => { this.departing.go = true; });
-    this.after(4.2, () => {
+    // a baby looks toward where its new family waits (and drifts that way)
+    if (baby) this.lookOverride = { target: new THREE.Vector3(6, 1.2, 2), until: this.time + 6 };
+    this.sendOff.start({ baby });   // [bubble]
+    this.after(SENDOFF.fade, () => {
       const fade = document.createElement('div');
       fade.className = 'fade-white';
       document.body.appendChild(fade);
       requestAnimationFrame(() => fade.classList.add('on'));
     });
-    this.after(5.3, async () => {
+    this.after(SENDOFF.rule, async () => {
       const eggOf = egg => egg ? { parents: egg.parents.map(p => p.name), spark: !!egg.spark, label: eggLabel(egg) } : null;
       if (baby) {
         const r = this.sim.rehomeBaby(this.nowMs(), { eggId, buyerId });
@@ -908,23 +905,9 @@ export class Game {
     });
   }
 
-  // the grown slime hops off toward the hill
   updateDeparture(dt) {
-    const d = this.departing;
-    d.t += dt;
-    if (!d.go) return;
-    d.hopT -= dt;
-    if (d.hopT <= 0 && this.slime.hopY <= 0) { this.slime.hop(5); d.hopT = 0.35; this.sfx.boing ? this.sfx.boing() : null; }
-    if (d.side) {
-      // a baby hops off to the side, toward its new family (off the cushion just as the fade starts)
-      d.x += dt * 1.5;
-      this.slime.root.position.x = d.x;
-      return;
-    }
-    d.z -= dt * 2.6;
-    this.slime.root.position.z = d.z;
-    this.slime.root.position.x = Math.sin(d.t * 2) * 0.2;
-    this.slime.sizeTarget = Math.max(0.25, this.sim.size() * (1 + d.z / 12));
+    this.departing.t += dt;
+    this.sendOff.update(dt);   // [bubble]
   }
 
   showMovedIn(j) {
@@ -939,7 +922,7 @@ export class Game {
       return;
     }
     const others = R.residents.length - 1;
-    let body = `<p>${esc(j.name)} is settling in on the hill behind the cushion${others > 0 ? `, with ${others} other slime${others === 1 ? '' : 's'}` : ''}. Open the Ranch tab to visit.</p>`;
+    let body = `<p>${esc(j.name)} is settling in at the barn${others > 0 ? `, with ${others} other slime${others === 1 ? '' : 's'}` : ''}. Open the Ranch tab to visit.</p>`;
     body += `<div class="card"><b>Family Bonus +${j.bonus.toFixed(1)}%</b><span class="sub">Now +${R.family.bonus.toFixed(1)}% to all jelly, forever. This is generation ${R.family.generation}.</span></div>`;
     if (j.gift) body += `<div class="card"><b><i class="pearl"></i> ${j.gift} pearls</b><span class="sub">${esc(j.name)} found these on the way. Ranch slimes make pearls over time: spend them on more room and a bigger Pearl Basket.</span></div>`;
     body += eggLine;

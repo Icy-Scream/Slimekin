@@ -328,6 +328,7 @@ export class SlimeAvatar {
     this.time = 0;
     this.size = 0.6; this.sizeTarget = 0.6; this.sizeV = 0;
     this.breathAmp = 0.022; this.breathRate = 2.1;
+    this.shadowFade = 1;   // the send-off lifts the slime off the cushion: its shadow fades (send-off.js)
     this.glow = 0;
     this.stiffness = 1;
     this.color = BASE_COLOR.clone();
@@ -1406,6 +1407,6 @@ export class SlimeAvatar {
     // shadow
     const sh = s * 2.25 * (1 - this.sq.x * 0.35) / (1 + this.hopY * 0.8);
     this.shadow.scale.set(sh, sh * 0.92, 1);
-    this.shadow.material.opacity = 0.9 / (1 + this.hopY * 2);
+    this.shadow.material.opacity = 0.9 / (1 + this.hopY * 2) * this.shadowFade;
   }
 }

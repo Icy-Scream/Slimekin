@@ -54,7 +54,7 @@ fs.mkdirSync(OUT, { recursive: true });
     await step('move out', async () => {
       await page.click('#moveOutBtn');
       await page.click('#mvYes');
-      // The goodbye runs on the game clock: advance() plays it (hop away, fade, save) and the page reloads at
+      // The goodbye runs on the game clock: advance() plays it (the travel bubble, fade, save) and the page reloads at
       // its end. The navigation wait is armed before that and only waits for the new page to start; the new
       // game is then awaited on its own state rather than on the page's "load" event.
       const nav = page.waitForNavigation({ waitUntil: 'commit', timeout: 90000 });

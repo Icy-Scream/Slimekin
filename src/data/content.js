@@ -771,3 +771,30 @@ export const BARN = {
   // most `idle` ms later). Ranch tapped before they are in: home stays and a short "Off to the barn" moment shows.
   preload: { frames: 10, after: 1.5, idle: 2000 },
 };
+
+// ---------- The send-off: a travel bubble (moving to the ranch, and a baby's new home) ----------
+// The goodbye: hearts and a happy face, a wave, then a see-through bubble grows around the slime, lifts it off the cushion
+// and floats up and out of the picture with a trail of sparkles (a baby drifts a little toward the side its new family
+// waits on). In any camera angle where it would be seen meeting the room (the Greenhouse roof, a wall, the lantern) or
+// come near the camera while still in the picture, it pops first in a burst of sparkles. Then the white fade and the
+// rule, as before.
+// Seconds count from the goodbye's start. The rule and the path: src/view/bubble-math.js; the bubble: travel-bubble.js.
+export const SENDOFF = {
+  wave: [0.2, 1.05],         // the wave (the nub a baby always waved with): out, back in (before the bubble closes)
+  grow: [1.0, 0.55],         // the bubble starts growing, and takes this long
+  lift: 1.6,                 // it lifts off the cushion
+  latest: 3.95,              // still in the picture by now: it pops (just before the white fade)
+  fade: 4.2, rule: 5.3,      // the white fade, then the rule and the reload (as before the bubble)
+  pad: 1.06,                 // the bubble's radius over the smallest that holds the slime
+  rest: 0.07,                // the slime sits this much of the radius above the bubble's bottom
+  gap: { cushion: 0.03, room: 0.15, camera: 0.5 },   // how close it comes: the cushion, the room (as seen), the camera
+  rise: { accel: 2.3, top: 5 },     // upward: eases in (units a second, per second) to a top speed (units a second)
+  sway: { amp: 0.16, hz: 0.55 },    // a gentle side to side (across the camera's view)
+  toward: 0.35,              // toward the camera, per unit it rises (it leaves the picture lower, well under a roof)
+  side: 0.3,                 // a baby: toward its family's side, per unit it rises
+  wobble: 0.03,              // the bubble's soft wobble (of its radius)
+  trail: 0.06,               // a sparkle behind it this often while it floats
+  popTime: 0.14,             // a pop: the bubble swells and fades, the slime shrinks into the sparkles
+  popSwell: 0.12,            // how much it swells as it pops (of its radius; less when the room is nearer than that)
+  reduced: { glow: 1.7, fade: [2.4, 1.2] },   // Reduced motion: no float; it glows from 1.7 s and fades out in place
+};
