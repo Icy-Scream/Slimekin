@@ -11,7 +11,8 @@
 //   offline  the room's files can't load (offline on the very first run): home shows the Meadow, the setting stays
 //            Greenhouse, one warning; no other look first
 //   meadow, classic   those Backgrounds never wait: the loading screen goes as soon as the game is built
-//   cold     timing only (--runs=N cold loads, no delay): cold start to playable
+//   cold     timing only (--runs=N cold loads, no delay): cold start to playable; --before=<folder> also an older copy;
+//            --delay=<ms> holds the room's files back as in delay3
 //   node tools/home-load-smoke.cjs [--only=delay3,delay12,offline,meadow,classic] [--film] [--nocheck] [--runs=3]
 // --film saves screenshots taken one after another (each a real frame of the page) with the record to tools/out/home-load/<part>/.
 // --nocheck only films and prints the record (for an older copy of the game: SLIMEKIN_ROOT=<folder>).
@@ -21,7 +22,7 @@ const { setup, watchdog, log, deadline } = require('./browser-kit.cjs');
 
 const arg = (k, d) => { const a = process.argv.find(x => x === `--${k}` || x.startsWith(`--${k}=`)); return a ? (a.includes('=') ? a.split('=')[1] : true) : d; };
 const ONLY = String(arg('only', 'delay3,delay12,offline,meadow,classic')).split(',');
-const FILM = !!arg('film', false), CHECK = !arg('nocheck', false), RUNS = +arg('runs', 3);
+const FILM = !!arg('film', false), CHECK = !arg('nocheck', false), RUNS = +arg('runs', 3), BEFORE = arg('before', null);
 const OUT = path.join(__dirname, 'out', 'home-load');
 const SAVE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'barn', 'barn-six.json'), 'utf8')).save;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -30,8 +31,8 @@ const fails = [];
 const expect = (cond, what, detail = '') => { if (cond) log('ok', what); else { fails.push(what + (detail ? ': ' + detail : '')); log('FAIL', what, detail); } };
 
 // One cold load. room: { delay } holds the room's files back, { block: true } makes them fail.
-async function load(part, { scene = 'greenhouse', delay = 0, block = false, until }) {
-  const kit = await setup({ contextOptions: { viewport: { width: 393, height: 852 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true } });
+async function load(part, { scene = 'greenhouse', delay = 0, block = false, until, root }) {
+  const kit = await setup({ ...(root ? { root } : {}), contextOptions: { viewport: { width: 393, height: 852 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true } });
   const { page } = kit;
   const reqs = [], warns = [];
   page.on('console', m => { if (m.type() === 'warning') warns.push(m.text()); });
@@ -199,22 +200,30 @@ async function plain(scene) {
   expect(!rec.reqs.some(r => r[0] === 'room'), `${scene}: the room's files are not asked for`);
 }
 
+// cold start to playable: --runs cold loads of this copy (and of --before=<folder>, an older copy, in turn)
 async function cold() {
-  const rows = [];
+  const rows = { after: [], before: [] };
+  const until = () => { const b = document.getElementById('boot'); return b.hidden && (document.documentElement.dataset.homeWorld || (window.slimekin && window.slimekin.home.world)) !== 'loading'; };
   for (let i = 0; i < RUNS; i++) {
-    const rec = await load('cold', { until: () => { const b = document.getElementById('boot'); return b.hidden && (document.documentElement.dataset.homeWorld || (window.slimekin && window.slimekin.home.world)) !== 'loading'; } });
-    const vis = visible(rec);
-    const fade = vis.length ? vis[0][0] : null;
-    const gone = (firstWith(rec, f => f[1] === -1) || [null])[0];
-    const room = (firstWith(rec, f => f[2] === 'greenhouse' && f[1] < 0.999) || [null])[0];
-    const other = vis.filter(f => f[2] !== 'greenhouse').length;
-    const r = { first: rec.frames.length ? rec.frames[0][0] : null, fade, playable: gone, roomOnScreen: room, otherFrames: other };
-    log(`cold run ${i + 1}:`, JSON.stringify(r));
-    rows.push(r);
+    for (const which of BEFORE ? ['after', 'before'] : ['after']) {
+      const rec = await load('cold', { until, delay: +arg('delay', 0), root: which === 'before' ? BEFORE : null });
+      const vis = visible(rec);
+      const r = {
+        first: rec.frames.length ? rec.frames[0][0] : null,
+        fade: vis.length ? vis[0][0] : null,
+        playable: (firstWith(rec, f => f[1] === -1) || [null])[0],
+        roomOnScreen: (firstWith(rec, f => f[2] === 'greenhouse' && f[1] < 0.999) || [null])[0],
+        otherFrames: vis.filter(f => f[2] !== 'greenhouse').length,
+      };
+      log(`cold ${which} run ${i + 1}:`, JSON.stringify(r));
+      rows[which].push(r);
+    }
   }
-  const med = k => { const v = rows.map(r => r[k]).filter(x => x !== null).sort((a, b) => a - b); return v.length ? `${v[(v.length - 1) >> 1]} (${v[0]}..${v[v.length - 1]})` : 'never'; };
-  console.log(`\ncold loads, median (min..max) of ${rows.length}, ms since the page was asked for:`);
-  for (const [k, n] of [['first', 'first frame'], ['fade', 'loading screen starts to fade'], ['playable', 'loading screen gone (playable)'], ['roomOnScreen', 'the Greenhouse on screen'], ['otherFrames', 'frames showing another look']]) console.log(`  ${n.padEnd(32)} ${med(k)}`);
+  const med = (rs, k) => { const v = rs.map(r => r[k]).filter(x => x !== null).sort((a, b) => a - b); if (!v.length) return 'never'; const m = v.length % 2 ? v[(v.length - 1) / 2] : (v[v.length / 2 - 1] + v[v.length / 2]) / 2; return `${Math.round(m)} (${v[0]}..${v[v.length - 1]})`; };
+  console.log(`\ncold loads (an empty cache each${+arg('delay', 0) ? `, the room's files ${arg('delay')} ms late` : ''}), median (min..max) of ${RUNS} each, ms since the page was asked for:`);
+  for (const [k, n] of [['first', 'first frame (loading screen)'], ['fade', 'loading screen starts to fade'], ['playable', 'loading screen gone (playable)'], ['roomOnScreen', 'the Greenhouse on screen'], ['otherFrames', 'frames showing another look']]) {
+    console.log(`  ${n.padEnd(32)} after ${med(rows.after, k).padEnd(22)}${BEFORE ? ' before ' + med(rows.before, k) : ''}`);
+  }
 }
 
 (async () => {
