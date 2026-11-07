@@ -98,7 +98,7 @@ function seedPage({ seeds }) {
       await open('broken');
       await page.waitForFunction(() => document.getElementById('notice-broken'), null, { timeout: 60000 });
       const text = await card('broken');
-      check(/fresh egg/i.test(text) && /kept safe/i.test(text), 'broken: the gentle card shows', JSON.stringify(text.slice(0, 90)));
+      check(/new egg/i.test(text) && /kept safe/i.test(text) && /no backup/i.test(text), 'broken: the gentle card shows', JSON.stringify(text.slice(0, 90)));
       check(await ev(() => window.slimekin.state.phase) === 'egg', 'broken: a new egg');
       await shot('1-broken-save');
       await ev(() => window.slimekin.advance(7));   // an autosave of the new egg

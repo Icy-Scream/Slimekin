@@ -2653,15 +2653,15 @@ export class Game {
     } else if (st.from === 'none' && st.broken) {
       showNotice({
         key: 'broken',
-        title: 'A fresh egg, for now',
-        body: '<p>The old save on this device could not be read, so a new egg is here.</p><p>The old save is kept safe on this device, in case a grown-up can fix it.</p>',
+        title: 'Your old save could not be loaded',
+        body: '<p>The save on this device was damaged, and there was no backup copy to bring back. So you are starting over with a new egg.</p><p>Nothing was deleted: the damaged save is kept safe on this device in case it can be fixed later.</p>',
         buttons: [
-          { id: 'ok', label: 'OK', primary: true, onClick: n => n.close() },
-          { id: 'copy', label: 'Copy the old save', onClick: async n => {
+          { id: 'ok', label: 'Start with the new egg', primary: true, onClick: n => n.close() },
+          { id: 'copy', label: 'Copy damaged save (for help)', onClick: async n => {
             let raw = '';
             try { raw = localStorage.getItem(BROKEN_KEY) || ''; } catch { /* blocked */ }
             const ok = raw && await copyText(raw);
-            n.set({ body: `<p>${ok ? 'The old save is copied. Paste it into a message to a grown-up who can look at it.' : 'Copying did not work here.'}</p>`,
+            n.set({ body: `<p>${ok ? 'The damaged save is copied. Paste it into a message to whoever is helping you fix it.' : 'Copying did not work here.'}</p>`,
               buttons: [{ id: 'ok', label: 'OK', primary: true, onClick: m => m.close() }] });
           } },
         ],
