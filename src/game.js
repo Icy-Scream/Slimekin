@@ -157,8 +157,10 @@ export class Game {
     this.setupPhase();
     this.instantEggs();
     document.getElementById('eggAlt').addEventListener('click', () => this.openNursery());
-    this.after(2.5, () => this.checkPostcards());
-    if (this.state.ranch.justMoved) { const j = this.state.ranch.justMoved; delete this.state.ranch.justMoved; this.after(1.4, () => this.showMovedIn(j)); }
+    // [r3b] the start's moments are timed from when the loading screen goes (it may wait for the Greenhouse room)
+    this.onShown = [];
+    this.whenShown(() => this.after(2.5, () => this.checkPostcards()));
+    if (this.state.ranch.justMoved) { const j = this.state.ranch.justMoved; delete this.state.ranch.justMoved; this.whenShown(() => this.after(1.4, () => this.showMovedIn(j))); }
     this.bindInput();
     this.watchTheme();
     this.resize();
@@ -183,6 +185,16 @@ export class Game {
       this.trackSpeed(gap, target, performance.now() - t0);
     };
     requestAnimationFrame(loop);
+  }
+
+  // [r3b] The loading screen and the game's first look (main.js): firstLook() resolves when home shows what it should
+  // (the Greenhouse room waits, at most GREENHOUSE.arrive.wait s); shown() when the loading screen starts to go.
+  firstLook() { return this.home.firstLook(); }
+  whenShown(fn) { if (this.onShown) this.onShown.push(fn); else fn(); }
+  shown() {
+    const q = this.onShown;
+    this.onShown = null;
+    for (const fn of q || []) { try { fn(); } catch (e) { console.error(e); } }
   }
 
   // ---------- helpers ----------
@@ -2593,6 +2605,7 @@ export class Game {
     }
     this.stage.update(dt, this.slime.size, this.parallax, this.reduced);
     if (!this.noRender) this.stage.render();
+    this.home.afterRender(!this.noRender);   // [r3b] the loading screen's wait, the room's cross-fade
 
     if (st.phase === 'play' || st.phase === 'naming') {
       if (st.phase === 'play') this.hud.update(dt);

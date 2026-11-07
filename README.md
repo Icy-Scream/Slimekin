@@ -143,6 +143,7 @@ tools/jelly-loop-smoke.cjs headless jelly loop play-through from an old save (he
 tools/greenhouse-test.mjs  Greenhouse check in plain node (the room's files, helper spots on High and Low, pal hops, camera limits, the move of old saves)
 tools/greenhouse-smoke.cjs headless Greenhouse test with real touches (every angle day and night, drag, pinch, petting, menu sheet, Settings, ranch, helpers, egg)
 tools/greenhouse-offline.cjs each asset folder's own offline cache (the room, the barn) across test builds in tools/out/web-test (never docs/)
+tools/home-load-smoke.cjs  the game's start on a cold load with the room's files late or missing: no other scene before the Greenhouse, the cross-fade past the wait, offline; --film for a filmstrip, --only=cold for the start time
 tools/greenhouse-samples.cjs contact sheet of the new slime body in the Greenhouse (four bodies, Front vs the Meadow, Wide, Left, outfits, eggs, the Cuddly sign)
 src/assets/greenhouse/ the baked room (made outside this repo; do not edit by hand)
 src/assets/barn/      the baked barn for the ranch (made in Blender outside this repo; loaded ahead of time, after home shows)

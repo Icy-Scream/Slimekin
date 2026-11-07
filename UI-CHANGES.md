@@ -428,8 +428,22 @@ The baked Greenhouse room is home's default background (`src/view/greenhouse.js`
   slime." If the room could not load on this device: "The Greenhouse could not load here, so the meadow shows for now."
 - No other new elements. Gestures on empty background in the Greenhouse: one finger turns the camera, two fingers
   pinch to zoom, a mouse wheel zooms on a computer (the swipe code still counts).
-- 3D: helpers stand on the Greenhouse's spots (`GREENHOUSE.spots` in `content.js`); while the room loads, home shows
-  the plain Classic look for a moment.
+- 3D: helpers stand on the Greenhouse's spots (`GREENHOUSE.spots` in `content.js`).
+
+### The game's start waits for the room (R3b)
+
+- The loading screen `#boot.boot` ("Warming the nest", unchanged) now stays up until the Greenhouse room is in and
+  drawn, when the Background is Greenhouse, so no other scene shows first. At most `GREENHOUSE.arrive.wait` (8 s) after
+  the game is built; then it fades as before into the plain Classic look, and the room arrives with a cross-fade. The
+  Meadow and Classic don't wait (the screen goes as soon as the game is built, as before).
+- Cross-fade `canvas#homeFade.home-fade` (made by `src/greenhouse-home.js` only when the room arrives after the loading
+  screen has gone, CSS in `index.html`): a picture of the last frame before the room, right over the scene canvas and
+  under everything else (no `z-index`, next after `#scene`), takes no touches, fades out over `GREENHOUSE.arrive.fade`
+  (0.8 s; also with Reduced motion), then hidden and emptied. The HUD stays live above it.
+- Offline on the very first run (the room can't load): the loading screen goes straight into the Meadow (before, the
+  Classic look showed for a moment first).
+- The page's `<html>` carries `data-home-world` (`greenhouse | loading | meadow | classic`): what home drew last, for
+  the browser tests.
 
 ## Barn ranch
 

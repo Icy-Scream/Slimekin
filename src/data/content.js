@@ -678,6 +678,11 @@ export const PLACE_BY_ID = Object.fromEntries(RANCH_LIFE.places.map(p => [p.id, 
 // Pure math (ground, roof, camera limits, spot check) is in src/view/greenhouse-math.js.
 export const GREENHOUSE = {
   blend: 3,                    // day <-> night blend speed (1/s): about 3 s, like the test page
+  // The game's start with the Greenhouse as home: the loading screen ("Warming the nest") stays up until the room is in
+  // and drawn `frames` times, at most `wait` seconds after the game is built. Past that, home shows the plain Classic
+  // look and the room cross-fades in when it arrives: the last frame before it stays over the room and fades out over
+  // `fade` seconds (never a pop). The Meadow and Classic never wait.
+  arrive: { wait: 8, frames: 2, fade: 0.8 },
   // The lights on the slime and the helpers (the room's own light is baked into it). Day and night, blended with the room.
   slimeLight: {
     day:   { hemi: ['#fff4e6', '#d9b48a', 0.85], key: ['#fff1de', 1.6],  rim: ['#ffe6c2', 1.1], env: 0.45 },

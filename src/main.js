@@ -26,8 +26,14 @@ async function boot(hotData) {
     return;
   }
   window.claude?.hot?.snapshot?.(() => ({ save: game.serialize() }));
+  performance.mark('slimekin-built');
+  // The loading screen stays until home shows what it should: with the Greenhouse as home, until its room is in and drawn
+  // (at most GREENHOUSE.arrive.wait s, then the room cross-fades in when it comes). The Meadow and Classic don't wait.
+  await game.firstLook();
+  performance.mark('slimekin-shown');
   bootEl.style.opacity = '0';
   setTimeout(() => { bootEl.hidden = true; }, 500);
+  game.shown();
 
   // A cloud save that arrives late only replaces a brand-new egg.
   if (lateCloud) {

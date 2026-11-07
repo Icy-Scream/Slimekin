@@ -59,6 +59,9 @@ button { font: inherit; color: inherit; }
 #scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: default; }
 #scene.can-boop { cursor: pointer; }
 #scene.petting { cursor: grabbing; }
+/* the Greenhouse room arriving after the loading screen has gone: the last frame before it, fading out over it */
+.home-fade { position: fixed; inset: 0; width: 100%; height: 100%; display: block; pointer-events: none; }
+.home-fade[hidden] { display: none; }
 
 .boot { position: fixed; inset: 0; display: grid; place-items: center; background: var(--bg); z-index: 50; font-family: var(--display); font-size: 20px; color: var(--ink-2); transition: opacity .5s; }
 .boot[hidden] { display: none !important; }

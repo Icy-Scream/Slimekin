@@ -13,7 +13,7 @@
 //   meadow, classic   those Backgrounds never wait: the loading screen goes as soon as the game is built
 //   cold     timing only (--runs=N cold loads, no delay): cold start to playable
 //   node tools/home-load-smoke.cjs [--only=delay3,delay12,offline,meadow,classic] [--film] [--nocheck] [--runs=3]
-// --film saves every frame the browser draws (CDP screencast) with the record to tools/out/home-load/<part>/.
+// --film saves screenshots taken one after another (each a real frame of the page) with the record to tools/out/home-load/<part>/.
 // --nocheck only films and prints the record (for an older copy of the game: SLIMEKIN_ROOT=<folder>).
 const path = require('path');
 const fs = require('fs');
@@ -75,20 +75,24 @@ async function load(part, { scene = 'greenhouse', delay = 0, block = false, unti
   });
   await page.route('**/src/assets/barn/**', r => { reqs.push(['barn', path.basename(r.request().url()), rel()]); return r.continue().catch(() => {}); });
   page.on('requestfinished', q => { const u = q.url(); if (/\/src\/assets\/greenhouse\//.test(u)) reqs.push(['room-in', path.basename(u), rel()]); });
-  // every frame the browser draws (for the filmstrip)
+  // the filmstrip: screenshots one after another, as fast as the browser gives them (each one a real composited frame of
+  // the page: the CDP screencast showed stale canvas frames on a real GPU, so it is not used)
   const shots = [];
-  let cdp = null;
-  if (FILM) {
-    cdp = await kit.context.newCDPSession(page);
-    cdp.on('Page.screencastFrame', f => { shots.push({ ts: f.metadata.timestamp * 1000, data: f.data }); cdp.send('Page.screencastFrameAck', { sessionId: f.sessionId }).catch(() => {}); });
-    await cdp.send('Page.startScreencast', { format: 'jpeg', quality: 80, everyNthFrame: 1 });
-  }
+  let filming = FILM;
+  const film = async () => {
+    while (filming) {
+      const t = Date.now();
+      try { shots.push({ ts: t, data: await page.screenshot({ type: 'jpeg', quality: 80, timeout: 20000 }) }); } catch { await sleep(50); }
+    }
+  };
   origin0 = Date.now();
+  const filmed = film();
   await kit.step(`${part}: open`, () => page.goto(`${kit.server.origin}/?${part}#debug`), 120000);
   const timeOrigin = await kit.ev(() => performance.timeOrigin);
   await kit.step(`${part}: wait`, () => page.waitForFunction(until, null, { timeout: 120000, polling: 100 }), 125000);
   await sleep(1200);
-  if (cdp) await cdp.send('Page.stopScreencast').catch(() => {});
+  filming = false;
+  await filmed;
   const rec = await kit.ev(() => {
     const m = n => { const e = performance.getEntriesByName(n)[0]; return e ? Math.round(e.startTime) : null; };
     const g = window.slimekin;
@@ -104,7 +108,7 @@ async function load(part, { scene = 'greenhouse', delay = 0, block = false, unti
     fs.mkdirSync(dir, { recursive: true });
     for (const s of shots) {
       const ms = Math.round(s.ts - timeOrigin);
-      if (ms >= 0) fs.writeFileSync(path.join(dir, `${String(ms).padStart(6, '0')}.jpg`), Buffer.from(s.data, 'base64'));
+      if (ms >= 0) fs.writeFileSync(path.join(dir, `${String(ms).padStart(6, '0')}.jpg`), s.data);
     }
     fs.writeFileSync(path.join(dir, 'record.json'), JSON.stringify(rec));
     log(`${part}: ${shots.length} frames filmed into ${path.relative(path.join(__dirname, '..'), dir)}`);

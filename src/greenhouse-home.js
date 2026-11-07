@@ -1,8 +1,10 @@
 // Home's world (Settings > Background): the Greenhouse (the default), the Meadow or Classic, and the Greenhouse
 // camera you can turn. The game calls in from a few marked places (applySettings, input, the frame).
-//   - The Greenhouse room loads after the first frame; until it is ready home shows the plain Classic look. If it
-//     cannot load (offline on the very first run, or a copy of the game without the room's files) home stays on the
-//     Meadow, the setting is not changed, and it is logged once.
+//   - The Greenhouse room loads after the first frame, under the loading screen: the game's start waits for it
+//     (firstLook, [r3b]), so the player never sees another scene before the Greenhouse. Past GREENHOUSE.arrive.wait home
+//     shows the plain Classic look ('loading') and the room cross-fades in when it arrives (the last frame stays over it
+//     and fades out: never a pop). If it cannot load (offline on the very first run, or a copy of the game without the
+//     room's files) home stays on the Meadow, the setting is not changed, and it is logged once.
 //   - In the Greenhouse the nursery's floor, rug, cushion, sky and stars, the meadow and the ranch hill are hidden. The
 //     ranch screen is the Barn ranch in every Background (barn-ranch.js): nothing of home is drawn there.
 //   - The camera turns only in the Greenhouse, at home, with no modal open: the camera button steps through the set
@@ -23,6 +25,11 @@ export class Home {
     this.g = game;
     this.room = new Greenhouse(game.scene);
     this.world = null;          // what shows: 'greenhouse' | 'meadow' | 'classic' | 'loading' (Classic look while the room loads)
+    this.shown = false;         // [r3b] the loading screen has gone (from here on a change of the loading look cross-fades)
+    this.hold = null;           // [r3b] the loading screen waiting for the room: { n: frames drawn, done }
+    this.fadeTo = null;         // [r3b] the world to cross-fade to after the next frame is drawn
+    this.veil = new Veil();     // [r3b] the cross-fade: the last frame of the loading look over the new world
+    this.drawn = null;          // the world drawn last (data-home-world on the page, for the browser tests)
     this.rig = new CamRig();
     this.view = SETS.includes(game.state.settings.camView) ? game.state.settings.camView : 'front';
     this.free = false;          // turned by hand (off the set angles)
@@ -43,7 +50,15 @@ export class Home {
       if (this.room.failed) world = 'meadow';
       else if (!this.room.ready) { world = 'loading'; this.startLoad(); }
     }
-    if (world === this.world) return;
+    if (world === this.world) { this.fadeTo = null; return; }
+    // [r3b] the loading look gives way after the loading screen has gone (the room came late, or it could not load, or the
+    // Background changed meanwhile): the frame drawn next stays over the new world and fades out (afterRender)
+    if (this.world === 'loading' && this.shown && !(g.barnRanch && g.barnRanch.active)) { this.fadeTo = world; return; }
+    this.setWorld(world);
+  }
+
+  setWorld(world) {
+    const g = this.g;
     this.world = world;
     g.scenery.setEnabled(world === 'meadow' || world === 'greenhouse');   // (in the Greenhouse it stays hidden)
     g.stage.setClassic(world === 'classic' || world === 'loading');
@@ -55,8 +70,36 @@ export class Home {
   startLoad() {
     if (this.loadAsked) return;
     this.loadAsked = true;
-    // after the first frame, so the game shows at once (in the Classic look) while the room comes in
+    // after the first frame, under the loading screen (the start waits for the room: firstLook)
     requestAnimationFrame(() => setTimeout(() => this.room.load().then(() => this.apply()), 0));
+  }
+
+  // [r3b] For the loading screen (main.js): resolves when home shows what it should, the Greenhouse room in and drawn
+  // (GREENHOUSE.arrive.frames frames) or the Meadow because the room could not load; at the latest after
+  // GREENHOUSE.arrive.wait seconds (then the Classic look shows until the room arrives). The Meadow and Classic never wait.
+  firstLook() {
+    if (this.world !== 'loading') { this.shown = true; return Promise.resolve(this.world); }
+    return new Promise(res => {
+      const done = why => {
+        if (!this.hold) return;
+        clearTimeout(this.hold.timer);
+        this.hold = null;
+        this.shown = true;
+        res(why);
+      };
+      this.hold = { n: 0, done, timer: setTimeout(() => done('timeout'), GREENHOUSE.arrive.wait * 1000) };
+    });
+  }
+
+  // [r3b] Right after the stage has drawn a frame (drew: false when nothing was drawn).
+  afterRender(drew) {
+    if (this.fadeTo) {   // that frame was the loading look: keep it over the new world while it fades out
+      const w = this.fadeTo;
+      this.fadeTo = null;
+      if (drew) this.veil.cover(this.g.canvas);   // (Reduced motion too: a fade, nothing moves)
+      this.setWorld(w);
+    }
+    if (this.hold && drew && this.world !== 'loading' && ++this.hold.n >= GREENHOUSE.arrive.frames) this.hold.done('ready');
   }
 
   get inRoom() { return this.world === 'greenhouse'; }
@@ -68,6 +111,7 @@ export class Home {
   frameWorld() {
     const g = this.g, st = g.stage;
     if (g.barnRanch && g.barnRanch.active) {   // [barn] the ranch screen is the barn: nothing of home is drawn
+      if (this.veil.on) this.veil.off();   // [r3b] (nor home's cross-fade)
       this.room.group.visible = false;
       g.scenery.group.visible = false;
       st.setHabitat(false);
@@ -96,6 +140,8 @@ export class Home {
   }
 
   update(dt) {
+    if (this.drawn !== this.world) { this.drawn = this.world; document.documentElement.dataset.homeWorld = this.world; }
+    this.veil.update(dt, GREENHOUSE.arrive.fade);   // [r3b]
     this.frameWorld();
     if (this.inRoom && this.room.group.visible) this.room.update(dt, this.g.stage.camera, this.g.reduced);
     this.frameCamera(dt);
@@ -229,5 +275,48 @@ export class Home {
     if (!this.inRoom || this.g.view === 'ranch' || (!this.free && this.view === 'front')) return 0;
     const p = this.g.stage.camPos;
     return Math.atan2(p.x, p.z);
+  }
+}
+
+// [r3b] The cross-fade when the room arrives after the loading screen has gone: a picture of the last frame drawn before
+// it (a 2D canvas over the scene, under everything else) fades out over the new world. Made only when needed, emptied after.
+class Veil {
+  constructor() { this.el = null; this.on = false; this.t = 0; this.fresh = false; }
+  cover(src) {
+    let c = this.el;
+    if (!c) {
+      c = this.el = document.createElement('canvas');
+      c.id = 'homeFade';
+      c.className = 'home-fade';
+      c.setAttribute('aria-hidden', 'true');
+      src.after(c);
+    }
+    c.width = src.width;
+    c.height = src.height;
+    try {
+      c.getContext('2d').drawImage(src, 0, 0);   // the frame just drawn (still there until this task ends)
+    } catch (e) {
+      this.off();   // no picture: the world just changes
+      return;
+    }
+    c.style.opacity = '1';
+    c.hidden = false;
+    this.on = true;
+    this.t = 0;
+    this.fresh = true;   // the first frame of the new world is fully under it
+  }
+  update(dt, dur) {
+    if (!this.on) return;
+    if (this.fresh) { this.fresh = false; return; }
+    this.t += dt;
+    const k = Math.min(1, this.t / dur), o = 1 - k * k * (3 - 2 * k);   // eased out
+    this.el.style.opacity = o.toFixed(3);
+    if (k >= 1) this.off();
+  }
+  off() {
+    this.on = false;
+    if (!this.el) return;
+    this.el.hidden = true;
+    this.el.width = this.el.height = 1;   // let the picture's memory go
   }
 }
