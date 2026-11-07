@@ -67,13 +67,6 @@ export function nextAfterGone(oldOrder, order, goneId) {
   }
   return order[0];
 }
-// Which way to swap to reach `to` from `from` (the shorter way round; ties go forward).
-export function swapDir(order, from, to) {
-  const n = order.length, a = order.indexOf(from), b = order.indexOf(to);
-  if (a < 0 || b < 0 || a === b) return 1;
-  const fwd = ((b - a) % n + n) % n;
-  return fwd <= n - fwd ? 1 : -1;
-}
 
 // ---------- the swipe ----------
 // A quick sideways swipe: +1 = next (swiped left, like turning a page), -1 = previous, 0 = not a swipe.

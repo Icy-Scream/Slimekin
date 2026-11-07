@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
 import { BARN, RANCH_LIFE } from '../src/data/content.js';
-import { poseAt, springAt, clipOn, fadeAt, standOrder, stepId, startId, nextAfterGone, swapDir, swipeDir, pastSwipe, bestSkill, cardLine, cardCount, fitView, fovFor, basketSpot, spotProblems } from '../src/view/barn-math.js';
+import { poseAt, springAt, clipOn, fadeAt, standOrder, stepId, startId, nextAfterGone, swipeDir, pastSwipe, bestSkill, cardLine, cardCount, fitView, fovFor, basketSpot, spotProblems } from '../src/view/barn-math.js';
 import { createState, migrate } from '../src/core/sim.js';
 
 const root = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), '..');
@@ -99,7 +99,6 @@ ok(stepId(['a'], 'a', 1) === 'a', 'one resident: it stays');
 ok(startId(order, 'd', 'c') === 'd' && startId(order, null, 'c') === 'c' && startId(order, 'b', 'zz') === 'a' && startId([], 'a', 'b') === null, 'opening: the one asked for, else the one seen last, else the first (a traveler asked for: the first)');
 ok(nextAfterGone(['a', 'c', 'd'], ['a', 'd'], 'c') === 'd' && nextAfterGone(['a', 'c', 'd'], ['a', 'c'], 'd') === 'a' && nextAfterGone(['a'], [], 'a') === null, 'the one on the stand leaves: the next one after it comes up (wrapping); nobody left: null');
 ok(nextAfterGone(['a', 'c', 'd', 'e'], ['a', 'e'], 'c') === 'e', 'two left at once: the next one still here');
-ok(swapDir(order, 'a', 'd') === -1 && swapDir(order, 'a', 'c') === 1, 'a picked resident: the shorter way round');
 const withNew = standOrder([...res.map(x => (x.id === 'b' ? { id: 'b' } : x))]);
 ok(withNew.join() === 'a,b,c,d', 'a traveler coming home joins the order in its place', withNew.join());
 
