@@ -83,7 +83,14 @@ fs.mkdirSync(OUT, { recursive: true });
       // The body eases into a new stage over a few seconds after hatching or growing (slime.js updateRecipe: m -> mTarget).
       // A pull measured while it still morphs compares two different shapes: that was the flake ("let go, it boings
       // back", 0.17-0.19 from where it started). So let the morph finish first (at most 8 s of game time).
-      await ev(() => { const g = window.slimekin, sl = g.slime; let w = 0; while (Math.abs(sl.m - sl.mTarget) > 0.002 && w < 8) { g.advance(0.1); w += 0.1; } });
+      // Idle moments (a hop or kick every 4 to 10 s) are held off for the whole pull, and one already playing is waited
+      // out before aiming: a slime that hops between the aim and the touch puts the finger beside the curl tip.
+      await ev(() => {
+        const g = window.slimekin, sl = g.slime; let w = 0;
+        g.idleT = 1e9;
+        const moving = () => Math.abs(sl.m - sl.mTarget) > 0.002 || sl.hopY > 0.002 || Math.abs(sl.hopV) > 0.05 || Math.abs(sl.sq.v) > 0.2 || Math.abs(sl.leanX.v) > 0.2 || Math.abs(sl.leanZ.v) > 0.2;
+        while (moving() && w < 8) { g.advance(0.1); w += 0.1; }
+      });
       const findSpot = () => ev(() => {
         const g = window.slimekin, sl = g.slime, V = g.v1.constructor, cam = g.stage.camera;
         const pos = sl.geo.attributes.position.array, base = sl.base, n = pos.length / 3;
@@ -179,6 +186,7 @@ fs.mkdirSync(OUT, { recursive: true });
       ok(held.mode === 'pull' && held.amt > 0.15 && held.moved > 0.25 && (!at.curly || held.tipGrab > 0),
         `${label}: a real touch drag pulls ${what}; it follows the finger`, `${at.tries > 1 ? `try ${at.tries}, ` : ''}at (${at.x.toFixed(0)}, ${at.y.toFixed(0)}) on ${at.el}${at.modal ? ' (a modal is open)' : ''}${held.mode === 'pull' ? '' : `, on touch: ${at.start}; then ${held.pev}`}, mode ${held.mode}, tipGrab ${(+held.tipGrab).toFixed(2)}, pull ${held.amt.toFixed(2)}, the grabbed point moved ${held.moved.toFixed(2)} body units (curl tip ${held.tipMoved.toFixed(2)})`);
       ok(after.amt < 0.05 && after.tipGrab === 0 && after.still && after.back < held.moved * 0.5, `${label}: let go, it boings back`, `pull ${after.amt.toFixed(3)}, ${after.back.toFixed(2)} from where it started${after.waited ? `; waited ${after.waited} s more for an idle moment (hop or kick) to play out` : ''}${after.still ? '' : '; still moving after 3 s more'}${after.morph ? `; stage morph ${after.morph}` : ''}`);
+      await ev(() => { window.slimekin.idleT = 5; });   // idle moments back on
     }, 300000);
     const perf = label => ev(lbl => {
       const g = window.slimekin, sl = g.slime, o = { x: 0, y: 0, z: 0 };
