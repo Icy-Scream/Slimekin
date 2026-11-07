@@ -274,7 +274,7 @@ const FIX = { six: JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', '
       await page.click('#body-ranch [data-rl="train"]');
       await page.waitForSelector('#modalCard [data-skill]:not([disabled])');
       await page.click('#modalCard [data-skill="speed"]');
-      await page.waitForTimeout(500);
+      await page.waitForFunction(() => /in a lesson/.test(document.querySelector('#barnCard .bc-line').textContent), null, { timeout: 30000 }).catch(() => {});
       const line = await ev(() => document.querySelector('#barnCard .bc-line').textContent);
       expect(/in a lesson: Speed/.test(line), 'Train from the page: the card says it is in a lesson', line);
       // Send Juniper on a trip from its page: it burrows out and the next one comes up

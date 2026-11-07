@@ -34,7 +34,6 @@ export class BarnRanch {
     this.back = {};           // trips that ended this session: id -> { place, at } (the card's "just back from ...")
     this.press = null;
     this.scale = 1;           // the picture's scale (a wider lens when the menu sheet leaves little room)
-    this.cardT = 0;
     this._cam = new THREE.PerspectiveCamera();
     this._v = new THREE.Vector3();
   }
@@ -252,8 +251,7 @@ export class BarnRanch {
     if (g.egg) g.egg.group.visible = false;
     this.view.update(dt, g.stage.camera, g.reduced);
     this.frame(dt);
-    this.cardT -= dt;
-    if (this.cardT <= 0) { this.cardT = 0.5; this.renderCard(); }
+    this.renderCard();   // (every frame: it only touches the page when the card's words change)
     this.justIn = false;
   }
   // Fit the stand and the card between the top bar and the menu sheet (or the ranch bar): the camera's view slides up
