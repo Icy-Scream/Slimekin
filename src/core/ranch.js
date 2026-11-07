@@ -7,6 +7,10 @@ import { residentMedal } from './medals.js';
 import { heirloomMult } from './heirlooms.js';
 import { oldBody, cleanBody, rollSpecialEgg } from './recipe.js';
 import { createLife, migrateLife, migrateResident, pearlSkillMult, fadeMult, offerSkillMult, friendMult, busy } from './ranch-life.js';
+import { num, numOrNull, nums, count } from './save-check.js';
+
+// a resident's number fields and the value a broken one gets (save safety)
+const RESIDENT_NUMS = [['runTotal', 0], ['bondXp', 0], ['bondLevel', 0], ['happiness', 90], ['pearlT', 0], ['petAt', 0], ['movedAt', 0], ['generation', 1]];
 
 export function createRanch() {
   return {
@@ -36,14 +40,19 @@ export function migrateRanch(saved) {
   const out = { ...fresh, ...saved };
   out.basket = { ...fresh.basket, ...(saved.basket || {}) };
   out.family = { ...fresh.family, ...(saved.family || {}) };
-  const num = v => (Number.isFinite(+v) && +v > 0 ? +v : 0);
-  for (const k of ['bonus', 'lifetime']) out.family[k] = num(out.family[k]);
+  const pos = v => (Number.isFinite(+v) && +v > 0 ? +v : 0);
+  for (const k of ['bonus', 'lifetime']) out.family[k] = pos(out.family[k]);
   // Family Legacy: a save from before the lifetime rule keeps its Family Bonus exactly. The extra lifetime jelly
   // that gives that bonus becomes a hidden head start, so every later move-out still raises it. Filled once.
   if (!Number.isFinite(saved.family?.legacy)) out.family.legacy = legacyFor(out.family.bonus, out.family.lifetime);
+  // numbers (save safety, core/save-check.js): a string or NaN becomes the fresh value; a finite number is kept as it is
+  for (const k of ['slots', 'pearls', 'totalPearls', 'lastVisit']) out[k] = num(out[k], fresh[k]);
+  for (const k of ['level', 'stored']) out.basket[k] = num(out.basket[k], fresh.basket[k]);
+  out.family.generation = count(out.family.generation, 1, 1);
   if (!Array.isArray(out.residents)) out.residents = [];
   if (!Array.isArray(out.placed)) out.placed = [];
   out.nursery = { ...fresh.nursery, ...(saved.nursery || {}) };
+  for (const k of ['made', 'given', 'bought']) out.nursery[k] = num(out.nursery[k], 0);
   if (!Array.isArray(out.nursery.eggs)) out.nursery.eggs = [];
   for (const k of ['sparks', 'nearMiss']) if (!out[k] || typeof out[k] !== 'object' || Array.isArray(out[k])) out[k] = {};
   if (!Array.isArray(out.pures)) out.pures = [];
@@ -57,9 +66,18 @@ export function migrateRanch(saved) {
     // the recipe body: residents from before it are Curlys (plain, mix 0, neutral genes)
     Object.assign(x, 'breed' in x ? cleanBody(x) : oldBody());
     migrateResident(x);   // ranch life: skills, lesson, trip
+    // numbers (save safety): only the fields it has; a string or NaN becomes a safe value
+    for (const [k, d] of RESIDENT_NUMS) if (k in x) x[k] = num(x[k], d);
+    if ('jps' in x) x.jps = num(x.jps, residentJpsFor(x.runTotal || 0));
+    if ('bornAt' in x) x.bornAt = numOrNull(x.bornAt);
+    if (x.traits && typeof x.traits === 'object') x.traits = nums(x.traits, Object.fromEntries(TRAIT_IDS.map(t => [t, 0])));
+    if (x.personality && typeof x.personality === 'object') x.personality = nums(x.personality);
   }
   // Nursery eggs from before the recipe body hatch Curlys
-  for (const e of out.nursery.eggs) if (e && typeof e === 'object') e.body = e.body ? cleanBody(e.body) : oldBody();
+  for (const e of out.nursery.eggs) if (e && typeof e === 'object') {
+    e.body = e.body ? cleanBody(e.body) : oldBody();
+    for (const k of ['laidAt', 'readyAt']) if (k in e) e[k] = num(e[k], 0);
+  }
   out.residents = out.residents.filter(x => x && typeof x === 'object');
   return out;
 }
