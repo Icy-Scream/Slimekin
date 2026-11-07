@@ -43,6 +43,8 @@ const MEM = {
   '🌙': svg(`<path d="M15.6 3.2A8.8 8.8 0 1 0 20.8 16 7.2 7.2 0 0 1 15.6 3.2z" fill="#ffe08a"/><path d="${P.sparkle}" fill="#fff4c4" transform="translate(14.5 3) scale(.32)"/>`),
   '☀️': svg('<circle cx="12" cy="12" r="5" fill="#ffc53d"/><g stroke="#ffb020" stroke-width="2" stroke-linecap="round"><path d="M12 2.4v2.4M12 19.2v2.4M2.4 12h2.4M19.2 12h2.4M5.2 5.2l1.7 1.7M17.1 17.1l1.7 1.7M5.2 18.8l1.7-1.7M17.1 6.9l1.7-1.7"/></g>'),
   '⏳': ICON.hourglass,
+  // a trip (ranch life): a little suitcase with a sticker
+  '🧳': svg('<path d="M9 6.6V5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5v1.6" stroke="#8a5a3a" stroke-width="1.7" fill="none"/><rect x="2.8" y="6.4" width="18.4" height="13.8" rx="2.6" fill="#f2aa6a"/><rect x="2.8" y="6.4" width="18.4" height="3.6" rx="1.8" fill="#e38c4c"/><path d="M7.4 6.8v13M16.6 6.8v13" stroke="#b8642e" stroke-width="1.7"/><circle cx="12" cy="14.6" r="2.5" fill="#7fd4c0"/><path d="M10.9 14.7l.8.8 1.5-1.6" stroke="#fff" stroke-width=".9" fill="none" stroke-linecap="round" stroke-linejoin="round"/>'),
 };
 // ---------- medals (MEDALS in content.js): a ribbon, a metal disc and an emblem; higher medals get gems ----------
 let medalN = 0;
