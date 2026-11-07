@@ -14,8 +14,8 @@
 //             measured against its radius in GREENHOUSE.radius
 //   egg       a fresh egg on the stump, tapped in every set angle
 //   life      Ranch life from the Greenhouse (main-gen2.json): a resident leaves on a trip; at the ranch the room hides,
-//             the meadow ranch shows and the traveler is not drawn; the Nursery's special eggs and the traveler's
-//             "On a trip"; a Cat-ear egg bought; back home the room is back on the same angle
+//             the meadow ranch shows and the traveler is not drawn (its row says "On a trip"); the Nursery's special
+//             eggs, a Cat-ear egg bought; back home the room is back on the same angle
 //   fail      the room's files can't load (as in a copy of the game without them): home stays on the Meadow, the saved
 //             setting is not changed, one console warning, no camera button
 // Screenshots: tools/out/greenhouse/. Runs offline on its own server (tools/browser-kit.cjs).
@@ -441,12 +441,12 @@ const FIX = { settled: fixture('main-settled.json'), egg: fixture('main-egg.json
       let w = await ev4(J => { const g = window.slimekin, r = g.ranch.resident(J); return { view: g.view, room: g.home.room.group.visible, meadow: g.scenery.group.visible, ranch: g.ranch.group.visible, helpers: g.helpers3d.group.visible, btn: !document.getElementById('camBtn').hidden, traveler: r && r.state !== 'leave' ? 'drawn' : null }; }, J);
       expect(w.view === 'ranch' && !w.room && w.meadow && w.ranch && !w.btn, 'at the ranch from the Greenhouse: the room hides, the meadow ranch shows, no camera button', JSON.stringify(w));
       expect(w.traveler === null, 'the traveler is not drawn on the ranch', JSON.stringify(w));
+      // the Ranch tab's row for the traveler says where it is (one resident: the Nursery has no parent list to show)
+      const row = await ev4(() => { const el = document.querySelector('#body-ranch .res .rl-status'); return el ? el.innerText : ''; });
+      expect(/On a trip/.test(row), 'the Ranch tab: the traveler\'s row says it is on a trip', JSON.stringify(row));
       await ev4(() => { const g = window.slimekin; g.openNursery(); g.advance(1.5); });
-      const nur = await ev4(J => {
-        const b = document.querySelector(`.parent-pick[data-id="${J}"]`);
-        return { special: [...document.querySelectorAll('#body-ranch .special-egg')].map(c => c.innerText.split('\n')[0]), buy: [...document.querySelectorAll('#body-ranch [data-act="buySpecial"]')].filter(x => !x.disabled).length, disabled: !!(b && b.disabled), text: b ? b.innerText : '' };
-      }, J);
-      expect(nur.special.length === 2 && nur.buy === 2 && nur.disabled && /On a trip/.test(nur.text), 'the Nursery: the special eggs (Cat-ear, Topknot) and the traveler "On a trip"', JSON.stringify(nur));
+      const nur = await ev4(() => ({ special: [...document.querySelectorAll('#body-ranch .special-egg')].map(c => c.innerText.split('\n')[0]), buy: [...document.querySelectorAll('#body-ranch [data-act="buySpecial"]')].filter(x => !x.disabled).length }));
+      expect(nur.special.length === 2 && nur.buy === 2, 'the Nursery from the Greenhouse: the special eggs (Cat-ear, Topknot) can be bought', JSON.stringify(nur));
       await p4.click('#body-ranch [data-act="buySpecial"][data-variant="ears"]');
       await ev4(() => window.slimekin.advance(1));
       const bought = await ev4(() => { const n = window.slimekin.state.ranch.nursery; return n.eggs.map(e => ({ special: e.special, breed: e.body && e.body.breed, variant: e.body && e.body.variant })); });
