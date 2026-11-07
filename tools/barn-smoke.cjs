@@ -82,10 +82,11 @@ const FIX = { six: JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', '
     const waitSwap = () => page.waitForFunction(() => !window.slimekin.barnRanch.view.swapping && !window.slimekin.barnRanch.queued, null, { timeout: 120000 });
     const cur = () => ev(() => window.slimekin.barnRanch.curId);
     const nameOf = id => ev(i => window.slimekin.sim.ranch.resident(i)?.name, id);
+    // night mode the way the game sets it; the barn follows on its own (its 3 s blend: 3.2 s of game time)
     const setTheme = async dark => {
       await ev(d => document.documentElement.setAttribute('data-theme', d ? 'dark' : 'light'), dark);
       await page.waitForTimeout(150);
-      await ev(() => { const g = window.slimekin; g.barnRanch.view.setNight(g.stage.dark, true); g.advance(0.1); });
+      await ev(() => window.slimekin.advance(3.2));
     };
     const shot = (name, { night = !QUICK } = {}) => step('screenshot ' + name, async () => {
       for (const dark of night ? [false, true] : [false]) {
@@ -140,7 +141,12 @@ const FIX = { six: JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', '
       await shot('open-sheet');
       await sheetClosed();
       const day = await frameCounts();
-      await setTheme(true); const night = await frameCounts(); await setTheme(false);
+      await setTheme(true);
+      const blend = await ev(() => window.slimekin.barnRanch.view.night);
+      const night = await frameCounts();
+      await setTheme(false);
+      const blendBack = await ev(() => window.slimekin.barnRanch.view.night);
+      expect(blend === 1 && blendBack === 0, 'night mode on and off: the barn blends to night and back by itself', `${blend} -> ${blendBack}`);
       log('frame (High, sheet closed):', JSON.stringify({ day, night }));
       expect(day.calls <= 44 && night.calls <= 55, `draw calls within 10% of the test page's (about 40 by day, 50 at night): ${day.calls} by day, ${night.calls} at night`);
       await shot('open-closed');
@@ -197,6 +203,10 @@ const FIX = { six: JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', '
       }
       await ev(() => { window.slimekin.barnRanch.view.hold = false; });
       await waitSwap();
+      // a swap runs at the full frame rate: the game counts it as not calm (it drops to 30 fps when calm)
+      const calm = await ev(() => { const g = window.slimekin; g.advance(2); g.lastInteract = -1e9; g.lastPointerMove = -1e9; const before = g.calm(); g.barnRanch.request(1); g.advance(0.2); const during = g.calm(); return { before, during }; });
+      await waitSwap();
+      expect(calm.before && !calm.during, 'a swap runs at the full frame rate (the game is not "calm" during it)', JSON.stringify(calm));
       log('screenshot', 'swap frames');
     });
 
@@ -232,7 +242,7 @@ const FIX = { six: JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', '
     // ---------- the card ----------
     if (ONLY.includes('card')) await part('card', async () => {
       await boot(); await openRanch(); await sheetClosed();
-      const want = { Juniper: /^Curly · [\d.]+ pearls an hour$/, Mochi: /^Curly · Bounce ★★★$/, Peaches: /^Dollop · Charm ★★$/, Biscuit: /^Cat-ear Dollop · Smarts ★$/, Plum: /^Topknot Dollop · in a lesson: Bounce, 2h( \d+m)? left$/, Swirl: /^Curly × Dollop · [\d.]+ pearls an hour$/ };
+      const want = { Juniper: /^Curly · [\d.]+ pearls an hour$/, Mochi: /^Curly · Bounce ★★★$/, Peaches: /^Dollop · Charm ★★$/, Biscuit: /^Cat-ear Dollop · Smarts ★$/, Plum: /^Topknot Dollop · in a lesson: Bounce, (?:2h|1h [45]\dm) left$/, Swirl: /^Curly × Dollop · [\d.]+ pearls an hour$/ };
       const order = (await info()).order;
       for (let i = 0; i < order.length; i++) {
         const c = await ev(() => { const el = document.getElementById('barnCard'); return { name: el.querySelector('b').textContent, line: el.querySelector('.bc-line').textContent, dots: el.querySelectorAll('.bc-dots u').length, on: [...el.querySelectorAll('.bc-dots u')].findIndex(u => u.classList.contains('on')) }; });

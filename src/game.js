@@ -71,7 +71,7 @@ export class Game {
     this.debugInstant = DEBUG && (() => { try { return localStorage.getItem('slimekin.debug.instantEggs') === '1'; } catch { return false; } })();
     this.ranch = new RanchView(this.scene, { quality: this.resolvedQuality() });
     this.ranch.setTheme(this.stage.dark, this.stage.palette.floor);
-    this.stage.onTheme = (dark, p) => { this.ranch.setTheme(dark, p.floor); this.scenery.setTheme(dark); this.eggSpark && this.eggSpark.setNight(dark); this.helpers3d && this.helpers3d.setNight(dark); this.home && this.home.setNight(dark); };
+    this.stage.onTheme = (dark, p) => { this.ranch.setTheme(dark, p.floor); this.scenery.setTheme(dark); this.eggSpark && this.eggSpark.setNight(dark); this.helpers3d && this.helpers3d.setNight(dark); this.home && this.home.setNight(dark); this.barnRanch && this.barnRanch.view.setNight(dark); };   // [barn] the barn blends too
     this.ranch.sync(this.life.homeResidents());   // (travelers are not on the ranch)
     this.ranchPage = null;   // 'nursery' while the Nursery panel is open
     this.nurseryT = 0;
@@ -2519,7 +2519,8 @@ export class Game {
   calm() {
     return this.state.phase === 'play' && this.time - this.lastInteract > 12 && this.time - this.lastPointerMove > 3 &&
       !this.press && !this.held && !this.flying && !this.eating && !this.glimmer && !this.bubbleGame && this.fx.live.length < 6 &&
-      !this.movingDay.active;   // a Moving Day sign moves the slime: full frame rate
+      !this.movingDay.active &&   // a Moving Day sign moves the slime: full frame rate
+      !(this.barnRanch.active && this.barnRanch.view.swapping);   // [barn] the burrow swap: full frame rate
   }
 
   // Watches for frames arriving late. Lowers graphics quality on "Auto" if the device keeps struggling.
