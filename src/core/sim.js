@@ -12,8 +12,9 @@ import { emptyLineage, applyEgg, resolveForm, eggFromLineage, eggLabel } from '.
 import { medalFor, medalRank } from './medals.js';
 import { createHeirlooms, migrateHeirlooms, heirloomMult, heirloomFlag, startHelpers, forSale, ownsHeirloom } from './heirlooms.js';
 import { rollPlainEgg, oldBody, cleanBody } from './recipe.js';
+import { SAVE_VERSION, num, numOrNull, nums, count } from './save-check.js';
 
-export const SAVE_VERSION = 1;
+export { SAVE_VERSION };
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const pick = arr => arr[Math.floor(Math.random() * arr.length)];
@@ -78,7 +79,10 @@ export function createState() {
     lastMorning: null,
     stats: { boops: 0, feeds: 0, petTime: 0, fevers: 0, dizzies: 0, naps: 0, glimmers: 0, requests: 0, playTime: 0, visits: 1 },
     tutorial: 0,
-    settings: { sound: true, music: true, purr: true, soundOnSilent: true, reducedMotion: false, quality: 'auto', showFps: false },
+    // scene: home's background ('greenhouse' | 'meadow' | 'classic'); sceneMoved: this save has had the one-time move to
+    // the Greenhouse (see migrate); camView: the Greenhouse camera's last set angle ('front' | 'wide' | 'left' | 'right')
+    settings: { sound: true, music: true, purr: true, soundOnSilent: true, reducedMotion: false, quality: 'auto', showFps: false,
+      scene: 'greenhouse', sceneMoved: true, camView: 'front' },
     ranch: createRanch(),
     heirlooms: createHeirlooms(),   // family treasures (core/heirlooms.js): they stay through every move-out
   };
@@ -96,6 +100,13 @@ export function migrate(save) {
   out.helpers = { ...fresh.helpers, ...(save.helpers || {}) };
   out.stats = { ...fresh.stats, ...(save.stats || {}) };
   out.settings = { ...fresh.settings, ...(save.settings || {}) };
+  // The Greenhouse, once: the game used to write 'meadow' into every save (the old default), so a chosen Meadow can't be
+  // told from it. A save from before the Greenhouse moves there one time; a Classic save stays Classic (a real choice).
+  // After the move, a player who picks the Meadow again keeps it.
+  if (!(save.settings && save.settings.sceneMoved)) {
+    if (out.settings.scene !== 'classic') out.settings.scene = 'greenhouse';
+    out.settings.sceneMoved = true;
+  }
   out.egg = { ...fresh.egg, ...(save.egg || {}) };
   out.jar = { ...fresh.jar, ...(save.jar || {}) };
   out.outfits = { ...fresh.outfits, ...(save.outfits || {}) };
@@ -113,6 +124,24 @@ export function migrate(save) {
   if (out.egg.bred && typeof out.egg.bred === 'object' && !out.egg.bred.body) out.egg.bred.body = cleanBody(out.slime);
   // a bred egg put on the cushion before the cushion remembered its egg: rebuild that egg from the baby's lineage
   if (out.phase === 'egg' && !out.egg.bred && out.slime.lineage.parents.length === 2) out.egg.bred = { ...eggFromLineage(out.slime.lineage), body: cleanBody(out.slime) };
+  // numbers (save safety): a string or NaN in a number field becomes the fresh value, so it never turns into NaN in the
+  // game (core/save-check.js). A finite number is kept exactly as it is.
+  for (const k of ['jelly', 'totalJelly', 'createdAt', 'savedAt']) out[k] = num(out[k], fresh[k]);
+  out.tutorial = count(out.tutorial, 0);
+  const sl = out.slime, fs = fresh.slime;
+  if (typeof sl.name !== 'string') sl.name = '';
+  for (const k of ['growth', 'tummy', 'joy', 'energy', 'bondXp']) sl[k] = num(sl[k], fs[k]);
+  sl.bornAt = numOrNull(sl.bornAt);
+  sl.traits = nums(sl.traits, fs.traits);
+  sl.personality = nums(sl.personality, fs.personality);
+  sl.recent = nums(sl.recent, fs.recent);
+  sl.eaten = nums(sl.eaten);
+  out.helpers = nums(out.helpers, fresh.helpers);
+  out.stats = nums(out.stats, fresh.stats);
+  out.jar.level = count(out.jar.level, 0);
+  for (const k of ['stored', 'lastFill']) out.jar[k] = num(out.jar[k], fresh.jar[k]);
+  out.egg.warmth = num(out.egg.warmth, 0);
+  out.egg.readyAt = numOrNull(out.egg.readyAt);
   // medals: a save from before medals starts with the medal its slime already has, so no old ceremony replays
   if (!('medalShown' in (save.slime || {}))) {
     const grown = (out.slime.growth || 0) >= STAGES[STAGES.length - 1].minGrowth;

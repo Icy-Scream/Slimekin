@@ -1,5 +1,5 @@
-// The ranch: a grassy hill behind the nursery where grown-up slimes live, hop around and
-// make pearls. Seen small and hazy from the nursery; the camera flies over to visit.
+// The ranch hill: a grassy hill behind the nursery where grown-up slimes live and hop around, seen small and hazy from
+// home in the Meadow background. The ranch SCREEN is the Barn ranch (barn-ranch.js); this hill is never visited.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { SlimeAvatar } from './slime.js';
@@ -16,7 +16,6 @@ const R_TOP = 7.4;                 // radius of the flat meadow
 const FENCE_R = 6.9;
 const GATE = 0.3;                  // half-angle of the gate gap (faces the nursery)
 const GROWN = STAGES.length - 1;   // residents are grown up (shape number m = 1)
-const RESIDENT_LOD = 2;            // residents you are not visiting reshape every 2nd frame while you watch the ranch
 const ROAM = 5.6;                  // how far residents wander from the middle
 const TAU = Math.PI * 2;
 
@@ -93,9 +92,9 @@ export function pearlMaterial(color = '#ffffff') {
     iridescence: 1, iridescenceIOR: 1.7, sheen: 1, sheenColor: new THREE.Color('#ffe2f0'), emissive: c, emissiveIntensity: 0.08,
   });
 }
-const PEARL_GEO = new THREE.SphereGeometry(0.12, 20, 14);
+export const PEARL_GEO = new THREE.SphereGeometry(0.12, 20, 14);   // (the barn draws the same pearls)
 let SPARK_TEX = null;
-function sparkTexture() {
+export function sparkTexture() {
   if (SPARK_TEX) return SPARK_TEX;
   SPARK_TEX = canvasTex(64, 64, (x) => {
     const g = x.createRadialGradient(32, 32, 0, 32, 32, 30);
@@ -125,12 +124,9 @@ export class RanchView {
     this.group.position.copy(RANCH_POS);
     this.group.scale.setScalar(RANCH_SCALE);
     scene.add(this.group);
-    this.orbit = 0;          // camera angle around the ranch while visiting (swipe to turn)
     this.mats = {};
     this.residents = new Map();
-    this.pearls = [];
     this.time = 0;
-    this.visiting = false;
     this.slow = 0;
     this.v = new THREE.Vector3();
     this.build();
@@ -154,9 +150,6 @@ export class RanchView {
     const top = new THREE.Mesh(new THREE.CircleGeometry(R_TOP + 0.02, 72), M.grass);
     top.rotation.x = -Math.PI / 2; top.position.y = RANCH_TOP;
     g.add(top);
-    this.hitHill = new THREE.Mesh(new THREE.CylinderGeometry(R_TOP + 1, R_TOP + 3, RANCH_TOP + 1.2, 24), new THREE.MeshBasicMaterial({ visible: false }));
-    this.hitHill.position.y = (RANCH_TOP + 1.2) / 2;
-    g.add(this.hitHill);
 
     // grass tufts and flowers (instanced, cheap)
     let seed = 21; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
@@ -217,7 +210,7 @@ export class RanchView {
       g.add(rail);
     }
     // gate sign
-    this.signMat = new THREE.MeshStandardMaterial({ map: signTexture('Slime Ranch'), roughness: 0.8 });
+    this.signMat = new THREE.MeshStandardMaterial({ map: signTexture('The Barn'), roughness: 0.8 });
     const sign = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.62, 0.08), [M.wood, M.wood, M.wood, M.wood, this.signMat, M.wood]);
     sign.position.set(0, RANCH_TOP + 1.38, FENCE_R + 0.02);
     g.add(sign);
@@ -339,9 +332,6 @@ export class RanchView {
     basket.scale.setScalar(1.15);
     g.add(basket);
     this.basket = basket;
-    this.basketHit = new THREE.Mesh(new THREE.SphereGeometry(0.6, 10, 8), new THREE.MeshBasicMaterial({ visible: false }));
-    this.basketHit.position.y = 0.25;
-    basket.add(this.basketHit);
     this.basketSparkle = 0;
 
     this.buildNursery();
@@ -397,9 +387,6 @@ export class RanchView {
     hut.rotation.y = NURSERY.rot;
     g.add(hut);
     this.nursery = hut;
-    this.nurseryHit = new THREE.Mesh(new THREE.BoxGeometry(1.9, 1.5, 2.3), new THREE.MeshBasicMaterial({ visible: false }));
-    this.nurseryHit.position.set(0.1, 0.72, 0.4);
-    hut.add(this.nurseryHit);
     this.nestEggs = new Map();
   }
 
@@ -482,46 +469,6 @@ export class RanchView {
 
   resident(id) { return this.residents.get(id); }
 
-  // a resident reacts to a tap: a happy squish and hearts (the game adds sound and fx)
-  pet(id) {
-    const r = this.residents.get(id);
-    if (!r) return null;
-    r.av.squish(0.8);
-    r.av.hop(3);
-    r.happyT = 2.2;
-    r.state = 'idle'; r.timer = 2.5;
-    r.av.cap.on = false;
-    return r;
-  }
-
-  // ---------- pearls ----------
-  spawnPearl(id, color) {
-    const r = this.residents.get(id);
-    if (!r || this.pearls.length > 40) return null;
-    const m = new THREE.Mesh(PEARL_GEO, pearlMaterial(color || '#' + r.av.mat.color.getHexString()));
-    const spark = new THREE.Sprite(new THREE.SpriteMaterial({ map: sparkTexture(), color: '#ffffff', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
-    spark.scale.setScalar(0.4);
-    spark.position.set(0.05, 0.08, 0.05);
-    m.add(spark);
-    const start = r.av.headTopWorld(new THREE.Vector3());
-    this.group.worldToLocal(start);
-    m.position.copy(start);
-    const a = Math.random() * TAU;
-    const pearl = { mesh: m, spark, vel: new THREE.Vector3(Math.sin(a) * 1.2, 3.2, Math.cos(a) * 1.2), landed: false, t: 0, id };
-    r.av.squish(0.6);
-    this.group.add(m);
-    this.pearls.push(pearl);
-    return pearl;
-  }
-
-  removePearl(p) {
-    this.group.remove(p.mesh);
-    this.pearls = this.pearls.filter(x => x !== p);
-  }
-  clearPearls() { for (const p of this.pearls) this.group.remove(p.mesh); this.pearls = []; }
-  pearlWorld(p, out) { return p.mesh.getWorldPosition(out); }
-  basketWorld(out) { return this.basket.getWorldPosition(out).add(new THREE.Vector3(0, 0.35, 0)); }
-
   // A resident hops out through the gate to its new home, then disappears.
   leave(id, onDone) {
     const r = this.residents.get(id);
@@ -539,65 +486,8 @@ export class RanchView {
     this.basketFull = stored >= cap && cap > 0;
   }
 
-  // ---------- picking ----------
-  pick(raycaster) {
-    const hits = [];
-    for (const p of this.pearls) { const h = raycaster.intersectObject(p.mesh, false)[0]; if (h) hits.push({ type: 'pearl', pearl: p, d: h.distance - 0.3 }); }
-    for (const r of this.residents.values()) { const h = r.av.hit(raycaster); if (h) hits.push({ type: 'slime', id: r.id, point: h.point, d: h.distance }); }
-    const b = raycaster.intersectObject(this.basketHit, false)[0];
-    if (b) hits.push({ type: 'basket', d: b.distance });
-    const nh = raycaster.intersectObject(this.nurseryHit, false)[0];
-    if (nh) hits.push({ type: 'nursery', d: nh.distance + 0.5 });
-    if (!hits.length) {
-      const h = raycaster.intersectObject(this.hitHill, false)[0];
-      if (h) hits.push({ type: 'ranch', point: h.point, d: h.distance });
-    }
-    hits.sort((a, b2) => a.d - b2.d);
-    return hits[0] || null;
-  }
-
-  // camera spot for visiting: orbit around the middle; portrait screens step back and widen the lens
-  cameraFor(aspect, outPos, outLook) {
-    const portrait = aspect < 0.9;
-    const d = portrait ? 12 + (0.9 - aspect) * 9 : 18.5;
-    const hgt = portrait ? d * 0.95 : 9.5;
-    const top = RANCH_TOP * RANCH_SCALE;
-    outPos.set(RANCH_POS.x + Math.sin(this.orbit) * d, top + hgt, RANCH_POS.z + Math.cos(this.orbit) * d);
-    // portrait: aim a little low so the meadow sits above the bottom panel
-    outLook.set(RANCH_POS.x, top + (portrait ? -1.2 : 0.2), RANCH_POS.z + (portrait ? 1.2 : 0));
-    return portrait ? 42 : 32;
-  }
-
-  // close-up camera on one resident (tap to visit it): seen from the middle of the meadow,
-  // so the camera stays inside the fence; the resident turns to face it.
-  cameraNear(id, aspect, outPos, outLook) {
-    const r = this.residents.get(id);
-    if (!r) return null;
-    const p = r.holder.getWorldPosition(this.v);
-    const portrait = aspect < 0.9;
-    const d = portrait ? 4.4 : 3.6;
-    let dx = RANCH_POS.x - p.x, dz = RANCH_POS.z - p.z;
-    const len = Math.hypot(dx, dz);
-    if (len < 0.8) { dx = Math.sin(this.orbit); dz = Math.cos(this.orbit); } else { dx /= len; dz /= len; }
-    outPos.set(p.x + dx * d, p.y + (portrait ? 2.2 : 1.6), p.z + dz * d);
-    outLook.set(p.x, p.y + (portrait ? 0.1 : 0.45), p.z);
-    r.faceTo = Math.atan2(dx, dz);
-    return portrait ? 40 : 30;
-  }
-
-  // close-up camera on the Nursery: in front of the cottage, a little to the side, so the door, the sign
-  // and the nest all show; the game centers the look point in the free part of the screen
-  cameraNursery(aspect, outPos, outLook) {
-    const p = this.nursery.getWorldPosition(this.v);
-    const portrait = aspect < 0.9;
-    const a = NURSERY.rot + 0.25, d = portrait ? 5.6 : 4.4;
-    outLook.set(p.x + Math.sin(NURSERY.rot) * 0.35, p.y + 0.45, p.z + Math.cos(NURSERY.rot) * 0.35);
-    outPos.set(outLook.x + Math.sin(a) * d, outLook.y + (portrait ? 2.4 : 1.8), outLook.z + Math.cos(a) * d);
-    return portrait ? 38 : 30;
-  }
-
   // ---------- frame ----------
-  update(dt, camera) {
+  update(dt) {
     this.time += dt;
     const t = this.time;
     for (const n of this.nestEggs.values()) {
@@ -606,51 +496,25 @@ export class RanchView {
       n.egg.update(dt, this.scene);
     }
     // far away: think and animate at a lower rate
-    let step = dt;
-    if (!this.visiting) {
-      this.slow += dt;
-      if (this.slow < 0.1) { this.updatePearls(dt); return; }
-      step = this.slow; this.slow = 0;
-    }
-    for (const r of this.residents.values()) this.think(r, step, camera);
-    this.updatePearls(dt);
+    this.slow += dt;
+    if (this.slow < 0.1) return;
+    const step = this.slow;
+    this.slow = 0;
+    for (const r of this.residents.values()) this.think(r, step);
     const pulse = this.basketFull ? 0.5 + 0.5 * Math.sin(t * 4) : 0;
     this.basket.scale.setScalar(1.15 * (1 + pulse * 0.05));
   }
 
-  think(r, dt, camera) {
+  think(r, dt) {
     const av = r.av, h = r.holder;
     r.timer -= dt;
     r.happyT -= dt;
-    av.inner.visible = this.visiting;
-    // while you watch the ranch, only the slime you are visiting reshapes every frame and shows its bubbles (far away
-    // it is already slow)
-    av.lod = this.visiting && this.focusId !== r.id ? RESIDENT_LOD : 1;
+    av.inner.visible = false;   // (far away: no snacks or gems inside)
+    av.lod = 1;
     if (r.happyT > 0) { Object.assign(av.expr, { eyes: 'happy', mouth: 'open', blush: 0.9 }); }
     else if (r.state === 'nap') Object.assign(av.expr, { eyes: 'sleep', mouth: 'smile', blush: 0.4 });
     else Object.assign(av.expr, { eyes: 'normal', mouth: 'smile', blush: 0.4 });
-    av.lookTarget = this.visiting && r.happyT > 0 && camera ? camera.position : null;
-
-    // while the player is looking at another resident, step out of the camera's way
-    if (this.focusId && this.focusId !== r.id && camera && r.state !== 'walk') {
-      const f = this.residents.get(this.focusId);
-      if (f) {
-        const fp = f.holder.position, cp = this.group.worldToLocal(this.v.copy(camera.position));
-        const ax = cp.x - fp.x, az = cp.z - fp.z, len2 = ax * ax + az * az || 1;
-        const k = Math.max(0, Math.min(1, ((h.position.x - fp.x) * ax + (h.position.z - fp.z) * az) / len2));
-        const ex = fp.x + ax * k - h.position.x, ez = fp.z + az * k - h.position.z;
-        if (ex * ex + ez * ez < 1.6 * 1.6) {
-          const sx = -az, sz = ax, sl = Math.hypot(sx, sz) || 1, side = (sx * -ex + sz * -ez) >= 0 ? 1 : -1;
-          const tx = h.position.x + sx / sl * side * 2.2, tz = h.position.z + sz / sl * side * 2.2;
-          if (!blocked(tx, tz, 0.4)) { r.target.set(tx, RANCH_TOP, tz); r.state = 'walk'; r.timer = 6; }
-        }
-      }
-    }
-    if (this.focusId === r.id) {
-      r.state = 'idle'; r.timer = Math.max(r.timer, 1);
-      if (r.faceTo !== undefined) { let dh = r.faceTo - r.heading; dh = Math.atan2(Math.sin(dh), Math.cos(dh)); r.heading += dh * Math.min(1, dt * 4); h.rotation.y = r.heading; }
-      av.lookTarget = camera ? camera.position : null;
-    }
+    av.lookTarget = null;
     if (r.state === 'idle' && r.timer <= 0) {
       const roll = Math.random();
       if (this.dark && roll < 0.55) { r.state = 'nap'; r.timer = 8 + Math.random() * 10; av.cap.on = true; av.breathRate = 1.2; }
@@ -696,40 +560,5 @@ export class RanchView {
       if (dist < 0.15 || r.timer <= 0) { r.state = 'idle'; r.timer = 2 + Math.random() * 5; }
     }
     av.update(dt);
-  }
-
-  updatePearls(dt) {
-    for (const p of [...this.pearls]) {
-      p.t += dt;
-      if (!p.landed) {
-        p.vel.y -= 12 * dt;
-        p.mesh.position.addScaledVector(p.vel, dt);
-        const floor = RANCH_TOP + 0.12;
-        if (p.mesh.position.y <= floor) {
-          p.mesh.position.y = floor;
-          if (Math.abs(p.vel.y) < 1.2) { p.landed = true; p.vel.set(0, 0, 0); }
-          else { p.vel.y *= -0.35; p.vel.x *= 0.5; p.vel.z *= 0.5; }
-        }
-        // keep pearls inside the fence
-        const r2 = Math.hypot(p.mesh.position.x, p.mesh.position.z);
-        if (r2 > FENCE_R - 0.4) p.mesh.position.multiplyScalar((FENCE_R - 0.4) / r2).setY(p.mesh.position.y);
-      } else if (p.t > (this.grassLife || 120) || p.rolling) {
-        // nobody picked it up: it rolls over to the basket
-        p.rolling = true;
-        const b = this.basket.position;
-        const dx = b.x - p.mesh.position.x, dz = b.z - p.mesh.position.z, d = Math.hypot(dx, dz);
-        if (d < 0.25) { this.removePearl(p); continue; }
-        const sp = Math.min(d, 2.5 * dt);
-        p.mesh.position.x += dx / d * sp; p.mesh.position.z += dz / d * sp;
-        p.mesh.position.y = RANCH_TOP + 0.12 + Math.abs(Math.sin(p.t * 9)) * 0.08;
-        p.mesh.rotation.x += dt * 8;
-      } else {
-        p.mesh.position.y = RANCH_TOP + 0.12 + Math.sin(p.t * 2.5) * 0.02;
-        p.mesh.rotation.y += dt;
-        const tw = Math.max(0, Math.sin(p.t * 1.7)) ** 6;
-        p.spark.material.opacity = 0.15 + 0.85 * tw;
-        p.spark.scale.setScalar(0.25 + 0.3 * tw);
-      }
-    }
   }
 }

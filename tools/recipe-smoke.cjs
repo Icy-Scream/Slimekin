@@ -80,6 +80,17 @@ fs.mkdirSync(OUT, { recursive: true });
     const pullTest = async (label, shotName) => step('pull ' + label, async () => {
       // (a notification over the slime would catch the finger first, as it does on a phone: clear them)
       await ev(() => { for (const t of document.querySelectorAll('.toast')) t.remove(); });
+      // The body eases into a new stage over a few seconds after hatching or growing (slime.js updateRecipe: m -> mTarget).
+      // A pull measured while it still morphs compares two different shapes: that was the flake ("let go, it boings
+      // back", 0.17-0.19 from where it started). So let the morph finish first (at most 8 s of game time).
+      // Idle moments (a hop or kick every 4 to 10 s) are held off for the whole pull, and one already playing is waited
+      // out before aiming: a slime that hops between the aim and the touch puts the finger beside the curl tip.
+      await ev(() => {
+        const g = window.slimekin, sl = g.slime; let w = 0;
+        g.idleT = 1e9;
+        const moving = () => Math.abs(sl.m - sl.mTarget) > 0.002 || sl.hopY > 0.002 || Math.abs(sl.hopV) > 0.05 || Math.abs(sl.sq.v) > 0.2 || Math.abs(sl.leanX.v) > 0.2 || Math.abs(sl.leanZ.v) > 0.2;
+        while (moving() && w < 8) { g.advance(0.1); w += 0.1; }
+      });
       const findSpot = () => ev(() => {
         const g = window.slimekin, sl = g.slime, V = g.v1.constructor, cam = g.stage.camera;
         const pos = sl.geo.attributes.position.array, base = sl.base, n = pos.length / 3;
@@ -156,16 +167,26 @@ fs.mkdirSync(OUT, { recursive: true });
       if (shotName) await shot(shotName, { night: false });
       await touch('touchEnd', 0, 0, t0 + 0.06 * steps + 0.3);
       const after = await ev(a => {
-        const g = window.slimekin, sl = g.slime, V = g.v1.constructor, pos = sl.geo.attributes.position.array;
+        const g = window.slimekin, sl = g.slime, pos = sl.geo.attributes.position.array;
         g.advance(2.5);
+        // An idle moment (the game's hop or kick, every 4 to 10 s, held off only while the finger is down) can start just
+        // before this point: its squash and stretch move every point of the body for about a second (measured on the PC,
+        // 40 pulls: a hop 0.03 s before the check moved the point 0.14 body units; with idle moments off the worst was
+        // 0.11 of the pull). So wait until such a moment has played out (at most 3 s more), then measure the boing.
+        // (also the curl's own sway spring behind the lean, and a stage morph still easing in)
+        const busy = () => sl.hopY > 0.002 || Math.abs(sl.hopV) > 0.05 || Math.abs(sl.sq.v) > 0.2 || Math.abs(sl.sq.x - sl.sq.target) > 0.02 || Math.abs(sl.leanX.v) > 0.2 || Math.abs(sl.leanZ.v) > 0.2
+          || Math.abs(sl.dyn.vx) > 0.1 || Math.abs(sl.dyn.vz) > 0.1 || Math.abs(sl.m - sl.mTarget) > 0.002;
+        let waited = 0;
+        while (busy() && waited < 3) { g.advance(0.1); waited += 0.1; }
         // (on the body itself: the slime may hop or turn after a big pull)
         const i = a.vi * 3, back = Math.hypot(pos[i] - a.loc0[0], pos[i + 1] - a.loc0[1], pos[i + 2] - a.loc0[2]);   // body units
-        return { amt: sl.pull.amt, tipGrab: sl.tipGrab, back };
+        return { amt: sl.pull.amt, tipGrab: sl.tipGrab, back, waited: +waited.toFixed(1), still: !busy(), morph: +(sl.m - sl.mTarget).toFixed(4) };
       }, at);
       const what = at.curly ? 'the curl tip' : 'the top of the dome';
       ok(held.mode === 'pull' && held.amt > 0.15 && held.moved > 0.25 && (!at.curly || held.tipGrab > 0),
         `${label}: a real touch drag pulls ${what}; it follows the finger`, `${at.tries > 1 ? `try ${at.tries}, ` : ''}at (${at.x.toFixed(0)}, ${at.y.toFixed(0)}) on ${at.el}${at.modal ? ' (a modal is open)' : ''}${held.mode === 'pull' ? '' : `, on touch: ${at.start}; then ${held.pev}`}, mode ${held.mode}, tipGrab ${(+held.tipGrab).toFixed(2)}, pull ${held.amt.toFixed(2)}, the grabbed point moved ${held.moved.toFixed(2)} body units (curl tip ${held.tipMoved.toFixed(2)})`);
-      ok(after.amt < 0.05 && after.tipGrab === 0 && after.back < held.moved * 0.5, `${label}: let go, it boings back`, `pull ${after.amt.toFixed(3)}, ${after.back.toFixed(2)} from where it started`);
+      ok(after.amt < 0.05 && after.tipGrab === 0 && after.still && after.back < held.moved * 0.5, `${label}: let go, it boings back`, `pull ${after.amt.toFixed(3)}, ${after.back.toFixed(2)} from where it started${after.waited ? `; waited ${after.waited} s more for an idle moment (hop or kick) to play out` : ''}${after.still ? '' : '; still moving after 3 s more'}${after.morph ? `; stage morph ${after.morph}` : ''}`);
+      await ev(() => { window.slimekin.idleT = 5; });   // idle moments back on
     }, 300000);
     const perf = label => ev(lbl => {
       const g = window.slimekin, sl = g.slime, o = { x: 0, y: 0, z: 0 };
@@ -175,7 +196,9 @@ fs.mkdirSync(OUT, { recursive: true });
       return { label: lbl, petPoints: sl.geo.attributes.position.count, petShapeMs: +shapeMs(sl).toFixed(2), petUpdateMs: +updMs(sl).toFixed(2),
         residents: res.length, residentPoints: res[0]?.av.geo.attributes.position.count || 0,
         residentShapeMs: res.length ? +(res.reduce((s, r) => s + shapeMs(r.av), 0) / res.length).toFixed(2) : 0,
-        residentUpdateMs: res.length ? +(res.reduce((s, r) => s + updMs(r.av), 0) / res.length).toFixed(2) : 0 };
+        residentUpdateMs: res.length ? +(res.reduce((s, r) => s + updMs(r.av), 0) / res.length).toFixed(2) : 0,
+        // the Barn ranch's stand (one full avatar), when the barn shows
+        ...(g.barnRanch && g.barnRanch.active && !g.barnRanch.view.empty ? { standShapeMs: +shapeMs(g.barnRanch.view.av).toFixed(2), standUpdateMs: +updMs(g.barnRanch.view.av).toFixed(2) } : {}) };
     }, label);
     const moveOut = async eggId => step('move out' + (eggId ? ' with egg ' + eggId : ''), async () => {
       await ev(() => { const g = window.slimekin; g.state.totalJelly = Math.max(g.state.totalJelly, 3e9); g.hud.closeModal(); });
@@ -219,6 +242,7 @@ fs.mkdirSync(OUT, { recursive: true });
     // ---------- 2. a Cat-ear egg for pearls, chosen at move-out; a Cat-ear Dollop grows up ----------
     await ev(() => { const g = window.slimekin; g.debug('pearls'); g.debug('pearls'); });
     await page.click('#tab-ranch');
+    await page.waitForFunction(() => { const b = window.slimekin.barnRanch; return b.on || b.view.failed; }, null, { timeout: 120000 });   // (the Barn ranch loads on the first visit)
     await ev(() => { const g = window.slimekin; g.advance(3); g.openNursery(); g.advance(1); });
     const before = await ev(() => ({ pearls: window.slimekin.state.ranch.pearls, eggs: window.slimekin.state.ranch.nursery.eggs.length }));
     await step('buy a Cat-ear egg', () => page.click('button[data-act="buySpecial"][data-variant="ears"]'));
@@ -254,6 +278,7 @@ fs.mkdirSync(OUT, { recursive: true });
     await step('boot (gen 3)', boot);
     await ev(() => { const g = window.slimekin; g.debug('pearls'); });
     await page.click('#tab-ranch');
+    await page.waitForFunction(() => { const b = window.slimekin.barnRanch; return b.on || b.view.failed; }, null, { timeout: 120000 });   // (the Barn ranch loads on the first visit)
     await ev(() => { const g = window.slimekin; g.advance(3); g.openNursery(); g.advance(1); });
     // (the breeding buttons themselves are tested in breeding-smoke.cjs; here they are pressed from the page)
     const domClick = sel => ev(q => { const b = document.querySelector(q); if (!b) throw new Error('no ' + q); b.scrollIntoView({ block: 'center' }); b.click(); }, sel);
@@ -276,18 +301,33 @@ fs.mkdirSync(OUT, { recursive: true });
     // ---------- 4. the ranch with all three ----------
     await step('boot (gen 4)', boot);
     await page.click('#tab-ranch');
+    // the ranch is the Barn ranch: its files load on the first visit, so wait for it (or its fallback) first
+    await page.waitForFunction(() => { const b = window.slimekin.barnRanch; return b.on || b.view.failed; }, null, { timeout: 120000 });
+    ok(await ev(() => window.slimekin.barnRanch.on), 'the Ranch tab opens the barn');
     await ev(() => { const g = window.slimekin; g.advance(4); });
     const ranch = await ev(() => window.slimekin.state.ranch.residents.map(x => ({ name: x.name, breed: x.breed, variant: x.variant, mix: +x.mix.toFixed(3) })));
     ok(ranch.length === 3 && ranch.some(x => x.breed === 'curly') && ranch.some(x => x.breed === 'dollop' && x.variant === 'ears') && ranch.some(x => x.breed === 'mixed'),
       'the ranch: a Curly, a Cat-ear Dollop and an in-between', JSON.stringify(ranch));
-    f = await finite(); ok(f.residents.length === 3 && f.residents.every(n => n === 0), 'every resident: every point finite', JSON.stringify(f.residents));
+    f = await finite(); ok(f.residents.length === 3 && f.residents.every(n => n === 0), 'every resident (home\'s ranch hill): every point finite', JSON.stringify(f.residents));
+    // the barn draws one resident at a time on its stand, at full quality: each one there, every point finite
+    const stand = await ev(() => {
+      const g = window.slimekin, b = g.barnRanch, out = [];
+      for (const id of b.order) {
+        b.show(id); g.advance(1.2);
+        let bad = 0; for (const v of b.view.av.geo.attributes.position.array) if (!Number.isFinite(v)) bad++;
+        out.push({ on: b.curId === id && b.view.av.root.visible, breed: b.view.av.bodyInfo.breed, bad });
+      }
+      return out;
+    });
+    ok(stand.length === 3 && stand.every(x => x.on && x.bad === 0), 'every resident on the barn\'s stand: every point finite', JSON.stringify(stand));
     await ev(() => { const g = window.slimekin; g.hud.setSheet && g.hud.setSheet('closed', false); g.advance(2); });
     await shot('15-ranch');
     const p2 = await perf('ranch, 3 residents'); log('perf', JSON.stringify(p2));
     await ev(id => { const g = window.slimekin; g.focusResident(id); g.advance(3); }, ids[1]);
     await shot('16-visit-dollop', { night: false });
-    const visit = await ev(() => { const g = window.slimekin, r = g.ranch.resident(g.ranchFocus); return { focus: g.ranchFocus, fizz: r.av.fizz.visible, inner: r.av.inner.visible }; });
-    ok(!!visit.focus && visit.fizz, 'visiting a resident: close-up, its bubbles show', JSON.stringify(visit));
+    // (the Barn ranch: the resident visited comes up on the stand, drawn in full: its bubbles show)
+    const visit = await ev(() => { const g = window.slimekin, b = g.barnRanch, av = b.active ? b.view.av : g.ranch.resident(g.ranchFocus).av; return { focus: g.ranchFocus, stand: b.curId, fizz: av.fizz.visible, inner: av.inner.visible }; });
+    ok(!!visit.focus && visit.stand === visit.focus && visit.fizz, 'visiting a resident: it comes up on the barn\'s stand, its bubbles show', JSON.stringify(visit));
   } catch (e) {
     if (e.message !== 'stop') errors.push('test error: ' + e.message);
   } finally {

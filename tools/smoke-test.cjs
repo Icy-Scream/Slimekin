@@ -45,12 +45,16 @@ fs.mkdirSync(OUT, { recursive: true });
       g.advance(1); g.hud.closeModal();
     }));
     await shot('01-settled');
-    await step('open the ranch', async () => { await page.click('#tab-ranch'); await ev(() => window.slimekin.advance(4)); });
+    await step('open the ranch', async () => {
+      await page.click('#tab-ranch');
+      await page.waitForFunction(() => { const b = window.slimekin.barnRanch; return b.on || b.view.failed; }, null, { timeout: 120000 });   // (the Barn ranch loads on the first visit)
+      await ev(() => window.slimekin.advance(4));
+    });
     await shot('02-ranch');
     await step('move out', async () => {
       await page.click('#moveOutBtn');
       await page.click('#mvYes');
-      // The goodbye runs on the game clock: advance() plays it (hop away, fade, save) and the page reloads at
+      // The goodbye runs on the game clock: advance() plays it (the travel bubble, fade, save) and the page reloads at
       // its end. The navigation wait is armed before that and only waits for the new page to start; the new
       // game is then awaited on its own state rather than on the page's "load" event.
       const nav = page.waitForNavigation({ waitUntil: 'commit', timeout: 90000 });

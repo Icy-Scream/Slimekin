@@ -80,6 +80,9 @@ const HOUR = 3600e3;
     // ---------- 2. the Ranch life row and a resident's page ----------
     mark('2. ranch tab and resident page');
     await page.click('#tab-ranch');
+    // the ranch is the Barn ranch: its files load on the first visit, so wait for it (or its fallback) first
+    await page.waitForFunction(() => { const b = window.slimekin.barnRanch; return b.on || b.view.failed; }, null, { timeout: 120000 });
+    check(await ev(() => window.slimekin.barnRanch.on), 'the Ranch tab opens the barn');
     await ev(() => window.slimekin.advance(3));
     const row = await ev(() => { const c = document.querySelector('#body-ranch .rl-card'); return c ? c.innerText : null; });
     check(!!row && /Lessons\s*0 \/ 1 lane/.test(row) && /Travelers\s*0 \/ 1 wagon/.test(row) && /Souvenirs 0 \/ 18/.test(row), 'the Ranch tab has the Ranch life row (lessons 0/1, travelers 0/1, souvenirs 0/18)', JSON.stringify(row));
@@ -124,9 +127,10 @@ const HOUR = 3600e3;
     await shot('06-trip-picker');
     await page.click('#modalCard [data-place="cafe"]');
     await ev(() => window.slimekin.advance(1));
-    const t1 = await ev(id => { const g = window.slimekin; return { trip: g.sim.ranch.resident(id).trip, inScene: !!g.ranch.resident(id) && g.ranch.resident(id).state !== 'leave', page: document.querySelector('#body-ranch .rl-skills')?.innerText || '' }; }, juniper);
+    // (the Barn ranch: Juniper was on the stand; it burrows out, leaves the stand's list and someone else comes up)
+    const t1 = await ev(id => { const g = window.slimekin, b = g.barnRanch; return { trip: g.sim.ranch.resident(id).trip, inScene: b.active ? b.order.includes(id) || b.curId === id : !!g.ranch.resident(id) && g.ranch.resident(id).state !== 'leave', page: document.querySelector('#body-ranch .rl-skills')?.innerText || '' }; }, juniper);
     check(t1.trip && t1.trip.place === 'cafe' && t1.trip.souvenir === 'cupHat' && t1.trip.pearls > 0 && !t1.inScene && /On a trip to Puddle Café, home at/.test(t1.page) && /Call home early/.test(t1.page),
-      'Juniper leaves for Puddle Café (pearls and souvenir fixed now), walks out of the scene, the page says when it is home', JSON.stringify(t1.trip));
+      'Juniper leaves for Puddle Café (pearls and souvenir fixed now), burrows out of the barn\'s stand, the page says when it is home', JSON.stringify(t1.trip));
     await clearToasts();
     await scrollTo('#body-ranch .rl-skills');
     await shot('07-on-a-trip');
@@ -164,6 +168,7 @@ const HOUR = 3600e3;
     // ---------- 5. Call home early ----------
     mark('5. call home early');
     await page.click('#tab-ranch');
+    await page.waitForFunction(() => { const b = window.slimekin.barnRanch; return b.on || b.view.failed; }, null, { timeout: 120000 });   // (the barn loads ahead of time, a moment after the page starts)
     await ev(() => window.slimekin.advance(3));
     await ev(id => { window.slimekin.focusResident(id); window.slimekin.advance(2); }, pebble);
     await page.click('#body-ranch [data-rl="trip"]');

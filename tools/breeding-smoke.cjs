@@ -117,6 +117,7 @@ const FIXTURE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'mai
     // ---------- 2. the Nursery on the ranch ----------
     mark('2. the Nursery');
     await page.click('#tab-ranch');
+    await page.waitForFunction(() => { const b = window.slimekin.barnRanch; return b.on || b.view.failed; }, null, { timeout: 120000 });   // (the Barn ranch loads on the first visit)
     await ev(() => window.slimekin.advance(4));
     await shot('01-ranch-with-nursery');
     await page.click('[data-act="nursery"]');
@@ -202,6 +203,7 @@ const FIXTURE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'mai
     // ---------- 7. move out choosing the Pure egg; raise it like its parents (cookies) ----------
     mark('7. the Pure egg');
     await page.click('#tab-ranch');
+    await page.waitForFunction(() => { const b = window.slimekin.barnRanch; return b.on || b.view.failed; }, null, { timeout: 120000 });   // (the barn loads ahead of time, a moment after the page starts)
     await ev(() => window.slimekin.advance(3));
     await page.click('#moveOutBtn');
     await page.waitForSelector('.egg-choice');
@@ -220,6 +222,7 @@ const FIXTURE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'mai
     // ---------- 8. the S'more Slime on the ranch ----------
     mark('8. the S\'more resident');
     await page.click('#tab-ranch');
+    await page.waitForFunction(() => { const b = window.slimekin.barnRanch; return b.on || b.view.failed; }, null, { timeout: 120000 });   // (the barn loads ahead of time, a moment after the page starts)
     await ev(() => window.slimekin.advance(3));
     const smoreId = await ev(() => window.slimekin.state.ranch.residents.find(x => x.form.spark === 'smore').id);
     await ev(id => { window.slimekin.focusResident(id); window.slimekin.advance(4); }, smoreId);

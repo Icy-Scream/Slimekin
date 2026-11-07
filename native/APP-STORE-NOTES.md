@@ -8,8 +8,10 @@ either is added, every section below must be redone.
 
 - The app's web folder has no web links and the game's code uses no network function:
   `node tools/check-ios-www.mjs` (run by `node tools/build-ios.mjs`) prints `OK: no links, no network APIs in the
-  game code, every file named and imported is there`. The only `http` text left is two XML namespace names
-  (`http://www.w3.org/2000/svg`, `http://www.w3.org/1999/xhtml`): identifiers, never fetched.
+  game code (only reads of its own files), every file named and imported is there`. The only `http` text left is two
+  XML namespace names (`http://www.w3.org/2000/svg`, `http://www.w3.org/1999/xhtml`): identifiers, never fetched.
+  The one read the gate allows is the Greenhouse room's own files, bundled in the app (`src/assets/greenhouse/`, by a
+  URL relative to the game's code, no host): it prints `allowed local read: src/view/greenhouse.js reads ...`.
 - The game played start to finish in a browser with every outside request refused and counted:
   `SLIMEKIN_ROOT=native/www SLIMEKIN_STRICT=1 node tools/smoke-test.cjs` (and `tools/jelly-loop-smoke.cjs`) end with
   `0 outside request(s) were aborted`.

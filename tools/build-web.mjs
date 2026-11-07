@@ -1,14 +1,22 @@
 // Builds the installable web app (for GitHub Pages) into docs/.
-//   node tools/build-web.mjs
+//   node tools/build-web.mjs                       (the live app: docs/)
+//   node tools/build-web.mjs tools/out/web-test    (a test build into another folder; --version=ID sets its VERSION)
 // index.html is written as a claude.ai artifact body, so this wraps it in a full document
 // and adds what a home-screen app needs: manifest, icons, iPhone meta tags and an offline cache.
+// Every folder under src/assets/ (a baked room or ranch: the Greenhouse, the barn; about 3.3 MB each) gets its own
+// offline cache named by the folder and a hash of its files, and stays out of the core list, so a release that does not
+// change a folder does not make every phone download it again.
 import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
+import crypto from 'node:crypto';
 
 const root = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), '..');
-const out = path.join(root, 'docs');
-const version = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 12);
+const args = process.argv.slice(2);
+const outArg = args.find(a => !a.startsWith('--'));
+const out = outArg ? path.resolve(outArg) : path.join(root, 'docs');
+const version = (args.find(a => a.startsWith('--version=')) || '').slice(10) || new Date().toISOString().replace(/[-:T]/g, '').slice(0, 12);
+if (out === root || root.startsWith(out + path.sep)) throw new Error(`refusing to build into ${out}`);
 
 fs.rmSync(out, { recursive: true, force: true });
 fs.mkdirSync(out, { recursive: true });
@@ -73,9 +81,23 @@ fs.writeFileSync(path.join(out, 'manifest.webmanifest'), JSON.stringify({
   ],
 }, null, 2));
 
-const core = ['./', 'index.html', 'manifest.webmanifest', ...files];
+// each asset folder's files: their own cache, named by the folder and its contents (src/assets/<folder>/...)
+const folderOf = f => { const m = /^src\/assets\/([^/]+)\/./.exec(f); return m ? m[1] : null; };
+const sizeOf = list => list.reduce((n, f) => n + fs.statSync(path.join(out, f)).size, 0);
+const assets = [...new Set(files.map(folderOf).filter(Boolean))].sort().map(folder => {
+  const list = files.filter(f => folderOf(f) === folder).sort();
+  const hash = crypto.createHash('sha256');
+  for (const f of list) { hash.update(f + '\0'); hash.update(fs.readFileSync(path.join(out, f))); }
+  return { cache: `slimekin-asset-${folder}-${hash.digest('hex').slice(0, 16)}`, files: list };
+});
+
+const coreFiles = files.filter(f => !folderOf(f));
+const core = ['./', 'index.html', 'manifest.webmanifest', ...coreFiles];
 fs.writeFileSync(path.join(out, 'sw.js'), fs.readFileSync(path.join(root, 'web', 'sw.js'), 'utf8')
   .replace('__VERSION__', version)
-  .replace('__CORE__', JSON.stringify(core)));
+  .replace('__CORE__', JSON.stringify(core))
+  .replace('__ASSETS__', JSON.stringify(assets)));
 fs.writeFileSync(path.join(out, '.nojekyll'), '');
-console.log(`Built docs/ (version ${version}, ${core.length} cached files)`);
+const mb = n => (n / 1048576).toFixed(2) + ' MB';
+console.log(`Built ${path.relative(root, out) || out} (version ${version}, ${core.length} cached files, ${mb(sizeOf(coreFiles))}; `
+  + `asset caches: ${assets.map(a => `${a.cache} ${a.files.length} files ${mb(sizeOf(a.files))}`).join(', ') || 'none'})`);

@@ -478,13 +478,13 @@ export const HEIRLOOMS = [
     effect: 'Lucky Glimmers give twice as much.', fx: { glimmerMult: 2 } },
   { id: 'jarlid',   name: 'Golden Jar Lid',       icon: '🫙', price: 1e10, where: 'on the Jelly Jar',
     effect: 'The Jelly Jar keeps its size when a slime moves out (what is inside still starts over).', fx: { keepJar: true } },
-  { id: 'lanterns', name: 'Ranch Lanterns',       icon: '🏮', price: 1e11, where: 'along the ranch fence',
+  { id: 'lanterns', name: 'Ranch Lanterns',       icon: '🏮', price: 1e11, where: 'by the barn door',
     effect: 'Ranch slimes make 25% more pearls.', fx: { ranchPearls: 1.25 } },
   { id: 'quilt',    name: 'Patchwork Quilt',      icon: '🧵', price: 1e12, where: 'in the Nursery',
     effect: 'New Nursery eggs are ready twice as fast.', fx: { eggTime: 0.5 } },
   { id: 'portrait', name: 'Family Portrait',      icon: '🖼️', price: 1e13, where: 'on the nursery wall',
     effect: "Ranch slimes' happiness fades half as fast.", fx: { happyDecay: 0.5 } },
-  { id: 'statue',   name: 'Family Statue',        icon: '🗿', price: 1e14, where: 'on the ranch hill',
+  { id: 'statue',   name: 'Family Statue',        icon: '🗿', price: 1e14, where: 'in the barn',
     effect: 'Buyers pay 25% more pearls (new homes and auctions).', fx: { buyerPay: 1.25 } },
   { id: 'wishstar', name: 'Wishing Star',         icon: '⭐', price: 1e15, where: 'over the ranch at night',
     effect: 'Rare eggs twice as likely: a plain egg hatches a surprise Cat-ear or Topknot Dollop twice as often.', fx: { rareEggs: 2 } },
@@ -671,3 +671,135 @@ export const RANCH_LIFE = {
 export const SKILL_IDS = RANCH_LIFE.skills.map(s => s.id);
 export const SKILL_BY_ID = Object.fromEntries(RANCH_LIFE.skills.map(s => [s.id, s]));
 export const PLACE_BY_ID = Object.fromEntries(RANCH_LIFE.places.map(p => [p.id, p]));
+
+// The Greenhouse (Settings > Background, the default home): a room baked outside the repo (its files are in
+// src/assets/greenhouse/; gh.json has the room's footprints and glow spots), drawn by src/view/greenhouse.js, and a
+// camera you can turn inside it. Room coordinates: x right, y up, z toward you; the slime's stump is at the origin.
+// Pure math (ground, roof, camera limits, spot check) is in src/view/greenhouse-math.js.
+export const GREENHOUSE = {
+  blend: 3,                    // day <-> night blend speed (1/s): about 3 s, like the test page
+  // The game's start with the Greenhouse as home: the loading screen ("Warming the nest") stays up until the room is in
+  // and drawn `frames` times, at most `wait` seconds after the game is built. Past that, home shows the plain Classic
+  // look and the room cross-fades in when it arrives: the last frame before it stays over the room and fades out over
+  // `fade` seconds (never a pop). The Meadow and Classic never wait.
+  arrive: { wait: 8, frames: 2, fade: 0.8 },
+  // The lights on the slime and the helpers (the room's own light is baked into it). Day and night, blended with the room.
+  slimeLight: {
+    day:   { hemi: ['#fff4e6', '#d9b48a', 0.85], key: ['#fff1de', 1.6],  rim: ['#ffe6c2', 1.1], env: 0.45 },
+    night: { hemi: ['#6d64b8', '#2e2140', 0.5],  key: ['#ffcf98', 1.15], rim: ['#ffc27a', 1.5], env: 0.26 },
+  },
+  // Height of the floor: the stump's flat top (the slime sits on it), its side down to the braided rug, the planks.
+  ground: { stumpTop: 0.27, stumpFlat: 0.85, stumpR: 1.14, rugY: 0.06, rugR: 2.3, rugEdge: 0.1, floorY: 0 },
+  // The roof over the room: eaves on the side walls, the ridge over the middle (half = half the roof's width).
+  roof: { eave: 4.7, ridge: 6.7, half: 3.95 },
+  camera: {
+    order: ['front', 'wide', 'left', 'right'],   // the camera button steps through these (Front = the home camera)
+    // Set angles (Front is computed by the stage, unchanged). Left is the test page's Corner, 0.1 nearer the middle so
+    // it is inside the side limit (x 3.4); Right is Left mirrored.
+    views: {
+      wide:  { pos: [0, 4.7, 9.6],   look: [0, 1.3, -2.2],  fov: 58 },
+      left:  { pos: [-3.4, 3.1, 7.6], look: [1.1, 1.3, -3.0], fov: 50 },
+      right: { pos: [3.4, 3.1, 7.6],  look: [-1.1, 1.3, -3.0], fov: 50 },
+    },
+    // Where you can turn it yourself: inside the side walls (|x|), above the floor and under the roof (minus a gap),
+    // not past the front (z), at least near[0] + near[1] x slime size from the point it looks at, and at most `around`
+    // degrees around the slime from straight on (so never from behind it).
+    limits: { x: 3.4, yMin: 0.9, roofGap: 0.3, zMax: 13.5, near: [2.2, 1.2], around: 55, pitch: 80 },
+    turn: 0.0048,              // radians around the slime per pixel dragged sideways (a full phone width is about 105 degrees)
+    tilt: 0.0036,              // radians up or down per pixel dragged up or down
+    glide: 3,                  // how fast the camera glides to a set angle (like the Front camera's own follow)
+    follow: 16,                // how fast it follows your finger while you turn it
+    pinch: [0.5, 2],           // one pinch gesture zooms at most this much (each move is clamped to it)
+  },
+  // Where the helpers you buy stand in the room ([x, z], on the floor; y comes from the ground). Checked by
+  // tools/greenhouse-test.mjs against the room's footprints and walls (gh.json) with each helper's radius below
+  // (measured from its model at the size it is shown at; tools/greenhouse-smoke.cjs measures them again).
+  spots: {
+    planters: [[-0.62, -2.72], [0.42, -2.7], [-0.2, -3.42], [-0.98, -3.95], [0.62, -4.05], [-0.25, -4.65]],
+    lamps: [[-1.85, -0.7], [1.85, -0.7], [-3.2, -2.0], [3.25, -2.35], [-2.9, 4.5], [2.9, 4.6]],
+    bubbles: [2.35, 1.3], musicbox: [-2.5, 1.15], fountain: [-2.2, 2.65], spa: [2.4, 3.0],
+    observatory: [2.05, -3.75],   // the room's telescope spot (gh.json spots.telescope), nudged 0.1 off the stool
+    turn: { bubbles: -0.6, musicbox: 0.5, fountain: 0, observatory: 2.2, spa: -0.5 },   // which way each one faces (radians)
+    pals: { ring: [1.85, 2.6], step: 0.5, spacing: 0.55 },   // pals hop on the rug and the floor around the stump
+    rainbow: { pos: [0, -0.6, -9.5], radius: 4.6, tube: 0.2 },   // over the garden behind the back glass
+  },
+  radius: { planter: 0.3, lamp: 0.42, bubbles: 0.42, musicbox: 0.5, fountain: 0.63, spa: 0.96, observatory: 0.53, slimeling: 0.28 },
+  // model origin above the floor (the planters and the wand would sink into the planks; a pal sits a bit higher than
+  // on the meadow's grass so its round bottom doesn't dip into the floor)
+  lift: { planter: 0.27, bubbles: 0.58, musicbox: 0.2, slimeling: 0.05 },
+};
+
+// ---------- The Barn ranch (the ranch screen) ----------
+// The ranch is the baked barn (src/assets/barn/, lit and baked in Blender outside this repo, the same format as the
+// Greenhouse room): one resident at a time on the show stand, swiped through with the burrow swap. The camera, the
+// stand, the lanterns, the bulbs and the Pearl Basket come from barn.json; what you can tune is here. Timings and
+// counts copy the barn test page the captain played (and the Blender clip its swap copies).
+export const BARN = {
+  blend: 3,                  // day <-> night blend speed (1/s): about 3 s, like the test page and the Greenhouse
+  size: 0.86,                // the resident on the stand (the size a resident has on the meadow ranch)
+  // The burrow swap, in seconds (Slow motion = the test page's x3 is not in the game). It wiggles, sinks into the straw
+  // nest, the straw poofs while it is hidden (the next resident is put on then), it pops up and lands with a spring.
+  swap: {
+    wiggle: 0.14, sink: 0.33, under: 0.4, rise: 0.55, land: 0.68,   // where each part ends
+    wiggleDeg: 9, wiggleEvery: 0.07, wiggleSquash: 0.08,              // the wiggle: lean (degrees), its period, a little squash
+    depth: 1.6, hide: 1.5, over: 0.35,                                // how deep it sinks, where it waits, how high it pops
+    stretch: { sink: 0.18, under: 1.36, rise: 0.1, land: 0.26 },      // taller while it sinks, under the straw, rising, landing
+    burst1: 0.28, wear: 0.36, burst2: 0.42,                          // the big straw poof, the new resident put on, the small poof
+    clip: [0.12, 0.6],                                               // the clip plane is on in between (it sinks INTO the nest)
+    spring: { squash: 0.24, decay: 0.085, period: 0.24, length: 1.2 },  // the landing spring
+    queueGap: 0.12,                                                  // a swap asked for during a swap starts this long after it
+    fade: 0.36,                                                      // Reduced motion: a fade out and in instead (no straw)
+  },
+  // Straw strips (one instanced mesh) and how many fly in each poof; Low graphics draws half.
+  straw: { high: { strips: 760, burst1: 520, burst2: 110 }, low: { strips: 380, burst1: 260, burst2: 55 } },
+  dust: 0.36,                // the hay dust puffs' life (s)
+  sparkle: { life: 0.45, stagger: 0.04 },   // the landing sparkles: each one's life (s), one after another
+  // A quick sideways swipe anywhere on the barn (swipe left = next, like turning a page). Petting needs the finger to
+  // stay on the slime: a press only pets once it can no longer be a swipe (it turned back, went mostly up or down, or
+  // lasted longer than a swipe can), or when it ends without being one (a tap).
+  swipe: { minPx: 60, ratio: 1.5, maxMs: 700, turnPx: 14, upPx: 30 },
+  strokeEvery: 0.35,         // stroking keeps petting this often (today's ranch)
+  dots: 8,                   // the name card shows a dot per resident up to this many, then "3 of 12"
+  justBack: 1800,            // "just back from Puddle Café" for this long after a trip (seconds; not saved)
+  // The Nursery's straw nest: the Pearl Basket's spot mirrored to the front left of the stand (barn.json pearls:
+  // x 1.29, z 0.95), inside the aisle and clear of the stand; drawn only while the Nursery has eggs.
+  nest: { x: -1.29, z: 0.95, r: 0.38 },
+  basket: { r: 0.42, shown: 12 },   // the basket's tap target around its pearls; live pearls on top show how full it is
+  // Pearls made while you watch land in the stand's straw ring in front of the slime (the floor in front of the stand is
+  // under the name card, and its sides are at the screen's edges): this far from the stand's middle, within this many
+  // degrees either side of the front. Left there, they roll off to the basket as on the meadow ranch.
+  pearlRing: { r: [1.0, 1.1], arc: 62 },
+  // Framing: the stand, the nest, the basket and the slime (up to `top`) stay between the top bar and the name card.
+  frame: { top: 2.35, bottom: 0, front: 1.25, side: 1.3, gap: 8 },
+  // The barn's files load ahead of time, in the background, once home has shown (they never slow the game's start):
+  // after this many frames and seconds of home (the Greenhouse room comes in first when it is home), in idle time (at
+  // most `idle` ms later). Ranch tapped before they are in: home stays and a short "Off to the barn" moment shows.
+  preload: { frames: 10, after: 1.5, idle: 2000 },
+};
+
+// ---------- The send-off: a travel bubble (moving to the ranch, and a baby's new home) ----------
+// The goodbye: hearts and a happy face, a wave, then a see-through bubble grows around the slime, lifts it off the cushion
+// and floats up and out of the picture with a trail of sparkles (a baby drifts a little toward the side its new family
+// waits on). In any camera angle where it would be seen meeting the room (the Greenhouse roof, a wall, the lantern) or
+// come near the camera while still in the picture, it pops first in a burst of sparkles. Then the white fade and the
+// rule, as before.
+// Seconds count from the goodbye's start. The rule and the path: src/view/bubble-math.js; the bubble: travel-bubble.js.
+export const SENDOFF = {
+  wave: [0.2, 1.05],         // the wave (the nub a baby always waved with): out, back in (before the bubble closes)
+  grow: [1.0, 0.55],         // the bubble starts growing, and takes this long
+  lift: 1.6,                 // it lifts off the cushion
+  latest: 3.95,              // still in the picture by now: it pops (just before the white fade)
+  fade: 4.2, rule: 5.3,      // the white fade, then the rule and the reload (as before the bubble)
+  pad: 1.06,                 // the bubble's radius over the smallest that holds the slime
+  rest: 0.07,                // the slime sits this much of the radius above the bubble's bottom
+  gap: { cushion: 0.03, room: 0.15, camera: 0.5 },   // how close it comes: the cushion, the room (as seen), the camera
+  rise: { accel: 2.3, top: 5 },     // upward: eases in (units a second, per second) to a top speed (units a second)
+  sway: { amp: 0.16, hz: 0.55 },    // a gentle side to side (across the camera's view)
+  toward: 0.35,              // toward the camera, per unit it rises (it leaves the picture lower, well under a roof)
+  side: 0.3,                 // a baby: toward its family's side, per unit it rises
+  wobble: 0.03,              // the bubble's soft wobble (of its radius)
+  trail: 0.06,               // a sparkle behind it this often while it floats
+  popTime: 0.14,             // a pop: the bubble swells and fades, the slime shrinks into the sparkles
+  popSwell: 0.12,            // how much it swells as it pops (of its radius; less when the room is nearer than that)
+  reduced: { glow: 1.7, fade: [2.4, 1.2] },   // Reduced motion: no float; it glows from 1.7 s and fades out in place
+};

@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import { EMOTES, TRICK_LEARNED, SECRETS, FOOD_BY_ID } from './data/content.js';
 import { fmt } from './core/format.js';
-import { esc } from './ui/hud.js';
+import { esc } from './ui/esc.js';
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const KONAMI = ['arrowup', 'arrowup', 'arrowdown', 'arrowdown', 'arrowleft', 'arrowright', 'arrowleft', 'arrowright', 'b', 'a'];

@@ -405,3 +405,151 @@ emoji in `content.js` (`RANCH_LIFE`), shown as text; stars are the ★/☆ glyph
 ### Debug only (`#debug`)
 
 - Settings → Debug: "Finish lessons" (`data-dbg="rlLessons"`), "Bring travelers home" (`data-dbg="rlTrips"`).
+
+## Greenhouse
+
+The baked Greenhouse room is home's default background (`src/view/greenhouse.js`, coordinated by
+`src/greenhouse-home.js`), with a camera you can turn in it.
+
+- Camera button `#camBtn.cam-btn.glass` (`src/ui/camera-button.js`, CSS `.cam-btn` in `index.html`): a 44 x 44 round
+  button fixed at the left, 10 px under the top bar (`top` set from `.top`'s bottom; with no top bar, while the egg
+  waits, `env(safe-area-inset-top) + 14px`). `z-index: 4`, under the HUD layer (`#ui` is 5), so a stretched menu sheet
+  covers it; it is also hidden while the sheet is tall. Shows only in the Greenhouse, at home, in play or while the egg
+  waits, with no modal open (hidden in the Meadow and Classic, at the ranch, while hatching or moving out).
+  - Icon: the drawn `ICON.camera` (`src/ui/icons.js`); after you turn the camera by hand it shows `ICON.cameraBack`
+    (a camera with an orange curved arrow), the button gets the class `.free` (an orange ring), and its next tap goes
+    to Front.
+  - `data-view`: `front | wide | left | right | free`; `aria-label` / `title`: "Camera: Wide view. Tap for Left" or
+    "Camera: turned by hand. Tap for the front view".
+  - `.tip`: a small pill to the right of the button with the new angle's name ("Wide view") for 1.3 s after a tap
+    (class `.tipping` on the button).
+- Settings, Background row: three choices `Greenhouse / Meadow / Classic` (`.seg` buttons `data-k="scene"`) and a new
+  sub line: "In the Greenhouse, the camera button and a drag on the background turn the view. Classic is just your
+  slime." If the room could not load on this device: "The Greenhouse could not load here, so the meadow shows for now."
+- No other new elements. Gestures on empty background in the Greenhouse: one finger turns the camera, two fingers
+  pinch to zoom, a mouse wheel zooms on a computer (the swipe code still counts).
+- 3D: helpers stand on the Greenhouse's spots (`GREENHOUSE.spots` in `content.js`).
+
+### The game's start waits for the room (R3b)
+
+- The loading screen `#boot.boot` ("Warming the nest", unchanged) now stays up until the Greenhouse room is in and
+  drawn, when the Background is Greenhouse, so no other scene shows first. At most `GREENHOUSE.arrive.wait` (8 s) after
+  the game is built; then it fades as before into the plain Classic look, and the room arrives with a cross-fade. The
+  Meadow and Classic don't wait (the screen goes as soon as the game is built, as before).
+- Cross-fade `canvas#homeFade.home-fade` (made by `src/greenhouse-home.js` only when the room arrives after the loading
+  screen has gone, CSS in `index.html`): a picture of the last frame before the room, right over the scene canvas and
+  under everything else (no `z-index`, next after `#scene`), takes no touches, fades out over `GREENHOUSE.arrive.fade`
+  (0.8 s; also with Reduced motion), then hidden and emptied. The HUD stays live above it.
+- Offline on the very first run (the room can't load): the loading screen goes straight into the Meadow (before, the
+  Classic look showed for a moment first).
+- The page's `<html>` carries `data-home-world` (`greenhouse | loading | meadow | classic`): what home drew last, for
+  the browser tests.
+
+## Barn ranch
+
+The ranch screen is the baked barn (`src/view/barn.js`, coordinated by `src/barn-ranch.js`): one resident at a time on
+the show stand, a fixed camera, the burrow swap between residents. Home is unchanged (the Meadow keeps its ranch hill).
+The meadow ranch is never the ranch screen (R3): the barn's files load ahead of time, and until they are in Ranch shows
+the loading moment below at home.
+
+- Name card `#barnCard.barn-card.glass` (`src/ui/barn-card.js`, CSS in `<style id="barnCss">` made by that file),
+  `role="button"`, `tabindex="0"`: centered over the picture, `width: min(340px, 100vw - 32px)`, `z-index: 7`, placed
+  every frame just above the menu sheet (or above the ranch bar when the sheet is closed). Hidden at home.
+  - `<b>` the resident's name (the display font, 22 px); `.bc-line` its body's name and one line from real data,
+    "Curly · Bounce ★★★", "Topknot Dollop · in a lesson: Bounce, 2h left", "Dollop · just back from Puddle Café",
+    "Curly · 4.2 pearls an hour" (no stars yet); the stars in honey.
+  - `.bc-dots` one dot per resident on the stand's list (up to `BARN.dots` = 8; the one on the stand is a wider purple
+    pill), else `.bc-count` "3 of 12".
+  - Empty stand (`.empty`): "Everyone is on a trip" / "Juniper is on a trip" + "Juniper is home at 7:05 pm."; or
+    "Nobody lives here yet" + today's empty-ranch line ("When Pebble is all grown up (Settled), they can move to the
+    ranch.").
+  - Tap: opens the menu sheet on that resident's page (the page tapping a resident opened before). A quick sideways
+    swipe on the card swaps like a swipe on the barn. `aria-label` "Juniper, Curly, 4.2 pearls an hour. Open Juniper's
+    page".
+- Previous / next buttons `#barnPrev` / `#barnNext` (`.barn-arrow.glass`, `<button>`): 44 x 44 round, 10 px from the
+  screen's left / right edge, at the slime's middle height; `aria-label` "Previous slime" / "Next slime". Shown only
+  with two or more residents on the stand's list.
+  - Icons: two new drawn icons, `ICON.chevronLeft` / `ICON.chevronRight` (`src/ui/icons.js`, a soft purple chevron).
+- `#ranchHint` in the barn: "Swipe for the next slime. Tap or stroke to pet." (one resident: "Tap or stroke to pet.";
+  none: "Your ranch slimes live here."; the Nursery: "The Nursery. Pick two parents below."). (R3: the meadow ranch's
+  own lines, "Tap a slime to visit it. Drag to look around." and "... Tap the grass to step back.", are gone with it;
+  `index.html` still has the first as the element's starting text, never shown.)
+- `body.in-barn` while the barn shows (no CSS uses it yet).
+- Gestures in the barn: a quick sideways swipe anywhere (more than 60 px, mostly sideways, under 0.7 s; left = next)
+  swaps and does not pet; a tap on the slime pets; a press on it pets once it cannot be a swipe any more (it turned
+  back, went mostly up or down, or lasted 0.7 s), then stroking keeps petting. No camera drag. Arrow keys ← → swap on a
+  computer.
+- 3D (tappable): the slime on the stand, the loose pearls (they land in the stand's straw in front of the slime), the
+  baked Pearl Basket at the front right (collects; live pearls on its heap show how full it is), the Nursery's straw
+  nest at the front left (only while the Nursery has eggs; opens the Nursery). Nothing else in the barn is tappable.
+
+### The barn ahead of time (R3)
+
+- The barn's files load in the background soon after home shows (no element). Ranch (the tab, the pearl counter, a
+  resident's Visit, the Nursery link under the egg) tapped before they are in:
+  - Loading moment `#barnWait.barn-wait.glass` (`src/ui/barn-card.js`, CSS in `<style id="barnCss">`),
+    `role="status"`: a pill under the top bar, in the middle, `z-index: 8`, takes no touches. The Ranch tab's own
+    barn-house icon in purple (`#6b4bd6`, the card's dot colour), "Off to the barn" (the display font, 17 px) and three
+    small purple dots that bounce one after another (still with Reduced motion). Home stays (the menu shows the Ranch
+    page); the barn opens the moment its files are in. Another tab, "← Back home" on the Ranch page, or a goodbye
+    calls it off.
+  - The barn can't load (offline on the very first run, files missing): the pill goes, the menu goes back to the page
+    it was on, and one toast: **"The barn needs the internet the first time."** / "Try again in a moment." The next tap
+    on Ranch tries again.
+
+## The send-off: a travel bubble (R3)
+
+The goodbye when a grown slime moves to the ranch, and when a baby goes to a new home (`src/send-off.js`, the bubble
+`src/view/travel-bubble.js`, its rule `src/view/bubble-math.js`, numbers in `SENDOFF` in `content.js`). It replaces the
+old hop toward the hill (a grown slime) and the hops off to the side (a baby).
+
+- The start is as before: hearts, the say line, the happy face; the menu sheet closes.
+- 0.2 s: it waves (the nub a baby always waved with; now a grown slime waves too); a baby looks toward where its new
+  family waits (as before).
+- 1.0 s: a see-through soap bubble grows around it (no art files: a thin-film rainbow rim that drifts, a thin bright
+  outline, a soft window glint upper left and a small one lower right, a gentle wobble) with a ring of rainbow sparkles
+  and the `wobble` sound. Its bottom stays just over the cushion; the slime is lifted onto the bubble's floor.
+- 1.6 s: it lifts off (`whee`), sparkly eyes, and floats up with a gentle sway, a little toward the camera, a trail of
+  small pastel glints behind it (a baby drifts a little toward its family's side), and leaves the top of the picture.
+- Where the room would be seen meeting it first (the Greenhouse roof in the Wide, Left and Right angles, or turned by
+  hand), it pops instead: it swells a little and fades, the slime shrinks into a burst of rainbow and gold sparkles
+  (`pop` + `sparkle`); near the room the sparkles spread less and drift down. By 3.95 s it pops anyway.
+- 4.2 s the white fade and 5.3 s the move and the reload, as before.
+- Reduced motion: no float; the bubble forms, glows and fades out in place with the slime (from 2.4 s over 1.2 s).
+- Low graphics: the bubble draws only its near side (one pass); High also draws its far side faintly first.
+
+### Copy changed (the hill is now the barn)
+
+| Where | Before | Now |
+|---|---|---|
+| "Move Pebble to the ranch?" (`askMoveOut`) | Pebble will live on the hill behind the cushion, making jelly and pearls, ... | Pebble will live at the ranch barn, making jelly and pearls, ... |
+| The say line as it leaves (`moveOut`) | I'll be on the hill! ♥ | See you at the barn! ♥ |
+| "Pebble moved to the ranch!" (`showMovedIn`) | Pebble is settling in on the hill behind the cushion, with 7 other slimes. | Pebble is settling in at the barn, with 7 other slimes. |
+
+(Still saying "hill", not in this slice's list: the Family Statue heirloom's "on the ranch hill" in `HEIRLOOMS`.)
+
+## Save safety (H1)
+
+New on-screen elements, all plain DOM in `src/ui/notice.js` (`showNotice`), using the page's own `.modal`, `.modal-card`
+and `.btn` styles in a separate layer (`.modal.notice`, z-index 60, above the loading screen), so they work even when the
+game or its HUD did not start. Screenshots at 375 px: `tools/health-smoke.cjs` (tools/out/health/).
+
+| Card / toast | When | Buttons |
+|---|---|---|
+| "A fresh egg, for now" | the save on this device could not be read and no copy could (the text stays in `slimekin.save.broken`) | OK, Copy the old save |
+| Toast "Welcome back, Pebble!" | the save could not be read, so the game used the phone's backup or `slimekin.save.prev` | (toast) |
+| "Oops, a hiccup!" | a few frames in a row hit an error (`TROUBLE_FAILS`): saving stops | Reload, Restore last good save (when there is one); a small "Details" line |
+| "The picture fell asleep" / "The picture is back" | the phone took the 3D picture away (`webglcontextlost`) / gave it back | Reload / Carry on, Reload |
+| Toast "Saving didn't work" | a save was refused by storage (once per visit) | (toast) |
+| "Slimekin hit a snag" | the game could not start for a reason other than missing WebGL (that one keeps its old message) | Try again, Copy save code, Restore last good save (when there is one) |
+
+Changed:
+
+| Where | Before | Now |
+|---|---|---|
+| Load a save code | any JSON replaced the slime at once | a message under the box for an empty, cut, changed or slime-less code (`.code-msg.bad`); a good code opens "Replace Pebble?" (Keep Pebble / Replace Pebble) naming the incoming slime |
+| The top bar pill (`.slime-card`) | a name was cut with an ellipsis (at 375 px about 50 px: "Pe...") | a name that does not fit gets the first line to itself (`.long-name`, 63 px tall); a name that fits keeps the one-line pill |
+| Ranch life row, Ranch life card, return card | raw 🧳 and 🎓 | drawn icons (`memIcon`; a new suitcase drawing in `icons.js`) |
+| The Ranch page heading | Slime Ranch | The Barn |
+| The Meadow hill's gate sign | Slime Ranch | The Barn |
+| Heirloom "It will live ..." | along the ranch fence / on the ranch hill | by the barn door / in the barn |

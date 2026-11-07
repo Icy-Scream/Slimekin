@@ -160,7 +160,7 @@ const FIXTURE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'mai
       kit.mark('1b. the stretchy sheet (ranch)');
       await openSheet();
       await gesture('home: drag up to tall', w => drag(w.grip.x, w.grip.y, 160), { state: 'tall' });
-      await page.click('#tab-ranch'); await ev(() => window.slimekin.advance(4)); await settle();
+      await page.click('#tab-ranch'); await page.waitForFunction(() => { const b = window.slimekin.barnRanch; return b.on || b.view.failed; }, null, { timeout: 120000 }); await ev(() => window.slimekin.advance(4)); await settle();   // (the Barn ranch loads on the first visit)
       s = await sheet(); expect(s.state === 'normal', `going to the ranch: back at normal (${s.h}px)`, JSON.stringify(s));
       await shot('03-ranch-normal');
       await gesture('ranch: drag up from the grip', w => drag(w.grip.x, w.grip.y, 160), { state: 'tall' });
@@ -189,8 +189,12 @@ const FIXTURE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'mai
       g.state.totalJelly = 3e9;
       g.advance(1); g.hud.closeModal();
     });
+    // the Barn ranch opens once its files are in (they load ahead of time, a moment after each page starts): wait for it
+    const barnOn = () => page.waitForFunction(() => { const b = window.slimekin.barnRanch; return b.on || b.view.failed; }, null, { timeout: 120000 });
     const breedInNursery = async (a, b) => {
-      await ev(() => { const g = window.slimekin; if (g.view !== 'ranch') g.hud.openTab('ranch'); g.advance(2); g.openNursery(); g.advance(2); });
+      await ev(() => { const g = window.slimekin; if (g.view !== 'ranch') g.hud.openTab('ranch'); });
+      await barnOn();
+      await ev(() => { const g = window.slimekin; g.advance(2); g.openNursery(); g.advance(2); });
       await page.click(`.parent-pick:has-text("${a}")`); await page.click(`.parent-pick:has-text("${b}")`);
       await page.click('#breedBtn');
       await ev(() => window.slimekin.advance(2));
@@ -208,13 +212,13 @@ const FIXTURE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'mai
       expect(e0.n === 1 && e0.readyIn >= 59, 'Juniper and Pebble made an egg in the Nursery (still warming)', JSON.stringify(e0));
       await ev(() => window.slimekin.leaveRanch());
       await growUp();
-      await page.click('#tab-ranch'); await ev(() => window.slimekin.advance(3));
+      await page.click('#tab-ranch'); await barnOn(); await ev(() => window.slimekin.advance(3));
       await page.click('#moveOutBtn');
       await page.waitForSelector('.egg-choice');
       const choice = await ev(() => [...document.querySelectorAll('.egg-choice .choice')].map(b => ({ egg: b.dataset.egg, disabled: b.disabled, text: b.innerText.replace(/\s+/g, ' ') })));
       note('egg choice:', JSON.stringify(choice));
       const warm = choice.find(c => c.egg);
-      expect(warm && !warm.disabled && /Still warming: ready in \d+ min, it can finish on the cushion/.test(warm.text), 'the warming egg can be chosen and says it can finish on the cushion', warm && warm.text);
+      expect(warm && !warm.disabled && /Still warming: ready in (?:\d+ min|1h), it can finish on the cushion/.test(warm.text), 'the warming egg can be chosen and says it can finish on the cushion', warm && warm.text);
       await page.click('.choice[data-egg]:not([data-egg=""])');
       await shot('05-moveout-warming-choice');
       await keepClock();
@@ -224,16 +228,22 @@ const FIXTURE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'mai
       expect(es.phase === 'egg' && es.bred && es.readyIn >= 55 && es.parents === 'Juniper & Pebble', 'Juniper and Pebble\'s egg is on the cushion, still warming', `ready in ${es.readyIn} min`);
       await ev(() => window.slimekin.advance(2));
       const moved = await ev(() => document.getElementById('modalCard').innerText.replace(/\s+/g, ' '));
-      expect(/still warming: ready in \d+ min/i.test(moved), 'the moved-in card says the egg is still warming', moved.slice(0, 260));
+      expect(/still warming: ready in (?:\d+ min|1h)/i.test(moved), 'the moved-in card says the egg is still warming', moved.slice(0, 260));
       await shot('06-moved-in-warming');
       await ev(() => { window.slimekin.hud.closeModal(); window.slimekin.advance(1.5); });
       // a real tap on the egg (through the canvas), then a few more: no warmth while it warms
       const at = await ev(() => { const g = window.slimekin, p = g.screenOf(g.egg.group.position.clone().add(new (g.v1.constructor)(0, 0.7, 0))); return { x: Math.round(p.x), y: Math.round(p.y) }; });
       await tap(at.x, at.y);
-      await ev(() => { const g = window.slimekin; for (let i = 0; i < 4; i++) g.tapEgg(g.egg.group.position.clone()); g.advance(0.5); });
+      // the real tap's "Not yet!" toast is read straight away, in the same evaluate as the extra taps: it lives 2.6 s of
+      // real time and the extra taps don't show it again (a 2.5 s game-time cooldown), so a slow machine could miss it
+      const toast = await ev(() => {
+        const g = window.slimekin, t = document.getElementById('toasts').innerText.replace(/\s+/g, ' ');
+        for (let i = 0; i < 4; i++) g.tapEgg(g.egg.group.position.clone());
+        g.advance(0.5);
+        return t;
+      });
       es = await eggState();
-      const toast = await ev(() => document.getElementById('toasts').innerText.replace(/\s+/g, ' '));
-      expect(es.phase === 'egg' && es.warmth === 0 && /Still warming/.test(es.title) && /Ready in \d+ min/.test(es.hint) && /Not yet/.test(toast), 'taps before it is ready: a "not yet" shake and toast, no warmth, the hint counts down', `${es.title}: ${es.hint} | toast: ${toast}`);
+      expect(es.phase === 'egg' && es.warmth === 0 && /Still warming/.test(es.title) && /Ready in (?:\d+ min|1h)/.test(es.hint) && /Not yet/.test(toast), 'taps before it is ready: a "not yet" shake and toast, no warmth, the hint counts down', `${es.title}: ${es.hint} | toast: ${toast}`);
       await shot('07-egg-still-warming');
       // an hour passes (wall clock: works while the game is closed; here g.advance moves the test clock)
       const t0 = Date.now();
@@ -262,7 +272,7 @@ const FIXTURE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'mai
       await ev(() => window.slimekin.leaveRanch());
       await growUp();
       const mover = await ev(() => window.slimekin.state.slime.name);
-      await page.click('#tab-ranch'); await ev(() => window.slimekin.advance(3));
+      await page.click('#tab-ranch'); await barnOn(); await ev(() => window.slimekin.advance(3));
       await page.click('#moveOutBtn');
       await page.waitForSelector('.egg-choice');
       await keepClock();
@@ -278,6 +288,7 @@ const FIXTURE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'mai
       await shot('08-egg-with-ranch-tab');
       // to the Nursery from the link under the egg; the slime that just moved out makes an egg with Juniper
       await page.click('#eggAlt');
+      await barnOn();
       await ev(() => window.slimekin.advance(3));
       const view = await ev(() => ({ view: window.slimekin.view, page: window.slimekin.ranchPage, sheet: window.slimekin.hud.sheetState() }));
       expect(view.view === 'ranch' && view.page === 'nursery' && view.sheet === 'normal', 'the link opens the Nursery on the ranch (while the egg waits at home)', JSON.stringify(view));
@@ -342,11 +353,11 @@ const FIXTURE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'mai
       await page.click('#slimeRehome');
       await page.waitForSelector('#rhYes');
       const ask = await ev(() => document.getElementById('modalCard').innerText.replace(/\s+/g, ' '));
-      expect(ask.includes(`${before.buyer} would love to raise ${before.name}`) && /No pearls for a baby/.test(ask) && /Still warming: ready in \d+ min/.test(ask),
+      expect(ask.includes(`${before.buyer} would love to raise ${before.name}`) && /No pearls for a baby/.test(ask) && /Still warming: ready in (?:\d+ min|1h)/.test(ask),
         'one confirm step: the family that suits the baby, no pearls, and the same egg choice (warming eggs allowed)', ask.slice(0, 400));
       await page.click('.choice.warming');
       await shot('14-rehome-confirm');
-      // the goodbye: a wave, then hops off to the side toward the new family
+      // the goodbye: a wave, then the travel bubble floats it up, drifting a little toward the new family
       await keepClock();
       const nav = page.waitForNavigation({ waitUntil: 'commit', timeout: 90000 });
       await ev(() => { document.getElementById('panel').style.transition = 'none'; });   // (the menu closes at once, for the first frame)
@@ -359,14 +370,15 @@ const FIXTURE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'mai
         const g = window.slimekin;
         if (say) g.hud.say(say, 60000);
         g.advance(Math.max(0, t - g.departing.t)); g.stage.render(); g.last = Infinity;
-        return { t: +g.departing.t.toFixed(2), x: +g.slime.root.position.x.toFixed(2) };
+        return { t: +g.departing.t.toFixed(2), x: +g.slime.root.position.x.toFixed(2), y: +g.slime.root.position.y.toFixed(2), bubble: g.sendOff.info() };
       }, { t, say });
       const still = async name => { await page.waitForTimeout(300); await page.screenshot({ path: path.join(OUT, name + '-day.png'), timeout: 120000 }); note('screenshot', name); };
       const f1 = await frameAt(1.0, bye.say);
       await still('15-rehome-goodbye-wave');
-      const f2 = await frameAt(3.3);
-      await still('15-rehome-goodbye-hop');
-      expect(f2.x > f1.x + 1, 'it hops off to the side, toward its new family', `x ${f1.x} at ${f1.t} s -> ${f2.x} at ${f2.t} s`);
+      const f2 = await frameAt(3.0);
+      await still('15-rehome-goodbye-bubble');
+      // (by 3 s it has risen about 2.2: SENDOFF.side x that is 0.7 toward the family, less at most 0.16 of sway)
+      expect(f2.bubble && f2.bubble.shown && f2.bubble.step === 'float' && f2.y > f1.y + 1.5 && f2.x > f1.x + 0.4, 'a travel bubble floats it up, drifting a little toward its new family (+x)', `x ${f1.x}, y ${f1.y} at ${f1.t} s -> x ${f2.x}, y ${f2.y} at ${f2.t} s (bubble r ${f2.bubble && f2.bubble.r})`);
       await ev(() => { const g = window.slimekin; document.getElementById('panel').style.transition = ''; g.last = performance.now(); g.hud.say('', 1); g.advance(3); });
       await nav;
       await boot();
@@ -408,6 +420,7 @@ const FIXTURE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'mai
         'a postcard from the baby, written by a baby, with no pearls in it', JSON.stringify(pc));
       await shot('17-baby-postcard', { night: false });
       await page.click('#tab-ranch');
+      await barnOn();
       await ev(() => { const g = window.slimekin; g.advance(2); const b = document.getElementById('body-ranch'); b.scrollTop = b.scrollHeight; g.advance(0.5); });
       const elsewhere = await ev(() => document.getElementById('body-ranch').innerText.replace(/\s+/g, ' '));
       expect(elsewhere.includes(`${before.name}`) && /growing up there/.test(elsewhere), 'the ranch lists the baby under "Living elsewhere" (growing up there)', elsewhere.slice(-200));

@@ -171,6 +171,7 @@ const SIGNS = ['curious', 'familiar', 'bold', 'shy', 'playful', 'mellow', 'cuddl
     check(helpers.feather === 10 && helpers.bubbles === 5, "the Toy Box: the new slime starts with 10 Tickle Feathers and 5 Bubble Wands", `feather ${helpers.feather}, bubbles ${helpers.bubbles}`);
     // the resident's badge on the ranch
     await page.click('#tab-ranch');
+    await page.waitForFunction(() => { const b = window.slimekin.barnRanch; return b.on || b.view.failed; }, null, { timeout: 120000 });   // (the Barn ranch loads on the first visit)
     await ev(() => window.slimekin.advance(3));
     const cid = await ev(() => window.slimekin.state.ranch.residents.find(x => x.name === 'Clover').id);
     await ev(id => { window.slimekin.focusResident(id); window.slimekin.advance(4); }, cid);

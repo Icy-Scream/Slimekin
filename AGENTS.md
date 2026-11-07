@@ -40,12 +40,23 @@ it up the next time it is opened online (sometimes it takes two opens). Never ed
   to the ranch), `ranch.js` (pearls, basket, slots, offers, auctions, postcards).
 - `src/view/` = presentation only. `slime.js` (soft-body avatar; `lite` mode for ranch residents),
   `forms.js` (the 22 grown-up looks), `ranch.js` (ranch scene and cameras), `stage.js`, etc.
+- The ranch screen is the Barn ranch: `src/barn-ranch.js` coordinates it (who is on the stand, swaps, touch, the name
+  card, framing above the menu), `src/view/barn.js` draws it (the baked barn from `src/assets/barn/`, ONE full
+  `SlimeAvatar` on the show stand re-dressed for each resident, the burrow swap, straw, nest, pearls),
+  `src/view/barn-math.js` is its plain math (node-testable), `src/ui/barn-card.js` the card and ‹ ›. Numbers in `BARN`
+  (`content.js`). `src/view/ranch.js` is now only home's ranch hill in the Meadow background.
 - `src/game.js` coordinates input → rules → reactions. `src/behaviors.js` = personality moments.
 - **All tuning and content lives in `src/data/content.js`** (`TUNING`, `STAGES`, `FOODS`, `HELPERS`,
   `UPGRADES`, `BOND`, `RANCH`, `BUYERS`, forms...). Balance there, not in logic.
 - Saves: `localStorage` key `slimekin.save.v1`. Old saves must keep working: add new fields to
   `createState()` and let `migrate()` fill them in; never remove or rename a field without a
-  migration. `migrateRanch()` does the same for `state.ranch`.
+  migration. `migrateRanch()` does the same for `state.ranch`. A new number field: run it through `num()`
+  (`core/save-check.js`) in `migrate()` so a string or NaN in it can't reach the game.
+- Save safety (H1): only a save that passes `checkSave` is loaded, written, mirrored to the phone or accepted as a
+  code. `slimekin.save.prev` is the previous good save (kept once per visit, every 30 min, and when a code replaces
+  the slime); `slimekin.save.broken` keeps an unreadable save's text (never delete it). Boot falls back phone backup ->
+  .prev -> new egg. Saving stops after a few failed frames (the hiccup card); don't call `store.saveLocal` directly
+  from new code, use `saveNow()` (it respects that).
 
 ## Gotchas (learned the hard way)
 
@@ -69,8 +80,28 @@ it up the next time it is opened online (sometimes it takes two opens). Never ed
   graphics, also when Auto lowers quality); owning more still earns more. Planters' and pals' parts are merged
   into one mesh each (`bake()`), and each cloud is one mesh: keep new props to a few draw calls.
 - Anything that sits on the ranch grass needs a small lift or it z-fights with the ground.
-- The hill in the background is deliberately **not** tappable (it interrupted booping). The ranch
-  opens only from the Ranch tab or the pearl counter.
+- The ranch screen is the barn only (`src/barn-ranch.js`, `src/view/barn.js`). The old meadow ranch screen is gone:
+  `src/view/ranch.js` is now just home's ranch hill in the Meadow (not tappable: it interrupted booping). The barn's
+  files load in idle time a moment after home shows (`BARN.preload`); tapping Ranch before they are in stays home with
+  an "Off to the barn" pill. A browser test that opens Ranch must wait for `window.slimekin.barnRanch.on` (or
+  `.view.failed`) before it uses the barn.
+- In the barn, `g.ranch.resident(id)` is the hidden ranch's lite avatar. What the barn draws is
+  `g.barnRanch.view.av` (the one on the stand, `g.barnRanch.curId`); to see a given resident there:
+  `g.barnRanch.show(id); g.advance(1.2)`.
+- In the barn a press on the slime pets only once it can't be a quick sideways swipe (or on lift for a tap), so a swipe
+  across it never pets. Keep that if you add gestures there.
+- `tools/fixtures/*.json` are OLD saves: every node test migrates all of them. A save made by today's rules goes in a
+  subfolder (`tools/fixtures/barn/barn-six.json`, remade by `node tools/fixtures/make-barn-save.mjs`).
+- The goodbye (moving out, a baby's new home) is the travel bubble in `src/send-off.js` (numbers in `SENDOFF`, the pure
+  rule in `src/view/bubble-math.js`: it floats out of the picture, or pops before it is seen meeting the room). New
+  things in the Greenhouse's upper half (hanging from the roof, tall furniture): add them to `greenhouseRoom()` and run
+  `node tools/bubble-test.mjs` and `node tools/send-off-smoke.cjs`.
+- The game's start waits for the Greenhouse room under the loading screen ("Warming the nest"): `main.js` fades it once
+  `game.firstLook()` resolves (the room in and drawn, or failed, or `GREENHOUSE.arrive.wait` 8 s). Past the wait home
+  shows the Classic look (world 'loading') and the room cross-fades in (`canvas#homeFade`). The Meadow and Classic
+  don't wait. Things the start shows on a timer go through `game.whenShown()`. `window.slimekin` (#debug) appears when
+  the loading screen starts to go, so a test that delays or blocks the room's files waits longer for it; what home drew
+  last is on `<html data-home-world>`.
 - Breeding uses seeded dice (`core/random.js`): an egg's inheritance is fixed when it is made, so
   reopening the game never rerolls it. Egg timers use the wall clock; `g.advance()` moves a test clock
   (`g.timeSkip`) along so tests can wait out the Nursery.
@@ -101,6 +132,21 @@ it up the next time it is opened online (sometimes it takes two opens). Never ed
 - Economy: `node tools/economy-sim.mjs 12 quiet` (engaged), add `casual`, `spam`, or `gen2=1e9`.
   Spamming must never beat normal play. Targets are in the README. `bred` makes the gen-2 baby from a
   Nursery egg.
+- Barn ranch: `node tools/barn-test.mjs` (plain node: the barn's files, the swap's pose curve, the order and wrap, the
+  card's line, the nest and basket spots, framing) and `node tools/barn-smoke.cjs [--quick] [--only=open,swipe,...]`
+  (real touch swipes, petting, the card, Ranch life, pearls, the Nursery nest, a new home, the sheet, Low, Reduced
+  motion, the empty barn, the files blocked; screenshots in `tools/out/barn/`).
+- Send-off: `node tools/bubble-test.mjs` (plain node: the bubble's size, path and pop rule for every camera angle and
+  160 hand-turned cameras) and `node tools/send-off-smoke.cjs [--quick] [--frames] [--only=front,wide,...]` (headless:
+  a grown slime and a baby leave in every Background and angle, rays from the camera check the bubble never meets
+  anything drawn; frames in `tools/out/send-off/`). The game's start with the barn loading ahead of time:
+  `node tools/barn-start-probe.cjs --runs=4 [--before=<an older copy of the game>]`.
+- The start: `node tools/home-load-smoke.cjs [--only=delay3,delay12,offline,meadow,classic] [--film]` (cold loads with
+  the room's files 3 s or 12 s late or blocked; every frame's world and the loading screen's opacity are recorded; --film
+  saves screenshots to tools/out/home-load/). Cold start to playable, against an older copy:
+  `node tools/home-load-smoke.cjs --only=cold --runs=6 --before=<folder> [--delay=3000]`.
+- Save safety: `node tools/save-safety-test.mjs` (plain node) and `node tools/health-smoke.cjs` (the cards and toasts at
+  375 px, `--only broken,prev,code,hiccup,gl,savefail,boot,name`).
 - Playtest fixes: `node tools/playtest-smoke.cjs` (menu sheet drags with real touch events, warming egg at
   move-out, swapping the cushion egg, a baby's new home; `--only sheet,egg,swap,rehome`, `--dpr 1 --quick`).
 - Jelly loop: `node tools/jelly-loop-test.mjs` (plain node) and `node tools/jelly-loop-smoke.cjs` (headless, from an old save;
@@ -126,7 +172,9 @@ UI work: `UI-CHANGES.md` lists every on-screen element the breeding core and the
 Done: alive pass (gestures, emotes, tricks, secrets), economy (Jelly Jar, upgrades, outfits), iPhone
 web app, 22 grown-up form looks, ranch + pearls + prestige + new homes + auctions, anti-spam and
 slower bond, swipe-to-close menu, movable notifications, breeding core (Nursery, capped inheritance,
-choosing the next egg at move-out, four spark forms, Pure versions of all 22 forms, family tree).
+choosing the next egg at move-out, four spark forms, Pure versions of all 22 forms, family tree), the Barn ranch,
+the barn loads ahead of time, the travel-bubble send-off, the start waits for the Greenhouse (no other scene first),
+save safety (H1).
 
 Next, in this order (agreed with the owner):
 
