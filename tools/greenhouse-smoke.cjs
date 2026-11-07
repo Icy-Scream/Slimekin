@@ -1,16 +1,21 @@
 // The Greenhouse in a headless phone (393 x 852): the room, the camera you can turn, and that nothing else changed.
-//   node tools/greenhouse-smoke.cjs [--quick] [--only room,touch,sheet,settings,ranch,helpers,egg]
+//   node tools/greenhouse-smoke.cjs [--quick] [--only room,touch,angles,sheet,settings,ranch,helpers,egg,life,fail]
 // From tools/fixtures/main-settled.json (an old save on main: it moves to the Greenhouse) and main-egg.json (a fresh egg):
 //   room      the room loads with no page errors; the camera button steps Front, Wide, Left, Right (day and night)
 //   touch     real touch events (CDP Input.dispatchTouchEvent): a one-finger drag on the background turns the camera, a
 //             two-finger pinch zooms, the button then goes back to Front; a petting stroke and a boop on the slime, a
 //             snack dragged to it, and the secret swipe code all still work in a turned camera
+//   angles    in each set angle (Wide, Left, Right): a boop, a petting stroke and a snack dragged to the slime, with
+//             real touch events
 //   sheet     the menu sheet open in each set angle: the slime stays above it
 //   settings  Settings > Background: Meadow, Classic, back to Greenhouse (the button hides outside the Greenhouse)
 //   ranch     a ranch visit and back (the room hides at the ranch, the meadow shows; back home the room is back)
 //   helpers   every helper at the most copies shown on High and on Low, day and night; each model's real size is
 //             measured against its radius in GREENHOUSE.radius
-//   egg       a fresh egg on the stump, tapped
+//   egg       a fresh egg on the stump, tapped in every set angle
+//   life      Ranch life from the Greenhouse (main-gen2.json): a resident leaves on a trip; at the ranch the room hides,
+//             the meadow ranch shows and the traveler is not drawn; the Nursery's special eggs and the traveler's
+//             "On a trip"; a Cat-ear egg bought; back home the room is back on the same angle
 //   fail      the room's files can't load (as in a copy of the game without them): home stays on the Meadow, the saved
 //             setting is not changed, one console warning, no camera button
 // Screenshots: tools/out/greenhouse/. Runs offline on its own server (tools/browser-kit.cjs).
@@ -22,9 +27,9 @@ const OUT = path.join(__dirname, 'out', 'greenhouse');
 fs.mkdirSync(OUT, { recursive: true });
 const arg = (k, d) => { const a = process.argv.find(x => x.startsWith(`--${k}=`)); return a ? a.split('=')[1] : (process.argv.includes('--' + k) ? true : d); };
 const QUICK = !!arg('quick', false);
-const ONLY = String(arg('only', 'room,touch,sheet,settings,ranch,helpers,egg,fail')).split(',');
+const ONLY = String(arg('only', 'room,touch,angles,sheet,settings,ranch,helpers,egg,life,fail')).split(',');
 const fixture = n => JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', n), 'utf8')).save;
-const FIX = { settled: fixture('main-settled.json'), egg: fixture('main-egg.json') };
+const FIX = { settled: fixture('main-settled.json'), egg: fixture('main-egg.json'), gen2: fixture('main-gen2.json') };
 
 (async () => {
   const errors = [];
@@ -93,7 +98,7 @@ const FIX = { settled: fixture('main-settled.json'), egg: fixture('main-egg.json
     const slimeScreen = () => ev(() => { const g = window.slimekin, c = g.screenOf(g.slime.centerWorld(g.v1.clone())); const top = g.screenOf(g.slime.headTopWorld(g.v2.clone())); return { x: c.x, y: c.y, top: top.y }; });
 
     // ---------- room ----------
-    if (ONLY.includes('room') || ONLY.includes('touch') || ONLY.includes('sheet') || ONLY.includes('settings') || ONLY.includes('ranch') || ONLY.includes('helpers')) {
+    if (['room', 'touch', 'angles', 'sheet', 'settings', 'ranch', 'helpers'].some(k => ONLY.includes(k))) {
       kit.mark('room');
       const t0 = Date.now();
       await step('open the game (old Meadow save)', () => boot(), 200000);
@@ -213,6 +218,47 @@ const FIX = { settled: fixture('main-settled.json'), egg: fixture('main-egg.json
       c = await cam();
       expect(c.view === 'wide' && !c.free, 'after a reload the camera is on the last set angle (Wide)', JSON.stringify(c));
       await ev(() => { window.slimekin.home.setView('front'); window.slimekin.advance(2); });
+      await calm();
+    }
+
+    // ---------- a boop, petting and a snack in each set angle ----------
+    if (ONLY.includes('angles')) {
+      kit.mark('angles');
+      for (const v of ['wide', 'left', 'right']) {
+        await ev(v => { const g = window.slimekin; g.hud.closeModal(); g.home.setView(v); g.advance(2.5); }, v);
+        await calm();
+        let s = await slimeScreen();
+        const boops0 = await ev(() => window.slimekin.state.stats.boops);
+        await tap(s.x + 10, s.y - 10);
+        await ev(() => window.slimekin.advance(0.3));
+        const boops1 = await ev(() => window.slimekin.state.stats.boops);
+        expect(boops1 === boops0 + 1, `${v}: a tap on the slime boops it (${boops0} -> ${boops1})`);
+        await ev(() => window.slimekin.advance(1));
+        s = await slimeScreen();
+        const pet0 = await ev(() => window.slimekin.state.stats.petTime);
+        await step(`${v}: a petting stroke`, async () => {
+          let t = Date.now() / 1000;
+          await touch('touchStart', [[s.x - 40, s.y]], t);
+          for (let k = 0; k < 6; k++) {
+            for (let i = 1; i <= 6; i++) { t += 0.03; await touch('touchMove', [[s.x - 40 + (k % 2 ? 6 - i : i) * 14, s.y + Math.sin(i) * 4]], t); }
+            await ev(() => window.slimekin.advance(0.15));
+          }
+          await touch('touchEnd', [], t + 0.05);
+        });
+        const pet1 = await ev(() => window.slimekin.state.stats.petTime);
+        expect(pet1 > pet0, `${v}: stroking the slime pets it (pet time ${pet0.toFixed(2)} -> ${pet1.toFixed(2)})`);
+        await ev(() => { const g = window.slimekin; g.state.slime.tummy = 30; g.state.jelly = Math.max(g.state.jelly, 1e9); g.advance(0.5); });
+        const food = await ev(() => { const r = document.getElementById('food-cookie').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+        s = await slimeScreen();
+        const feeds0 = await ev(() => window.slimekin.state.stats.feeds);
+        await step(`${v}: drag a snack to the slime`, () => drag(line(food.x, food.y, s.x, s.y, 12), { gap: 0.03 }));
+        await ev(() => window.slimekin.advance(2.5));
+        const feeds1 = await ev(() => window.slimekin.state.stats.feeds);
+        expect(feeds1 === feeds0 + 1, `${v}: a snack dragged onto the slime is eaten (feeds ${feeds0} -> ${feeds1})`);
+        const c = await cam();
+        expect(c.view === v && !c.free, `${v}: the camera stayed on the set angle`, JSON.stringify(c));
+      }
+      await ev(() => { const g = window.slimekin; g.home.setView('front'); g.advance(2); });
       await calm();
     }
 
@@ -349,6 +395,17 @@ const FIX = { settled: fixture('main-settled.json'), egg: fixture('main-egg.json
       await cdp2.send('Input.dispatchTouchEvent', { type: 'touchEnd', timestamp: t0 + 0.06, touchPoints: [] });
       const w = await ev2(() => { window.slimekin.advance(0.3); return window.slimekin.state.egg.warmth; });
       expect(w > e.warmth, `a tap on the egg warms it (${e.warmth} -> ${w})`);
+      // and in every other set angle
+      for (const v of ['wide', 'left', 'right']) {
+        const w0 = await ev2(v => { const g = window.slimekin; g.home.setView(v); g.advance(2.5); return g.state.egg.warmth; }, v);
+        const at = await ev2(() => { const g = window.slimekin; return g.screenOf(g.egg.group.position.clone().add(new g.v1.constructor(0, 0.5, 0))); });
+        const t1 = Date.now() / 1000;
+        await cdp2.send('Input.dispatchTouchEvent', { type: 'touchStart', timestamp: t1, touchPoints: [{ x: at.x, y: at.y, id: 1 }] });
+        await cdp2.send('Input.dispatchTouchEvent', { type: 'touchEnd', timestamp: t1 + 0.06, touchPoints: [] });
+        const w1 = await ev2(() => { window.slimekin.advance(0.3); return window.slimekin.state.egg.warmth; });
+        expect(w1 > w0 || (w0 >= 1 && w1 >= w0), `${v}: a tap on the egg warms it (${w0} -> ${w1})`);
+      }
+      await ev2(() => { const g = window.slimekin; g.home.setView('front'); g.advance(2.5); });
       for (const dark of QUICK ? [false] : [false, true]) {
         await ev2(d => { document.documentElement.setAttribute('data-theme', d ? 'dark' : 'light'); }, dark);
         await p2.waitForTimeout(200);
@@ -356,6 +413,51 @@ const FIX = { settled: fixture('main-settled.json'), egg: fixture('main-egg.json
         for (let i = 0; i < 2; i++) { await p2.waitForTimeout(250); await p2.screenshot({ path: path.join(OUT, `egg-${dark ? 'night' : 'day'}.png`) }); }
       }
       log('screenshot egg');
+    }
+
+    // ---------- Ranch life from the Greenhouse ----------
+    if (ONLY.includes('life')) {
+      kit.mark('life');
+      const p4 = await kit.context.newPage();
+      p4.on('pageerror', e => errors.push('pageerror (life page): ' + e.message));
+      for (const pg of kit.context.pages()) if (pg !== p4) await pg.close();
+      kit.page = p4;
+      const ev4 = (fn, a) => p4.evaluate(fn, a);
+      p4.on('console', m => { if (m.type() === 'error') errors.push('console (life page): ' + m.text()); });
+      await step('open the old save with a resident (main-gen2)', async () => {
+        await p4.goto(`${kit.server.origin}/?fx=gen2#debug`);
+        await p4.waitForFunction(() => window.slimekin && window.slimekin.home && (window.slimekin.home.room.ready || window.slimekin.home.room.failed), null, { timeout: 120000 });
+        await ev4(() => { const g = window.slimekin; g.behave.hour = () => 14; g.state.settings.quality = 'high'; g.applySettings(); g.hud.closeModal(); g.state.tutorial = 5; g.requests.timer = 1e9; g.glimmerT = 1e9; g.advance(1); });
+      }, 200000);
+      const o = await ev4(() => { const g = window.slimekin, s = g.state; return { world: g.home.world, scene: s.settings.scene, slime: s.slime.breed, res: s.ranch.residents.map(x => ({ id: x.id, name: x.name, breed: x.breed, skills: x.skills, trip: x.trip })) }; });
+      const J = o.res[0] && o.res[0].id;
+      expect(o.world === 'greenhouse' && o.scene === 'greenhouse' && o.slime === 'curly' && o.res.length === 1 && o.res[0].breed === 'curly' && o.res[0].skills && o.res[0].trip === null,
+        'the old save: in the Greenhouse, the slime and its resident are Curlys with the ranch-life fields', JSON.stringify(o));
+      const sent = await ev4(J => { const g = window.slimekin; g.sim.ranch.addPearls(300); const t = g.life.send(J, 'cafe'); g.home.setView('left'); g.advance(3); return { trip: !!t, place: g.state.ranch.residents[0].trip && g.state.ranch.residents[0].trip.place }; }, J);
+      expect(sent.trip && sent.place === 'cafe', 'Juniper leaves on a trip (Puddle Café) while home is the Greenhouse', JSON.stringify(sent));
+      await ev4(() => { for (const t of document.querySelectorAll('.toast')) t.remove(); });
+      await p4.click('#tab-ranch');
+      await ev4(() => window.slimekin.advance(4));
+      let w = await ev4(J => { const g = window.slimekin, r = g.ranch.resident(J); return { view: g.view, room: g.home.room.group.visible, meadow: g.scenery.group.visible, ranch: g.ranch.group.visible, helpers: g.helpers3d.group.visible, btn: !document.getElementById('camBtn').hidden, traveler: r && r.state !== 'leave' ? 'drawn' : null }; }, J);
+      expect(w.view === 'ranch' && !w.room && w.meadow && w.ranch && !w.btn, 'at the ranch from the Greenhouse: the room hides, the meadow ranch shows, no camera button', JSON.stringify(w));
+      expect(w.traveler === null, 'the traveler is not drawn on the ranch', JSON.stringify(w));
+      await ev4(() => { const g = window.slimekin; g.openNursery(); g.advance(1.5); });
+      const nur = await ev4(J => {
+        const b = document.querySelector(`.parent-pick[data-id="${J}"]`);
+        return { special: [...document.querySelectorAll('#body-ranch .special-egg')].map(c => c.innerText.split('\n')[0]), buy: [...document.querySelectorAll('#body-ranch [data-act="buySpecial"]')].filter(x => !x.disabled).length, disabled: !!(b && b.disabled), text: b ? b.innerText : '' };
+      }, J);
+      expect(nur.special.length === 2 && nur.buy === 2 && nur.disabled && /On a trip/.test(nur.text), 'the Nursery: the special eggs (Cat-ear, Topknot) and the traveler "On a trip"', JSON.stringify(nur));
+      await p4.click('#body-ranch [data-act="buySpecial"][data-variant="ears"]');
+      await ev4(() => window.slimekin.advance(1));
+      const bought = await ev4(() => { const n = window.slimekin.state.ranch.nursery; return n.eggs.map(e => ({ special: e.special, breed: e.body && e.body.breed, variant: e.body && e.body.variant })); });
+      expect(bought.length === 1 && bought[0].special === 'ears' && bought[0].variant === 'ears', 'a Cat-ear egg bought from the Nursery waits in the nest', JSON.stringify(bought));
+      await p4.screenshot({ path: path.join(OUT, 'life-nursery-day.png') });
+      await ev4(() => { const g = window.slimekin; g.closeNursery(); for (const t of document.querySelectorAll('.toast')) t.remove(); g.advance(1); });
+      await p4.click('#ranchHome');
+      await ev4(() => window.slimekin.advance(4));
+      w = await ev4(() => { const g = window.slimekin; return { view: g.view, room: g.home.room.group.visible, meadow: g.scenery.group.visible, ranch: g.ranch.group.visible, helpers: g.helpers3d.group.visible, btn: !document.getElementById('camBtn').hidden, camView: g.home.view }; });
+      expect(w.view === 'home' && w.room && !w.meadow && !w.ranch && w.helpers && w.btn && w.camView === 'left', 'back home: the room is back on the same angle (Left)', JSON.stringify(w));
+      await p4.screenshot({ path: path.join(OUT, 'life-home-left-day.png') });
     }
 
     // ---------- fail ----------
