@@ -3,7 +3,8 @@
 // Fails (exit 1) unless:
 //   1. no text file has an http:// or https:// link, apart from the XML namespace names listed in ALLOWED below
 //      (identifiers that are never fetched), and no protocol-relative link (src="//...", url(//...));
-//   2. the game's own code (index.html and src/) uses no network API (fetch, XMLHttpRequest, WebSocket, ...);
+//   2. the game's own code (index.html and src/) uses no network API (fetch, XMLHttpRequest, WebSocket, ...), apart
+//      from the local reads listed in LOCAL_READS below (a file of the app's own, by a URL relative to the module);
 //   3. every import map target, script, stylesheet and font file the page names exists;
 //   4. every import in every JavaScript file resolves to a file in the folder (through the import map for "three").
 // Then prints the file count and total size.
@@ -24,7 +25,15 @@ const ALLOWED = [
 ];
 // The game's own code must not use any of these (three.js has loaders that do, but the game never calls them).
 const NETWORK_APIS = /\b(fetch\s*\(|XMLHttpRequest|WebSocket|EventSource|sendBeacon|window\.open\s*\(|importScripts|navigator\.serviceWorker)|target\s*=\s*["']_blank/g;
-const BINARY = new Set(['.woff2', '.woff', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico']);
+// The game's own reads of files inside the app (no host: a URL relative to the module, into a folder of the app). Each
+// one must look exactly like this (the base line, `n` calls of exactly that form, nothing else) and its folder must be
+// in the app with files in it; any other fetch in the game code fails the gate as before.
+const LOCAL_READS = [
+  { file: 'src/view/greenhouse.js', folder: 'src/assets/greenhouse', n: 1,
+    base: /^const BASE = new URL\('\.\.\/assets\/greenhouse\/', import\.meta\.url\);$/m, call: /\bfetch\(new URL\(name, BASE\)\)/g,
+    why: "the Greenhouse room's own files (gh.json, gh.bin), bundled in the app" },
+];
+const BINARY = new Set(['.woff2', '.woff', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico', '.bin']);
 
 const problems = [];
 const files = [];
@@ -39,6 +48,7 @@ const lineOf = (text, i) => text.slice(0, i).split('\n').length;
 
 // ---------- 1 and 2: links and network APIs ----------
 const allowedSeen = new Map();
+const localSeen = [];
 let textFiles = 0;
 for (const f of files) {
   if (BINARY.has(path.extname(f).toLowerCase())) continue;
@@ -51,7 +61,16 @@ for (const f of files) {
   }
   for (const m of text.matchAll(/(?:\b(?:src|href|action)\s*=\s*["']|url\(\s*["']?|\bfrom\s*["']|import\s*\(?\s*["'])\/\/[^"')\s]+/gi)) problems.push(`${r}:${lineOf(text, m.index)}: protocol-relative link ${m[0].slice(0, 120)}`);
   if (r === 'index.html' || r.startsWith('src/')) {
-    for (const m of text.matchAll(NETWORK_APIS)) problems.push(`${r}:${lineOf(text, m.index)}: network API ${m[0]}`);
+    const local = LOCAL_READS.find(l => l.file === r);
+    const hits = [...text.matchAll(NETWORK_APIS)];
+    const calls = local ? [...text.matchAll(local.call)].length : 0;
+    const fetches = hits.filter(m => /^fetch/.test(m[0])).length;
+    const dir = local && path.join(www, local.folder);
+    const folderFiles = dir && fs.existsSync(dir) ? fs.readdirSync(dir).filter(n => fs.statSync(path.join(dir, n)).isFile()) : [];
+    const ok = local && local.base.test(text) && calls === local.n && fetches === local.n && folderFiles.length > 0;
+    if (ok) localSeen.push(`${r} reads ${local.folder}/ (${folderFiles.length} files, ${(folderFiles.reduce((b, n) => b + fs.statSync(path.join(dir, n)).size, 0) / 1024).toFixed(1)} KB): ${local.why}`);
+    for (const m of hits) if (!(ok && /^fetch/.test(m[0]))) problems.push(`${r}:${lineOf(text, m.index)}: network API ${m[0]}`);
+    if (local && !ok && fetches) problems.push(`${r}: its local reads changed (expected ${local.n} x fetch(new URL(name, BASE)) into ${local.folder}/, which must be in the app): update LOCAL_READS in tools/check-ios-www.mjs only if they still read files of the app`);
   }
 }
 
@@ -117,8 +136,9 @@ console.log(`check-ios-www: ${path.relative(root, www) || www}`);
 console.log(`  ${files.length} files (${textFiles} text), ${kb(size)} total: ` + Object.entries(by).map(([k, v]) => `${k} ${v.n} files ${kb(v.b)}`).join(', '));
 console.log(`  ${importCount} import statements resolved, ${named.length} page references checked`);
 for (const [k, n] of allowedSeen) console.log(`  allowed namespace name: ${k} (${n}x)`);
+for (const l of localSeen) console.log(`  allowed local read: ${l}`);
 if (problems.length) {
   console.log(`\nFAILED: ${problems.length} problem(s)\n` + problems.map(p => '  ' + p).join('\n'));
   process.exit(1);
 }
-console.log('  OK: no links, no network APIs in the game code, every file named and imported is there');
+console.log(`  OK: no links, no network APIs in the game code${localSeen.length ? ' (only reads of its own files)' : ''}, every file named and imported is there`);

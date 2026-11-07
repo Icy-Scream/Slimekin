@@ -1,31 +1,31 @@
 // Offline cache for the home-screen app.
 // Game files: network first (always fresh when online), cache as backup for offline play.
 // Libraries and fonts from CDNs: cache first (their URLs never change).
-// The Greenhouse room's files (big, rarely changed): their own cache, named by a hash of their contents, cache first.
-// A release that does not change the room keeps that cache, so phones don't download the room again.
+// Each folder under src/assets/ (a baked room or ranch: big, rarely changed): its own cache, named by the folder and a
+// hash of its files, cache first. A release that does not change a folder keeps its cache, so phones don't download
+// it again.
 const VERSION = 'slimekin-__VERSION__';
 const CORE = __CORE__;
-const ROOM_CACHE = 'slimekin-room-__ROOMHASH__';
-const ROOM = __ROOM__;
+const ASSETS = __ASSETS__;   // [{ cache: 'slimekin-asset-<folder>-<hash>', files: [...] }], one per folder
 const CDN = ['cdn.jsdelivr.net', 'fonts.googleapis.com', 'fonts.gstatic.com'];
-const roomUrls = new Set(ROOM.map(f => new URL(f, self.registration.scope).href));
+const assetCache = new Map(ASSETS.flatMap(a => a.files.map(f => [new URL(f, self.registration.scope).href, a.cache])));
 
 self.addEventListener('install', e => {
   e.waitUntil(Promise.all([
     caches.open(VERSION).then(c => c.addAll(CORE)),
-    // only the room files this cache doesn't have yet; not fatal if it fails (the game fetches them later, or shows
-    // the meadow when it can't)
-    caches.open(ROOM_CACHE).then(async c => {
-      const have = await Promise.all(ROOM.map(f => c.match(f)));
-      const missing = ROOM.filter((f, i) => !have[i]);
+    // each folder: only the files its cache doesn't have yet; not fatal if it fails (the game fetches them later, or,
+    // for the Greenhouse, shows the meadow when it can't)
+    ...ASSETS.map(a => caches.open(a.cache).then(async c => {
+      const have = await Promise.all(a.files.map(f => c.match(f)));
+      const missing = a.files.filter((f, i) => !have[i]);
       if (missing.length) await c.addAll(missing).catch(() => {});
-    }),
+    })),
   ]).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys()
-    .then(keys => Promise.all(keys.filter(k => k !== VERSION && k !== ROOM_CACHE).map(k => caches.delete(k))))
+    .then(keys => Promise.all(keys.filter(k => k !== VERSION && !ASSETS.some(a => a.cache === k)).map(k => caches.delete(k))))
     .then(() => self.clients.claim()));
 });
 
@@ -41,8 +41,9 @@ self.addEventListener('fetch', e => {
     return;
   }
   if (url.origin !== self.location.origin) return;
-  if (roomUrls.has(url.origin + url.pathname)) {
-    e.respondWith(caches.open(ROOM_CACHE).then(c => c.match(req, { ignoreSearch: true }).then(hit => hit || fetch(req).then(res => {
+  const asset = assetCache.get(url.origin + url.pathname);
+  if (asset) {
+    e.respondWith(caches.open(asset).then(c => c.match(req, { ignoreSearch: true }).then(hit => hit || fetch(req).then(res => {
       if (res.ok) c.put(req, res.clone());
       return res;
     }))));

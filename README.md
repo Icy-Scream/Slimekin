@@ -142,8 +142,10 @@ tools/jelly-loop-test.mjs jelly loop rules check in plain node (Family Bonus and
 tools/jelly-loop-smoke.cjs headless jelly loop play-through from an old save (heirlooms, medals, move-out screen, every sign)
 tools/greenhouse-test.mjs  Greenhouse check in plain node (the room's files, helper spots on High and Low, pal hops, camera limits, the move of old saves)
 tools/greenhouse-smoke.cjs headless Greenhouse test with real touches (every angle day and night, drag, pinch, petting, menu sheet, Settings, ranch, helpers, egg)
-tools/greenhouse-offline.cjs the room's own offline cache across two test builds in tools/out/web-test (never docs/)
+tools/greenhouse-offline.cjs each asset folder's own offline cache (the room, the barn) across test builds in tools/out/web-test (never docs/)
+tools/greenhouse-samples.cjs contact sheet of the new slime body in the Greenhouse (four bodies, Front vs the Meadow, Wide, Left, outfits, eggs, the Cuddly sign)
 src/assets/greenhouse/ the baked room (made outside this repo; do not edit by hand)
+src/assets/barn/      the baked barn for the ranch (made outside this repo; not in the game yet)
 src/core/medals.js    which medal a slime has (from the jelly it made)
 src/core/heirlooms.js heirloom effects over the save (multipliers, starting helpers)
 src/core/movingday.js the Moving Day ratio, its levels and which sign a slime shows
@@ -165,7 +167,8 @@ tools/recipe-samples.cjs  recipe body contact sheets (stages, in-betweens, outfi
                           (perf.json)
 src/platform/index.js the iPhone app's seam (Capacitor): isNative, save backup, haptics; a no-op on the web
 tools/build-ios.mjs   builds native/www/ for the iPhone app (offline: three.js and fonts copied in), then runs the gate
-tools/check-ios-www.mjs   gate for native/www/: no links, no network calls in the game code, every import resolves
+tools/check-ios-www.mjs   gate for native/www/: no links, no network calls in the game code (only the room's reads of its own
+                          bundled files), every import resolves
 tools/platform-test.cjs   headless test of src/platform/ with a fake Capacitor and without one
 tools/check-store-pages.mjs  App Store pages (web/pages/) ready to submit? (only before a submission)
 native/               the iPhone app (Capacitor 8): MAC-GUIDE.md, mac-build.sh, APP-STORE-NOTES.md, the Xcode
@@ -187,8 +190,9 @@ node tools/build-web.mjs
 ```
 
 GitHub Pages serves the `docs/` folder on `main`. Each build gets a new version number, so installed copies pick up the update the next time they're opened online.
-The Greenhouse room's files (about 3.4 MB) sit in their own offline cache named by a hash of their contents, so an
-update that doesn't change the room doesn't download it again. To try a build without touching `docs/`, give it another
+Each folder under `src/assets/` (the Greenhouse room, the barn: about 3.3 MB each) sits in its own offline cache named
+by the folder and a hash of its files, outside the core list, so an update that doesn't change a folder doesn't
+download it again. To try a build without touching `docs/`, give it another
 folder: `node tools/build-web.mjs tools/out/web-test` (and `node tools/greenhouse-offline.cjs` checks the cache).
 
 ## Tuning
