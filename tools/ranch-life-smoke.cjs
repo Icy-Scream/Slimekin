@@ -100,7 +100,11 @@ const HOUR = 3600e3;
     await page.click('#body-ranch [data-rl="train"]');
     await ev(() => window.slimekin.advance(0.5));
     const tp = await modalText();
-    check(/Train Pebble/.test(tp) && /Star 1: 15 min/.test(tp), 'the Train picker: Bounce star 1 takes 15 min for Pebble (loves Bounce: 25% shorter)', JSON.stringify(tp.slice(0, 160)));
+    // (talents, core/talents.js: Pebble's Bounce grade shortens it too; grade C = 15 min, as before talents)
+    const want = await ev(id => { const g = window.slimekin, x = g.sim.ranch.resident(id), l = g.sim.life.lessonFor(x, 'bounce');
+      return { sec: l.seconds, c: Math.round(20 * 60 * 0.75), row: document.querySelector('#modalCard [data-skill="bounce"]')?.innerText || '' }; }, pebble);
+    const wantMin = Math.floor(want.sec / 60);
+    check(/Train Pebble/.test(tp) && want.row.includes(`Star 1: ${wantMin} min`) && want.sec <= want.c, `the Train picker: Bounce star 1 takes ${wantMin} min for Pebble (loves Bounce: 25% shorter than 20 min, and her Bounce talent)`, JSON.stringify(tp.slice(0, 160)));
     await shot('03-train-picker');
     const p0 = await ev(() => window.slimekin.state.ranch.pearls);
     await page.click('#modalCard [data-skill="bounce"]');
@@ -110,9 +114,9 @@ const HOUR = 3600e3;
     await clearToasts();
     await scrollTo('#body-ranch .rl-skills');
     await shot('04-in-a-lesson');
-    await ev(() => window.slimekin.advance(15 * 60 + 5, 1 / 10), null, 300000);
+    await ev(sec => window.slimekin.advance(sec + 5, 1 / 10), want.sec, 300000);
     const l2 = await ev(id => { const g = window.slimekin, x = g.sim.ranch.resident(id); return { skills: x.skills, lesson: x.lesson, toast: [...document.querySelectorAll('.toast')].map(t => t.innerText).join(' / '), mem: g.state.memories.filter(m => /Training Center/.test(m.text)).map(m => m.text) }; }, pebble);
-    check(l2.skills.bounce === 1 && l2.lesson === null && /earned 1 star in Bounce/.test(l2.toast) && l2.mem.some(m => /earned 1 star in Bounce/.test(m)), 'after 15 min (g.advance) the lesson ends: 1 star, a toast and a Journal line', JSON.stringify(l2.toast));
+    check(l2.skills.bounce === 1 && l2.lesson === null && /earned 1 star in Bounce/.test(l2.toast) && l2.mem.some(m => /earned 1 star in Bounce/.test(m)), `after ${wantMin} min (g.advance) the lesson ends: 1 star, a toast and a Journal line`, JSON.stringify(l2.toast));
     await shot('05-lesson-done-toast', { night: false });
     await clearToasts();
 
