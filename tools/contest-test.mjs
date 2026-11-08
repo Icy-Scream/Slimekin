@@ -32,13 +32,17 @@ const ones = () => Object.fromEntries(SKILL_IDS.map(k => [k, 1]));
 const skills = (o = {}) => ({ ...RL.emptySkills(), ...o });
 // the flavour and pure form that feed each skill (TALENTS 2a / 2c)
 const FLAVOUR = { charm: 'sweet', bounce: 'heat', sturdy: 'mineral', speed: 'spark', smarts: 'prism' };
-// A resident whose talent in `skill` is `grade`: diet 3 + form 2 + Potential (1 B, 3 A, 5 S); for C, another skill
-// carries the B (so the cozy floor does not lift this one).
+// A resident whose talent in `skill` is `grade`: diet 3 + form 2 + Potential (1 B, 3 A, 5 S); an S also leans one
+// nature point toward the skill (T1b: S from 11 points). For C, another skill carries the B (so the cozy floor does not
+// lift this one).
+// one slider 20 past the middle, toward the end that gives the skill (TALENTS.nature: dead 10, per 10): +1 point
+const LEAN = { charm: { cuddly: 70 }, bounce: { playful: 70 }, sturdy: { playful: 30 }, speed: { patient: 30 }, smarts: { patient: 70 } };
 let nid = 0;
 function graded(skill, grade, o = {}) {
   const carrier = grade === 'C' ? SKILL_IDS.find(s => s !== skill) : skill;
   const potential = { ...ones(), [carrier]: { C: 1, B: 1, A: 3, S: 5 }[grade] };
-  return { id: 'c' + (nid++), name: o.name || 'Pip', form: { id: FLAVOUR[carrier] }, traits: { [FLAVOUR[carrier]]: 100 }, personality: mid(), potential,
+  const personality = grade === 'S' ? { ...mid(), ...LEAN[carrier] } : mid();
+  return { id: 'c' + (nid++), name: o.name || 'Pip', form: { id: FLAVOUR[carrier] }, traits: { [FLAVOUR[carrier]]: 100 }, personality, potential,
     bondLevel: 2, runTotal: 5e8, jps: 4, generation: 1, happiness: 100, pearlT: 0, petAt: 0, lineage: { parents: [] }, skills: skills(), lesson: null, trip: null,
     talentsSeen: [], worn: { head: null, face: null, neck: null }, contests: K.createResidentContests(), ...o };
 }

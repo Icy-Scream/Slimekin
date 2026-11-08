@@ -54,11 +54,14 @@ const PROFILES = {
   spam: { sessions: Array.from({ length: 14 * 12 + 1 }, (_, i) => [8 + i / 12, 0]), moveEvery: 6 },
 };
 // the subject of a focus run: a resident whose talent in `skill` is `grade` (diet 3 + form 2 + Potential 1/3/5; for C,
-// another skill carries the B so the cozy floor leaves this one at C), a calm personality (no loves, no nature points)
+// another skill carries the B so the cozy floor leaves this one at C), a calm personality (no loves, no nature points);
+// an S leans one nature point toward its skill (T1b: S from 11 points), so it also loves that skill, as a real S does
 const FLAVOUR = { charm: 'sweet', bounce: 'heat', sturdy: 'mineral', speed: 'spark', smarts: 'prism' };
+const LEAN = { charm: { cuddly: 70 }, bounce: { playful: 70 }, sturdy: { playful: 30 }, speed: { patient: 30 }, smarts: { patient: 70 } };
 function subject(x, skill, grade) {
   const carrier = grade === 'C' ? SKILL_IDS.find(s => s !== skill) : skill;
-  Object.assign(x, { form: { id: FLAVOUR[carrier] }, traits: { [FLAVOUR[carrier]]: 100 }, personality: Object.fromEntries(PERSONALITY_IDS.map(k => [k, 50])),
+  const calm = Object.fromEntries(PERSONALITY_IDS.map(k => [k, 50]));
+  Object.assign(x, { form: { id: FLAVOUR[carrier] }, traits: { [FLAVOUR[carrier]]: 100 }, personality: grade === 'S' ? { ...calm, ...LEAN[carrier] } : calm,
     potential: { ...Object.fromEntries(SKILL_IDS.map(s => [s, 1])), [carrier]: { C: 1, B: 1, A: 3, S: 5 }[grade] } });
   if (TL.gradeOf(x, skill) !== grade) throw new Error(`subject: wanted ${skill} ${grade}, got ${TL.gradeOf(x, skill)}`);
   return x;
@@ -306,10 +309,11 @@ const auctionRatios = [], offerRatios = [];
 const mean = a => a.reduce((s, v) => s + v, 0) / a.length;
 const pct = r => `${(100 * (r - 1)).toFixed(1)}%`;
 
-// ---------- 4. identity (no shows): economy-sim vs main 00f1430, pearl-sim vs talents-t1 4048ccf ----------
+// ---------- 4. identity (no shows): economy-sim vs main 00f1430, pearl-sim vs talents-t1b de7c4d3 ----------
 const md5 = s => crypto.createHash('md5').update(s).digest('hex').slice(0, 12);
-// main @ 00f1430 and talents-t1 @ 4048ccf (git archive <rev> | tar -x; the same commands there)
-const REF = { economy: '25f842705411', pearl: '371921afce1b', pearlAllC: 'e91d5de98290' };
+// main @ 00f1430 and talents-t1b @ de7c4d3 (git archive <rev> | tar -x; the same commands there; T1b's Potential
+// weights move the all-profiles pearl-sim, its all-C run is the same as T1's)
+const REF = { economy: '25f842705411', pearl: '0d94560db4d6', pearlAllC: 'e91d5de98290' };
 const eco = ['12 quiet', '12 casual quiet', '2 quiet spam', '4 casual quiet gen2=1e9'].map(a => execFileSync(process.execPath, [path.join(HERE, 'economy-sim.mjs'), ...a.split(' ')], { encoding: 'utf8' })).join('');
 const ecoHash = md5(eco), pearlHash = md5(pearlSim()), pearlAllC = md5(pearlSim('allc'));
 
@@ -333,8 +337,8 @@ for (const [k, S] of Object.entries(spam)) rows.push(row(`spam (${k === 'mash' ?
   `spam ${S.made} (prizes ${S.prizes}, ${S.shows} shows) vs engaged ${E.made} (prizes ${E.prizes})`, S.made <= E.made));
 rows.push(row('a fully trophied slime (12 trophies, Beauty Champion): auction income', 'at most +25%', `+${(100 * (Math.max(...auctionRatios) - 1)).toFixed(1)}% max, ${pct(mean(auctionRatios))} mean (${auctionRatios.length} auctions); new-home offers ${pct(mean(offerRatios))}`, Math.max(...auctionRatios) <= 1.25));
 rows.push(row('economy-sim IDENTICAL with no shows (the 4 standard runs, md5 vs main 00f1430)', REF.economy, ecoHash, ecoHash === REF.economy));
-rows.push(row('pearl-sim IDENTICAL with no shows (all profiles, md5 vs talents-t1 4048ccf)', REF.pearl, pearlHash, pearlHash === REF.pearl));
-rows.push(row('pearl-sim allc IDENTICAL (every grade C, md5 vs talents-t1 4048ccf)', REF.pearlAllC, pearlAllC, pearlAllC === REF.pearlAllC));
+rows.push(row('pearl-sim IDENTICAL with no shows (all profiles, md5 vs talents-t1b de7c4d3)', REF.pearl, pearlHash, pearlHash === REF.pearl));
+rows.push(row('pearl-sim allc IDENTICAL (every grade C, md5 vs talents-t1b de7c4d3)', REF.pearlAllC, pearlAllC, pearlAllC === REF.pearlAllC));
 
 console.log(`\n=== Contests: design section 9 targets vs measured (${DAYS} days; residents: ${RAISED ? 'raised slimes (talent-sim)' : 'pearl-sim stand-ins'}; ${((Date.now() - t0) / 1000).toFixed(0)} s) ===`);
 console.log(`rivals ${CONTESTS.cups.map(c => c.rivals.map(r => r.score).join('/')).join(', ')}; prizes ${CONTESTS.cups.map(c => c.pearls).join('/')}; trophy value ${CONTESTS.trophyValue}`);
