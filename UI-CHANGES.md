@@ -610,7 +610,8 @@ names, cup `short` names, rivals, `cheer` and `show` timing). Screenshots: `node
   (`.bc-line.bc-act`, purple) with three act dots; the act strip `#csActs.cs-acts` (three chips: "Pose ···" now,
   "Style —" to come, "Pose +3" done) takes the ranch bar's place (`#ranchBar.cs-on`). `body.cs-show`: the HUD and the
   tab bar take no touches, the ‹ › buttons hide, the name card does not open the page, no swaps or petting. Keyboard:
-  Space / Enter cheer, Escape skips.
+  Space / Enter cheer, Escape skips. A tap is graded by its own time (its touch event's timestamp from the ring's start),
+  so a tap made in time still counts once when a slow frame hands it over after the ring ran out.
 - Name card: a Champion's title `.bc-title` on the card's top edge (a pill in the contest's color with a white cup:
   "Beauty Champion"; two or three contests: "Double Champion" / "Triple Champion" in the Beauty pink).
 - Debug only: `g.contestShow.info()` (phase, act, the ring's start, grades, taps; `last` = the last result),
