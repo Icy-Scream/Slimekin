@@ -20,7 +20,8 @@ const GROUP_OF = { helpers: 'shop', upgrades: 'shop', outfits: 'outfits', slime:
 const GROUP_TAB = { shop: 'tab-shop', outfits: 'tab-outfits', me: 'tab-slime', ranch: 'tab-ranch', heirlooms: 'tab-heirlooms' };
 const SUB_ID = { helpers: 'tab-helpers', upgrades: 'tab-upgrades', slime: 'sub-slime', journal: 'tab-journal' };
 
-export const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+import { esc } from './esc.js';
+export { esc };   // (one shared copy: ./esc.js)
 
 export class Hud {
   constructor(game) {
@@ -867,7 +868,7 @@ export class Hud {
       html += `<div class="res"><div class="acts"><button class="btn" data-act="place" data-id="${x.id}">Find a new home</button><button class="btn" data-act="auction" data-id="${x.id}">Auction</button></div></div>`;
     } else {
       html += `<button class="link-btn" id="ranchHome">← Back home</button>`;
-      html += `<div class="card"><div class="row-between"><span class="form-name">Slime Ranch</span><span class="sub">Generation ${R.family.generation}</span></div>
+      html += `<div class="card"><div class="row-between"><span class="form-name">The Barn</span><span class="sub">Generation ${R.family.generation}</span></div>
         <div class="big-num"><i class="pearl big"></i>${fmt(R.pearls)}<span class="sub">pearls</span></div>
         <span class="sub">${R.family.bonus > 0 ? `Family Bonus: <b>+${R.family.bonus.toFixed(1)}%</b> to all jelly, forever. It grows from all the jelly your family has ever made.` : 'Every slime that moves here grows a Family Bonus on all your jelly, forever, from all the jelly your family has ever made.'}</span>
         ${R.residents.length ? `<span class="sub">The ranch makes <b>${fmtRate(sim.ranchJps())}</b> jelly a second and about <b>${rr.pearlsPerHour().toFixed(1)}</b> pearls an hour.</span>` : ''}</div>`;
@@ -1039,6 +1040,7 @@ export class Hud {
       this.slowT = 0.25;
       const nb = this.$('nameBtn');
       if (nb.textContent !== (s.name || 'Slime')) nb.textContent = s.name || 'Slime';
+      this.fitName(nb);
       this.updateMedalBadge();
       this.$('stagePill').textContent = sim.stage().name;
       this.$('bondTitle').textContent = BOND[sim.bondLevel()].title;
@@ -1355,6 +1357,19 @@ export class Hud {
     for (const t of ['pointerup', 'pointercancel']) window.addEventListener(t, () => { this.panelPress = false; }, true);
     // tapping the grip still closes it
     this.$('sheetGrip').addEventListener('click', () => this.setSheet('closed'));
+  }
+
+  // A name that does not fit next to the rings (narrow phones: 375 px left about 50 px, "Pebble" became "Pe...") gets
+  // the pill's first line to itself; a name that fits keeps the one-line pill. Measured only when the name, the
+  // width, the fonts or the pill's visibility change.
+  fitName(nb) {
+    const card = nb.closest('.slime-card');
+    if (!card) return;
+    const key = `${nb.textContent}|${innerWidth}|${nb.offsetParent ? 1 : 0}|${document.fonts ? document.fonts.status : ''}`;
+    if (key === this.nameFitKey) return;
+    this.nameFitKey = key;
+    card.classList.remove('long-name');
+    if (nb.offsetParent && nb.scrollWidth > nb.clientWidth + 1) card.classList.add('long-name');
   }
 
   // ---------- modals ----------

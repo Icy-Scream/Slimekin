@@ -7,7 +7,8 @@ import { fmt, fmtDuration } from '../core/format.js';
 import { stars, lovesDef, busy, SOUVENIR_TOTAL } from '../core/ranch-life.js';
 
 const L = RANCH_LIFE;
-const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+import { esc } from './esc.js';
+import { memIcon } from './icons.js';
 const starText = n => '★'.repeat(n) + '☆'.repeat(L.maxStars - n);
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 const pearlCost = n => `<span class="cost"><i class="pearl"></i>${fmt(n)}</span>`;
@@ -80,7 +81,7 @@ export class RanchLifeUI {
         ${acts ? `<div class="res"><div class="acts">${acts}</div></div>` : ''}</div>`;
   }
   // One line on a resident's row in the list.
-  rowHtml(x) { const st = this.status(x); return st ? `<span class="sub rl-status">${x.trip ? '🧳' : '🎓'} ${esc(st)}</span>` : ''; }
+  rowHtml(x) { const st = this.status(x); return st ? `<span class="sub rl-status">${memIcon(x.trip ? '🧳' : '🎓', '')} ${esc(st)}</span>` : ''; }
   // The "Ranch life" row on the ranch tab.
   ranchRowHtml() {
     const R = this.g.state.ranch, l = R.life, rl = this.rl;
@@ -90,8 +91,8 @@ export class RanchLifeUI {
       wc !== null ? `<button class="upgrade${R.pearls < wc ? ' poor' : ''}" data-rl="wagon"><span class="un">Another wagon</span><span class="ub">${l.wagons + 1} slimes travel at once.</span>${pearlCost(wc)}</button>` : '',
     ].join('');
     return `<div class="card rl-card"><div class="row-between"><b>Ranch life</b><span class="sub">Training Center and trips</span></div>
-      <div class="row-between"><span>🎓 Lessons</span><b>${rl.learners().length} / ${plural(l.lanes, 'lane')}</b></div>
-      <div class="row-between"><span>🧳 Travelers</span><b>${rl.travelers().length} / ${plural(l.wagons, 'wagon')}</b></div>
+      <div class="row-between"><span>${memIcon('🎓', '')} Lessons</span><b>${rl.learners().length} / ${plural(l.lanes, 'lane')}</b></div>
+      <div class="row-between"><span>${memIcon('🧳', '')} Travelers</span><b>${rl.travelers().length} / ${plural(l.wagons, 'wagon')}</b></div>
       <span class="sub">Tap a slime to visit it, then train it or send it on a trip. Lessons and trips go on while the game is closed.</span>
       ${ups ? `<div class="upgrades">${ups}</div>` : ''}
       <button class="btn" data-rl="shelf">Souvenirs ${rl.foundTotal()} / ${SOUVENIR_TOTAL}</button></div>`;
@@ -291,6 +292,7 @@ export class RanchLifeUI {
         } else this.pending.push(r);
       } else {
         sync = true;
+        g.barnRanch && g.barnRanch.noteBack(r);   // [barn] the name card says "just back from ..." for a while
         const p = PLACE_BY_ID[r.place];
         g.remember('🧳', `${r.name} came home from ${p.name}${r.early ? ' early' : ''}. ${r.story}${r.souvenir ? ` Found: ${r.souvenir.name}.` : ''}`);
         if (r.friend) g.remember('💌', `A thank-you postcard from ${p.name}: the family is a Friend of ${p.name} now (+${r.gift} pearls).`);
@@ -325,7 +327,7 @@ export class RanchLifeUI {
         ${r.early ? '<span class="sub">Home early: the souvenir and the treat wait for a full trip.</span>' : ''}
         ${r.friend ? `<span class="sub"><b>Friend of ${esc(p.name)}!</b> A thank-you postcard with ${r.gift} pearls. Its buyer offers ${Math.round(L.friend.offers * 100)}% more for your slimes now.</span>` : ''}</div>`;
     }).join('');
-    const lessonHtml = lessons.map(r => `<div class="card"><div class="row-between"><b>🎓 ${esc(r.name)} · ${esc(SKILL_BY_ID[r.skill].name)}</b><span class="rl-stars">${starText(r.star)}</span></div><span class="sub">${esc(r.name)} earned ${plural(r.star, 'star')} in ${esc(SKILL_BY_ID[r.skill].name)}.</span></div>`).join('');
+    const lessonHtml = lessons.map(r => `<div class="card"><div class="row-between"><b>${memIcon('🎓', '')} ${esc(r.name)} · ${esc(SKILL_BY_ID[r.skill].name)}</b><span class="rl-stars">${starText(r.star)}</span></div><span class="sub">${esc(r.name)} earned ${plural(r.star, 'star')} in ${esc(SKILL_BY_ID[r.skill].name)}.</span></div>`).join('');
     const title = list.length > 1 ? 'While you were away' : trips.length ? `${esc(trips[0].name)} is home!` : 'Lesson done!';
     this.shown = list;
     g.hud.openModal(`<h2 data-rl-card>${title}</h2>${tripHtml}${lessonHtml}<div class="actions"><button class="btn primary" id="rlOk">Yay!</button></div>`, {

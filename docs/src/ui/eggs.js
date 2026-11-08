@@ -6,7 +6,7 @@ import { fmt, fmtDuration } from '../core/format.js';
 import { eggLabel } from '../core/breeding.js';
 import { bodyName, cleanBody } from '../core/recipe.js';
 
-const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+import { esc } from './esc.js';
 
 // spot colors for a special egg (the egg on the cushion, the nest, the menus)
 export const specialEggColors = variant => BREEDS.specialEggs[variant]?.colors || null;
