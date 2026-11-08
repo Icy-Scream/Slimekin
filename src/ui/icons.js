@@ -92,6 +92,37 @@ export const memIcon = (emoji, fallback) => { const v = MEM[emoji]; return typeo
 // The same drawing as a standalone SVG document (for canvas textures such as the medal pin), or null.
 export const iconSvgDoc = emoji => { const v = memIcon(emoji, null); return v ? v.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" ') : null; };
 
+// ---------- contests (C1b) ----------
+// A cup in a contest's color (CONTESTS color: Beauty pink, Sprint blue, Bounce-Off orange; never a metal, the medals own
+// gold, silver and bronze), sized by its tier with the classes cup-1..cup-4 (Little..Champion), a star on the Champion
+// Cup. ghost: a cup not won yet (an outline in the text color). Also the coach's whistle, a ribbon bow (Dress up), a
+// check mark and a rival's little blob.
+const hex2 = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+const mix = (a, b, t) => '#' + hex2(a).map((v, i) => Math.round(v + (hex2(b)[i] - v) * t).toString(16).padStart(2, '0')).join('');
+const STAR = (cx, cy, r1, r2) => Array.from({ length: 10 }, (_, i) => { const r = i % 2 ? r2 : r1, a = (-90 + i * 36) * Math.PI / 180; return `${(cx + r * Math.cos(a)).toFixed(2)},${(cy + r * Math.sin(a)).toFixed(2)}`; }).join(' ');
+export function cupIcon(color, { tier = 1, champion = false, ghost = false } = {}) {
+  const base = ghost ? 'currentColor' : color, dark = ghost ? 'currentColor' : mix(color, '#3a1f3a', 0.38), lite = ghost ? 'currentColor' : mix(color, '#ffffff', 0.55);
+  const fo = ghost ? ' fill-opacity=".22"' : '', so = ghost ? ' stroke-opacity=".55"' : '';
+  const star = champion ? `<polygon points="${STAR(12.6, 9.4, 3.15, 1.37)}" fill="${ghost ? 'currentColor' : mix(color, '#ffffff', 0.85)}"${ghost ? ' fill-opacity=".55"' : ''}/>` : '';
+  return `<svg class="gi cup cup-${tier}${ghost ? ' ghost' : ''}" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <path d="M4.44 4.04A3.57 3.57 0 0 0 4.44 11.18M19.56 4.04A3.57 3.57 0 0 1 19.56 11.18" fill="none" stroke="${dark}" stroke-width="1.6"${so}/>
+    <path d="M3.18 4.88A8.82 9.66 0 0 0 20.82 4.88Z" fill="${base}"${fo} stroke="${dark}" stroke-width=".9"${so}/>
+    <rect x="2.55" y="3.2" width="18.9" height="2.31" rx="1.05" fill="${lite}"${fo} stroke="${dark}" stroke-width=".9"${so}/>
+    <rect x="10.74" y="14.1" width="2.52" height="3.6" fill="${dark}"${ghost ? ' fill-opacity=".55"' : ''}/>
+    <rect x="6.75" y="17.48" width="10.5" height="3.36" rx="1.05" fill="${ghost ? 'currentColor' : dark}"${fo} stroke="${dark}" stroke-width=".9"${so}/>
+    ${ghost ? '' : `<ellipse cx="6.96" cy="8.66" rx="1.26" ry="2.1" fill="${mix(color, '#ffffff', 0.62)}"/>`}${star}</svg>`;
+}
+ICON.whistle = svg('<ellipse cx="9" cy="14.2" rx="6.6" ry="6.4" fill="#f2a21b"/><rect x="10.6" y="7.6" width="11.2" height="5.4" rx="1.3" fill="#f2a21b"/><circle cx="8.4" cy="14.8" r="2" fill="#fff" fill-opacity=".8"/><path d="M3.6 9.4l-1.8-2.2" stroke="#c97e0c" stroke-width="1.4" stroke-linecap="round"/>');
+ICON.bow = svg('<path d="M11 12.4L7.4 21l3-.6zM13 12.4l3.6 8.6-3-.6z" fill="#e0558f"/><ellipse cx="6.6" cy="10.6" rx="5.6" ry="4.6" fill="#ff79ad" stroke="#e0558f" stroke-width="1.1"/><ellipse cx="17.4" cy="10.6" rx="5.6" ry="4.6" fill="#ff79ad" stroke="#e0558f" stroke-width="1.1"/><ellipse cx="12" cy="11" rx="2.8" ry="2.9" fill="#e0558f"/>');
+ICON.check = svg('<path d="M5 12.6l4.4 4.4L19.4 6.8" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>', 'gi check');
+export function blobIcon(color) {
+  const dark = mix(color, '#2c2142', 0.35), lite = mix(color, '#ffffff', 0.6);
+  return `<svg class="gi blob" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 4.6c-.9 0-1.6.6-1.8 1.4C5.6 6.6 2.4 10 2.4 14.2c0 3.6 3.6 5.6 9.6 5.6s9.6-2 9.6-5.6c0-4.2-3.4-7.8-8-8.3-.2-.7-.8-1.3-1.6-1.3z" fill="${color}" stroke="${dark}" stroke-width="1"/>
+    <ellipse cx="6.4" cy="10.4" rx="2" ry="1.3" fill="${lite}"/><ellipse cx="8.8" cy="13.6" rx="1.2" ry="1.7" fill="#2c2142"/><ellipse cx="15.2" cy="13.6" rx="1.2" ry="1.7" fill="#2c2142"/></svg>`;
+}
+// the Journal's contest line (a cup won): one cup in all three contests' colors
+MEM['🏆'] = svg(`<path d="M4.44 4.04A3.57 3.57 0 0 0 4.44 11.18M19.56 4.04A3.57 3.57 0 0 1 19.56 11.18" fill="none" stroke="#3fa2ff" stroke-width="1.7"/><path d="M3.18 4.88A8.82 9.66 0 0 0 20.82 4.88Z" fill="#ff74b0" stroke="#b8467a" stroke-width=".9"/><rect x="2.55" y="3.2" width="18.9" height="2.31" rx="1.05" fill="#ffc2dc" stroke="#b8467a" stroke-width=".9"/><rect x="10.74" y="14.1" width="2.52" height="3.6" fill="#c9701c"/><rect x="6.75" y="17.48" width="10.5" height="3.36" rx="1.05" fill="#ff9b2f" stroke="#c9701c" stroke-width=".9"/><ellipse cx="6.96" cy="8.66" rx="1.26" ry="2.1" fill="#ffd0e4"/><polygon points="${STAR(12.6, 9.4, 3.15, 1.37)}" fill="#fff4c4"/>`);
+
 // A little slime drawing for the family tree and the spark-form list. motif adds the spark form's mark.
 const MOTIF = {
   smore: '<rect x="11.4" y="7" width="13.2" height="3.2" rx="1.2" fill="#7a4a2e"/><rect x="12.2" y=".8" width="11.6" height="6.8" rx="2.6" fill="#fffaf2" stroke="#e8d6bd" stroke-width=".8"/><path d="M12.6 5h10.8" stroke="#f0c69a" stroke-width="1.1"/>',

@@ -13,6 +13,8 @@ import * as THREE from 'three';
 import { BARN } from './data/content.js';
 import { BarnView } from './view/barn.js';
 import { BarnCard, BarnWait } from './ui/barn-card.js';
+import { CONTEST_BY_ID, CONTESTS } from './data/content.js';
+import { titleOf, championsOf } from './core/contests.js';
 import { standOrder, stepId, startId, nextAfterGone, swipeDir, pastSwipe, cardLine, cardCount, fitView, fovFor } from './view/barn-math.js';
 
 // when a touch happened (ms): the event's own time (right even when frames are slow), else now
@@ -42,6 +44,7 @@ export class BarnRanch {
     this._v = new THREE.Vector3();
   }
   get active() { return this.on && this.g.view === 'ranch'; }
+  get showing() { return !!(this.g.contestShow && this.g.contestShow.on); }   // a contest show runs on the stand
 
   // ---------- the barn's files, ahead of time ----------
   // Each frame: once home has shown its first frames (the Greenhouse room first, when that is home), the barn's files
@@ -148,7 +151,7 @@ export class BarnRanch {
   }
   // A swap you asked for: dir +1 next, -1 previous (‹ ›, a swipe).
   request(dir) {
-    if (!this.active || this.g.hud.modalOpen) return;
+    if (!this.active || this.g.hud.modalOpen || this.showing) return;   // (no swaps during a contest show)
     this.go({ dir, follow: true });
   }
   // A resident picked in the menu (Visit, its page): it comes up on the stand.
@@ -201,6 +204,7 @@ export class BarnRanch {
   // ---------- the card ----------
   renderCard() {
     const g = this.g, R = g.state.ranch, x = this.resident(this.curId);
+    if (this.showing && x) { this.card.set(g.contestShow.cardInfo()); return; }   // [contests] the act on the name card
     if (!x) {
       const away = R.residents.filter(r => r.trip);
       if (away.length) {
@@ -213,11 +217,14 @@ export class BarnRanch {
       return;
     }
     const c = cardLine(x, { now: g.nowMs(), back: this.back[x.id], perHour: g.sim.ranch.pearlRate(x) * 3600 });
-    this.card.set({ name: x.name, breed: c.breed, line: c.line, talent: c.talent, count: cardCount(this.order.length, Math.max(0, this.order.indexOf(x.id))) });
+    // [contests] a Champion's title on the card's top edge (one contest: its color; Double / Triple: the Beauty pink)
+    const t = titleOf(x), ch = championsOf(x);
+    const title = t ? { text: t, color: ch.length === 1 ? CONTEST_BY_ID[ch[0]].color : CONTEST_BY_ID[CONTESTS.contests[0].id].color } : null;
+    this.card.set({ name: x.name, breed: c.breed, line: c.line, talent: c.talent, count: cardCount(this.order.length, Math.max(0, this.order.indexOf(x.id))), title });
   }
   openPage() {
     const g = this.g;
-    if (!this.active) return;
+    if (!this.active || this.showing) return;
     g.sfx.unlock && g.sfx.unlock();
     g.hud.openTab('ranch');   // (opens the menu sheet when it is closed)
     if (this.curId) g.focusResident(this.curId);
@@ -234,6 +241,7 @@ export class BarnRanch {
 
   // ---------- touch on the barn ----------
   down(e) {
+    if (this.showing) return;   // (the show's own layer takes the taps)
     const g = this.g, hit = this.view.pick(g.raycaster);
     const p = this.press = { id: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, minX: e.clientX, maxX: e.clientX, t0: stamp(e), hit, petted: false, petT: -9, done: false };
     try { g.canvas.setPointerCapture(e.pointerId); } catch { /* ignore */ }

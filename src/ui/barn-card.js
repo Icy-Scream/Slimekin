@@ -3,7 +3,7 @@
 // ("3 of 12" beyond that). Tapping the card opens that resident's page; a quick sideways swipe on it swaps like a swipe
 // on the barn. The coordinator (barn-ranch.js) fills it and places it above the menu sheet or the ranch bar every frame.
 // Listed in UI-CHANGES.md "Barn ranch".
-import { ICON } from './icons.js';
+import { ICON, cupIcon } from './icons.js';
 import { swipeDir } from '../view/barn-math.js';
 import { esc } from './esc.js';
 
@@ -25,6 +25,14 @@ const CSS = `
   .barn-card .bc-dots u.on { width: 18px; background: #6b4bd6; }
   .barn-card .bc-count { display: block; margin-top: 4px; font-weight: 800; font-size: 12px; color: var(--ink-2); }
   .barn-card.empty b { font-size: 19px; }
+  .barn-card .bc-title { position: absolute; left: 50%; top: 0; transform: translate(-50%, -62%); display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 13px 3px 9px; border-radius: 11px; background: var(--c, #ff74b0); color: #fff; font-weight: 800; font-size: 12px; line-height: 16px;
+    white-space: nowrap; box-shadow: 0 4px 10px -4px rgba(60, 20, 60, .45); }
+  .barn-card .bc-title .gi { width: 15px; height: 15px; }
+  .barn-card.titled { margin-top: 10px; }
+  .barn-card .bc-line.bc-act { color: #5b3fc4; }
+  :root[data-theme="dark"] .barn-card .bc-line.bc-act { color: #b9a6ff; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .barn-card .bc-line.bc-act { color: #b9a6ff; } }
   .barn-card.empty .bc-line { white-space: normal; font-size: 12.5px; line-height: 1.3; }
   .barn-arrow { position: fixed; top: 44%; z-index: 7; width: 44px; height: 44px; margin-top: -22px; padding: 0; border-radius: 22px;
     display: grid; place-items: center; cursor: pointer; color: inherit; }
@@ -88,15 +96,22 @@ export class BarnCard {
   }
   show(on) { this.el.hidden = !on; this.showArrows(on && this.many); }
   showArrows(on) { for (const b of this.arrows) b.hidden = !on; }
-  // c: { name, breed, line, talent, count: { dots, on, text } } for a resident (talent: the line its lessons revealed,
-  // or ''), or { empty: true, title, text }
+  // c: { name, breed, line, talent, count: { dots, on, text }, title } for a resident (talent: the line its lessons
+  // revealed, or ''; title: a Champion's title { text, color } on the card's top edge, or none), { empty: true, title,
+  // text }, or during a contest show { name, act: { line, n, on } } (the act's line and a dot per act)
   set(c) {
     const key = JSON.stringify(c);
     if (key === this.key) return;
     this.key = key;
     const el = this.el;
     el.classList.toggle('empty', !!c.empty);
-    if (c.empty) {
+    el.classList.toggle('titled', !c.empty && !!c.title);
+    if (c.act) {
+      const a = c.act;
+      el.innerHTML = `<b>${esc(c.name)}</b><span class="bc-line bc-act">${esc(a.line)}</span><i class="bc-dots">${Array.from({ length: a.n }, (_, i) => `<u class="${i === a.on ? 'on' : ''}"></u>`).join('')}</i>`;
+      el.setAttribute('aria-label', `${c.name}. ${a.line}`);
+      this.many = false;
+    } else if (c.empty) {
       el.innerHTML = `<b>${esc(c.title)}</b><span class="bc-line">${esc(c.text)}</span>`;
       el.setAttribute('aria-label', `${c.title}. ${c.text}`);
       this.many = false;
@@ -106,8 +121,9 @@ export class BarnCard {
       const n = c.count;
       const dots = n.dots ? `<i class="bc-dots">${Array.from({ length: n.dots }, (_, i) => `<u class="${i === n.on ? 'on' : ''}"></u>`).join('')}</i>` : `<span class="bc-count">${esc(n.text)}</span>`;
       const talent = c.talent ? `<span class="bc-line bc-talent">${esc(c.talent)}</span>` : '';
-      el.innerHTML = `<b>${esc(c.name)}</b><span class="bc-line">${line}</span>${talent}${dots}`;
-      el.setAttribute('aria-label', `${c.name}, ${c.breed}, ${c.line}${c.talent ? `, ${c.talent}` : ''}. Open ${c.name}'s page`);
+      const title = c.title ? `<span class="bc-title" style="--c:${esc(c.title.color)}">${cupIcon('#ffffff', { tier: 1 })}${esc(c.title.text)}</span>` : '';
+      el.innerHTML = `${title}<b>${esc(c.name)}</b><span class="bc-line">${line}</span>${talent}${dots}`;
+      el.setAttribute('aria-label', `${c.name}${c.title ? `, ${c.title.text}` : ''}, ${c.breed}, ${c.line}${c.talent ? `, ${c.talent}` : ''}. Open ${c.name}'s page`);
       this.many = (n.dots || 0) > 1 || !!n.text;
     }
     if (!el.hidden) this.showArrows(this.many);

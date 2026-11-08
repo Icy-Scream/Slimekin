@@ -66,7 +66,7 @@ ok(JSON.stringify(CT.style) === JSON.stringify({ bow: 4, bowtie: 5, glasses: 5, 
 ok(JSON.stringify(CT.cheer.points) === JSON.stringify({ perfect: 3, good: 2, nice: 1, none: 0 }) && CT.cheer.reduced === 'good', 'cheers: Perfect 3, Good 2, Nice try 1, none 0; Reduced motion = Good');
 ok(JSON.stringify(CT.cups.map(c => c.rivals.map(r => r.score))) === JSON.stringify([[12, 16, 19], [30, 38, 45], [60, 72, 85], [90, 100, 110]]),
   'section 6: rivals 12/16/19, 30/38/45, 60/72/85, 90/100/110', JSON.stringify(CT.cups.map(c => c.rivals.map(r => r.score))));
-ok(CT.cups.every(c => c.rivals.every(r => BUYER_BY_ID[r.place] && r.name === `${BUYER_BY_ID[r.place].name} rival`)), 'rivals: placeholder names tied to a buyer place ("Puddle Café rival")', CT.cups[0].rivals.map(r => r.name).join(', '));
+ok(CT.cups.every(c => c.rivals.every(r => BUYER_BY_ID[r.place] && r.name === `${BUYER_BY_ID[r.place].name}'s slime` && /^#[0-9a-f]{6}$/.test(r.color))), 'rivals: placeholder names tied to a buyer place ("Puddle Café\'s slime") with a color for their blob', CT.cups[0].rivals.map(r => r.name).join(', '));
 ok(JSON.stringify(CT.cups.map(c => c.pearls)) === JSON.stringify([5, 15, 40, 100]) && CT.cups.map(c => c.id).join() === 'little,big,grand,champion', 'section 7: first-win pearls Little 5, Big 15, Grand 40, Champion 100');
 ok(CT.trophyValue > 0 && CT.trophyValue <= 0.03, `section 7: trophy value per trophy (design 0.03; ${CT.trophyValue})`);
 ok(JSON.stringify(CT.perks) === JSON.stringify({ beauty: { offers: 0.05 }, sprint: { tripTime: 0.05 }, bounce: { pearls: 0.03 } }), 'section 7: Champion perks: Beauty offers +5%, Sprint trips 5% shorter, Bounce-Off ranch pearls +3%');

@@ -35,6 +35,8 @@ import { RanchLifeUI } from './ui/ranch-life.js';
 import { isNative, haptic, freshState } from './platform/index.js';
 import { Home } from './greenhouse-home.js';
 import { BarnRanch } from './barn-ranch.js';
+import { ContestsUI } from './ui/contests.js';
+import { ContestShow } from './contest-show.js';
 import { SendOff } from './send-off.js';
 
 const SLIME_Y = CUSHION_TOP - 0.03;
@@ -58,7 +60,9 @@ export class Game {
     this.sim = new Sim(this.state);
     this.requests = new Requests(this.sim);
     this.life = new RanchLifeUI(this);   // ranch life: lessons and trips (menus in ui/ranch-life.js, rules in core/ranch-life.js)
-    this.contests = DEBUG ? this.contestsDebug() : null;   // contests: rules in core/contests.js, no screens yet (C1b)
+    this.contests = DEBUG ? this.contestsDebug() : null;   // contests (#debug): the rules straight, no show (core/contests.js)
+    this.contestsUI = new ContestsUI(this);   // [contests] the entry card, Dress up, results, the Trophy Shelf (ui/contests.js)
+    this.contestShow = new ContestShow(this);   // [contests] the show on the barn's stand (contest-show.js)
     this.sfx = new Sfx();
     this.sfx.sound = this.state.settings.sound;
     this.sfx.music = this.state.settings.music;
@@ -563,6 +567,7 @@ export class Game {
       return;
     }
     this.view = 'home';
+    this.contestShow.cancel();   // [contests] a show still running stops: nothing paid
     this.barnRanch.leave();   // [barn]
     this.ranchFocus = null;
     this.ranchPage = null;
@@ -2245,7 +2250,7 @@ export class Game {
       this.openSettings();
     }
   }
-  // ---------- contests (#debug only until the screens come in C1b) ----------
+  // ---------- contests: the #debug path (the screens: ui/contests.js and contest-show.js) ----------
   // g.contests.enter(residentId, contestId, cheers, { cup }) runs a show (core/contests.js scoreShow) and writes its
   // result into the save (applyShow); returns the show with `given` (what it brought). cheers: 'perfect' | 'good' |
   // 'nice' | 'none' | 'mash' | 'skip', or per act a grade or a list of tap times (s from the ring appearing).
@@ -2782,6 +2787,7 @@ export class Game {
     // [greenhouse] what home shows (the room, the meadow or the classic nursery; the ranch hill) and the camera's target
     this.home.update(dt);
     this.barnRanch.update(dt);   // [barn] the ranch screen (the barn), when it shows
+    this.contestShow.update(dt);   // [contests] a show on the barn's stand, when one runs
     this.ranch.update(dt);
     this.scenery.update(dt);
     this.fx.update(dt);

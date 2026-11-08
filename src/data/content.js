@@ -729,23 +729,28 @@ export const TALENTS = {
 // (no dice). Win a cup and the next one opens for that slime in that contest: Little -> Big -> Grand -> Champion. The
 // first win of each cup pays pearls once per slime; every trophy makes buyers pay a little more for it; a Champion gets
 // a small lasting perk. Repeat shows pay nothing. Nothing is lost on a loss, there is no entry fee.
-const rival = (place, score) => ({ place, name: `${BUYER_BY_ID[place].name} rival`, score });   // names and looks: C2 (art)
+// Rivals are "<Place>'s slime" with a small blob in the place's color (placeholders until C2: names and looks by Nami
+// and Usopp, 3D rivals).
+const RIVAL_COLOR = { school: '#b6e36a', garden: '#8fdcb0', cafe: '#9fd8ff', bakery: '#ffc9a3', springs: '#ffb3c7', windmill: '#ffe08a', mine: '#c9b8a8', museum: '#c9a7ff', observe: '#8fb0ff', festival: '#ff9f80' };
+const rival = (place, score) => ({ place, name: `${BUYER_BY_ID[place].name}'s slime`, color: RIVAL_COLOR[place], score });
 export const CONTESTS = {
   // Three acts each: the main act (its skill's stars x score.main), the support act (stars x score.support, or Style in
-  // the Beauty Show) and the tricks act (Smarts stars x score.tricks). title: the Champion's name-card title.
+  // the Beauty Show) and the tricks act (Smarts stars x score.tricks). title: the Champion's name-card title. color: its
+  // cups and dot on the screens (not a metal: the medals own gold, silver and bronze). short: an act's name on the act
+  // strip, the score lines and the name card during the show.
   contests: [
-    { id: 'beauty', name: 'Beauty Show', title: 'Beauty Champion', acts: [
-      { id: 'pose', name: 'Pose', role: 'main', skill: 'charm' },
-      { id: 'style', name: 'Style', role: 'support', style: true },
-      { id: 'trick', name: 'A trick', role: 'tricks', skill: 'smarts' }] },
-    { id: 'sprint', name: 'Slime Sprint', title: 'Sprint Champion', acts: [
-      { id: 'dash', name: 'The dash', role: 'main', skill: 'speed' },
-      { id: 'hill', name: 'The hill', role: 'support', skill: 'sturdy' },
-      { id: 'hoops', name: 'The hoops', role: 'tricks', skill: 'smarts' }] },
-    { id: 'bounce', name: 'Bounce-Off', title: 'Bounce-Off Champion', acts: [
-      { id: 'bigBounce', name: 'The big bounce', role: 'main', skill: 'bounce' },
-      { id: 'runUp', name: 'The run-up', role: 'support', skill: 'speed' },
-      { id: 'landing', name: 'The landing', role: 'tricks', skill: 'smarts' }] },
+    { id: 'beauty', name: 'Beauty Show', title: 'Beauty Champion', color: '#ff74b0', acts: [
+      { id: 'pose', name: 'Pose', short: 'Pose', role: 'main', skill: 'charm' },
+      { id: 'style', name: 'Style', short: 'Style', role: 'support', style: true },
+      { id: 'trick', name: 'A trick', short: 'Tricks', role: 'tricks', skill: 'smarts' }] },
+    { id: 'sprint', name: 'Slime Sprint', title: 'Sprint Champion', color: '#3fa2ff', acts: [
+      { id: 'dash', name: 'The dash', short: 'Dash', role: 'main', skill: 'speed' },
+      { id: 'hill', name: 'The hill', short: 'Hill', role: 'support', skill: 'sturdy' },
+      { id: 'hoops', name: 'The hoops', short: 'Hoops', role: 'tricks', skill: 'smarts' }] },
+    { id: 'bounce', name: 'Bounce-Off', title: 'Bounce-Off Champion', color: '#ff9b2f', acts: [
+      { id: 'bigBounce', name: 'The big bounce', short: 'Bounce', role: 'main', skill: 'bounce' },
+      { id: 'runUp', name: 'The run-up', short: 'Run-up', role: 'support', skill: 'speed' },
+      { id: 'landing', name: 'The landing', short: 'Landing', role: 'tricks', skill: 'smarts' }] },
   ],
   // points: main per star (no cap: 50, or 60/70 with a talent's 6th/7th star), support and tricks per star (capped at
   // `cap`, so a talent's 6th/7th star adds nothing there), flair from the talent grade in the main skill
@@ -756,14 +761,22 @@ export const CONTESTS = {
   // Cheers: once per act a ring closes on the slime. Times in seconds from the ring appearing: it closes on `beat`; the
   // first tap at or after 0 and before `window` is the only one that counts: within `perfect` of the beat = Perfect,
   // within `good` = Good, any other = Nice try; no tap = none. Reduced motion: every act is `reduced` (Good).
-  cheer: { beat: 1.2, perfect: 0.12, good: 0.3, window: 2.0, points: { perfect: 3, good: 2, nice: 1, none: 0 }, reduced: 'good' },
+  // Tuned with the ring on screen (C1b): the pink ring closes on the gold one in 1.5 s, slow enough for a child to see
+  // it coming; Good is a 0.7 s target (easy), Perfect 0.26 s (with care). It keeps shrinking past the gold ring until
+  // `window`, so a late tap still counts (a Good when it is close).
+  cheer: { beat: 1.5, perfect: 0.13, good: 0.35, window: 2.3, points: { perfect: 3, good: 2, nice: 1, none: 0 }, reduced: 'good' },
+  // The show on the barn's stand (seconds; the screens only, no rule reads these). open: the banner and "To beat" before
+  // act 1; perform: the slime's moves in each act before its cheer; pop: the cheer's label; rest: before the next act;
+  // finale: after act 3, before the results card. ring: the pink ring starts this many times the gold one's size.
+  // With these a show is about 34 s (the cheer rings are cheer.window each at most).
+  show: { open: 2.6, perform: 4.6, pop: 1.5, rest: 0.8, finale: 2.4, ring: 1.8, swapWait: 4 },
   // The cup ladder: three friendly rivals each with a fixed score (shown before the show); a tie goes to your slime.
-  // pearls: the first time a slime wins that cup (once per slime per contest)
+  // pearls: the first time a slime wins that cup (once per slime per contest); short: its name on the cup tiles
   cups: [
-    { id: 'little', name: 'Little Cup', pearls: 5, rivals: [rival('school', 12), rival('garden', 16), rival('cafe', 19)] },
-    { id: 'big', name: 'Big Cup', pearls: 15, rivals: [rival('bakery', 30), rival('springs', 38), rival('windmill', 45)] },
-    { id: 'grand', name: 'Grand Cup', pearls: 40, rivals: [rival('mine', 60), rival('museum', 72), rival('observe', 85)] },
-    { id: 'champion', name: 'Champion Cup', pearls: 100, rivals: [rival('springs', 90), rival('museum', 100), rival('festival', 110)] },
+    { id: 'little', short: 'Little', name: 'Little Cup', pearls: 5, rivals: [rival('school', 12), rival('garden', 16), rival('cafe', 19)] },
+    { id: 'big', short: 'Big', name: 'Big Cup', pearls: 15, rivals: [rival('bakery', 30), rival('springs', 38), rival('windmill', 45)] },
+    { id: 'grand', short: 'Grand', name: 'Grand Cup', pearls: 40, rivals: [rival('mine', 60), rival('museum', 72), rival('observe', 85)] },
+    { id: 'champion', short: 'Champion', name: 'Champion Cup', pearls: 100, rivals: [rival('springs', 90), rival('museum', 100), rival('festival', 110)] },
   ],
   // each trophy: buyers pay this much more for that slime (new homes and auctions). Design: 0.03; tuned by
   // tools/contest-sim.mjs: 12 trophies x 0.03 + the Beauty Champion's +5% made a fully trophied slime's auctions +41%

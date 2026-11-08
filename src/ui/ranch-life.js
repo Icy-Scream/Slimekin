@@ -82,7 +82,7 @@ export class RanchLifeUI {
     return `<div class="sec-title">Skills <span class="count">${total} of ${L.skills.reduce((t, s) => t + starSlots(x, s.id), 0)} stars</span></div>
       <div class="card rl-skills">${rows}<span class="sub">${esc(this.loves(x))}</span>
         ${st ? `<span class="sub rl-busy"><b>${esc(st)}.</b>${x.trip ? ` ${esc(x.name)} is not on the ranch now.` : ` ${esc(x.name)} keeps making pearls meanwhile.`}</span>` : ''}
-        ${acts ? `<div class="res"><div class="acts">${acts}</div></div>` : ''}</div>`;
+        ${acts ? `<div class="res"><div class="acts">${acts}</div></div>` : ''}${this.g.contestsUI ? this.g.contestsUI.residentRow(x) : ''}</div>`;   // [contests] Enter a contest / Dress up
   }
   // One line on a resident's row in the list.
   rowHtml(x) { const st = this.status(x); return st ? `<span class="sub rl-status">${memIcon(x.trip ? '🧳' : '🎓', '')} ${esc(st)}</span>` : ''; }
@@ -99,7 +99,7 @@ export class RanchLifeUI {
       <div class="row-between"><span>${memIcon('🧳', '')} Travelers</span><b>${rl.travelers().length} / ${plural(l.wagons, 'wagon')}</b></div>
       <span class="sub">Tap a slime to visit it, then train it or send it on a trip. Lessons and trips go on while the game is closed.</span>
       ${ups ? `<div class="upgrades">${ups}</div>` : ''}
-      <button class="btn" data-rl="shelf">Souvenirs ${rl.foundTotal()} / ${SOUVENIR_TOTAL}</button></div>`;
+      <div class="cs-halves"><button class="btn" data-rl="shelf">Souvenirs ${rl.foundTotal()} / ${SOUVENIR_TOTAL}</button>${this.g.contestsUI ? this.g.contestsUI.ranchHalf() : ''}</div></div>`;   // [contests] Trophies beside Souvenirs
   }
   // Nursery: why a slime can't be picked as a parent right now (null when it can).
   pickNote(x) { return x.trip ? 'On a trip' : x.lesson ? 'In a lesson' : null; }
@@ -279,7 +279,7 @@ export class RanchLifeUI {
       if (!document.querySelector('#modalCard [data-rl-card]')) this.pending.unshift(...this.shown);
       this.shown = null;
     }
-    if (this.pending.length && g.time >= this.cardAt && !g.hud.modalOpen && !g.hatching && !g.departing && !g.auction && g.state.phase !== 'naming') this.showCard();
+    if (this.pending.length && g.time >= this.cardAt && !g.hud.modalOpen && !g.hatching && !g.departing && !g.auction && g.state.phase !== 'naming' && !(g.contestShow && g.contestShow.on)) this.showCard();   // [contests] (not during a show)
   }
   // Toasts and Journal lines now; trips (and anything that finished while the game was closed) also get the card.
   announce(done, { live }) {
