@@ -2,7 +2,8 @@
 // placement (selling to a good home) and auctions. No three.js, no DOM.
 import { RANCH, BUYERS, BUYER_BY_ID, TRAIT_IDS, BREEDING, SPARK_BY_ID, BREEDS } from '../data/content.js';
 import { rng } from './random.js';
-import { makeEgg, sparkFor, pureFor, emptyLineage } from './breeding.js';
+import { makeEgg, sparkFor, pureFor, emptyLineage, eggPotential } from './breeding.js';
+import { rollPotential } from './talents.js';
 import { residentMedal } from './medals.js';
 import { heirloomMult } from './heirlooms.js';
 import { oldBody, cleanBody, rollSpecialEgg } from './recipe.js';
@@ -73,9 +74,11 @@ export function migrateRanch(saved) {
     if (x.traits && typeof x.traits === 'object') x.traits = nums(x.traits, Object.fromEntries(TRAIT_IDS.map(t => [t, 0])));
     if (x.personality && typeof x.personality === 'object') x.personality = nums(x.personality);
   }
-  // Nursery eggs from before the recipe body hatch Curlys
+  // Nursery eggs from before the recipe body hatch Curlys; from before talents, their Potential comes from their parents
+  // (when they still live here) or a roll from the egg's seed (core/breeding.js eggPotential)
   for (const e of out.nursery.eggs) if (e && typeof e === 'object') {
     e.body = e.body ? cleanBody(e.body) : oldBody();
+    e.potential = { ...eggPotential(e, out.residents.filter(x => x && typeof x === 'object')) };
     for (const k of ['laidAt', 'readyAt']) if (k in e) e[k] = num(e[k], 0);
   }
   out.residents = out.residents.filter(x => x && typeof x === 'object');
@@ -237,7 +240,7 @@ export class Ranch {
     this.spend(def.price);
     const id = `s${now.toString(36)}-${n.made}`, seed = `${variant}|${id}`;
     const egg = { id, seed, laidAt: now, readyAt: now + this.newEggSeconds() * 1000, parents: [], special: variant, spark: null, pure: null,
-      line: 1, bias: {}, personality: {}, favorite: null, body: rollSpecialEgg(variant, seed) };
+      line: 1, bias: {}, personality: {}, favorite: null, body: rollSpecialEgg(variant, seed), potential: rollPotential(seed) };
     n.made++;
     n.bought = (n.bought || 0) + 1;
     n.eggs.push(egg);

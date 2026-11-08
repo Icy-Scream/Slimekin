@@ -16,6 +16,10 @@ const RL = await import(SRC + '/core/ranch-life.js');
 const { movingDaySign } = await import(SRC + '/core/movingday.js');
 const C = await import(SRC + '/data/content.js');
 const { RANCH, RANCH_LIFE: L, SKILL_IDS, PLACE_BY_ID, BUYER_BY_ID, TUNING, TRAIT_IDS, PERSONALITY_IDS } = C;
+// Talents: these checks are ranch life's own rules for a grade-C slime (every skill C: exactly the ranch from before
+// talents), so every talent here is C; what talents add is checked in tools/talent-test.mjs.
+C.TALENTS.grades.splice(1);
+C.TALENTS.floor = 'C';
 
 let fails = 0, passes = 0;
 const ok = (cond, what, extra = '') => { if (cond) { passes++; console.log('ok   - ' + what + (extra ? ' | ' + extra : '')); } else { fails++; console.log('FAIL - ' + what + (extra ? ' | ' + extra : '')); } };
@@ -68,7 +72,7 @@ for (const f of fs.readdirSync(path.join(HERE, 'fixtures')).filter(f => f.endsWi
   // the recipe body's breed, variant, mix and genes are new too, and tools/recipe-test.mjs checks those)
   const orig = save.ranch?.residents || [];
   const same = orig.every((o, i) => Object.keys(o).every(k => k === 'lineage' || JSON.stringify(o[k]) === JSON.stringify(res[i][k])) &&
-    Object.keys(res[i]).filter(k => !(k in o)).every(k => ['skills', 'lesson', 'trip', 'lineage', 'breed', 'variant', 'mix', 'genes'].includes(k)));
+    Object.keys(res[i]).filter(k => !(k in o)).every(k => ['skills', 'lesson', 'trip', 'lineage', 'breed', 'variant', 'mix', 'genes', 'potential', 'talentsSeen'].includes(k)));
   // and the rest of the ranch as saved (residents above; family, nursery and life are filled in by their own migrations)
   const ranchSame = Object.keys(save.ranch || {}).filter(k => !['residents', 'family', 'nursery', 'life'].includes(k)).every(k => JSON.stringify(save.ranch[k]) === JSON.stringify(m.ranch[k]));
   const twice = JSON.stringify(migrate(clone(m)).ranch) === JSON.stringify(m.ranch);
