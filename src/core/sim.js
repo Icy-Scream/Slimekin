@@ -14,6 +14,7 @@ import { medalFor, medalRank } from './medals.js';
 import { createHeirlooms, migrateHeirlooms, heirloomMult, heirloomFlag, startHelpers, forSale, ownsHeirloom } from './heirlooms.js';
 import { rollPlainEgg, oldBody, cleanBody } from './recipe.js';
 import { SAVE_VERSION, num, numOrNull, nums, count } from './save-check.js';
+import { createResidentContests } from './contests.js';
 
 export { SAVE_VERSION };
 
@@ -679,6 +680,7 @@ export class Sim {
       ...cleanBody(sl),   // its body (breed, variant, mix, genes) moves with it
       skills: emptySkills(), lesson: null, trip: null,   // ranch life (core/ranch-life.js)
       potential: { ...(sl.potential || {}) }, talentsSeen: [],   // talents (core/talents.js): its Potential moves with it
+      contests: createResidentContests(),   // contests (core/contests.js): no trophies yet
     };
     migrateTalents(resident);   // (a Potential that is not valid: seeded from its new id)
     ranch.residents.push(resident);

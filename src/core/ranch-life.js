@@ -10,6 +10,8 @@ import { rng } from './random.js';
 import { talentLessonMult, starCap, maxStars, migrateTalents, revealSkill, gradeOf, revealText } from './talents.js';
 // (movingday.js imports ranch.js, which imports this file: a harmless cycle, nothing here runs at load time)
 import { movingDaySign } from './movingday.js';
+// (contests.js imports this file too: the same kind of harmless cycle)
+import { contestTripMult } from './contests.js';
 
 const L = RANCH_LIFE;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -63,7 +65,8 @@ const loveFx = (x, key) => lovesDef(x)?.fx?.[key] || 0;
 export const pearlSkillMult = x => 1 + skillFx(x, 'pearls');                                  // Bounce
 export const fadeMult = x => (x ? (1 - skillFx(x, 'fade')) * (1 - loveFx(x, 'fade')) : 1);       // Sturdy, Shy
 export const offerSkillMult = x => 1 + skillFx(x, 'offers');                                   // Charm
-export const tripTimeMult = x => (1 - skillFx(x, 'tripTime')) * (1 - loveFx(x, 'tripTime'));    // Speed, Independent
+// Speed, Independent; the Sprint Champion perk (core/contests.js: exactly 1 without it)
+export const tripTimeMult = x => (1 - skillFx(x, 'tripTime')) * (1 - loveFx(x, 'tripTime')) * contestTripMult(x);
 export const tripPearlMult = x => 1 + skillFx(x, 'tripPearls') + loveFx(x, 'tripPearls');       // Smarts, Curious
 // Smarts shortens every lesson; a "loves" lesson bonus counts for its own skill (or every skill when it names none);
 // the talent in that skill (core/talents.js) multiplies with both. Never under TALENTS.lessonFloor (grade C: as before

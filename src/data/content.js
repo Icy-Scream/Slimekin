@@ -724,6 +724,56 @@ export const TALENTS = {
   reveal: { S: 'a natural at {skill}!', A: 'takes to {skill} quickly', B: 'getting the hang of {skill}' },
 };
 
+// ---------- Contests: Beauty Show, Slime Sprint, Bounce-Off (rules in core/contests.js) ----------
+// Ranch residents perform three acts from what they trained; you cheer once per act. The score is fixed by the rules
+// (no dice). Win a cup and the next one opens for that slime in that contest: Little -> Big -> Grand -> Champion. The
+// first win of each cup pays pearls once per slime; every trophy makes buyers pay a little more for it; a Champion gets
+// a small lasting perk. Repeat shows pay nothing. Nothing is lost on a loss, there is no entry fee.
+const rival = (place, score) => ({ place, name: `${BUYER_BY_ID[place].name} rival`, score });   // names and looks: C2 (art)
+export const CONTESTS = {
+  // Three acts each: the main act (its skill's stars x score.main), the support act (stars x score.support, or Style in
+  // the Beauty Show) and the tricks act (Smarts stars x score.tricks). title: the Champion's name-card title.
+  contests: [
+    { id: 'beauty', name: 'Beauty Show', title: 'Beauty Champion', acts: [
+      { id: 'pose', name: 'Pose', role: 'main', skill: 'charm' },
+      { id: 'style', name: 'Style', role: 'support', style: true },
+      { id: 'trick', name: 'A trick', role: 'tricks', skill: 'smarts' }] },
+    { id: 'sprint', name: 'Slime Sprint', title: 'Sprint Champion', acts: [
+      { id: 'dash', name: 'The dash', role: 'main', skill: 'speed' },
+      { id: 'hill', name: 'The hill', role: 'support', skill: 'sturdy' },
+      { id: 'hoops', name: 'The hoops', role: 'tricks', skill: 'smarts' }] },
+    { id: 'bounce', name: 'Bounce-Off', title: 'Bounce-Off Champion', acts: [
+      { id: 'bigBounce', name: 'The big bounce', role: 'main', skill: 'bounce' },
+      { id: 'runUp', name: 'The run-up', role: 'support', skill: 'speed' },
+      { id: 'landing', name: 'The landing', role: 'tricks', skill: 'smarts' }] },
+  ],
+  // points: main per star (no cap: 50, or 60/70 with a talent's 6th/7th star), support and tricks per star (capped at
+  // `cap`, so a talent's 6th/7th star adds nothing there), flair from the talent grade in the main skill
+  // (core/talents.js gradeOf), mood = floor(happiness / moodPer) (0-5)
+  score: { main: 10, support: 4, tricks: 4, cap: 20, styleCap: 20, flair: { C: 0, B: 3, A: 6, S: 10 }, moodPer: 20 },
+  // Style in the Beauty Show: each outfit worn adds this much, capped at score.styleCap (= a 5-star support)
+  style: { bow: 4, bowtie: 5, glasses: 5, flowers: 6, scarf: 6, beret: 7, shades: 7, party: 8, crown: 9 },
+  // Cheers: once per act a ring closes on the slime. Times in seconds from the ring appearing: it closes on `beat`; the
+  // first tap at or after 0 and before `window` is the only one that counts: within `perfect` of the beat = Perfect,
+  // within `good` = Good, any other = Nice try; no tap = none. Reduced motion: every act is `reduced` (Good).
+  cheer: { beat: 1.2, perfect: 0.12, good: 0.3, window: 2.0, points: { perfect: 3, good: 2, nice: 1, none: 0 }, reduced: 'good' },
+  // The cup ladder: three friendly rivals each with a fixed score (shown before the show); a tie goes to your slime.
+  // pearls: the first time a slime wins that cup (once per slime per contest)
+  cups: [
+    { id: 'little', name: 'Little Cup', pearls: 5, rivals: [rival('school', 12), rival('garden', 16), rival('cafe', 19)] },
+    { id: 'big', name: 'Big Cup', pearls: 15, rivals: [rival('bakery', 30), rival('springs', 38), rival('windmill', 45)] },
+    { id: 'grand', name: 'Grand Cup', pearls: 40, rivals: [rival('mine', 60), rival('museum', 72), rival('observe', 85)] },
+    { id: 'champion', name: 'Champion Cup', pearls: 100, rivals: [rival('springs', 90), rival('museum', 100), rival('festival', 110)] },
+  ],
+  trophyValue: 0.03,   // each trophy: buyers pay this much more for that slime (new homes and auctions)
+  // Champion perks, for that slime, lasting: offers (new homes and auctions) +x, trips x shorter, ranch pearls +x
+  perks: { beauty: { offers: 0.05 }, sprint: { tripTime: 0.05 }, bounce: { pearls: 0.03 } },
+  // the title when a slime is Champion in more than one contest
+  titles: { 2: 'Double Champion', 3: 'Triple Champion' },
+};
+export const CONTEST_BY_ID = Object.fromEntries(CONTESTS.contests.map(c => [c.id, c]));
+export const CONTEST_IDS = CONTESTS.contests.map(c => c.id);
+
 // The Greenhouse (Settings > Background, the default home): a room baked outside the repo (its files are in
 // src/assets/greenhouse/; gh.json has the room's footprints and glow spots), drawn by src/view/greenhouse.js, and a
 // camera you can turn inside it. Room coordinates: x right, y up, z toward you; the slime's stump is at the origin.

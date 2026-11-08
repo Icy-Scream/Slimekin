@@ -72,7 +72,7 @@ for (const f of fs.readdirSync(path.join(HERE, 'fixtures')).filter(f => f.endsWi
   // the recipe body's breed, variant, mix and genes are new too, and tools/recipe-test.mjs checks those)
   const orig = save.ranch?.residents || [];
   const same = orig.every((o, i) => Object.keys(o).every(k => k === 'lineage' || JSON.stringify(o[k]) === JSON.stringify(res[i][k])) &&
-    Object.keys(res[i]).filter(k => !(k in o)).every(k => ['skills', 'lesson', 'trip', 'lineage', 'breed', 'variant', 'mix', 'genes', 'potential', 'talentsSeen'].includes(k)));
+    Object.keys(res[i]).filter(k => !(k in o)).every(k => ['skills', 'lesson', 'trip', 'lineage', 'breed', 'variant', 'mix', 'genes', 'potential', 'talentsSeen', 'contests'].includes(k)));
   // and the rest of the ranch as saved (residents above; family, nursery and life are filled in by their own migrations)
   const ranchSame = Object.keys(save.ranch || {}).filter(k => !['residents', 'family', 'nursery', 'life'].includes(k)).every(k => JSON.stringify(save.ranch[k]) === JSON.stringify(m.ranch[k]));
   const twice = JSON.stringify(migrate(clone(m)).ranch) === JSON.stringify(m.ranch);
