@@ -765,7 +765,10 @@ export const CONTESTS = {
     { id: 'grand', name: 'Grand Cup', pearls: 40, rivals: [rival('mine', 60), rival('museum', 72), rival('observe', 85)] },
     { id: 'champion', name: 'Champion Cup', pearls: 100, rivals: [rival('springs', 90), rival('museum', 100), rival('festival', 110)] },
   ],
-  trophyValue: 0.03,   // each trophy: buyers pay this much more for that slime (new homes and auctions)
+  // each trophy: buyers pay this much more for that slime (new homes and auctions). Design: 0.03; tuned by
+  // tools/contest-sim.mjs: 12 trophies x 0.03 + the Beauty Champion's +5% made a fully trophied slime's auctions +41%
+  // (target at most +25%); 0.015 gives +23% (0.0175: +26%, 0.02: +29%).
+  trophyValue: 0.015,
   // Champion perks, for that slime, lasting: offers (new homes and auctions) +x, trips x shorter, ranch pearls +x
   perks: { beauty: { offers: 0.05 }, sprint: { tripTime: 0.05 }, bounce: { pearls: 0.03 } },
   // the title when a slime is Champion in more than one contest
