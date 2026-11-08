@@ -672,6 +672,54 @@ export const SKILL_IDS = RANCH_LIFE.skills.map(s => s.id);
 export const SKILL_BY_ID = Object.fromEntries(RANCH_LIFE.skills.map(s => [s.id, s]));
 export const PLACE_BY_ID = Object.fromEntries(RANCH_LIFE.places.map(p => [p.id, p]));
 
+// ---------- Talents: raising shapes what a slime is good at (rules in core/talents.js) ----------
+// Four sources add up to talent points for each of the five skills: what it ate (diet, 0-3), its personality (nature,
+// 0-4), its grown-up form (0 or 2) and its hidden Potential (1-5, rolled from the egg, partly inherited). The total gives
+// a grade per skill; the grade makes that skill's lessons shorter and lifts its star cap. Grade C is exactly the ranch
+// from before talents. Never shown as numbers: the barn card says it in words after the first lesson in a skill.
+export const TALENTS = {
+  // diet: points to a skill = round(scale x the share of its flavours in the slime's traits); Leafy counts half for
+  // Sturdy and half for Smarts
+  diet: { scale: 3, skills: { sweet: { charm: 1 }, heat: { bounce: 1 }, mineral: { sturdy: 1 }, spark: { speed: 1 }, prism: { smarts: 1 }, nature: { sturdy: 0.5, smarts: 0.5 } } },
+  // nature: a personality slider gives the skill of the end it leans to min(max, (distance from 50 - dead) / per)
+  // points. ends: [the low end's skill, the high end's skill]
+  //   playful: Mellow / Playful   bold: Shy / Bold   patient: Impulsive / Patient   cuddly: Independent / Cuddly
+  //   curious: Likes the familiar / Endlessly curious
+  nature: { dead: 10, per: 10, max: 2,
+    ends: { playful: ['sturdy', 'bounce'], bold: ['sturdy', 'bounce'], patient: ['speed', 'smarts'], cuddly: ['speed', 'charm'], curious: ['charm', 'smarts'] } },
+  // form: the grown-up form's specialty gets `points`; `every` forms give that much to every skill instead (Marshmallow,
+  // balanced). Keys: form ids (Pure versions share their form's id), spark forms by their spark id.
+  form: {
+    points: 2,
+    every: { mochi: 1 },
+    skill: {
+      sweet: 'charm', heat: 'bounce', mineral: 'sturdy', nature: 'smarts', spark: 'speed', prism: 'smarts',
+      'heat+sweet': 'charm', 'heat+mineral': 'sturdy', 'nature+sweet': 'charm', 'mineral+nature': 'sturdy', 'prism+spark': 'smarts',
+      'mineral+prism': 'smarts', 'heat+spark': 'bounce', 'spark+sweet': 'bounce', 'nature+spark': 'speed', 'heat+nature': 'bounce',
+      'mineral+spark': 'speed', 'prism+sweet': 'charm', 'heat+prism': 'smarts', 'nature+prism': 'speed', 'mineral+sweet': 'sturdy',
+      smore: 'charm', honeycomb: 'charm', campfire: 'sturdy', storm: 'speed',
+    },
+  },
+  // Potential, the hidden IVs: each skill rolls 1-5 from the egg (weights for 1..5). A bred egg: per skill, `copy` of
+  // the time parent A's, `copy` parent B's, else a fresh roll; a Pure egg (both parents the same form) rolls its fresh
+  // skills `pureRolls` times and keeps the best.
+  potential: { weights: [15, 30, 30, 18, 7], copy: 0.4, pureRolls: 2 },
+  // grades from the total points (the highest whose `min` it reaches): lessons in that skill take x`lessonTime`, and
+  // it can learn up to `cap` stars. C is exactly the ranch from before talents.
+  grades: [
+    { id: 'C', min: 0, lessonTime: 1, cap: 5 },
+    { id: 'B', min: 4, lessonTime: 0.85, cap: 5 },
+    { id: 'A', min: 6, lessonTime: 0.70, cap: 6 },
+    { id: 'S', min: 10, lessonTime: 0.55, cap: 7 },
+  ],
+  floor: 'B',          // the cozy rule: a slime whose five skills all come out C has its best one lifted to this grade
+  lessonFloor: 0.40,   // a lesson never takes less than this share of its time (grade x Smarts x loves)
+  // stars 6 and 7 (grades A and S): price and length; each keeps the skill's per-star effect (RANCH_LIFE.skills fx)
+  stars: { pearls: [80, 120], minutes: [480, 1440] },
+  // the barn card's line once the first lesson in a skill is over ({skill}: its name); C says nothing
+  reveal: { S: 'a natural at {skill}!', A: 'takes to {skill} quickly', B: 'getting the hang of {skill}' },
+};
+
 // The Greenhouse (Settings > Background, the default home): a room baked outside the repo (its files are in
 // src/assets/greenhouse/; gh.json has the room's footprints and glow spots), drawn by src/view/greenhouse.js, and a
 // camera you can turn inside it. Room coordinates: x right, y up, z toward you; the slime's stump is at the origin.
