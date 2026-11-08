@@ -113,7 +113,7 @@ export function dressUp(state, id, slot, outfitId = null) {
 export function cheerGrade(taps, { reducedMotion = false } = {}) {
   const ch = C.cheer;
   if (reducedMotion) return ch.reduced;
-  const list = (Array.isArray(taps) ? taps : [taps]).map(Number).filter(t => Number.isFinite(t) && t >= 0 && t < ch.window);
+  const list = (Array.isArray(taps) ? taps : [taps]).filter(t => typeof t === 'number' && Number.isFinite(t) && t >= 0 && t < ch.window);
   if (!list.length) return 'none';
   const off = Math.abs(Math.min(...list) - ch.beat);
   return off <= ch.perfect + 1e-9 ? 'perfect' : off <= ch.good + 1e-9 ? 'good' : 'nice';
