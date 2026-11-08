@@ -59,10 +59,10 @@ const want2c = { sweet: 'charm', heat: 'bounce', mineral: 'sturdy', nature: 'sma
 ok(JSON.stringify(Object.entries(T.form.skill).sort()) === JSON.stringify(Object.entries(want2c).sort()) && T.form.points === 2 && T.form.every.mochi === 1 && Object.keys(T.form.every).length === 1,
   '2c form: the 25 specialties of the table (+2) and Marshmallow +1 to every skill');
 ok(FORM_IDS.every(id => T.form.skill[id] || T.form.every[id]) && SPARK_FORMS.every(s => T.form.skill[s.id]), `every form has a specialty: the ${FORM_IDS.length} diet forms and the ${SPARK_FORMS.length} spark forms`);
-ok(T.potential.weights.join() === '15,30,30,18,7' && T.potential.copy === 0.4 && T.potential.pureRolls === 2, '2d Potential: weights 15/30/30/18/7, 40% / 40% / 20% fresh, Pure: best of two fresh rolls');
+ok(T.potential.weights.join() === '5,18,65,6,6' && T.potential.copy === 0.4 && T.potential.pureRolls === 2, '2d Potential: weights as tuned by tools/talent-sim.mjs (T1b) 5/18/65/6/6 (design 15/30/30/18/7), 40% / 40% / 20% fresh, Pure: best of two fresh rolls');
 ok(T.grades.map(g => `${g.id}x${g.lessonTime}c${g.cap}`).join(' ') === 'Cx1c5 Bx0.85c5 Ax0.7c6 Sx0.55c7' && T.floor === 'B' && T.lessonFloor === 0.4,
   '3 grade effects as designed: C x1.00 cap 5, B x0.85 cap 5, A x0.70 cap 6, S x0.55 cap 7; cozy floor B; lessons never under x0.40');
-ok(T.grades.map(g => g.min).join() === '0,6,8,10', 'grade cutoffs as tuned by tools/talent-sim.mjs: B 6, A 8, S 10 (design: B 4, A 6, S 10)');
+ok(T.grades.map(g => g.min).join() === '0,6,8,11', 'grade cutoffs as tuned by tools/talent-sim.mjs: B 6, A 8, S 11 (T1: S 10; design: B 4, A 6, S 10)');
 ok(T.stars.pearls.join() === '80,120' && T.stars.minutes.join() === '480,1440', 'stars 6 and 7: 80 and 120 pearls, 8 h and 24 h');
 
 // ---------- 2. points ----------
@@ -89,8 +89,8 @@ ok(parts.total.bounce === 3 + 3.5 + 2 + 4 && parts.total.speed === 1, 'the total
 
 // ---------- 3. grades and the cozy floor ----------
 console.log('\n# grades');
-ok([1, 3, 5].every(n => TL.gradeFor(n) === 'C') && [6, 7].every(n => TL.gradeFor(n) === 'B') && [8, 9].every(n => TL.gradeFor(n) === 'A') && [10, 14].every(n => TL.gradeFor(n) === 'S'), 'C 1-5, B 6-7, A 8-9, S 10+');
-ok(T.grades.slice(1).every((g, i) => TL.gradeFor(g.min) === g.id && TL.gradeFor(g.min - 0.1) === T.grades[i].id), 'between whole points: the grade it has reached (5.9 C, 7.9 B, 9.9 A)');
+ok([1, 3, 5].every(n => TL.gradeFor(n) === 'C') && [6, 7].every(n => TL.gradeFor(n) === 'B') && [8, 9, 10, 10.9].every(n => TL.gradeFor(n) === 'A') && [11, 14].every(n => TL.gradeFor(n) === 'S'), 'C 1-5, B 6-7, A 8-10, S 11+');
+ok(T.grades.slice(1).every((g, i) => TL.gradeFor(g.min) === g.id && TL.gradeFor(g.min - 0.1) === T.grades[i].id), 'between whole points: the grade it has reached (5.9 C, 7.9 B, 10.9 A)');
 {
   const plain = resident();
   const g = TL.talentsOf(plain);
@@ -124,11 +124,12 @@ console.log('\n# Potential');
   // parents 5 and 1: a 5 is A's (or a fresh 5), a 1 is B's (or a fresh 1); fresh 2-4 is plainly fresh
   for (let i = 0; i < 8000; i++) { const p = TL.inheritPotential(A, B, 'inh' + i); for (const s of SKILL_IDS) { tot++; if (p[s] === 5) fromA++; else if (p[s] === 1) fromB++; else other++; } }
   const fA = fromA / tot, fB = fromB / tot, fo = other / tot;
-  ok(Math.abs(fA - (0.4 + 0.2 * 0.07)) < 0.01 && Math.abs(fB - (0.4 + 0.2 * 0.15)) < 0.01 && Math.abs(fo - 0.2 * 0.78) < 0.01, 'bred: 40% parent A, 40% parent B, 20% a fresh roll (40,000 skills)', `A ${(100 * fA).toFixed(1)}% B ${(100 * fB).toFixed(1)}% fresh 2-4 ${(100 * fo).toFixed(1)}%`);
+  const wt = T.potential.weights.map(v => v / T.potential.weights.reduce((t, u) => t + u, 0));
+  ok(Math.abs(fA - (0.4 + 0.2 * wt[4])) < 0.01 && Math.abs(fB - (0.4 + 0.2 * wt[0])) < 0.01 && Math.abs(fo - 0.2 * (wt[1] + wt[2] + wt[3])) < 0.01, 'bred: 40% parent A, 40% parent B, 20% a fresh roll (40,000 skills)', `A ${(100 * fA).toFixed(1)}% B ${(100 * fB).toFixed(1)}% fresh 2-4 ${(100 * fo).toFixed(1)}%`);
   let pureFive = 0, plainFive = 0, k = 0;
   const M = resident({ potential: pot({}) }), M2 = resident({ potential: pot({}) });
   for (let i = 0; i < 8000; i++) { const a = TL.inheritPotential(M, M2, 'p' + i, { pure: true }), b = TL.inheritPotential(M, M2, 'p' + i); for (const s of SKILL_IDS) { k++; if (a[s] === 5) pureFive++; if (b[s] === 5) plainFive++; } }
-  ok(Math.abs(pureFive / k - 0.2 * (1 - 0.93 ** 2)) < 0.006 && Math.abs(plainFive / k - 0.2 * 0.07) < 0.004, 'Pure: fresh skills roll twice and keep the better (a fresh 5: 13.5% instead of 7%)', `pure ${(100 * pureFive / k).toFixed(2)}% vs ${(100 * plainFive / k).toFixed(2)}% of skills are a fresh 5`);
+  ok(Math.abs(pureFive / k - 0.2 * (1 - (1 - wt[4]) ** 2)) < 0.006 && Math.abs(plainFive / k - 0.2 * wt[4]) < 0.004, `Pure: fresh skills roll twice and keep the better (a fresh 5: ${(100 * (1 - (1 - wt[4]) ** 2)).toFixed(1)}% instead of ${(100 * wt[4]).toFixed(0)}%)`, `pure ${(100 * pureFive / k).toFixed(2)}% vs ${(100 * plainFive / k).toFixed(2)}% of skills are a fresh 5`);
   ok(JSON.stringify(TL.inheritPotential(A, B, 's1')) === JSON.stringify(TL.inheritPotential(A, B, 's1')), 'bred: same seed, same Potential');
 }
 
@@ -159,9 +160,11 @@ console.log('\n# where Potential comes from');
 // ---------- 6. hooks: lesson time and star cap ----------
 console.log('\n# lessons (core/ranch-life.js)');
 {
-  // one resident per grade in Bounce: C (1: the cozy floor lifts Charm 4 instead), B (form 2 + 4), A (form 2 + diet 3 + 3), S (2 + 3 + 5)
+  // one resident per grade in Bounce: C (1: the cozy floor lifts Charm 4 instead), B (form 2 + 4), A (form 2 + diet 3 + 3),
+  // S (2 + 3 + 5 + Bold 70: 1; Bold's love is adventure, so its lessons are the grade's alone)
+  const bold = { personality: { ...mid(), bold: 70 } };
   const mk = (b, o = {}) => resident({ potential: pot({ bounce: b, charm: 4 }), ...o });
-  const c = mk(1), b = mk(4, { form: { id: 'heat' } }), a = mk(3, { form: { id: 'heat' }, traits: { heat: 100 } }), s = mk(5, { form: { id: 'heat' }, traits: { heat: 100 } });
+  const c = mk(1), b = mk(4, { form: { id: 'heat' } }), a = mk(3, { form: { id: 'heat' }, traits: { heat: 100 } }), s = mk(5, { form: { id: 'heat' }, traits: { heat: 100 }, ...bold });
   const { rl } = world([c, b, a, s]);
   const g = x => TL.gradeOf(x, 'bounce');
   ok([c, b, a, s].map(g).join('') === 'CBAS', 'four slimes graded C, B, A, S in Bounce', [c, b, a, s].map(x => TL.talentParts(x).total.bounce).join(','));
@@ -180,7 +183,7 @@ console.log('\n# lessons (core/ranch-life.js)');
   const cs = mk(1, { personality: { ...mid(), playful: 100 }, skills: { ...RL.emptySkills(), smarts: 5 } });
   ok(TL.gradeOf(cs, 'bounce') !== 'C' || near(RL.lessonTimeMult(cs, 'bounce'), 0.75 * 0.75), 'C: Smarts and loves exactly as before (x0.5625, the floor never touches it)');
   // each star keeps its per-star effect: 7 Bounce stars = +21% pearls
-  const seven = mk(5, { form: { id: 'heat' }, traits: { heat: 100 }, skills: { ...RL.emptySkills(), bounce: 7 } });
+  const seven = mk(5, { form: { id: 'heat' }, traits: { heat: 100 }, ...bold, skills: { ...RL.emptySkills(), bounce: 7 } });
   ok(near(RL.pearlSkillMult(seven), 1.21) && RL.stars(seven, 'bounce') === 7, 'a 7-star Bounce gives +21% pearls (each star its 3%)');
   // a lesson to a 6th star finishes like any other
   const { rl: rl2, st: st2 } = world([a]);
@@ -196,7 +199,7 @@ console.log('\n# lessons (core/ranch-life.js)');
 // ---------- 7. the reveal line ----------
 console.log('\n# the barn card\'s reveal line');
 {
-  const x = resident({ potential: pot({ bounce: 5, speed: 4, charm: 3 }), form: { id: 'heat' }, traits: { heat: 100 }, personality: { ...mid(), patient: 0 } });   // Bounce S, Speed B (4 + Impulsive 2), Charm C
+  const x = resident({ potential: pot({ bounce: 5, speed: 4, charm: 3 }), form: { id: 'heat' }, traits: { heat: 100 }, personality: { ...mid(), patient: 0, bold: 70 } });   // Bounce S (5 + 2 + 3 + Bold 1), Speed B (4 + Impulsive 2), Charm C
   const { rl } = world([x]);
   ok(TL.revealLine(x) === '' && cardLine(x, { now: NOW, perHour: 4 }).talent === '', 'nothing before a first lesson');
   rl.train(x.id, 'charm', NOW); const d1 = rl.resolve(NOW + 3 * H);

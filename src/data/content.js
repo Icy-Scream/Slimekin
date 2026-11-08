@@ -711,18 +711,22 @@ export const TALENTS = {
   // Potential, the hidden IVs: each skill rolls 1-5 from the egg (weights for 1..5). A bred egg: per skill, `copy` of
   // the time parent A's, `copy` parent B's, else a fresh roll; a Pure egg (both parents the same form) rolls its fresh
   // skills `pureRolls` times and keeps the best.
-  potential: { weights: [15, 30, 30, 18, 7], copy: 0.4, pureRolls: 2 },
+  // Weights tuned by tools/talent-sim.mjs (T1b; design 15/30/30/18/7): most skills roll 3, so raising decides more and
+  // luck less. A slime raised on purpose for Speed or Smarts has 8 points before Potential (diet 2 at most: Static
+  // Berry and Crystal carry a second flavour), so S 11 needs a 3 (77%); a randomly raised slime's best skill has 6
+  // (half of them), so S needs a 5 (6%, the least that keeps a Pure line reaching a 5 in under 4 generations).
+  potential: { weights: [5, 18, 65, 6, 6], copy: 0.4, pureRolls: 2 },
   // grades from the total points (the highest whose `min` it reaches): lessons in that skill take x`lessonTime`, and
   // it can learn up to `cap` stars. C is exactly the ranch from before talents.
-  // Cutoffs tuned by tools/talent-sim.mjs from real raising runs (design: B 4, A 6, S 10). Every slime boops (Playful:
-  // Bounce) and tries new snacks (Curious: Smarts), so with B 4 / A 6 a randomly raised slime had 2.8 skills at A or S
-  // (target about 1); B 6 / A 8 gives 1.2 and 1.5 at B. S stays 10 (see the report: S 11 makes S rare by accident but
-  // leaves most slimes raised on purpose at A).
+  // Cutoffs tuned by tools/talent-sim.mjs from real raising runs (design: B 4, A 6, S 10). A randomly raised slime
+  // leans hard on a few sliders (answers to ~300 requests over 6 days), so with B 4 / A 6 it had 2.8 skills at A or S
+  // (target about 1); B 6 / A 8 gives 1.4 and 1.5 at B. S 11 (T1: 10) with the weights above keeps S by accident under
+  // 5% while every skill raised on purpose reaches S about 3 times in 4 or more (talents-t1b report).
   grades: [
     { id: 'C', min: 0, lessonTime: 1, cap: 5 },
     { id: 'B', min: 6, lessonTime: 0.85, cap: 5 },
     { id: 'A', min: 8, lessonTime: 0.70, cap: 6 },
-    { id: 'S', min: 10, lessonTime: 0.55, cap: 7 },
+    { id: 'S', min: 11, lessonTime: 0.55, cap: 7 },
   ],
   floor: 'B',          // the cozy rule: a slime whose five skills all come out C has its best one lifted to this grade
   lessonFloor: 0.40,   // a lesson never takes less than this share of its time (grade x Smarts x loves)
