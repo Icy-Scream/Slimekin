@@ -2265,11 +2265,11 @@ export class Game {
       dress: (id, slot, outfitId = null) => { const r = dressUp(this.state, id, slot, outfitId); if (r.ok) done(); return r; },
     };
   }
-  // Debug "Contest stars": the resident on the barn's stand (or the first one home) learns every star its talents
+  // Debug "Contest stars": the resident on the barn's stand (or the first one home and free) learns every star its talents
   // allow and is perfectly happy, so it can try every cup.
   debugContestStars() {
     const R = this.state.ranch.residents;
-    const x = (this.barnRanch.on && R.find(r => r.id === this.barnRanch.curId)) || R.find(r => !r.trip);
+    const x = (this.barnRanch.on && R.find(r => r.id === this.barnRanch.curId)) || R.find(r => !r.trip && !r.lesson) || R.find(r => !r.trip);
     if (!x) { this.hud.toast('<b>No one to train</b>Move a slime to the ranch first.', '', 2400); return null; }
     for (const id of SKILL_IDS) x.skills[id] = Math.max(x.skills[id] || 0, starCap(x, id));
     x.happiness = 100;
