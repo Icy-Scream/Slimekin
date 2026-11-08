@@ -59,10 +59,10 @@ const want2c = { sweet: 'charm', heat: 'bounce', mineral: 'sturdy', nature: 'sma
 ok(JSON.stringify(Object.entries(T.form.skill).sort()) === JSON.stringify(Object.entries(want2c).sort()) && T.form.points === 2 && T.form.every.mochi === 1 && Object.keys(T.form.every).length === 1,
   '2c form: the 25 specialties of the table (+2) and Marshmallow +1 to every skill');
 ok(FORM_IDS.every(id => T.form.skill[id] || T.form.every[id]) && SPARK_FORMS.every(s => T.form.skill[s.id]), `every form has a specialty: the ${FORM_IDS.length} diet forms and the ${SPARK_FORMS.length} spark forms`);
-ok(T.potential.weights.join() === '15,30,30,18,7' && T.potential.copy === 0.4 && T.potential.pureRolls === 2, '2d Potential: weights 15/30/30/18/7, 40% / 40% / 20% fresh, Pure: best of two fresh rolls');
+ok(T.potential.weights.join() === '5,18,65,6,6' && T.potential.copy === 0.4 && T.potential.pureRolls === 2, '2d Potential: weights as tuned by tools/talent-sim.mjs (T1b) 5/18/65/6/6 (design 15/30/30/18/7), 40% / 40% / 20% fresh, Pure: best of two fresh rolls');
 ok(T.grades.map(g => `${g.id}x${g.lessonTime}c${g.cap}`).join(' ') === 'Cx1c5 Bx0.85c5 Ax0.7c6 Sx0.55c7' && T.floor === 'B' && T.lessonFloor === 0.4,
   '3 grade effects as designed: C x1.00 cap 5, B x0.85 cap 5, A x0.70 cap 6, S x0.55 cap 7; cozy floor B; lessons never under x0.40');
-ok(T.grades.map(g => g.min).join() === '0,6,8,10', 'grade cutoffs as tuned by tools/talent-sim.mjs: B 6, A 8, S 10 (design: B 4, A 6, S 10)');
+ok(T.grades.map(g => g.min).join() === '0,6,8,11', 'grade cutoffs as tuned by tools/talent-sim.mjs: B 6, A 8, S 11 (T1: S 10; design: B 4, A 6, S 10)');
 ok(T.stars.pearls.join() === '80,120' && T.stars.minutes.join() === '480,1440', 'stars 6 and 7: 80 and 120 pearls, 8 h and 24 h');
 
 // ---------- 2. points ----------
@@ -89,8 +89,8 @@ ok(parts.total.bounce === 3 + 3.5 + 2 + 4 && parts.total.speed === 1, 'the total
 
 // ---------- 3. grades and the cozy floor ----------
 console.log('\n# grades');
-ok([1, 3, 5].every(n => TL.gradeFor(n) === 'C') && [6, 7].every(n => TL.gradeFor(n) === 'B') && [8, 9].every(n => TL.gradeFor(n) === 'A') && [10, 14].every(n => TL.gradeFor(n) === 'S'), 'C 1-5, B 6-7, A 8-9, S 10+');
-ok(T.grades.slice(1).every((g, i) => TL.gradeFor(g.min) === g.id && TL.gradeFor(g.min - 0.1) === T.grades[i].id), 'between whole points: the grade it has reached (5.9 C, 7.9 B, 9.9 A)');
+ok([1, 3, 5].every(n => TL.gradeFor(n) === 'C') && [6, 7].every(n => TL.gradeFor(n) === 'B') && [8, 9, 10, 10.9].every(n => TL.gradeFor(n) === 'A') && [11, 14].every(n => TL.gradeFor(n) === 'S'), 'C 1-5, B 6-7, A 8-10, S 11+');
+ok(T.grades.slice(1).every((g, i) => TL.gradeFor(g.min) === g.id && TL.gradeFor(g.min - 0.1) === T.grades[i].id), 'between whole points: the grade it has reached (5.9 C, 7.9 B, 10.9 A)');
 {
   const plain = resident();
   const g = TL.talentsOf(plain);
@@ -124,11 +124,12 @@ console.log('\n# Potential');
   // parents 5 and 1: a 5 is A's (or a fresh 5), a 1 is B's (or a fresh 1); fresh 2-4 is plainly fresh
   for (let i = 0; i < 8000; i++) { const p = TL.inheritPotential(A, B, 'inh' + i); for (const s of SKILL_IDS) { tot++; if (p[s] === 5) fromA++; else if (p[s] === 1) fromB++; else other++; } }
   const fA = fromA / tot, fB = fromB / tot, fo = other / tot;
-  ok(Math.abs(fA - (0.4 + 0.2 * 0.07)) < 0.01 && Math.abs(fB - (0.4 + 0.2 * 0.15)) < 0.01 && Math.abs(fo - 0.2 * 0.78) < 0.01, 'bred: 40% parent A, 40% parent B, 20% a fresh roll (40,000 skills)', `A ${(100 * fA).toFixed(1)}% B ${(100 * fB).toFixed(1)}% fresh 2-4 ${(100 * fo).toFixed(1)}%`);
+  const wt = T.potential.weights.map(v => v / T.potential.weights.reduce((t, u) => t + u, 0));
+  ok(Math.abs(fA - (0.4 + 0.2 * wt[4])) < 0.01 && Math.abs(fB - (0.4 + 0.2 * wt[0])) < 0.01 && Math.abs(fo - 0.2 * (wt[1] + wt[2] + wt[3])) < 0.01, 'bred: 40% parent A, 40% parent B, 20% a fresh roll (40,000 skills)', `A ${(100 * fA).toFixed(1)}% B ${(100 * fB).toFixed(1)}% fresh 2-4 ${(100 * fo).toFixed(1)}%`);
   let pureFive = 0, plainFive = 0, k = 0;
   const M = resident({ potential: pot({}) }), M2 = resident({ potential: pot({}) });
   for (let i = 0; i < 8000; i++) { const a = TL.inheritPotential(M, M2, 'p' + i, { pure: true }), b = TL.inheritPotential(M, M2, 'p' + i); for (const s of SKILL_IDS) { k++; if (a[s] === 5) pureFive++; if (b[s] === 5) plainFive++; } }
-  ok(Math.abs(pureFive / k - 0.2 * (1 - 0.93 ** 2)) < 0.006 && Math.abs(plainFive / k - 0.2 * 0.07) < 0.004, 'Pure: fresh skills roll twice and keep the better (a fresh 5: 13.5% instead of 7%)', `pure ${(100 * pureFive / k).toFixed(2)}% vs ${(100 * plainFive / k).toFixed(2)}% of skills are a fresh 5`);
+  ok(Math.abs(pureFive / k - 0.2 * (1 - (1 - wt[4]) ** 2)) < 0.006 && Math.abs(plainFive / k - 0.2 * wt[4]) < 0.004, `Pure: fresh skills roll twice and keep the better (a fresh 5: ${(100 * (1 - (1 - wt[4]) ** 2)).toFixed(1)}% instead of ${(100 * wt[4]).toFixed(0)}%)`, `pure ${(100 * pureFive / k).toFixed(2)}% vs ${(100 * plainFive / k).toFixed(2)}% of skills are a fresh 5`);
   ok(JSON.stringify(TL.inheritPotential(A, B, 's1')) === JSON.stringify(TL.inheritPotential(A, B, 's1')), 'bred: same seed, same Potential');
 }
 
@@ -159,9 +160,11 @@ console.log('\n# where Potential comes from');
 // ---------- 6. hooks: lesson time and star cap ----------
 console.log('\n# lessons (core/ranch-life.js)');
 {
-  // one resident per grade in Bounce: C (1: the cozy floor lifts Charm 4 instead), B (form 2 + 4), A (form 2 + diet 3 + 3), S (2 + 3 + 5)
+  // one resident per grade in Bounce: C (1: the cozy floor lifts Charm 4 instead), B (form 2 + 4), A (form 2 + diet 3 + 3),
+  // S (2 + 3 + 5 + Bold 70: 1; Bold's love is adventure, so its lessons are the grade's alone)
+  const bold = { personality: { ...mid(), bold: 70 } };
   const mk = (b, o = {}) => resident({ potential: pot({ bounce: b, charm: 4 }), ...o });
-  const c = mk(1), b = mk(4, { form: { id: 'heat' } }), a = mk(3, { form: { id: 'heat' }, traits: { heat: 100 } }), s = mk(5, { form: { id: 'heat' }, traits: { heat: 100 } });
+  const c = mk(1), b = mk(4, { form: { id: 'heat' } }), a = mk(3, { form: { id: 'heat' }, traits: { heat: 100 } }), s = mk(5, { form: { id: 'heat' }, traits: { heat: 100 }, ...bold });
   const { rl } = world([c, b, a, s]);
   const g = x => TL.gradeOf(x, 'bounce');
   ok([c, b, a, s].map(g).join('') === 'CBAS', 'four slimes graded C, B, A, S in Bounce', [c, b, a, s].map(x => TL.talentParts(x).total.bounce).join(','));
@@ -180,7 +183,7 @@ console.log('\n# lessons (core/ranch-life.js)');
   const cs = mk(1, { personality: { ...mid(), playful: 100 }, skills: { ...RL.emptySkills(), smarts: 5 } });
   ok(TL.gradeOf(cs, 'bounce') !== 'C' || near(RL.lessonTimeMult(cs, 'bounce'), 0.75 * 0.75), 'C: Smarts and loves exactly as before (x0.5625, the floor never touches it)');
   // each star keeps its per-star effect: 7 Bounce stars = +21% pearls
-  const seven = mk(5, { form: { id: 'heat' }, traits: { heat: 100 }, skills: { ...RL.emptySkills(), bounce: 7 } });
+  const seven = mk(5, { form: { id: 'heat' }, traits: { heat: 100 }, ...bold, skills: { ...RL.emptySkills(), bounce: 7 } });
   ok(near(RL.pearlSkillMult(seven), 1.21) && RL.stars(seven, 'bounce') === 7, 'a 7-star Bounce gives +21% pearls (each star its 3%)');
   // a lesson to a 6th star finishes like any other
   const { rl: rl2, st: st2 } = world([a]);
@@ -196,7 +199,7 @@ console.log('\n# lessons (core/ranch-life.js)');
 // ---------- 7. the reveal line ----------
 console.log('\n# the barn card\'s reveal line');
 {
-  const x = resident({ potential: pot({ bounce: 5, speed: 4, charm: 3 }), form: { id: 'heat' }, traits: { heat: 100 }, personality: { ...mid(), patient: 0 } });   // Bounce S, Speed B (4 + Impulsive 2), Charm C
+  const x = resident({ potential: pot({ bounce: 5, speed: 4, charm: 3 }), form: { id: 'heat' }, traits: { heat: 100 }, personality: { ...mid(), patient: 0, bold: 70 } });   // Bounce S (5 + 2 + 3 + Bold 1), Speed B (4 + Impulsive 2), Charm C
   const { rl } = world([x]);
   ok(TL.revealLine(x) === '' && cardLine(x, { now: NOW, perHour: 4 }).talent === '', 'nothing before a first lesson');
   rl.train(x.id, 'charm', NOW); const d1 = rl.resolve(NOW + 3 * H);
@@ -255,6 +258,92 @@ console.log('\n# old saves');
   bad.slime.potential = 'nope';
   const mb = migrate(bad);
   ok(TL.validPotential(mb.ranch.residents[0].potential) && TL.validPotential(mb.slime.potential), 'a broken Potential (text, out of range) is repaired from its id / egg');
+}
+
+// ---------- 8b. the raising nudges talents read (T1b) ----------
+console.log('\n# raising nudges (T1b): familiar snacks, boops and Playful');
+{
+  const U = C.TUNING, F = U.familiar, TO = U.boopPlayfulTo;
+  // a fresh slime at home, its sliders in the middle; its favorite is berry unless given
+  const fresh = (fav = 'berry') => {
+    const st = createState(); st.phase = 'play'; st.slime.name = 'Clover';
+    st.slime.personality = mid(); st.slime.favorite = fav; st.slime.dislike = 'moss'; st.jelly = 1e12;
+    const sim = new Sim(st); return { st, sim, p: st.slime.personality };
+  };
+  ok(F.repeat > 0 && F.favorite > 0 && TO > 50 && TO <= 100, `the numbers are in TUNING: familiar ${F.repeat} a repeat, favorite ${F.favorite}; boops nudge Playful up to ${TO}`);
+  // fix 1: familiar snacks
+  {
+    const { sim, p, st } = fresh();
+    sim.feed('cookie', { free: true });
+    ok(near(p.curious, 52), 'a new snack: Curious +2, as before', p.curious);
+    sim.feed('cookie', { free: true });
+    ok(near(p.curious, 52 - F.repeat), `the same snack again (twice among its last 6): Curious -${F.repeat}`, p.curious.toFixed(3));
+    for (let i = 0; i < 4; i++) { st.slime.tummy = 0; sim.feed('cookie', { free: true }); }
+    ok(near(p.curious, 52 - F.repeat * (1 + 2 + 3 + 4 + 5)), `six cookies in a row: the 6th nudges -${(5 * F.repeat).toFixed(2)} (5 more among its last 6)`, p.curious.toFixed(3));
+    st.slime.tummy = 0; sim.feed('cookie', { free: true });
+    ok(near(p.curious, 52 - F.repeat * 20), 'the window is its last 6 snacks: a 7th cookie also nudges 5 x', p.curious.toFixed(3));
+  }
+  {
+    // a varied menu: the six snacks in turn (all known): none is twice among its last 6, so only the snacks' own nudges
+    // move Curious (Crystal +0.6) and its favorite's (Cookie) -favorite
+    const { sim, p, st } = fresh('cookie');
+    const menu = ['cookie', 'chili', 'iron', 'moss', 'berry', 'crystal'];
+    for (const id of menu) { st.slime.tummy = 0; sim.feed(id, { free: true }); }
+    const before = p.curious;
+    for (let round = 0; round < 3; round++) for (const id of menu) { st.slime.tummy = 0; sim.feed(id, { free: true }); }
+    ok(near(p.curious, before + 3 * (0.6 - F.favorite)), `a varied menu (the six snacks in turn, 3 rounds): no repeat nudges, only Crystal's +0.6 and its favorite's -${F.favorite} each round`, `${before} -> ${p.curious.toFixed(3)}`);
+    sim.recentFoods = [];
+    const b2 = p.curious; st.slime.tummy = 0; sim.feed('cookie', { free: true });
+    ok(near(p.curious, b2 - F.favorite), `its favorite (Cookie, known, not among its last 6): Curious -${F.favorite}`, `${b2.toFixed(3)} -> ${p.curious.toFixed(3)}`);
+  }
+  {
+    // on purpose: cookies only, the way a player raises a Charm slime: it ends "Likes the familiar"
+    const { sim, p, st } = fresh();
+    let feeds = 0;
+    while (p.curious > 20 && feeds < 2000) { st.slime.tummy = 0; sim.feed('cookie', { free: true }); feeds++; }
+    p.cuddly = 100;
+    ok(p.curious <= 20 && feeds <= 800 && near(TL.naturePoints(p).charm, 4), `fed only cookies, it is "Likes the familiar" (Curious 20 or less) after ${feeds} snacks: Charm nature 4 of 4 with Cuddly`, `nature charm ${TL.naturePoints(p).charm}`);
+  }
+  // fix 2: boops nudge Playful less as it rises, and not past TO
+  {
+    const { sim, p, st } = fresh();
+    const boop = () => { sim.giggle = 0; sim.dizzy = 0; st.slime.energy = 100; sim.boop(); };
+    p.playful = 30; boop();
+    ok(near(p.playful, 30.03), 'under 50 a boop is +0.03 Playful, as before', p.playful);
+    p.playful = (50 + TO) / 2; boop();
+    ok(near(p.playful, (50 + TO) / 2 + 0.015), `half way to ${TO}: +0.015`, p.playful);
+    p.playful = 50;
+    for (let i = 0; i < 20000; i++) boop();
+    ok(p.playful < TO && p.playful > TO - 1, `20,000 boops from 50 never reach ${TO} (booping alone gives no Bounce points from Playful)`, `${p.playful.toFixed(2)}, Bounce nature ${TL.naturePoints(p).bounce.toFixed(2)}`);
+    p.playful = TO; boop();
+    ok(p.playful === TO, `at ${TO} a boop does nothing to Playful`);
+    sim.nudge('playful', 3); st.slime.tummy = 0; sim.feed('berry', { free: true });
+    ok(near(p.playful, TO + 3.5), 'playing (a play request: +3) and berries (+0.5) still go past it', p.playful);
+  }
+  // neither nudge changes any jelly: the same boops, pets and snacks make exactly the same jelly with the nudges from
+  // before T1b (curious and playful are read by nothing that makes jelly)
+  {
+    const run = o => {
+      const keep = { familiar: U.familiar, boopPlayfulTo: U.boopPlayfulTo };
+      Object.assign(U, o);
+      rnd = 4242;   // the same dice for both runs
+      try {
+        const st = createState(); st.phase = 'play'; st.slime.name = 'Clover'; st.slime.personality = mid(); st.slime.favorite = 'cookie'; st.jelly = 5000;
+        const sim = new Sim(st);
+        for (let t = 0; t < 4000; t++) {
+          sim.tick(0.5);
+          if (t % 3 === 0) { sim.giggle = Math.min(sim.giggle, 40); sim.boop(); }
+          if (t % 40 === 5) sim.pet(1);
+          if (st.slime.tummy < 70) { const id = ['cookie', 'cookie', 'chili', 'iron'][t % 4]; if (sim.canFeed(id).ok) sim.feed(id); }
+        }
+        return { jelly: st.jelly, total: st.totalJelly, growth: st.slime.growth, p: { ...st.slime.personality } };
+      } finally { Object.assign(U, keep); }
+    };
+    const now = run({}), was = run({ familiar: { repeat: 0, favorite: 0 }, boopPlayfulTo: null });
+    ok(now.jelly === was.jelly && now.total === was.total && now.growth === was.growth && now.p.patient === was.p.patient,
+      'the nudges change no jelly: 2000 boops, pets and 4 snacks in turn make exactly the same jelly and growth as before T1b (only Curious and Playful differ)',
+      `jelly ${now.total.toFixed(1)}; Curious ${was.p.curious.toFixed(1)} -> ${now.p.curious.toFixed(1)}, Playful ${was.p.playful.toFixed(1)} -> ${now.p.playful.toFixed(1)}`);
+  }
 }
 
 // ---------- 9. no numbers of its own ----------

@@ -1,6 +1,7 @@
 // The barn card with a talent's reveal line (Talents T1), one picture at iPhone size (390 x 844), day and night, and the
 // Train picker past five stars. From tools/fixtures/barn/barn-six.json: Mochi (a Crystal Slime, Curly) has had lessons
-// in Bounce, Speed and Smarts; her Potential in Smarts is 5, so Smarts is S and the card says "a natural at Smarts!".
+// in Bounce, Speed and Smarts; her Potential in Smarts is 5 and she leans Curious (70), so Smarts is S (11 points) and the
+// card says "a natural at Smarts!".
 // Then she has 5 Smarts stars and the Train picker offers the 6th (7 star places, 80 pearls).
 //   node tools/talent-card-shot.cjs [--dpr 2]
 //   pictures: tools/out/talents/barn-card-reveal-{day,night}.png, train-picker-6th-star-day.png
@@ -32,6 +33,7 @@ const SAVE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'barn',
       const m = s.ranch.residents.find(x => x.name === 'Mochi');
       m.skills.smarts = 1;
       m.potential = { bounce: 2, speed: 3, sturdy: 2, smarts: 5, charm: 3 };
+      m.personality.curious = 70;   // Smarts 3 (diet) + 2 (Crystal) + 1 (Curious) + 5 = 11: S since T1b
       m.talentsSeen = ['bounce', 'speed', 'smarts'];
       s.savedAt = now - 60000; s.ranch.lastVisit = now;
       localStorage.setItem('slimekin.save.v1', JSON.stringify(s));

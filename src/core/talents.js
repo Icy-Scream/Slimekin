@@ -16,9 +16,8 @@ const zero = () => Object.fromEntries(SKILL_IDS.map(id => [id, 0]));
 const gradeRank = id => T.grades.findIndex(g => g.id === id);
 
 // ---------- Potential (the hidden IVs) ----------
-const WEIGHT_SUM = T.potential.weights.reduce((a, b) => a + b, 0);
 function rollOne(rand) {
-  let r = rand() * WEIGHT_SUM;
+  let r = rand() * T.potential.weights.reduce((a, b) => a + b, 0);
   for (let i = 0; i < T.potential.weights.length; i++) { r -= T.potential.weights[i]; if (r < 0) return i + 1; }
   return T.potential.weights.length;
 }
