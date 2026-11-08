@@ -768,8 +768,9 @@ export const CONTESTS = {
   // The show on the barn's stand (seconds; the screens only, no rule reads these). open: the banner and "To beat" before
   // act 1; perform: the slime's moves in each act before its cheer; pop: the cheer's label; rest: before the next act;
   // finale: after act 3, before the results card. ring: the pink ring starts this many times the gold one's size.
-  // With these a show is about 34 s (the cheer rings are cheer.window each at most).
-  show: { open: 2.6, perform: 4.6, pop: 1.5, rest: 0.8, finale: 2.4, ring: 1.8, swapWait: 4 },
+  // With these a show lasts 32 s with taps on the beat, 34 s with no taps, 30 s with Reduced motion (its cheer moment
+  // is `reducedCheer` long); the slime coming up on the stand first adds about a second.
+  show: { open: 3.0, perform: 5.0, pop: 1.5, rest: 0.8, finale: 2.6, ring: 1.8, reducedCheer: 0.9, swapWait: 4 },
   // The cup ladder: three friendly rivals each with a fixed score (shown before the show); a tie goes to your slime.
   // pearls: the first time a slime wins that cup (once per slime per contest); short: its name on the cup tiles
   cups: [

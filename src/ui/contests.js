@@ -39,6 +39,7 @@ const CSS = `
   .cs-halves .btn { min-height: 52px; padding: 6px 8px; display: flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; }
   .cs-half .gi { width: 22px; height: 22px; flex: none; }
   .cs-half span { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; text-align: left; line-height: 1.2; }
+  .cs-half b { font-size: 14px; white-space: nowrap; }
   .cs-half small { font-size: 11.5px; font-weight: 700; color: var(--ink-2); white-space: nowrap; }
   #modalCard.cs-modal { gap: 10px; }
   .cs-modal h2.cs-h { font-family: var(--body); font-weight: 800; font-size: 23px; }

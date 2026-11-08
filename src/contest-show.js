@@ -174,7 +174,7 @@ export class ContestShow {
     const res = scoreShow(g.state, s.id, s.contest, { cup: s.cup, cheers, reducedMotion: s.reduced });
     if (!res.ok) { this.end(); return; }
     const given = applyShow(g.state, res, g.nowMs());
-    this.last = { res, given, taps: s.taps.map(t => [...t]), skipped: !!s.skipped };
+    this.last = { res, given, taps: s.taps.map(t => [...t]), skipped: !!s.skipped, seconds: { game: Math.round((s.game || 0) * 10) / 10, wall: Math.round((s.wall || 0) / 100) / 10 } };
     g.markDirty(true);
     g.saveNow(true);
     if (given && given.journal) g.hud.dot('journal');
@@ -204,6 +204,7 @@ export class ContestShow {
     if (!s) return;
     const b = g.barnRanch;
     if (g.view !== 'ranch' || !b.active) { this.cancel(); return; }
+    if (s.phase !== 'swap') { s.game += dt; s.wall = performance.now() - s.wall0; }   // (how long it ran: the report)
     if (!g.sim.ranch.resident(s.id)) { this.cancel(); return; }
     this.placeRings();
     // another card came up (the hiccup card, a postcard...): the show waits; a ring that was running starts again
@@ -211,7 +212,7 @@ export class ContestShow {
     s.t += dt;
     const S = C.show;
     if (s.phase === 'swap') {
-      if (b.curId === s.id && !b.view.swapping) this.next('open');
+      if (b.curId === s.id && !b.view.swapping) { this.next('open'); s.game = 0; s.wall0 = performance.now(); s.wall = 0; }
       else if (s.t > S.swapWait && !b.view.swapping) this.cancel();
       return;
     }
@@ -223,7 +224,7 @@ export class ContestShow {
     }
     if (s.phase === 'ring') {
       const r = s.ring;
-      if (s.reduced) { if (s.t >= 0.9) this.graded(C.cheer.reduced); return; }
+      if (s.reduced) { if (s.t >= S.reducedCheer) this.graded(C.cheer.reduced); return; }
       if (r && !r.graded && performance.now() - r.t0 > C.cheer.window * 1000) {
         if (r.hidden) { this.stopRing(); this.startRing(); return; }   // the phone was put away during it: again
         this.graded('none');
@@ -412,7 +413,7 @@ export class ContestShow {
   // (test hook) the show now: its phase, act, the ring's start (performance.now() ms), the grades and the taps
   info() {
     const s = this.s;
-    if (!s) return { on: false, last: this.last ? { won: this.last.res.won, score: this.last.res.score, place: this.last.res.place, cheers: this.last.res.cheers, grades: this.last.res.acts.map(a => a.cheer), given: this.last.given, taps: this.last.taps, skipped: this.last.skipped } : null };
+    if (!s) return { on: false, last: this.last ? { won: this.last.res.won, score: this.last.res.score, place: this.last.res.place, cheers: this.last.res.cheers, grades: this.last.res.acts.map(a => a.cheer), given: this.last.given, taps: this.last.taps, skipped: this.last.skipped, seconds: this.last.seconds } : null };
     return { on: true, phase: s.phase, act: s.act, t: s.t, ringT0: s.ring ? s.ring.t0 : null, graded: s.ring ? s.ring.graded : null, grades: [...s.grades], taps: s.taps.map(t => [...t]), reduced: s.reduced, beat: C.cheer.beat, window: C.cheer.window, place: { ...this.place } };
   }
 }

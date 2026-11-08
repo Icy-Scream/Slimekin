@@ -559,3 +559,59 @@ Changed:
 | The Ranch page heading | Slime Ranch | The Barn |
 | The Meadow hill's gate sign | Slime Ranch | The Barn |
 | Heirloom "It will live ..." | along the ranch fence / on the ranch hill | by the barn door / in the barn |
+
+## Contests (C1b)
+
+The contest screens, built from the approved mock-ups (`slimekin-notes/samples/contests-c1b/`). Cards: `src/ui/contests.js`
+(CSS in `<style id="contestsCss">` made by that file); the show: `src/contest-show.js` (`<style id="contestShowCss">`).
+Rules: `src/core/contests.js`; words and numbers: `CONTESTS` in `content.js` (contest names and colors, act `short`
+names, cup `short` names, rivals, `cheer` and `show` timing). Screenshots: `node tools/contest-shots.cjs [--night]
+[--fonts <dir>]` (tools/out/contests/). No emoji: the new drawings are in `src/ui/icons.js`.
+
+- Icons (`src/ui/icons.js`): `cupIcon(color, { tier, champion, ghost })` a cup in a contest's color (`CONTESTS` color:
+  Beauty `#ff74b0`, Sprint `#3fa2ff`, Bounce-Off `#ff9b2f`; never a metal, the medals own those), sized by tier with
+  `.gi.cup.cup-1..4` (24/29/34/37 px), a star on the Champion Cup, `ghost` = an outline in the text color for a cup not
+  won yet; `blobIcon(color)` a rival's little blob; `ICON.whistle` (the coach), `ICON.bow` (Dress up), `ICON.check`; the
+  Journal's `'🏆'` memory icon is now drawn (one cup in all three contests' colors).
+- Resident page (`#body-ranch`, a resident's page): a second row `.res.cs-row2` under Train / Send on a trip:
+  `[data-cs="enter"]` "Enter a contest" (Little cup icon) and `[data-cs="dress"]` "Dress up" (bow icon), the same `.btn`.
+  On a trip: no row. In a lesson: "Enter a contest" disabled and `.cs-why` "Contests wait until the lesson ends."; Dress
+  up stays. Beside the medal line: `.cs-trophies` its cups (one per trophy, by contest and tier) and "3 trophies: buyers
+  pay +4.5% for Pebble" (the TOTAL trophy bonus); one `.cs-perk` line per Champion perk ("Beauty Champion: buyers pay 5%
+  more for Pebble."). Nothing with no trophies.
+- Ranch tab: the Ranch life card's Souvenirs button is now half of `.cs-halves`: "Souvenirs x / 18" and
+  `[data-cs="shelf"].cs-half` (the three-color cup, "Trophies x / 12" + "Champions x / 3", counted from the Trophy Shelf).
+- Modals (`#modalCard.cs-modal`, a hidden `[data-cs-card="entry|dress|result|shelf"]` marks which): titles in the body
+  font 23 px (`h2.cs-h`), results in the display font 30 px (`h2.cs-big`).
+  - Entry card: "Enter a contest", the three contests as tabs `.cs-tab` (a color dot each), the cup ladder `.cs-cup` x 4
+    ("✓ Won" green, "Next" purple and outlined, locked: "Not yet", the Champion Cup "Naturals only"; a won cup can be
+    picked again as a repeat), "<Cup> rivals" + "To win: beat N", three `.cs-rival` rows (blob, "<Place>'s slime",
+    score), `.cs-mine` (name, "before cheers" + the score, its parts "Pose 50 · Natural +6 · Style 0 · Tricks 12 · Mood
+    4", the coach's line from the rules' preview), "Dress up · Style x of 20" (Beauty Show only), "Shows are free and
+    always open. ...", Start the show (primary) / Not now.
+  - Dress up: "Dress up Pebble", the Style meter `.cs-meter` (x of 20, "counts in the Beauty Show"), Head / Face / Neck
+    with every outfit `.cs-outfit` (its rendered icon, "+N Style", `.cs-chip` "✓ Wearing" purple / "Wear"; not owned:
+    faded, "In Outfits", not a button), Done. The resident comes up on the stand and its 3D look changes as you tap.
+    Opened from the entry card or the loss card, Done goes back to the entry card.
+  - Results (`.cs-res`): a loss: "Good try!", "2nd place in the Grand Cup", four `.cs-line` rows (the slime's row
+    `.me` highlighted; a tie lists it first), the parts line with Cheers, the coach's tip `.cs-tip` (whistle) and
+    Dress up / Train / Try again (by the tip) + Okay. A win: sparkles and the big cup, "<Cup> Cup!", "<Name> won the
+    <Contest>", the slime and the top rival, the parts, `.cs-prizes` rows (+N pearls on a first win, "A trophy for
+    <Name>" + the total trophy bonus, "First on the Trophy Shelf" when it is, what opens next / the Champion title and
+    perk; a repeat: "Won again!"), Yay!. Closing it brings the menu sheet back on the resident's page.
+  - Trophy Shelf: "Trophy Shelf x / 12", a line with "Champions x / 3", per contest a dot + name (+ "Champion: <name>")
+    and four tiles (cup, ghost when empty; the first winner's name in purple or "Not yet"), Done.
+- The show (`#csLayer`, `z-index: 4`: over the barn, under the HUD, so the top bar, the name card and the tab bar stay
+  bright): `.cs-dim` the dim with a radial spotlight on the stand (it also takes the cheer taps, anywhere on screen);
+  `#csBanner` "<cup> Beauty Show · Grand Cup" under the top bar, `#csBeat` "To beat: 85", `#csSkip` "Skip" at the right;
+  `#csPrompt` "Go, Pebble!" (display font, purple outline) + "Tap when the rings meet"; `#csGold` / `#csPink` the
+  rings (CSS ellipses; the pink one closes with a Web Animation, `CONTESTS.show.ring` times the gold ring's size at the
+  start); `#csPop` "Perfect! +3" / "Good! +2" / "Nice try! +1". The name card's line becomes "Act 1 of 3 · Pose (Charm)"
+  (`.bc-line.bc-act`, purple) with three act dots; the act strip `#csActs.cs-acts` (three chips: "Pose ···" now,
+  "Style —" to come, "Pose +3" done) takes the ranch bar's place (`#ranchBar.cs-on`). `body.cs-show`: the HUD and the
+  tab bar take no touches, the ‹ › buttons hide, the name card does not open the page, no swaps or petting. Keyboard:
+  Space / Enter cheer, Escape skips.
+- Name card: a Champion's title `.bc-title` on the card's top edge (a pill in the contest's color with a white cup:
+  "Beauty Champion"; two or three contests: "Double Champion" / "Triple Champion" in the Beauty pink).
+- Debug only: `g.contestShow.info()` (phase, act, the ring's start, grades, taps; `last` = the last result),
+  `g.contestShow.debugCheer(grade)` (the picture tool), `g.contestsUI.openEntry(id, contest, cup)`.
