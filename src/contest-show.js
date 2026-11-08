@@ -108,6 +108,7 @@ export class ContestShow {
       else if (e.key === 'Escape') this.skip();
     });
     document.addEventListener('visibilitychange', () => { if (document.hidden && this.s && this.s.ring) this.s.ring.hidden = true; });
+    window.addEventListener('resize', () => { if (this.s) this.placeTop(); });
     const bar = document.getElementById('ranchBar');
     const acts = this.actsEl = document.createElement('div');
     acts.className = 'cs-acts';
@@ -204,9 +205,10 @@ export class ContestShow {
     if (!s) return;
     const b = g.barnRanch;
     if (g.view !== 'ranch' || !b.active) { this.cancel(); return; }
-    if (s.phase !== 'swap') { s.game += dt; s.wall = performance.now() - s.wall0; }   // (how long it ran: the report)
+    // how long it ran (the report): the show's own clock, and the cheer ring's real time (the ring runs on the clock)
+    if (s.phase !== 'swap') { if (s.phase !== 'ring' || s.reduced) s.game += dt; s.wall = performance.now() - s.wall0; }
     if (!g.sim.ranch.resident(s.id)) { this.cancel(); return; }
-    this.placeRings();
+    this.placeRings(dt);
     // another card came up (the hiccup card, a postcard...): the show waits; a ring that was running starts again
     if (g.hud.modalOpen) { if (s.ring && !s.ring.graded) { this.stopRing(); s.phase = 'perform'; s.t = C.show.perform - 0.6; } return; }
     s.t += dt;
@@ -278,7 +280,7 @@ export class ContestShow {
     $.go.textContent = `Go, ${s.name}!`;
     $.hint.textContent = s.reduced ? '' : 'Tap when the rings meet';
     $.prompt.classList.add('on');
-    s.ring = { t0: performance.now(), graded: false, hidden: false, anim: null };
+    s.ring = { t0: performance.now(), w0: performance.now(), graded: false, hidden: false, anim: null };
     if (s.reduced) return;
     $.gold.classList.add('on'); $.pink.classList.add('on');
     $.gold.classList.remove('hit'); $.pink.classList.remove('hit');
@@ -320,6 +322,7 @@ export class ContestShow {
   graded(grade) {
     const s = this.s, $ = this.$, g = this.g;
     s.grades[s.act] = grade;
+    if (s.ring && !s.reduced) s.game += (performance.now() - s.ring.w0) / 1000;
     if (s.ring) {
       s.ring.graded = true;
       if (s.ring.anim) { try { s.ring.anim.pause(); } catch { /* gone */ } }
@@ -384,15 +387,20 @@ export class ContestShow {
     this.place.x = -1;   // (the prompt is placed again)
   }
   // the rings, the spotlight and the prompt follow the slime on the stand (its middle, as the camera sees it)
-  placeRings() {
+  // (smoothed, so the rings and the spotlight stay calm while it hops; snap: at once)
+  placeRings(dt = 1 / 60, snap = false) {
     const g = this.g, v = g.barnRanch.view, cam = g.stage.camera;
-    if (!v.ready || v.empty) return;
+    if (!v.ready || v.empty || v.swapping) return;
     const av = v.av, w = innerWidth, h = innerHeight;
     const c = av.centerWorld(this._v).project(cam);
     const top = av.headTopWorld(this._w).project(cam);
-    const cx = (c.x + 1) / 2 * w, cy = (1 - c.y) / 2 * h, topY = (1 - top.y) / 2 * h;
-    const half = Math.max(40, cy - topY);
-    const rx = Math.max(110, Math.min(w * 0.4, half * 1.9)), ry = rx * 0.69;
+    const tx = (c.x + 1) / 2 * w, ty = (1 - c.y) / 2 * h, topY = (1 - top.y) / 2 * h;
+    const half = Math.max(40, ty - topY);
+    const trx = Math.max(110, Math.min(w * 0.4, half * 1.9));
+    const sm = this.sm || (this.sm = { x: tx, y: ty, rx: trx });
+    const k = snap || this.s.phase === 'swap' ? 1 : 1 - Math.exp(-dt * 2.5);
+    sm.x += (tx - sm.x) * k; sm.y += (ty - sm.y) * k; sm.rx += (trx - sm.rx) * k;
+    const cx = sm.x, cy = sm.y, rx = sm.rx, ry = rx * 0.69;
     const p = this.place;
     if (Math.abs(p.x - cx) < 0.5 && Math.abs(p.y - cy) < 0.5 && Math.abs(p.rx - rx) < 0.5) return;
     Object.assign(p, { x: cx, y: cy, rx, ry });

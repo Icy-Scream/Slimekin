@@ -10,10 +10,9 @@
 //     them) you stay home with one friendly toast, and the next tap tries again.
 //   - At home nothing changes (the Meadow keeps its ranch hill; the Greenhouse hides it).
 import * as THREE from 'three';
-import { BARN } from './data/content.js';
+import { BARN, CONTEST_BY_ID, CONTESTS } from './data/content.js';
 import { BarnView } from './view/barn.js';
 import { BarnCard, BarnWait } from './ui/barn-card.js';
-import { CONTEST_BY_ID, CONTESTS } from './data/content.js';
 import { titleOf, championsOf } from './core/contests.js';
 import { standOrder, stepId, startId, nextAfterGone, swipeDir, pastSwipe, cardLine, cardCount, fitView, fovFor } from './view/barn-math.js';
 

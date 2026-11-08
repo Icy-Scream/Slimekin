@@ -97,7 +97,36 @@ const SAVE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'barn',
       await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
     };
     const box = sel => ev(q => { const el = document.querySelector(q); if (!el) return null; el.scrollIntoView({ block: 'center' }); const b = el.getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2, disabled: !!el.disabled }; }, sel);
-    const touchEl = async sel => { const b = await box(sel); if (!b) throw new Error('nothing to touch: ' + sel); await page.waitForTimeout(120); const c = await box(sel); await touch(c.x, c.y); return c; };
+    // touch an element where it can be seen, once it stands still (a card that just opened grows in with an animation,
+    // and headless Chrome only moves animations on when it draws a frame). The point is the middle of the part of it that
+    // shows (inside the sheet and above the tab bar); if something else is on top there, it scrolls and looks again.
+    const spot = sel => ev(q => {
+      const el = document.querySelector(q);
+      if (!el) return null;
+      const r = el.getBoundingClientRect(), tabs = document.querySelector('#panel .tabs');
+      let top = Math.max(r.top, 0), bottom = Math.min(r.bottom, innerHeight);
+      const sc = el.closest('.tab-body');
+      if (sc && !el.closest('#modal')) { const b = sc.getBoundingClientRect(); top = Math.max(top, b.top); bottom = Math.min(bottom, b.bottom); }
+      if (tabs && !el.closest('#modal')) { const t = tabs.getBoundingClientRect(); if (t.height && t.top < bottom) bottom = Math.min(bottom, t.top); }
+      const x = r.left + r.width / 2, y = (top + bottom) / 2;
+      const e = bottom > top + 4 ? document.elementFromPoint(x, y) : null;
+      const anim = !!(el.closest('.modal-card') && el.closest('.modal-card').getAnimations().some(a => a.playState === 'running'));
+      return { x, y, ok: !!e && (e === el || el.contains(e)), on: e ? `${e.tagName}.${String(e.className).slice(0, 30)}` : 'nothing', anim };
+    }, sel);
+    const touchEl = async sel => {
+      if (!(await ev(q => !!document.querySelector(q), sel))) throw new Error('nothing to touch: ' + sel);
+      let a = null;
+      for (let i = 0; i < 40; i++) {
+        if (i === 0 || (a && !a.ok && i % 5 === 0)) await ev(([q, k]) => { const el = document.querySelector(q); el.scrollIntoView({ block: k ? 'start' : 'center' }); }, [sel, i > 0]);
+        await page.waitForTimeout(150);
+        const b = await spot(sel);
+        if (b && b.ok && !b.anim && a && Math.abs(b.x - a.x) < 0.5 && Math.abs(b.y - a.y) < 0.5) { a = b; break; }
+        a = b;
+      }
+      if (!a || !a.ok) log(`note: ${sel} can't be seen to touch (at ${a && a.x.toFixed(0)}, ${a && a.y.toFixed(0)} is ${a && a.on})`);
+      await touch(a.x, a.y);
+      return a;
+    };
     const modalIs = (kind, ms = 60000) => page.waitForFunction(k => !!document.querySelector(`#modalCard [data-cs-card="${k}"]`) && !document.getElementById('modal').hidden, kind, { timeout: ms });
     const modalText = () => ev(() => document.getElementById('modalCard').innerText.replace(/\s+/g, ' ').trim());
     const P = 'rbarnpeach';
@@ -233,7 +262,12 @@ const SAVE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'barn',
         await ev(() => window.slimekin.focusResident(null));
         const half = await ev(() => { const b = document.querySelector('#body-ranch [data-cs="shelf"]'), s = document.querySelector('#body-ranch [data-rl="shelf"]'); return b && s ? { t: b.innerText.replace(/\s+/g, ' ').trim(), s: s.innerText.trim(), same: Math.abs(b.getBoundingClientRect().top - s.getBoundingClientRect().top) < 2 } : null; });
         check(!!half && half.t === 'Trophies 4 / 12 Champions 0 / 3' && /^Souvenirs \d+ \/ 18$/.test(half.s) && half.same, 'Ranch tab: "Souvenirs x / 18" and "Trophies 4 / 12 · Champions 0 / 3" as two halves of one row', JSON.stringify(half));
+        const st = () => ev(() => ({ panel: document.getElementById('panel').className, modal: !document.getElementById('modal').hidden, card: (document.querySelector('#modalCard [data-cs-card]') || {}).dataset?.csCard || null, tab: window.slimekin.hud.tab, focus: window.slimekin.ranchFocus, show: window.slimekin.contestShow.on }));
+        log('before the Trophies touch:', JSON.stringify(await st()));
+        await ev(() => { window.__clicks = []; document.addEventListener('click', e => window.__clicks.push(e.target.tagName + '.' + e.target.className + ' ' + ((e.target.closest('button') || {}).dataset?.cs || '')), true); });
         await touchEl('#body-ranch [data-cs="shelf"]');
+        await page.waitForTimeout(500);
+        log('after it:', JSON.stringify(await st()), JSON.stringify(await ev(() => window.__clicks)));
         await modalIs('shelf');
         const t = await modalText();
         log('shelf:', t);
@@ -316,15 +350,15 @@ const SAVE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'barn',
       }, 400000);
     }
     if (want('old')) {
+      await kit.context.addInitScript(() => { const n = sessionStorage.getItem('nextSave'); if (n) { sessionStorage.removeItem('nextSave'); localStorage.clear(); localStorage.setItem('slimekin.save.v1', n); } });
       const dir = path.join(__dirname, 'fixtures');
       const files = [...fs.readdirSync(dir).filter(f => f.endsWith('.json')).map(f => path.join(dir, f)), ...['barn', 'talents'].flatMap(d => fs.existsSync(path.join(dir, d)) ? fs.readdirSync(path.join(dir, d)).filter(f => f.endsWith('.json')).map(f => path.join(dir, d, f)) : [])];
       for (const f of files) {
         await step('old save: ' + path.basename(f), async () => {
           const save = JSON.parse(fs.readFileSync(f, 'utf8')).save;
           const n0 = kit.errors.length;
-          await page.goto(`${kit.server.origin}/README.md`);
-          await ev(s => { localStorage.clear(); localStorage.setItem('slimekin.save.v1', JSON.stringify(s)); sessionStorage.setItem('seeded', '1'); }, save);
-          await page.goto(`${kit.server.origin}/#debug`);
+          await ev(s => sessionStorage.setItem('nextSave', JSON.stringify(s)), save);   // (put in place before the game reads it)
+          await page.reload();
           await boot();
           const r = await ev(() => {
             const g = window.slimekin, u = g.contestsUI, R = g.state.ranch.residents, out = { residents: R.length, opened: [] };
@@ -346,6 +380,7 @@ const SAVE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'barn',
     kit.report();
   } catch (e) {
     errors.push(e.message);
+    if (kit) { try { fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true }); await kit.page.screenshot({ path: path.join(__dirname, 'out', 'contest-smoke-failed.png'), timeout: 60000 }); log('picture of the failure: tools/out/contest-smoke-failed.png'); } catch { /* none */ } }
   } finally {
     if (kit) await kit.close();
   }

@@ -178,7 +178,11 @@ export class ContestsUI {
     const g = this.g, x = this.resident(id);
     if (!x) return false;
     const why = busy(x);
-    if (why) { g.life && g.life.refuse && g.sfx.error && g.sfx.error(); return false; }
+    if (why) {   // (the page's button already waits; this is for anything else that asks)
+      g.sfx.error && g.sfx.error();
+      g.hud.toast(why === 'away' ? `<b>${esc(x.name)} is on a trip</b>Contests wait until ${esc(x.name)} is home.` : `<b>${esc(x.name)} is in a lesson</b>Contests wait until the lesson ends.`, '', 3000);
+      return false;
+    }
     contest = CONTEST_BY_ID[contest] ? contest : (this.lastContest && CONTEST_BY_ID[this.lastContest] ? this.lastContest : CONTEST_IDS[0]);
     this.lastContest = contest;
     const next = nextCup(x, contest), won = trophiesOf(x)[contest];
