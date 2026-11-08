@@ -3,8 +3,9 @@
 // personality nudges as game.js applies them), settle into their real form, and their talents are worked out by
 // core/talents.js at move-out (day 6, the engaged pace of the jelly loop). Prints the table target vs measured.
 // Usage: node tools/talent-sim.mjs [n=<slimes per group>] [days=6] [quiet] [tune [tag=<name>]] [raiseonly] [with=<json>]
-//   default n: 400 random players, 100 per "on purpose" skill, 40 normal, spamming and only-booping players, 2000 Pure
-//   lines (T1b: more slimes than T1's 200 / 40, so the measured rates sit within about 1 / 4 points of the exact ones)
+//   default n: 400 random players, 200 per "on purpose" skill, 40 normal, spamming and only-booping players, 2000 Pure
+//   lines (T1b: more slimes than T1's 200 / 40, so the measured rates sit within about 1 / 3 points of the exact ones;
+//   the raising rows also show the exact rate: every raised slime's other points with every Potential, by its weight)
 //   tune: exact trade-off of cutoffs and Potential weights over the raised slimes (writes base-points[-<tag>].json)
 //   raiseonly: only the raising rows (no ranch, Pure lines or identity checks); with=<json>: try other numbers, e.g.
 //   with='{"TUNING":{"boopPlayfulTo":70}}' (the ranch rows run pearl-sim with content.js as it is)
@@ -52,7 +53,7 @@ const RAISE_ONLY = args.includes('raiseonly');
 // tag=<name>: tune writes tools/out/talent-sim/base-points-<name>.json (several runs side by side)
 const TAG = args.find(a => a.startsWith('tag=')) ? '-' + args.find(a => a.startsWith('tag=')).slice(4) : '';
 const N = arg('n', 0);
-const N_RANDOM = N || 400, N_PURPOSE = N ? Math.max(10, Math.round(N / 4)) : 100, N_TAP = N ? Math.max(10, Math.round(N / 5)) : 40, N_LINES = N ? N * 10 : 2000;
+const N_RANDOM = N || 400, N_PURPOSE = N ? Math.max(10, Math.round(N / 2)) : 200, N_TAP = N ? Math.max(10, Math.round(N / 5)) : 40, N_LINES = N ? N * 10 : 2000;
 const DAYS = arg('days', 6);
 const QUIET = args.includes('quiet');
 const OUT = path.resolve(HERE, 'out/talent-sim');
@@ -277,11 +278,12 @@ if (args.includes('tune')) {
 // ---------- the raising rows (T1b: the two raising fixes, and the design's raising targets) ----------
 const row = (target, measured, pass) => ({ target, measured, pass });
 const charmNature = mean(purpose.charm.map(x => TL.talentParts(x).nature.charm));
+const EX = predict({ B: TALENTS.grades[1].min, A: TALENTS.grades[2].min, S: TALENTS.grades[3].min }, TALENTS.potential.weights);
 const raisingRows = [
-  row('random play: about 1 skill at A or S per slime (0.75 to 1.5)', `${mean(rg.map(g => count(g, ['A', 'S']))).toFixed(2)} (${pct(rg, g => count(g, ['A', 'S'])).toFixed(0)}% have at least one)`, (v => v >= 0.75 && v <= 1.5)(mean(rg.map(g => count(g, ['A', 'S']))))),
-  row('random play: 1-2 skills at B per slime', mean(rg.map(g => count(g, ['B'])).map(Number)).toFixed(2), (v => v >= 1 && v <= 2)(mean(rg.map(g => count(g, ['B']))))),
-  row('random play: S by accident stays rare (under 5% of slimes have an S)', `${pct(rg, g => count(g, ['S']) > 0).toFixed(1)}%`, pct(rg, g => count(g, ['S']) > 0) < 5),
-  ...SKILL_IDS.map(s => row(`raised on purpose for ${s} (diet + nature + form): ${s} at S at least 70%`, `${pct(purpose[s], x => gradesOf(x)[s] === 'S').toFixed(0)}% (A ${pct(purpose[s], x => gradesOf(x)[s] === 'A').toFixed(0)}%)`, pct(purpose[s], x => gradesOf(x)[s] === 'S') >= 70)),
+  row('random play: about 1 skill at A or S per slime (0.75 to 1.5)', `${mean(rg.map(g => count(g, ['A', 'S']))).toFixed(2)} (${pct(rg, g => count(g, ['A', 'S'])).toFixed(0)}% have at least one; exact ${EX.as.toFixed(2)})`, (v => v >= 0.75 && v <= 1.5)(mean(rg.map(g => count(g, ['A', 'S']))))),
+  row('random play: 1-2 skills at B per slime', `${mean(rg.map(g => count(g, ['B'])).map(Number)).toFixed(2)} (exact ${EX.b.toFixed(2)})`, (v => v >= 1 && v <= 2)(mean(rg.map(g => count(g, ['B']))))),
+  row('random play: S by accident stays rare (under 5% of slimes have an S)', `${pct(rg, g => count(g, ['S']) > 0).toFixed(1)}% (exact ${EX.anyS.toFixed(1)}%)`, pct(rg, g => count(g, ['S']) > 0) < 5),
+  ...SKILL_IDS.map(s => row(`raised on purpose for ${s} (diet + nature + form): ${s} at S at least 70%`, `${pct(purpose[s], x => gradesOf(x)[s] === 'S').toFixed(0)}% (A ${pct(purpose[s], x => gradesOf(x)[s] === 'A').toFixed(0)}%; exact ${EX.purpose[s].toFixed(0)}%)`, pct(purpose[s], x => gradesOf(x)[s] === 'S') >= 70)),
   row('T1b fix 1: Charm raised on purpose (cookies only) reaches Likes the familiar: Charm nature 3.5+ of 4 on average', `${charmNature.toFixed(2)} (Curious ${mean(purpose.charm.map(x => x.personality.curious)).toFixed(1)} on average)`, charmNature >= 3.5),
   row('T1b fix 1: a varied player ends where it did (random play: Curious lean on the slime page unchanged for 80%+)', `${sameLean.toFixed(0)}% (now ${fmtLean(leanShare(randoms, 'curious'))}; before ${fmtLean(leanShare(randomsBefore, 'curious'))})`, sameLean >= 80),
   ...([row('T1b fix 2: booping alone is not a Bounce natural (only booped, never played with: Bounce at A or S under 30%)', `${pct(boopers, x => ['A', 'S'].includes(gradesOf(x).bounce)).toFixed(0)}% (Playful ${mean(boopers.map(x => x.personality.playful)).toFixed(1)}, Bounce nature ${mean(boopers.map(bouncePts)).toFixed(2)})`, pct(boopers, x => ['A', 'S'].includes(gradesOf(x).bounce)) < 30)]),
