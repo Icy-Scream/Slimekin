@@ -20,6 +20,14 @@ export const TUNING = {
   feverBondEvery: 120,          // Giggle Fever only adds bond once every 2 minutes (so spamming can't farm it)
   tiredBoop: 0.3,               // boops on an exhausted slime (energy under 8) give only 30%
   wakeEnergy: 35,               // a napping slime can't be poked awake before it has this much energy
+  // Raising nudges that talents read (TALENTS.nature; neither changes any jelly):
+  // familiar: a snack it has eaten before nudges Curious down by `repeat` x (how many more times it was among its
+  //   last 6 snacks) + `favorite` when it is its favorite, so a slime fed the same few snacks on purpose turns "Likes
+  //   the familiar" while a varied menu barely moves it (new snacks still give +2)
+  familiar: { repeat: 0.02, favorite: 0.02 },
+  // boopPlayfulTo: a boop's +0.03 Playful shrinks as Playful rises past 50 and stops here (null: never), so booping
+  //   alone does not make every slime Playful; play, berries and answering play requests still do
+  boopPlayfulTo: 60,
 };
 
 export const STAGES = [

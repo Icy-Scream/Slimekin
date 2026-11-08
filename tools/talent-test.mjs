@@ -257,6 +257,92 @@ console.log('\n# old saves');
   ok(TL.validPotential(mb.ranch.residents[0].potential) && TL.validPotential(mb.slime.potential), 'a broken Potential (text, out of range) is repaired from its id / egg');
 }
 
+// ---------- 8b. the raising nudges talents read (T1b) ----------
+console.log('\n# raising nudges (T1b): familiar snacks, boops and Playful');
+{
+  const U = C.TUNING, F = U.familiar, TO = U.boopPlayfulTo;
+  // a fresh slime at home, its sliders in the middle; its favorite is berry unless given
+  const fresh = (fav = 'berry') => {
+    const st = createState(); st.phase = 'play'; st.slime.name = 'Clover';
+    st.slime.personality = mid(); st.slime.favorite = fav; st.slime.dislike = 'moss'; st.jelly = 1e12;
+    const sim = new Sim(st); return { st, sim, p: st.slime.personality };
+  };
+  ok(F.repeat > 0 && F.favorite > 0 && TO > 50 && TO <= 100, `the numbers are in TUNING: familiar ${F.repeat} a repeat, favorite ${F.favorite}; boops nudge Playful up to ${TO}`);
+  // fix 1: familiar snacks
+  {
+    const { sim, p, st } = fresh();
+    sim.feed('cookie', { free: true });
+    ok(near(p.curious, 52), 'a new snack: Curious +2, as before', p.curious);
+    sim.feed('cookie', { free: true });
+    ok(near(p.curious, 52 - F.repeat), `the same snack again (twice among its last 6): Curious -${F.repeat}`, p.curious.toFixed(3));
+    for (let i = 0; i < 4; i++) { st.slime.tummy = 0; sim.feed('cookie', { free: true }); }
+    ok(near(p.curious, 52 - F.repeat * (1 + 2 + 3 + 4 + 5)), `six cookies in a row: the 6th nudges -${(5 * F.repeat).toFixed(2)} (5 more among its last 6)`, p.curious.toFixed(3));
+    st.slime.tummy = 0; sim.feed('cookie', { free: true });
+    ok(near(p.curious, 52 - F.repeat * 20), 'the window is its last 6 snacks: a 7th cookie also nudges 5 x', p.curious.toFixed(3));
+  }
+  {
+    // a varied menu: the six snacks in turn (all known): none is twice among its last 6, so only the snacks' own nudges
+    // move Curious (Crystal +0.6) and its favorite's (Cookie) -favorite
+    const { sim, p, st } = fresh('cookie');
+    const menu = ['cookie', 'chili', 'iron', 'moss', 'berry', 'crystal'];
+    for (const id of menu) { st.slime.tummy = 0; sim.feed(id, { free: true }); }
+    const before = p.curious;
+    for (let round = 0; round < 3; round++) for (const id of menu) { st.slime.tummy = 0; sim.feed(id, { free: true }); }
+    ok(near(p.curious, before + 3 * (0.6 - F.favorite)), `a varied menu (the six snacks in turn, 3 rounds): no repeat nudges, only Crystal's +0.6 and its favorite's -${F.favorite} each round`, `${before} -> ${p.curious.toFixed(3)}`);
+    sim.recentFoods = [];
+    const b2 = p.curious; st.slime.tummy = 0; sim.feed('cookie', { free: true });
+    ok(near(p.curious, b2 - F.favorite), `its favorite (Cookie, known, not among its last 6): Curious -${F.favorite}`, `${b2.toFixed(3)} -> ${p.curious.toFixed(3)}`);
+  }
+  {
+    // on purpose: cookies only, the way a player raises a Charm slime: it ends "Likes the familiar"
+    const { sim, p, st } = fresh();
+    let feeds = 0;
+    while (p.curious > 20 && feeds < 2000) { st.slime.tummy = 0; sim.feed('cookie', { free: true }); feeds++; }
+    p.cuddly = 100;
+    ok(p.curious <= 20 && feeds <= 800 && near(TL.naturePoints(p).charm, 4), `fed only cookies, it is "Likes the familiar" (Curious 20 or less) after ${feeds} snacks: Charm nature 4 of 4 with Cuddly`, `nature charm ${TL.naturePoints(p).charm}`);
+  }
+  // fix 2: boops nudge Playful less as it rises, and not past TO
+  {
+    const { sim, p, st } = fresh();
+    const boop = () => { sim.giggle = 0; sim.dizzy = 0; st.slime.energy = 100; sim.boop(); };
+    p.playful = 30; boop();
+    ok(near(p.playful, 30.03), 'under 50 a boop is +0.03 Playful, as before', p.playful);
+    p.playful = (50 + TO) / 2; boop();
+    ok(near(p.playful, (50 + TO) / 2 + 0.015), `half way to ${TO}: +0.015`, p.playful);
+    p.playful = 50;
+    for (let i = 0; i < 20000; i++) boop();
+    ok(p.playful < TO && p.playful > TO - 1, `20,000 boops from 50 never reach ${TO} (booping alone gives no Bounce points from Playful)`, `${p.playful.toFixed(2)}, Bounce nature ${TL.naturePoints(p).bounce.toFixed(2)}`);
+    p.playful = TO; boop();
+    ok(p.playful === TO, `at ${TO} a boop does nothing to Playful`);
+    sim.nudge('playful', 3); st.slime.tummy = 0; sim.feed('berry', { free: true });
+    ok(near(p.playful, TO + 3.5), 'playing (a play request: +3) and berries (+0.5) still go past it', p.playful);
+  }
+  // neither nudge changes any jelly: the same boops, pets and snacks make exactly the same jelly with the nudges from
+  // before T1b (curious and playful are read by nothing that makes jelly)
+  {
+    const run = o => {
+      const keep = { familiar: U.familiar, boopPlayfulTo: U.boopPlayfulTo };
+      Object.assign(U, o);
+      rnd = 4242;   // the same dice for both runs
+      try {
+        const st = createState(); st.phase = 'play'; st.slime.name = 'Clover'; st.slime.personality = mid(); st.slime.favorite = 'cookie'; st.jelly = 5000;
+        const sim = new Sim(st);
+        for (let t = 0; t < 4000; t++) {
+          sim.tick(0.5);
+          if (t % 3 === 0) { sim.giggle = Math.min(sim.giggle, 40); sim.boop(); }
+          if (t % 40 === 5) sim.pet(1);
+          if (st.slime.tummy < 70) { const id = ['cookie', 'cookie', 'chili', 'iron'][t % 4]; if (sim.canFeed(id).ok) sim.feed(id); }
+        }
+        return { jelly: st.jelly, total: st.totalJelly, growth: st.slime.growth, p: { ...st.slime.personality } };
+      } finally { Object.assign(U, keep); }
+    };
+    const now = run({}), was = run({ familiar: { repeat: 0, favorite: 0 }, boopPlayfulTo: null });
+    ok(now.jelly === was.jelly && now.total === was.total && now.growth === was.growth && now.p.patient === was.p.patient,
+      'the nudges change no jelly: 2000 boops, pets and 4 snacks in turn make exactly the same jelly and growth as before T1b (only Curious and Playful differ)',
+      `jelly ${now.total.toFixed(1)}; Curious ${was.p.curious.toFixed(1)} -> ${now.p.curious.toFixed(1)}, Playful ${was.p.playful.toFixed(1)} -> ${now.p.playful.toFixed(1)}`);
+  }
+}
+
 // ---------- 9. no numbers of its own ----------
 {
   const code = fs.readFileSync(path.resolve(HERE, '../src/core/talents.js'), 'utf8').replace(/\/\/.*$/gm, '').replace(/'[^'\n]*'|`[^`]*`/g, '').replace(/\b1e-9\b/g, '');

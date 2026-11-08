@@ -427,7 +427,8 @@ export class Sim {
     s.joy = clamp(s.joy + 0.5, 0, 100);
     const bondUp = this.addBond(0.012);
     this.s.stats.boops++;
-    this.nudge('playful', 0.03);
+    const to = TUNING.boopPlayfulTo;
+    this.nudge('playful', 0.03 * (to == null ? 1 : clamp((to - s.personality.playful) / (to - 50), 0, 1)));
     return { gain, fever: this.fever, exhausted: s.energy <= 0, bondUp, tired };
   }
   // A napping slime only lets itself be poked awake once it has rested a little.
@@ -496,6 +497,10 @@ export class Sim {
     const personalityNudge = { chili: ['bold', 0.6], moss: ['patient', 0.5], cookie: ['cuddly', 0.3], berry: ['playful', 0.5], iron: ['patient', 0.3], crystal: ['curious', 0.6] }[id];
     if (personalityNudge) this.nudge(personalityNudge[0], personalityNudge[1]);
     if (firstTime) this.nudge('curious', 2);
+    else {
+      const F = TUNING.familiar, down = F.repeat * (same - 1) + (liked === 'favorite' ? F.favorite : 0);
+      if (down > 0) this.nudge('curious', -down);
+    }
 
     let discovered = null;
     if (liked === 'favorite' && !s.knownFavorite) { s.knownFavorite = true; discovered = 'favorite'; }
