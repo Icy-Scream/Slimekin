@@ -176,6 +176,7 @@ const SAVE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'barn',
           if (name === 'show-low') await ev(() => { const r = window.slimekin.contestShow.s.ring; if (r.anim) { r.anim.pause(); r.anim.currentTime = 0.72 * 1000 * window.slimekin.contestShow.info().beat; } r.t0 = performance.now() + 1e6; });
           else await ev(() => { window.slimekin.contestShow.s.t = -99; });
           await page.waitForTimeout(600);
+          log(name, 'dim:', JSON.stringify(await ev(() => { const d = document.getElementById('csDim'), l = document.getElementById('csLayer'); return { layer: l.className, hidden: l.hidden, op: getComputedStyle(d).opacity, bg: d.style.background.slice(0, 90), place: window.slimekin.contestShow.place }; })));
           await shot(name);
           await ev(() => window.slimekin.contestShow.cancel());
           await ev(() => { const g = window.slimekin; g.state.settings.reducedMotion = false; g.state.settings.quality = 'auto'; g.applySettings(); });

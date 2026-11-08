@@ -302,10 +302,15 @@ export class ContestShow {
   }
   tap(e) {
     const s = this.s;
-    if (!s || s.phase !== 'ring' || s.reduced || !s.ring || s.ring.graded) return;
+    if (!s || s.reduced || !s.ring) return;
     const r = s.ring, at = (e && e.timeStamp > 0 ? e.timeStamp : performance.now());
     const t = (at - r.t0) / 1000;
     if (t < 0) return;   // (a touch from before the ring appeared)
+    // A tap made in time that reaches the game late (a slow frame: the ring already ran out) still counts, once: its
+    // own time is what is graded.
+    const late = r.graded && !r.late && s.grades[s.act] === 'none' && (s.phase === 'pop' || s.phase === 'rest') && t < C.cheer.window;
+    if (!late && (s.phase !== 'ring' || r.graded)) return;
+    if (late) r.late = true;
     s.taps[s.act].push(Math.round(t * 1000) / 1000);
     this.g.sfx.unlock && this.g.sfx.unlock();
     this.graded(cheerGrade(s.taps[s.act]));
@@ -322,7 +327,7 @@ export class ContestShow {
   graded(grade) {
     const s = this.s, $ = this.$, g = this.g;
     s.grades[s.act] = grade;
-    if (s.ring && !s.reduced) s.game += (performance.now() - s.ring.w0) / 1000;
+    if (s.ring && !s.reduced && !s.ring.graded) s.game += (performance.now() - s.ring.w0) / 1000;
     if (s.ring) {
       s.ring.graded = true;
       if (s.ring.anim) { try { s.ring.anim.pause(); } catch { /* gone */ } }

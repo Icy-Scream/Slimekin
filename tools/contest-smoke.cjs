@@ -23,7 +23,7 @@ const SAVE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'barn',
   const errors = [];
   const check = (cond, what, extra = '') => { log(`${cond ? 'ok  ' : 'FAIL'} ${what}${extra ? ' | ' + extra : ''}`); if (!cond) errors.push(what + (extra ? ': ' + extra : '')); };
   let kit = null;
-  watchdog(20, () => kit ? kit.current() : 'setup');
+  watchdog(60, () => kit ? kit.current() : 'setup');
   try {
     kit = await setup({ contextOptions: { viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true } });
     const { page, step, ev } = kit;
@@ -107,7 +107,7 @@ const SAVE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'barn',
       let top = Math.max(r.top, 0), bottom = Math.min(r.bottom, innerHeight);
       const sc = el.closest('.tab-body');
       if (sc && !el.closest('#modal')) { const b = sc.getBoundingClientRect(); top = Math.max(top, b.top); bottom = Math.min(bottom, b.bottom); }
-      if (tabs && !el.closest('#modal')) { const t = tabs.getBoundingClientRect(); if (t.height && t.top < bottom) bottom = Math.min(bottom, t.top); }
+      if (tabs && !el.closest('#modal') && !tabs.contains(el)) { const t = tabs.getBoundingClientRect(); if (t.height && t.top < bottom) bottom = Math.min(bottom, t.top); }
       const x = r.left + r.width / 2, y = (top + bottom) / 2;
       const e = bottom > top + 4 ? document.elementFromPoint(x, y) : null;
       const anim = !!(el.closest('.modal-card') && el.closest('.modal-card').getAnimations().some(a => a.playState === 'running'));
@@ -139,16 +139,18 @@ const SAVE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'barn',
       return false;
     }, n, { timeout: 120000, polling: 100 });
     // the same without hurrying the show (it plays at its own pace: the length of a show is measured on this one)
-    const toRingSlow = n => page.waitForFunction(i => { const s = window.slimekin.contestShow.s; return !!s && s.act === i && s.phase === 'ring' && !!(s.reduced || (s.ring && s.ring.anim && s.ring.anim.startTime !== null)); }, n, { timeout: 120000, polling: 50 });
+    const toRingSlow = n => page.waitForFunction(i => { const s = window.slimekin.contestShow.s; return !!s && s.act === i && s.phase === 'ring' && !!(s.reduced || (s.ring && s.ring.anim && s.ring.anim.startTime !== null)); }, n, { timeout: 600000, polling: 50 });
     const toEnd = () => page.waitForFunction(() => { const s = window.slimekin.contestShow.s; if (!s) return true; if (s.phase !== 'ring' && s.phase !== 'swap') s.t = 99; return false; }, null, { timeout: 120000, polling: 100 });
     // one real tap on the cheer ring, `at` seconds after the ring appeared (the ring's own clock: its animation's start)
     const tapAt = async at => {
       const r = await ev(() => ({ t0: window.slimekin.contestShow.s.ring.t0, now: performance.now() }));
       const wait = r.t0 + at * 1000 - r.now - 4;
       if (wait > 0) await page.waitForTimeout(wait);
+      const act = await ev(() => window.slimekin.contestShow.s.act);
       await touch(196, 470);
-      await page.waitForFunction(() => { const s = window.slimekin.contestShow.s; return !s || s.phase !== 'ring'; }, null, { timeout: 30000 });
-      return ev(() => { const s = window.slimekin.contestShow.s; return { grade: s.grades[s.act], tap: s.taps[s.act][0] }; });
+      // (the tap counts by its own time even when this slow machine hands it over late: wait until it is in)
+      await page.waitForFunction(i => { const s = window.slimekin.contestShow.s; return !s || s.act > i || (!!s.grades[i] && s.taps[i].length > 0); }, act, { timeout: 30000 });
+      return ev(i => { const s = window.slimekin.contestShow.s; return { grade: s.grades[i], tap: s.taps[i][0] }; }, act);
     };
     const startFromCard = async () => {
       await touchEl('#modalCard [data-cs="start"]');
@@ -242,7 +244,7 @@ const SAVE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'barn',
         const beat = await ev(() => window.slimekin.contestShow.info().beat);
         const g3 = [];
         for (let i = 0; i < 3; i++) { await toRingSlow(i); g3.push((await tapAt(beat)).grade); }
-        await modalIs('result', 120000);
+        await modalIs('result', 600000);
         await modalIs('result');
         const t = await modalText();
         log('win card:', t, JSON.stringify(g3));
@@ -257,7 +259,7 @@ const SAVE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'barn',
         await page.waitForFunction(() => document.getElementById('modal').hidden, null, { timeout: 20000 });
         const line = await ev(() => { window.slimekin.hud.renderRanch(true); const el = document.querySelector('#body-ranch .cs-trophies'); return el ? { text: el.innerText.trim(), cups: el.querySelectorAll('.gi.cup').length } : null; });
         check(!!line && line.text === '3 trophies: buyers pay +4.5% for Pebble' && line.cups === 3, 'the resident page lists its cups and the TOTAL trophy bonus', JSON.stringify(line));
-      }, 400000);
+      }, 1800000);   // (at the show's own pace: about 35 s on a phone, many minutes under software WebGL)
       await step('screens: the Ranch tab, the Trophy Shelf, a Champion\'s title', async () => {
         await ev(() => window.slimekin.focusResident(null));
         const half = await ev(() => { const b = document.querySelector('#body-ranch [data-cs="shelf"]'), s = document.querySelector('#body-ranch [data-rl="shelf"]'); return b && s ? { t: b.innerText.replace(/\s+/g, ' ').trim(), s: s.innerText.trim(), same: Math.abs(b.getBoundingClientRect().top - s.getBoundingClientRect().top) < 2 } : null; });
