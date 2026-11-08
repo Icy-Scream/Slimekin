@@ -357,6 +357,9 @@ emoji in `content.js` (`RANCH_LIFE`), shown as text; stars are the ★/☆ glyph
   either `button[data-rl="train"]` Train + `button[data-rl="trip"]` Send on a trip (in `.res .acts`), or while busy
   `.sub.rl-busy` (the status line) and, for travelers, `button[data-rl="callHome"]` Call home early.
   A traveler's page has no "Tap or stroke ... to pet them" line, and `#ranchHint` says "... is on a trip".
+  Talents (T1): a skill whose first lesson showed a talent graded A or S gets 6 or 7 star places (☆) instead of 5, and
+  the count says "x of 27 stars" etc.; before that (and for C and B) it is 5, as before. A skill's line in the Train picker says
+  "All six stars!" / "All seven stars!" at those caps; stars 6 and 7 cost 80 and 120 pearls and take 8 h and 24 h.
 - The click handler: any `button[data-rl]` in `#body-ranch` goes to `RanchLifeUI.click()`.
 
 ### Modals
@@ -458,6 +461,9 @@ the loading moment below at home.
   - `<b>` the resident's name (the display font, 22 px); `.bc-line` its body's name and one line from real data,
     "Curly · Bounce ★★★", "Topknot Dollop · in a lesson: Bounce, 2h left", "Dollop · just back from Puddle Café",
     "Curly · 4.2 pearls an hour" (no stars yet); the stars in honey.
+  - `.bc-line.bc-talent` (Talents T1, only once a lesson has shown one): a second line in the same style with the best
+    talent its lessons have revealed, "a natural at Bounce!" (S), "takes to Speed quickly" (A), "getting the hang of
+    Charm" (B); nothing for C or before its first lesson in a skill. Also in the `aria-label`.
   - `.bc-dots` one dot per resident on the stand's list (up to `BARN.dots` = 8; the one on the stand is a wider purple
     pill), else `.bc-count` "3 of 12".
   - Empty stand (`.empty`): "Everyone is on a trip" / "Juniper is on a trip" + "Juniper is home at 7:05 pm."; or

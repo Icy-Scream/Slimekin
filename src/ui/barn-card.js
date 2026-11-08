@@ -19,6 +19,7 @@ const CSS = `
   .barn-card .bc-line { display: block; margin-top: 1px; font-weight: 800; font-size: 13px; color: var(--ink-2);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .barn-card .bc-line .st { color: var(--honey, #e0a526); letter-spacing: 1px; }
+  .barn-card .bc-talent { margin-top: 0; }
   .barn-card .bc-dots { display: flex; gap: 7px; justify-content: center; margin-top: 7px; height: 8px; }
   .barn-card .bc-dots u { width: 8px; height: 8px; border-radius: 4px; background: color-mix(in srgb, var(--ink-2) 32%, transparent); transition: width .2s; }
   .barn-card .bc-dots u.on { width: 18px; background: #6b4bd6; }
@@ -87,7 +88,8 @@ export class BarnCard {
   }
   show(on) { this.el.hidden = !on; this.showArrows(on && this.many); }
   showArrows(on) { for (const b of this.arrows) b.hidden = !on; }
-  // c: { name, breed, line, stars, count: { dots, on, text } } for a resident, or { empty: true, title, text }
+  // c: { name, breed, line, talent, count: { dots, on, text } } for a resident (talent: the line its lessons revealed,
+  // or ''), or { empty: true, title, text }
   set(c) {
     const key = JSON.stringify(c);
     if (key === this.key) return;
@@ -103,8 +105,9 @@ export class BarnCard {
       const line = esc(`${c.breed} · ${c.line}`).replace(/(★+)/, '<span class="st">$1</span>');
       const n = c.count;
       const dots = n.dots ? `<i class="bc-dots">${Array.from({ length: n.dots }, (_, i) => `<u class="${i === n.on ? 'on' : ''}"></u>`).join('')}</i>` : `<span class="bc-count">${esc(n.text)}</span>`;
-      el.innerHTML = `<b>${esc(c.name)}</b><span class="bc-line">${line}</span>${dots}`;
-      el.setAttribute('aria-label', `${c.name}, ${c.breed}, ${c.line}. Open ${c.name}'s page`);
+      const talent = c.talent ? `<span class="bc-line bc-talent">${esc(c.talent)}</span>` : '';
+      el.innerHTML = `<b>${esc(c.name)}</b><span class="bc-line">${line}</span>${talent}${dots}`;
+      el.setAttribute('aria-label', `${c.name}, ${c.breed}, ${c.line}${c.talent ? `, ${c.talent}` : ''}. Open ${c.name}'s page`);
       this.many = (n.dots || 0) > 1 || !!n.text;
     }
     if (!el.hidden) this.showArrows(this.many);

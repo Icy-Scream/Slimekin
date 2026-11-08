@@ -213,7 +213,7 @@ export class BarnRanch {
       return;
     }
     const c = cardLine(x, { now: g.nowMs(), back: this.back[x.id], perHour: g.sim.ranch.pearlRate(x) * 3600 });
-    this.card.set({ name: x.name, breed: c.breed, line: c.line, count: cardCount(this.order.length, Math.max(0, this.order.indexOf(x.id))) });
+    this.card.set({ name: x.name, breed: c.breed, line: c.line, talent: c.talent, count: cardCount(this.order.length, Math.max(0, this.order.indexOf(x.id))) });
   }
   openPage() {
     const g = this.g;
