@@ -16,7 +16,6 @@ import { stars, busy } from './ranch-life.js';
 const C = CONTESTS;
 const isObj = o => !!o && typeof o === 'object' && !Array.isArray(o);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-export const CUP_COUNT = () => C.cups.length;
 export const SLOTS = [...new Set(OUTFITS.map(o => o.slot))];
 
 // ---------- save ----------
@@ -119,8 +118,8 @@ export function cheerGrade(taps, { reducedMotion = false } = {}) {
   return off <= ch.perfect + 1e-9 ? 'perfect' : off <= ch.good + 1e-9 ? 'good' : 'nice';
 }
 export const cheerPoints = (taps, opts) => C.cheer.points[cheerGrade(taps, opts)];
-// The three acts' cheers from what a caller has: per act a list of tap times, or a grade name ('perfect', 'good',
-// 'nice', 'none'); a single grade name (or 'skip' / 'mash') for all three. Returns three grade names.
+// The three acts' cheers from what a caller has: per act a list of tap times (a lone number is one tap), or a grade name
+// ('perfect', 'good', 'nice', 'none'); a single grade name (or 'skip' / 'mash') for all three. Returns three grade names.
 export function cheersFrom(cheers, { reducedMotion = false } = {}) {
   const ch = C.cheer;
   if (reducedMotion) return [ch.reduced, ch.reduced, ch.reduced];
@@ -235,7 +234,7 @@ export function applyShow(state, res, now = Date.now()) {
   if (!x) return null;
   res.applied = true;
   const R = state.ranch;
-  R.contests = migrateRanchContests(R.contests);
+  if (!isObj(R.contests) || !isObj(R.contests.shelf) || !Number.isFinite(R.contests.shows)) R.contests = migrateRanchContests(R.contests);
   R.contests.shows++;
   const out = { pearls: 0, trophy: false, shelf: false, champion: false, title: titleOf(x), journal: null };
   migrateResidentContests(x);
