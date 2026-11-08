@@ -706,10 +706,14 @@ export const TALENTS = {
   potential: { weights: [15, 30, 30, 18, 7], copy: 0.4, pureRolls: 2 },
   // grades from the total points (the highest whose `min` it reaches): lessons in that skill take x`lessonTime`, and
   // it can learn up to `cap` stars. C is exactly the ranch from before talents.
+  // Cutoffs tuned by tools/talent-sim.mjs from real raising runs (design: B 4, A 6, S 10). Every slime boops (Playful:
+  // Bounce) and tries new snacks (Curious: Smarts), so with B 4 / A 6 a randomly raised slime had 2.8 skills at A or S
+  // (target about 1); B 6 / A 8 gives 1.2 and 1.5 at B. S stays 10 (see the report: S 11 makes S rare by accident but
+  // leaves most slimes raised on purpose at A).
   grades: [
     { id: 'C', min: 0, lessonTime: 1, cap: 5 },
-    { id: 'B', min: 4, lessonTime: 0.85, cap: 5 },
-    { id: 'A', min: 6, lessonTime: 0.70, cap: 6 },
+    { id: 'B', min: 6, lessonTime: 0.85, cap: 5 },
+    { id: 'A', min: 8, lessonTime: 0.70, cap: 6 },
     { id: 'S', min: 10, lessonTime: 0.55, cap: 7 },
   ],
   floor: 'B',          // the cozy rule: a slime whose five skills all come out C has its best one lifted to this grade

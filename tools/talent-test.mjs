@@ -60,8 +60,9 @@ ok(JSON.stringify(Object.entries(T.form.skill).sort()) === JSON.stringify(Object
   '2c form: the 25 specialties of the table (+2) and Marshmallow +1 to every skill');
 ok(FORM_IDS.every(id => T.form.skill[id] || T.form.every[id]) && SPARK_FORMS.every(s => T.form.skill[s.id]), `every form has a specialty: the ${FORM_IDS.length} diet forms and the ${SPARK_FORMS.length} spark forms`);
 ok(T.potential.weights.join() === '15,30,30,18,7' && T.potential.copy === 0.4 && T.potential.pureRolls === 2, '2d Potential: weights 15/30/30/18/7, 40% / 40% / 20% fresh, Pure: best of two fresh rolls');
-ok(T.grades.map(g => `${g.id}${g.min}x${g.lessonTime}c${g.cap}`).join(' ') === 'C0x1c5 B4x0.85c5 A6x0.7c6 S10x0.55c7' && T.floor === 'B' && T.lessonFloor === 0.4,
-  '3 grades: C 1-3 x1.00 cap 5, B 4-5 x0.85 cap 5, A 6-9 x0.70 cap 6, S 10+ x0.55 cap 7; cozy floor B; lessons never under x0.40');
+ok(T.grades.map(g => `${g.id}x${g.lessonTime}c${g.cap}`).join(' ') === 'Cx1c5 Bx0.85c5 Ax0.7c6 Sx0.55c7' && T.floor === 'B' && T.lessonFloor === 0.4,
+  '3 grade effects as designed: C x1.00 cap 5, B x0.85 cap 5, A x0.70 cap 6, S x0.55 cap 7; cozy floor B; lessons never under x0.40');
+ok(T.grades.map(g => g.min).join() === '0,6,8,10', 'grade cutoffs as tuned by tools/talent-sim.mjs: B 6, A 8, S 10 (design: B 4, A 6, S 10)');
 ok(T.stars.pearls.join() === '80,120' && T.stars.minutes.join() === '480,1440', 'stars 6 and 7: 80 and 120 pearls, 8 h and 24 h');
 
 // ---------- 2. points ----------
@@ -88,15 +89,15 @@ ok(parts.total.bounce === 3 + 3.5 + 2 + 4 && parts.total.speed === 1, 'the total
 
 // ---------- 3. grades and the cozy floor ----------
 console.log('\n# grades');
-ok([1, 2, 3].every(n => TL.gradeFor(n) === 'C') && [4, 5].every(n => TL.gradeFor(n) === 'B') && [6, 7, 8, 9].every(n => TL.gradeFor(n) === 'A') && [10, 14].every(n => TL.gradeFor(n) === 'S'), 'C 1-3, B 4-5, A 6-9, S 10+');
-ok(TL.gradeFor(3.9) === 'C' && TL.gradeFor(5.5) === 'B' && TL.gradeFor(9.5) === 'A', 'between whole points: the grade it has reached (3.9 C, 5.5 B, 9.5 A)');
+ok([1, 3, 5].every(n => TL.gradeFor(n) === 'C') && [6, 7].every(n => TL.gradeFor(n) === 'B') && [8, 9].every(n => TL.gradeFor(n) === 'A') && [10, 14].every(n => TL.gradeFor(n) === 'S'), 'C 1-5, B 6-7, A 8-9, S 10+');
+ok(T.grades.slice(1).every((g, i) => TL.gradeFor(g.min) === g.id && TL.gradeFor(g.min - 0.1) === T.grades[i].id), 'between whole points: the grade it has reached (5.9 C, 7.9 B, 9.9 A)');
 {
   const plain = resident();
   const g = TL.talentsOf(plain);
   ok(g.bounce === 'B' && SKILL_IDS.filter(s => s !== 'bounce').every(s => g[s] === 'C'), 'cozy floor: all C (every total 1) lifts the first best skill to B, only that one', JSON.stringify(g));
   const g2 = TL.talentsOf(resident({ potential: pot({ smarts: 3 }) }));
   ok(g2.smarts === 'B' && SKILL_IDS.filter(s => s !== 'smarts').every(s => g2[s] === 'C'), 'cozy floor: the best one (Smarts 3) is the one lifted', JSON.stringify(g2));
-  const g3 = TL.talentsOf(resident({ potential: pot({ speed: 4, charm: 3 }) }));
+  const g3 = TL.talentsOf(resident({ potential: pot({ speed: 5, charm: 3 }), personality: { ...mid(), patient: 0 } }));
   ok(g3.speed === 'B' && g3.charm === 'C', 'cozy floor: not used when a skill is already B', JSON.stringify(g3));
   let worst = 0;
   for (let i = 0; i < 2000; i++) {
@@ -158,9 +159,9 @@ console.log('\n# where Potential comes from');
 // ---------- 6. hooks: lesson time and star cap ----------
 console.log('\n# lessons (core/ranch-life.js)');
 {
-  // one resident per grade in Bounce: C (floor lifted elsewhere), B, A, S
-  const mk = (b, o = {}) => resident({ potential: pot({ bounce: b, charm: 4 }), ...o });   // Charm 4 = B, so no floor lift onto Bounce
-  const c = mk(1), b = mk(4), a = mk(5, { form: { id: 'heat' } }), s = mk(5, { form: { id: 'heat' }, traits: { heat: 100 } });
+  // one resident per grade in Bounce: C (1: the cozy floor lifts Charm 4 instead), B (form 2 + 4), A (form 2 + diet 3 + 3), S (2 + 3 + 5)
+  const mk = (b, o = {}) => resident({ potential: pot({ bounce: b, charm: 4 }), ...o });
+  const c = mk(1), b = mk(4, { form: { id: 'heat' } }), a = mk(3, { form: { id: 'heat' }, traits: { heat: 100 } }), s = mk(5, { form: { id: 'heat' }, traits: { heat: 100 } });
   const { rl } = world([c, b, a, s]);
   const g = x => TL.gradeOf(x, 'bounce');
   ok([c, b, a, s].map(g).join('') === 'CBAS', 'four slimes graded C, B, A, S in Bounce', [c, b, a, s].map(x => TL.talentParts(x).total.bounce).join(','));
@@ -195,7 +196,7 @@ console.log('\n# lessons (core/ranch-life.js)');
 // ---------- 7. the reveal line ----------
 console.log('\n# the barn card\'s reveal line');
 {
-  const x = resident({ potential: pot({ bounce: 5, speed: 4, charm: 3 }), form: { id: 'heat' }, traits: { heat: 100 } });   // Bounce S, Speed B, Charm C
+  const x = resident({ potential: pot({ bounce: 5, speed: 4, charm: 3 }), form: { id: 'heat' }, traits: { heat: 100 }, personality: { ...mid(), patient: 0 } });   // Bounce S, Speed B (4 + Impulsive 2), Charm C
   const { rl } = world([x]);
   ok(TL.revealLine(x) === '' && cardLine(x, { now: NOW, perHour: 4 }).talent === '', 'nothing before a first lesson');
   rl.train(x.id, 'charm', NOW); const d1 = rl.resolve(NOW + 3 * H);
@@ -204,7 +205,7 @@ console.log('\n# the barn card\'s reveal line');
   ok(d2[0].talent === 'getting the hang of Speed' && TL.revealLine(x) === 'getting the hang of Speed', 'B: "getting the hang of Speed"');
   rl.train(x.id, 'bounce', NOW + 6 * H); rl.resolve(NOW + 9 * H);
   ok(TL.revealLine(x) === 'a natural at Bounce!' && cardLine(x, { now: NOW + 9 * H }).talent === 'a natural at Bounce!', 'S: "a natural at Bounce!" (the best one shown)');
-  const y = resident({ potential: pot({ smarts: 5 }), form: { id: 'prism' } });
+  const y = resident({ potential: pot({ smarts: 4 }), form: { id: 'prism' }, traits: { prism: 100 } });
   y.talentsSeen = ['smarts'];
   ok(TL.gradeOf(y, 'smarts') === 'A' && TL.revealLine(y) === 'takes to Smarts quickly', 'A: "takes to Smarts quickly"');
   rl.train(x.id, 'speed', NOW + 9 * H); const d3 = rl.resolve(NOW + 12 * H);
