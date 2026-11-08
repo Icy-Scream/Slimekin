@@ -1,7 +1,9 @@
-// The barn card with a talent's reveal line (Talents T1), one picture at iPhone size (390 x 844), day and night.
-// From tools/fixtures/barn/barn-six.json: Mochi (a Crystal Slime, Curly) has had lessons in Bounce, Speed and Smarts;
-// her Potential in Smarts is 5, so Smarts is S and the card says "a natural at Smarts!".
-//   node tools/talent-card-shot.cjs [--dpr 2]       pictures: tools/out/talents/barn-card-reveal-{day,night}.png
+// The barn card with a talent's reveal line (Talents T1), one picture at iPhone size (390 x 844), day and night, and the
+// Train picker past five stars. From tools/fixtures/barn/barn-six.json: Mochi (a Crystal Slime, Curly) has had lessons
+// in Bounce, Speed and Smarts; her Potential in Smarts is 5, so Smarts is S and the card says "a natural at Smarts!".
+// Then she has 5 Smarts stars and the Train picker offers the 6th (7 star places, 80 pearls).
+//   node tools/talent-card-shot.cjs [--dpr 2]
+//   pictures: tools/out/talents/barn-card-reveal-{day,night}.png, train-picker-6th-star-day.png
 const path = require('path');
 const fs = require('fs');
 const { setup, watchdog, log } = require('./browser-kit.cjs');
@@ -56,6 +58,20 @@ const SAVE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'barn',
         for (let i = 0; i < 3; i++) { await page.waitForTimeout(250); await page.screenshot({ path: path.join(OUT, `barn-card-reveal-${dark ? 'night' : 'day'}.png`), timeout: 180000 }); }
       }, 600000);
     }
+    await step('the Train picker past five stars', async () => {
+      await ev(() => document.documentElement.setAttribute('data-theme', 'light'));
+      const r = await ev(() => {
+        const g = window.slimekin, m = g.state.ranch.residents.find(x => x.name === 'Mochi');
+        m.skills.smarts = 5; g.state.ranch.pearls = 300;
+        g.life.openTrain(m.id);
+        const b = document.querySelector('.rl-pick[data-skill="smarts"]');
+        return b ? { text: b.innerText.replace(/\s+/g, ' ').trim(), disabled: b.disabled, w: b.scrollWidth, cw: b.clientWidth } : null;
+      });
+      log('Train picker, Smarts:', JSON.stringify(r));
+      if (!r || !/★★★★★☆☆/.test(r.text) || !/Star 6: .*80/.test(r.text) || r.disabled) errors.push('the Train picker does not offer a 6th Smarts star with 7 places: ' + JSON.stringify(r));
+      if (r && r.w > r.cw + 1) errors.push('the Smarts row overflows: ' + JSON.stringify(r));
+      for (let i = 0; i < 3; i++) { await page.waitForTimeout(250); await page.screenshot({ path: path.join(OUT, 'train-picker-6th-star-day.png'), timeout: 180000 }); }
+    }, 300000);
     const fit = await ev(() => { const r = document.getElementById('barnCard').getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, vw: innerWidth, vh: innerHeight }; });
     if (fit.left < 0 || fit.right > fit.vw || fit.bottom > fit.vh) errors.push('the card does not fit the screen: ' + JSON.stringify(fit));
     log('card box:', JSON.stringify(fit));
