@@ -1,5 +1,14 @@
-// DOM interface: counters, snack tray, shop tabs, journal, slime profile,
-// speech/request bubbles, floating numbers, toasts and modals.
+// DOM interface: counters, snack tray, the menu's tabs and phone sheet, emotes, speech/request bubbles, floating
+// numbers, toasts and modals. The menu's pages are the Hud's parts, one page per file in panels/, mixed into
+// Hud.prototype at the bottom (src/mixin.js), so every method is still hud.x() for its callers:
+//   panels/helpers.js    Shop > Helpers
+//   panels/upgrades.js   Shop > Upgrades (the Jelly Jar card, your jelly bonuses)
+//   panels/outfits.js    Outfits
+//   panels/heirlooms.js  Heirlooms (and the tab's glow; the tab button is made in mountJellyLoop below)
+//   panels/slime.js      your slime's page
+//   panels/journal.js    the Journal (notes, family tree)
+//   panels/ranch.js      Ranch (the barn overview, a resident's page)
+//   panels/nursery.js    the Nursery (inside the Ranch tab)
 import { FOODS, STAGES, BOND, NAME_IDEAS, EMOTES, TRICK_LEARNED, HEIRLOOM_TAB } from '../data/content.js';
 import { fmt, fmtShort, fmtRate } from '../core/format.js';
 import { memIcon } from './icons.js';
@@ -872,4 +881,5 @@ export class Hud {
 }
 
 // the rest of Hud: its parts (./panels/), mixed into Hud.prototype (src/mixin.js)
-mixParts(Hud, HelpersPanel, UpgradesPanel, OutfitsPanel, HeirloomsPanel, JournalPanel, SlimePanel, RanchPanel, NurseryPanel);
+mixParts(Hud, HelpersPanel, UpgradesPanel, OutfitsPanel, HeirloomsPanel, JournalPanel, SlimePanel, RanchPanel,
+  NurseryPanel);
