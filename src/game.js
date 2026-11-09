@@ -46,6 +46,7 @@ import { GrowthPart } from './game/growth.js';
 import { RequestsPart } from './game/requests.js';
 import { PlayPart } from './game/play.js';
 import { MoodPart } from './game/mood.js';
+import { LayoutPart } from './game/layout.js';
 import { mixParts } from './mixin.js';
 
 const TROUBLE_FAILS = 3;   // save safety: failed frames in a row (each clean frame takes 0.1 off) before the hiccup card
@@ -550,62 +551,6 @@ export class Game {
     this.markDirty(true);
   }
 
-  // ---------- theme / layout ----------
-  watchTheme() {
-    const root = document.documentElement;
-    const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    const apply = () => {
-      const t = root.getAttribute('data-theme');
-      const dark = t === 'dark' || (t !== 'light' && mq.matches);
-      if (dark !== this.stage.dark) this.stage.setTheme(dark);
-    };
-    apply();
-    mq.addEventListener?.('change', apply);
-    new MutationObserver(apply).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
-  }
-
-  layoutChanged() {
-    this.resize();
-    setTimeout(() => this.resize(), 400);
-  }
-
-  resize() {
-    const w = innerWidth, h = innerHeight;
-    if (!this.stage) return;
-    this.stage.resize(w, h, this.viewOff.x, this.viewOff.y);
-    this.computeViewGoal();
-  }
-
-  computeViewGoal() {
-    const w = innerWidth, h = innerHeight;
-    let x = 0, y = 0, zoom = 1;
-    const mobileTop = window.matchMedia('(max-width: 860px)').matches;
-    this.topLimit = mobileTop ? document.querySelector('.top').getBoundingClientRect().bottom : 0;
-    if (this.view === 'ranch') { this.stage.fitZoom = 1; return; }   // [barn] the barn fits its stand each frame
-    if (this.state.phase === 'play') {
-      const mobile = window.matchMedia('(max-width: 860px)').matches;
-      const panelEl = document.getElementById('panel');
-      // a stretched (tall) menu covers most of the screen on purpose: keep the scene where it was behind it
-      if (mobile && panelEl.classList.contains('tall')) return;
-      const panel = panelEl.getBoundingClientRect();
-      const top = document.querySelector('.top').getBoundingClientRect();
-      const tray = document.getElementById('tray').getBoundingClientRect();
-      if (!mobile) {
-        x = (panel.width + 18) / 2;
-        const free = (top.bottom + tray.top) / 2;
-        y = (h / 2 - free) * 0.6;
-      } else {
-        const bottom = Math.min(tray.top, panel.top);
-        const free = (top.bottom + bottom) / 2;
-        y = h / 2 - free;
-        // a tall menu leaves little room: zoom out so the slime still fits above it
-        zoom = Math.max(1, Math.min(2.3, (h * 0.4) / Math.max(80, bottom - top.bottom)));
-      }
-    }
-    this.stage.fitZoom = zoom;
-    this.viewGoal.set(x, y);
-  }
-
   // ---------- saving ----------
   serialize() {
     this.state.savedAt = Date.now();
@@ -876,4 +821,4 @@ export class Game {
 }
 
 // the rest of Game: its parts (./game/), mixed into Game.prototype (src/mixin.js)
-mixParts(Game, EggPart, WelcomePart, ShopPart, RanchPart, NurseryPart, MoveOutPart, NewHomesPart, InputPart, CarePart, FoodPart, GrowthPart, RequestsPart, PlayPart, MoodPart);
+mixParts(Game, EggPart, WelcomePart, ShopPart, RanchPart, NurseryPart, MoveOutPart, NewHomesPart, InputPart, CarePart, FoodPart, GrowthPart, RequestsPart, PlayPart, MoodPart, LayoutPart);
