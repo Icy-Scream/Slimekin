@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { Sim, createState, migrate } from './core/sim.js';
 import { Requests } from './core/requests.js';
-import { TUNING, FOODS, FOOD_BY_ID, HELPERS, HELPER_BY_ID, UPGRADE_BY_ID, STAGES, TRAITS, TRAIT_IDS, BOND, PERSONALITY, PERSONALITY_IDS, JAR_LEVELS, OUTFITS, OUTFIT_BY_ID, BUYER_BY_ID, BREEDING, SPARK_BY_ID, FORM_BY_ID, PURE_LINE, MOVING_DAY, BREEDS, SENDOFF, SKILL_IDS } from './data/content.js';
+import { TUNING, FOODS, FOOD_BY_ID, HELPERS, HELPER_BY_ID, UPGRADE_BY_ID, STAGES, TRAITS, TRAIT_IDS, BOND, PERSONALITY, JAR_LEVELS, OUTFITS, OUTFIT_BY_ID, FORM_BY_ID, PURE_LINE, MOVING_DAY, BREEDS, SENDOFF, SKILL_IDS } from './data/content.js';
 import { fmt, fmtShort, fmtDuration } from './core/format.js';
 import { Stage, CUSHION_TOP } from './view/stage.js';
 import { SlimeAvatar } from './view/slime.js';
@@ -32,18 +32,14 @@ import { starCap } from './core/talents.js';
 import { RanchView } from './view/ranch.js';
 import { Scenery } from './view/scenery.js';
 import { RanchLifeUI } from './ui/ranch-life.js';
-import { isNative, haptic, freshState } from './platform/index.js';
+import { haptic, freshState } from './platform/index.js';
 import { Home } from './greenhouse-home.js';
 import { BarnRanch } from './barn-ranch.js';
 import { ContestsUI } from './ui/contests.js';
 import { ContestShow } from './contest-show.js';
 import { SendOff } from './send-off.js';
+import { SLIME_Y, clamp, ease, DEBUG, an } from './game/shared.js';
 
-const SLIME_Y = CUSHION_TOP - 0.03;
-const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const ease = t => 1 - Math.pow(1 - clamp(t, 0, 1), 3);
-const DEBUG = location.hash === '#debug' && !isNative;   // no debug tools in the iPhone app
-const an = w => (/^[aeiou]/i.test(w) ? 'an ' : 'a ') + w;
 const TROUBLE_FAILS = 3;   // save safety: failed frames in a row (each clean frame takes 0.1 off) before the hiccup card
 
 export class Game {
