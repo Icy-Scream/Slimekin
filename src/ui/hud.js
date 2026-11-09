@@ -9,8 +9,8 @@ import { fmt, fmtShort, fmtRate, fmtDuration } from '../core/format.js';
 import { ICON, memIcon, slimeArt, slimeUnknown } from './icons.js';
 import { nextMedal, residentMedal } from '../core/medals.js';
 import { specialEggsHtml, specialEggColors, nurseryEggTitle, nurseryEggNote, breedHtml, eggOrigin } from './eggs.js';   // recipe body
+import { DROP } from './dom.js';
 
-const DROP = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.2c3.7 4.6 6.6 8.4 6.6 12a6.6 6.6 0 0 1-13.2 0c0-3.6 2.9-7.4 6.6-12z"/></svg>';
 const DICE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm2.5 3a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm9 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM12 10.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM7.5 15a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm9 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z"/></svg>';
 // the gold chest from the approved 7th-tab layout check: the Heirlooms tab's placeholder until the UI branch draws one
 const CHEST = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10a6 6 0 0 1 6-6h6a6 6 0 0 1 6 6v1H3z" fill="#e0a526"/><rect x="3" y="11" width="18" height="9" rx="2" fill="#f2c14e"/><rect x="3" y="10" width="18" height="2.4" fill="#b7791f"/><rect x="10.5" y="10" width="3" height="5" rx="1" fill="#8a5a12"/></svg>';
