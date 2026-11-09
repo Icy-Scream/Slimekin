@@ -96,7 +96,12 @@ artifact's database when it runs on claude.ai (so it follows you across devices)
 ```
 index.html            page shell, all CSS (light + dark themes), import map
 src/main.js           boot: load save (local + cloud), start the game
-src/game.js           coordinator: input -> rules -> reactions, effects, UI
+src/game.js           coordinator: builds the Game (world, views, HUD, frame loop) and runs each frame
+src/game/            the Game's parts, one subject per file (egg, care, food, mood, growth, requests, play, shop,
+                      welcome, ranch, nursery, move-out, new-homes, input, layout, settings, saving, debug; shared.js
+                      for SLIME_Y, clamp, ease, DEBUG, an); what each holds is listed at the top of game.js
+src/mixin.js          mixParts: copies a part's methods onto its class (partial classes: game.x() / hud.x() as before;
+                      a name defined twice stops the game at load)
 src/behaviors.js      gestures, emotes and tricks, little moments, room play, secrets
 src/data/content.js   ALL tuning and content: stages, foods, traits, helpers, upgrades, combos, bond, forms
 src/core/sim.js       game rules and save state (no three.js, no DOM), including moving to the ranch
@@ -125,7 +130,10 @@ src/view/egg.js       the egg and hatching shards
 src/view/egg-spark.js the twinkle (and warm night glow) on an egg with a family spark
 src/view/fx.js        sprite particles
 src/audio/sfx.js      synthesized sounds and slime "voice" (Web Audio, no files)
-src/ui/hud.js         DOM interface
+src/ui/hud.js         DOM interface: counters, snack tray, menu tabs and the phone sheet, emotes, bubbles, toasts, modals
+src/ui/panels/       the menu's pages, one per file, parts of the Hud: helpers, upgrades, outfits, heirlooms, slime,
+                      journal, ranch, nursery (listed at the top of hud.js)
+src/ui/dom.js         what the HUD and the menu pages share (the jelly drop drawn before prices)
 src/ui/icons.js       drawn icons (sparkle, heart, Journal memory icons, little slime drawings) used instead of emoji
 src/ui/eggs.js        special eggs in the Nursery, a Nursery egg's title, the Breed line on your slime's page
 tools/serve.mjs       local dev server
@@ -196,7 +204,7 @@ AGENTS.md, CLAUDE.md  hand-off guide for coding agents (how it ships, how to tes
 ```
 
 The split follows the OOP guide's boundaries: `core/` owns rules and returns result objects,
-`view/` only presents, `game.js` sequences the two, and content lives in data so balancing never
+`view/` only presents, `game.js` (with its parts in `game/`) sequences the two, and content lives in data so balancing never
 touches logic. It ports to Godot cleanly: `content.js` → Resources, `sim.js` → RefCounted domain
 classes, `slime.js` → the SlimeAvatar scene.
 

@@ -46,6 +46,12 @@ it up the next time it is opened online (sometimes it takes two opens). Never ed
   `src/view/barn-math.js` is its plain math (node-testable), `src/ui/barn-card.js` the card and ‹ ›. Numbers in `BARN`
   (`content.js`). `src/view/ranch.js` is now only home's ranch hill in the Meadow background.
 - `src/game.js` coordinates input → rules → reactions. `src/behaviors.js` = personality moments.
+  game.js only builds the Game and runs the frame; its methods live in parts, one subject per file in `src/game/`
+  (the list is at the top of game.js), and the menu's pages are the Hud's parts in `src/ui/panels/` (list at the top
+  of hud.js). `mixParts` (`src/mixin.js`) copies them onto Game/Hud.prototype, so everything is still `g.x()` /
+  `g.hud.x()` and `this` is the Game or the Hud. Put a new method in the part for its subject (or a new part, added
+  to the `mixParts` call); a name defined twice stops the game at load. Parts import what they use and never
+  game.js or hud.js; shared module consts go in `src/game/shared.js` / `src/ui/dom.js`.
 - **All tuning and content lives in `src/data/content.js`** (`TUNING`, `STAGES`, `FOODS`, `HELPERS`,
   `UPGRADES`, `BOND`, `RANCH`, `BUYERS`, forms...). Balance there, not in logic.
 - Saves: `localStorage` key `slimekin.save.v1`. Old saves must keep working: add new fields to

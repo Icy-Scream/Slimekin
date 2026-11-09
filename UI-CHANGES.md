@@ -4,6 +4,9 @@ Every on-screen element the breeding core and the playtest fixes added or change
 restyle them. Game UI facts only: element ids and classes, where each one shows, and which pieces are placeholders
 (emoji or CSS drawings) waiting for real art. All CSS lives in `index.html`; the markup is built in
 `src/ui/hud.js` (menu tabs) and `src/game.js` (modals, toasts, the egg hint).
+Since the S1 split, the menu pages are in `src/ui/panels/` (one file per page) and game.js's cards, toasts and the
+egg hint are in `src/game/` (one file per subject); the names below (renderRanch, askMoveOut, ...) are unchanged,
+and the lists at the top of hud.js and game.js say which file holds which.
 
 Already on `main` too: on a 393 px wide phone the tab label "Upgrades" is cut off ("Upgra...": 58 px of room for
 61 px of text).
