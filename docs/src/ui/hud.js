@@ -52,6 +52,7 @@ export class Hud {
       if (!b || b.disabled) return;
       const g = this.g, id = b.dataset.id;
       if (b.dataset.rl) { g.life.click(b); return; }   // ranch life (ui/ranch-life.js)
+      if (b.dataset.cs) { g.contestsUI.click(b); return; }   // [contests] (ui/contests.js)
       if (b.id === 'moveOutBtn') g.askMoveOut();
       else if (b.id === 'collectBasket') g.collectBasket();
       else if (b.id === 'basketUp') g.buyBasket();
@@ -852,7 +853,7 @@ export class Hud {
       const xm = residentMedal(x);
       html += `<div class="card"><div class="row-between"><span class="form-name">${esc(x.name)} ${this.medalChip(xm)}</span><span class="sub">Generation ${x.generation}</span></div>
         <b>${esc(x.form?.name || 'Slime')}</b><span class="sub">${esc(x.form?.blurb || '')}</span>
-        <span class="sub medal-line">${esc(xm.id === 'ribbon' ? 'Grown-Up Ribbon' : `${xm.name} medal: pearls x${xm.pearls}, buyers pay +${Math.round(xm.offers * 100)}%`)} (${fmtShort(x.runTotal || 0)} jelly made growing up).</span>
+        <span class="sub medal-line">${esc(xm.id === 'ribbon' ? 'Grown-Up Ribbon' : `${xm.name} medal: pearls x${xm.pearls}, buyers pay +${Math.round(xm.offers * 100)}%`)} (${fmtShort(x.runTotal || 0)} jelly made growing up).</span>${g.contestsUI.residentLine(x)}
         <div class="row-between"><span class="sub">${happyWord(x.happiness)}</span><span class="sub">${Math.round(x.happiness)}%</span></div><div class="meter"><i style="width:${x.happiness.toFixed(0)}%;background:linear-gradient(90deg,#ffb0c8,var(--berry))"></i></div>
         ${x.trip ? '' : `<span class="sub">Tap or stroke ${esc(x.name)} to pet them. Happy slimes make pearls faster.</span>`}
         ${x.lineage?.parents?.length ? `<span class="sub">Child of ${esc(x.lineage.parents[0].name)} (${esc(x.lineage.parents[0].form.name)}) and ${esc(x.lineage.parents[1].name)} (${esc(x.lineage.parents[1].form.name)}).</span>` : ''}</div>`;

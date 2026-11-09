@@ -3,6 +3,7 @@
 import { BREEDING, SPARK_FORMS, SPARK_BY_ID, TRAIT_IDS, FOODS, FOOD_BY_ID, PERSONALITY_IDS, FORM_BY_ID, PURE_LINE, BREEDS } from '../data/content.js';
 import { rng } from './random.js';
 import { rollBredEgg, cleanBody } from './recipe.js';
+import { inheritPotential, rollPotential, validPotential } from './talents.js';
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const round1 = v => Math.round(v * 10) / 10;
@@ -93,6 +94,8 @@ export function makeEgg(a, b, { now, id, seed }) {
     pure: pureFor(p, q),
     line: Math.max(p.lineage?.line || 1, q.lineage?.line || 1) + 1,
     ...inherit(p, q, s),
+    // its hidden Potential (core/talents.js): partly from each parent; a Pure egg rerolls its fresh skills keeping the better
+    potential: inheritPotential(p, q, s, { pure: !!pureFor(p, q) }),
     // the baby's body (core/recipe.js): two Curlys make a Curly, two Dollops a Dollop, a Curly x Dollop an in-between
     body: rollBredEgg(p, q, s),
   };
@@ -104,6 +107,15 @@ export function eggFromLineage(L) {
   return { id: L.egg || 'e-cushion', seed: null, laidAt: 0, readyAt: 0,
     parents: L.parents.map(p => ({ ...p, form: { ...p.form } })), spark: L.spark || null, pure: L.pure || null,
     line: L.line || 2, bias: { ...(L.bias || {}) }, personality: {}, favorite: null, rebuilt: true };
+}
+
+// An egg's Potential: its own, or (an egg from before talents) inherited from its parents when they still live on the
+// ranch (residents), else a fresh roll from the egg's seed.
+export function eggPotential(egg, residents = []) {
+  if (validPotential(egg?.potential)) return egg.potential;
+  const [a, b] = (egg?.parents || []).map(p => residents.find(x => x && x.id === p?.id));
+  const seed = egg?.seed ?? egg?.id ?? 'egg';
+  return a && b ? inheritPotential(a, b, seed, { pure: !!egg.pure }) : rollPotential(seed);
 }
 
 // Give a freshly created baby (createState().slime) what it inherited from its egg.
@@ -119,6 +131,7 @@ export function applyEgg(slime, egg) {
   }
   slime.lineage = { line: egg.line, parents: egg.parents.map(p => ({ ...p, form: { ...p.form } })), spark: egg.spark, pure: egg.pure, egg: egg.id, bias: { ...egg.bias } };
   if (egg.special) slime.lineage.special = egg.special;   // hatched from a special egg bought with pearls
+  slime.potential = { ...eggPotential(egg) };
   Object.assign(slime, cleanBody(egg.body));   // its body was fixed when the egg was made (an older egg: a Curly)
   return slime;
 }

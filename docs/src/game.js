@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { Sim, createState, migrate } from './core/sim.js';
 import { Requests } from './core/requests.js';
-import { TUNING, FOODS, FOOD_BY_ID, HELPERS, HELPER_BY_ID, UPGRADE_BY_ID, STAGES, TRAITS, TRAIT_IDS, BOND, PERSONALITY, PERSONALITY_IDS, JAR_LEVELS, OUTFITS, OUTFIT_BY_ID, BUYER_BY_ID, BREEDING, SPARK_BY_ID, FORM_BY_ID, PURE_LINE, MOVING_DAY, BREEDS, SENDOFF } from './data/content.js';
+import { TUNING, FOODS, FOOD_BY_ID, HELPERS, HELPER_BY_ID, UPGRADE_BY_ID, STAGES, TRAITS, TRAIT_IDS, BOND, PERSONALITY, PERSONALITY_IDS, JAR_LEVELS, OUTFITS, OUTFIT_BY_ID, BUYER_BY_ID, BREEDING, SPARK_BY_ID, FORM_BY_ID, PURE_LINE, MOVING_DAY, BREEDS, SENDOFF, SKILL_IDS } from './data/content.js';
 import { fmt, fmtShort, fmtDuration } from './core/format.js';
 import { Stage, CUSHION_TOP } from './view/stage.js';
 import { SlimeAvatar } from './view/slime.js';
@@ -27,12 +27,16 @@ import { ICON, memIcon } from './ui/icons.js';
 import { Behaviors } from './behaviors.js';
 import { MovingDay } from './moving-day.js';
 import { movingDayRatio, movingDayLevel } from './core/movingday.js';
+import { scoreShow, applyShow, dressUp } from './core/contests.js';
+import { starCap } from './core/talents.js';
 import { RanchView } from './view/ranch.js';
 import { Scenery } from './view/scenery.js';
 import { RanchLifeUI } from './ui/ranch-life.js';
 import { isNative, haptic, freshState } from './platform/index.js';
 import { Home } from './greenhouse-home.js';
 import { BarnRanch } from './barn-ranch.js';
+import { ContestsUI } from './ui/contests.js';
+import { ContestShow } from './contest-show.js';
 import { SendOff } from './send-off.js';
 
 const SLIME_Y = CUSHION_TOP - 0.03;
@@ -56,6 +60,9 @@ export class Game {
     this.sim = new Sim(this.state);
     this.requests = new Requests(this.sim);
     this.life = new RanchLifeUI(this);   // ranch life: lessons and trips (menus in ui/ranch-life.js, rules in core/ranch-life.js)
+    this.contests = DEBUG ? this.contestsDebug() : null;   // contests (#debug): the rules straight, no show (core/contests.js)
+    this.contestsUI = new ContestsUI(this);   // [contests] the entry card, Dress up, results, the Trophy Shelf (ui/contests.js)
+    this.contestShow = new ContestShow(this);   // [contests] the show on the barn's stand (contest-show.js)
     this.sfx = new Sfx();
     this.sfx.sound = this.state.settings.sound;
     this.sfx.music = this.state.settings.music;
@@ -560,6 +567,7 @@ export class Game {
       return;
     }
     this.view = 'home';
+    this.contestShow.cancel();   // [contests] a show still running stops: nothing paid
     this.barnRanch.leave();   // [barn]
     this.ranchFocus = null;
     this.ranchPage = null;
@@ -2033,7 +2041,8 @@ export class Game {
       <button class="btn" data-dbg="glim">Glimmer</button><button class="btn" data-dbg="req">Request</button><button class="btn" data-dbg="bond">+Bond</button>
       <button class="btn" data-dbg="tera">+1T jelly</button><button class="btn" data-dbg="pearls">+100 pearls</button>
       <button class="btn" data-dbg="instant" aria-pressed="${this.debugInstant}">Instant eggs: ${this.debugInstant ? 'On' : 'Off'}</button>
-      <button class="btn" data-dbg="rlLessons">Finish lessons</button><button class="btn" data-dbg="rlTrips">Bring travelers home</button></div>
+      <button class="btn" data-dbg="rlLessons">Finish lessons</button><button class="btn" data-dbg="rlTrips">Bring travelers home</button>
+      <button class="btn" data-dbg="contests">Contest stars</button></div>
       ${this.bodyDebugHtml()}
       ${this.movingDayDebugHtml()}` : '';
     this.hud.openModal(`<h2>Settings</h2>
@@ -2233,12 +2242,48 @@ export class Game {
     if (k === 'pearls') { this.sim.ranch.addPearls(100); this.hud.renderRanch(true); }
     if (k === 'tera') this.sim.addJelly(1e12);
     if (k === 'rlLessons' || k === 'rlTrips') { this.hud.closeModal(); this.life.debugFinish(k === 'rlLessons' ? 'lessons' : 'trips'); }
+    if (k === 'contests') this.debugContestStars();
     if (k === 'instant') {
       this.debugInstant = !this.debugInstant;
       try { localStorage.setItem('slimekin.debug.instantEggs', this.debugInstant ? '1' : '0'); } catch { /* private mode */ }
       this.instantEggs();
       this.openSettings();
     }
+  }
+  // ---------- contests: the #debug path (the screens: ui/contests.js and contest-show.js) ----------
+  // g.contests.enter(residentId, contestId, cheers, { cup }) runs a show (core/contests.js scoreShow) and writes its
+  // result into the save (applyShow); returns the show with `given` (what it brought). cheers: 'perfect' | 'good' |
+  // 'nice' | 'none' | 'mash' | 'skip', or per act a grade or a list of tap times (s from the ring appearing).
+  // g.contests.dress(residentId, slot, outfitId | null): Dress up with an outfit the family owns.
+  contestsDebug() {
+    const done = () => { this.markDirty(true); this.saveNow(); this.hud.renderRanch(true); if (this.barnRanch.on) this.barnRanch.renderCard(); };
+    return {
+      enter: (id, contestId, cheers = 'good', opts = {}) => {
+        const res = scoreShow(this.state, id, contestId, { cheers, reducedMotion: !!this.reduced, ...opts });
+        if (!res.ok) return res;
+        res.given = applyShow(this.state, res, this.nowMs());
+        if (res.given?.journal) this.hud.dot('journal');
+        done();
+        return res;
+      },
+      preview: (id, contestId, cheers = 'none', opts = {}) => scoreShow(this.state, id, contestId, { cheers, reducedMotion: !!this.reduced, ...opts }),
+      dress: (id, slot, outfitId = null) => { const r = dressUp(this.state, id, slot, outfitId); if (r.ok) done(); return r; },
+    };
+  }
+  // Debug "Contest stars": the resident on the barn's stand (or the first one home and free) learns every star its talents
+  // allow and is perfectly happy, so it can try every cup.
+  debugContestStars() {
+    const R = this.state.ranch.residents;
+    const x = (this.barnRanch.on && R.find(r => r.id === this.barnRanch.curId)) || R.find(r => !r.trip && !r.lesson) || R.find(r => !r.trip);
+    if (!x) { this.hud.toast('<b>No one to train</b>Move a slime to the ranch first.', '', 2400); return null; }
+    for (const id of SKILL_IDS) x.skills[id] = Math.max(x.skills[id] || 0, starCap(x, id));
+    x.happiness = 100;
+    this.hud.closeModal();
+    this.hud.toast(`<b>Debug: contest stars</b>${esc(x.name)} has every star it can learn.`, '', 2400);
+    this.markDirty(true);
+    this.hud.renderRanch(true);
+    if (this.barnRanch.on) this.barnRanch.renderCard();
+    return x.id;
   }
   // Debug "Instant eggs": every waiting egg (and the egg on the cushion) is ready now and no parent is resting.
   instantEggs() {
@@ -2742,6 +2787,7 @@ export class Game {
     // [greenhouse] what home shows (the room, the meadow or the classic nursery; the ranch hill) and the camera's target
     this.home.update(dt);
     this.barnRanch.update(dt);   // [barn] the ranch screen (the barn), when it shows
+    this.contestShow.update(dt);   // [contests] a show on the barn's stand, when one runs
     this.ranch.update(dt);
     this.scenery.update(dt);
     this.fx.update(dt);

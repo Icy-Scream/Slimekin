@@ -5,6 +5,7 @@
 import { BARN, SKILL_IDS, SKILL_BY_ID, PLACE_BY_ID } from '../data/content.js';
 import { fmtDuration } from '../core/format.js';
 import { bodyName } from '../core/recipe.js';
+import { revealLine, maxStars } from '../core/talents.js';
 
 const easeOut = p => 1 - (1 - p) * (1 - p);
 
@@ -85,7 +86,7 @@ export function pastSwipe(p, nowMs, w = BARN.swipe) {
 }
 
 // ---------- the name card ----------
-const stars = (x, id) => Math.max(0, Math.min(5, Math.round(x?.skills?.[id] || 0)));
+const stars = (x, id) => Math.max(0, Math.min(maxStars(), Math.round(x?.skills?.[id] || 0)));
 // Its best skill: the most stars (the first in the Training Center's order on a tie), or null with no stars yet.
 export function bestSkill(x) {
   let best = null;
@@ -95,6 +96,7 @@ export function bestSkill(x) {
 // The card's line for a resident: its body's name (Curly, Dollop, Cat-ear Dollop, Topknot Dollop, Curly × Dollop)
 // and one short line from real data: in a lesson (time left), just back from a trip, its best skill and stars, or
 // the pearls it makes an hour. now: ms; back: { place, at } of its last trip home (this session); perHour: pearls.
+// talent: the best talent its lessons have shown so far, in words (core/talents.js revealLine), or ''.
 export function cardLine(x, { now = Date.now(), back = null, perHour = 0 } = {}) {
   const breed = bodyName(x);
   let line;
@@ -105,7 +107,7 @@ export function cardLine(x, { now = Date.now(), back = null, perHour = 0 } = {})
     if (b) line = `${b.name} ${'★'.repeat(b.stars)}`;
     else line = perHour > 0 ? `${perHour < 10 ? perHour.toFixed(1).replace(/\.0$/, '') : Math.round(perHour)} pearls an hour` : 'resting';
   }
-  return { breed, line };
+  return { breed, line, talent: revealLine(x) };
 }
 // Dots for up to BARN.dots residents, else "3 of 12".
 export function cardCount(n, i, max = BARN.dots) {

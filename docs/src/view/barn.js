@@ -103,6 +103,8 @@ export class BarnView {
     this.land = -9;          // when the slime last landed (the landing spring)
     this.empty = true;       // nobody on the stand
     this.res = { id: null, happyT: 0, timer: 3, nap: false };
+    this.performing = false;  // a contest show runs on the stand (contest-show.js drives the moves and the face)
+    this.performExpr = null;
     this.pearls = [];
     this.nestEggs = new Map();
     this.onWear = null;      // the swap puts the next resident on (the coordinator dresses it): () => void
@@ -477,6 +479,13 @@ export class BarnView {
   think(dt, camera) {
     const r = this.res, av = this.av;
     if (this.empty) return;
+    // a contest show (contest-show.js): it looks at you and does only the show's moves (no naps, no moves of its own)
+    if (this.performing) {
+      Object.assign(av.expr, this.performExpr || { eyes: 'normal', mouth: 'smile', blush: 0.6 });
+      av.lookTarget = camera ? camera.position : null;
+      av.cap.on = false; r.nap = false; av.breathRate = 2.1;
+      return;
+    }
     r.happyT -= dt; r.timer -= dt;
     if (r.happyT > 0) Object.assign(av.expr, { eyes: 'happy', mouth: 'open', blush: 0.9 });
     else if (r.nap) Object.assign(av.expr, { eyes: 'sleep', mouth: 'smile', blush: 0.4 });

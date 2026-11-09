@@ -5,11 +5,15 @@
 import { RANCH_LIFE, SKILL_BY_ID, PLACE_BY_ID } from '../data/content.js';
 import { fmt, fmtDuration } from '../core/format.js';
 import { stars, lovesDef, busy, SOUVENIR_TOTAL } from '../core/ranch-life.js';
+import { starCap } from '../core/talents.js';
 
 const L = RANCH_LIFE;
 import { esc } from './esc.js';
 import { memIcon } from './icons.js';
-const starText = n => '★'.repeat(n) + '☆'.repeat(L.maxStars - n);
+// a skill's star row: 5 places, or (talents, core/talents.js) 6 or 7 once its first lesson has shown the talent
+const starSlots = (x, id) => Math.max(stars(x, id), (x.talentsSeen || []).includes(id) ? starCap(x, id) : L.maxStars);
+const starText = (n, slots = L.maxStars) => '★'.repeat(n) + '☆'.repeat(Math.max(0, slots - n));
+const STAR_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven'];
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 const pearlCost = n => `<span class="cost"><i class="pearl"></i>${fmt(n)}</span>`;
 // a few small rules for the new pieces only (the UI pass restyles them; see UI-CHANGES.md "Ranch life")
@@ -69,16 +73,16 @@ export class RanchLifeUI {
   // Resident page: skills, loves, status, Train / Send on a trip / Call home early.
   residentHtml(x) {
     const total = Object.values(x.skills || {}).reduce((a, b) => a + b, 0);
-    const rows = L.skills.map(s => `<div class="row-between"><span>${s.icon} ${esc(s.name)}</span><span class="rl-stars" aria-label="${stars(x, s.id)} of ${L.maxStars} stars">${starText(stars(x, s.id))}</span></div>`).join('');
+    const rows = L.skills.map(s => `<div class="row-between"><span>${s.icon} ${esc(s.name)}</span><span class="rl-stars" aria-label="${stars(x, s.id)} of ${starSlots(x, s.id)} stars">${starText(stars(x, s.id), starSlots(x, s.id))}</span></div>`).join('');
     const st = this.status(x);
     const id = esc(x.id);
     const acts = x.trip ? `<button class="btn" data-rl="callHome" data-id="${id}">Call home early</button>`
       : x.lesson ? ''
       : `<button class="btn" data-rl="train" data-id="${id}">Train</button><button class="btn" data-rl="trip" data-id="${id}">Send on a trip</button>`;
-    return `<div class="sec-title">Skills <span class="count">${total} of ${L.skills.length * L.maxStars} stars</span></div>
+    return `<div class="sec-title">Skills <span class="count">${total} of ${L.skills.reduce((t, s) => t + starSlots(x, s.id), 0)} stars</span></div>
       <div class="card rl-skills">${rows}<span class="sub">${esc(this.loves(x))}</span>
         ${st ? `<span class="sub rl-busy"><b>${esc(st)}.</b>${x.trip ? ` ${esc(x.name)} is not on the ranch now.` : ` ${esc(x.name)} keeps making pearls meanwhile.`}</span>` : ''}
-        ${acts ? `<div class="res"><div class="acts">${acts}</div></div>` : ''}</div>`;
+        ${acts ? `<div class="res"><div class="acts">${acts}</div></div>` : ''}${this.g.contestsUI ? this.g.contestsUI.residentRow(x) : ''}</div>`;   // [contests] Enter a contest / Dress up
   }
   // One line on a resident's row in the list.
   rowHtml(x) { const st = this.status(x); return st ? `<span class="sub rl-status">${memIcon(x.trip ? '🧳' : '🎓', '')} ${esc(st)}</span>` : ''; }
@@ -95,7 +99,7 @@ export class RanchLifeUI {
       <div class="row-between"><span>${memIcon('🧳', '')} Travelers</span><b>${rl.travelers().length} / ${plural(l.wagons, 'wagon')}</b></div>
       <span class="sub">Tap a slime to visit it, then train it or send it on a trip. Lessons and trips go on while the game is closed.</span>
       ${ups ? `<div class="upgrades">${ups}</div>` : ''}
-      <button class="btn" data-rl="shelf">Souvenirs ${rl.foundTotal()} / ${SOUVENIR_TOTAL}</button></div>`;
+      <div class="cs-halves"><button class="btn" data-rl="shelf">Souvenirs ${rl.foundTotal()} / ${SOUVENIR_TOTAL}</button>${this.g.contestsUI ? this.g.contestsUI.ranchHalf() : ''}</div></div>`;   // [contests] Trophies beside Souvenirs
   }
   // Nursery: why a slime can't be picked as a parent right now (null when it can).
   pickNote(x) { return x.trip ? 'On a trip' : x.lesson ? 'In a lesson' : null; }
@@ -149,9 +153,9 @@ export class RanchLifeUI {
       const n = stars(x, s.id);
       const per = Object.entries(s.fx).map(([k, v]) => ({ pearls: `+${Math.round(v * 100)}% ranch pearls`, tripTime: `trips ${Math.round(v * 100)}% shorter`, fade: `happiness fades ${Math.round(v * 100)}% slower`, lessonTime: `lessons ${Math.round(v * 100)}% shorter`, tripPearls: `trips bring ${Math.round(v * 100)}% more pearls`, offers: `offers +${Math.round(v * 100)}%` }[k])).join(', ');
       const extra = s.id === 'sturdy' ? `; opens the farther trips` : '';
-      const line = c.reason === 'max' ? 'All five stars!' : `Star ${c.star}: ${fmtDuration(c.seconds)} · <i class="pearl"></i> ${c.pearls}`;
+      const line = c.reason === 'max' ? `All ${STAR_WORDS[n] || n} stars!` : `Star ${c.star}: ${fmtDuration(c.seconds)} · <i class="pearl"></i> ${c.pearls}`;
       return `<button class="card choice rl-pick" data-skill="${s.id}" ${c.ok ? '' : 'disabled'}><span class="rl-ic" aria-hidden="true">${s.icon}</span>
-        <span><b>${esc(s.name)} <span class="rl-stars">${starText(n)}</span></b><span class="sub">${line}</span><span class="sub">Each star: ${esc(per + extra)}.</span></span></button>`;
+        <span><b>${esc(s.name)} <span class="rl-stars">${starText(n, starSlots(x, s.id))}</span></b><span class="sub">${line}</span><span class="sub">Each star: ${esc(per + extra)}.</span></span></button>`;
     }).join('');
     const note = free <= 0 ? `<p class="sub"><b>The Training Center is full</b> (${plural(R.life.lanes, 'lane')}). ${this.rl.laneCost() !== null ? 'Another lane is on the Ranch tab.' : ''}</p>`
       : `<p class="sub">You have <i class="pearl"></i> ${fmt(R.pearls)} pearls.</p>`;
@@ -275,7 +279,7 @@ export class RanchLifeUI {
       if (!document.querySelector('#modalCard [data-rl-card]')) this.pending.unshift(...this.shown);
       this.shown = null;
     }
-    if (this.pending.length && g.time >= this.cardAt && !g.hud.modalOpen && !g.hatching && !g.departing && !g.auction && g.state.phase !== 'naming') this.showCard();
+    if (this.pending.length && g.time >= this.cardAt && !g.hud.modalOpen && !g.hatching && !g.departing && !g.auction && g.state.phase !== 'naming' && !(g.contestShow && g.contestShow.on)) this.showCard();   // [contests] (not during a show)
   }
   // Toasts and Journal lines now; trips (and anything that finished while the game was closed) also get the card.
   announce(done, { live }) {

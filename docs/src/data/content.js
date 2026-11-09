@@ -20,6 +20,14 @@ export const TUNING = {
   feverBondEvery: 120,          // Giggle Fever only adds bond once every 2 minutes (so spamming can't farm it)
   tiredBoop: 0.3,               // boops on an exhausted slime (energy under 8) give only 30%
   wakeEnergy: 35,               // a napping slime can't be poked awake before it has this much energy
+  // Raising nudges that talents read (TALENTS.nature; neither changes any jelly):
+  // familiar: a snack it has eaten before nudges Curious down by `repeat` x (how many more times it was among its
+  //   last 6 snacks) + `favorite` when it is its favorite, so a slime fed the same few snacks on purpose turns "Likes
+  //   the familiar" while a varied menu barely moves it (new snacks still give +2)
+  familiar: { repeat: 0.02, favorite: 0.02 },
+  // boopPlayfulTo: a boop's +0.03 Playful shrinks as Playful rises past 50 and stops here (null: never), so booping
+  //   alone does not make every slime Playful; play, berries and answering play requests still do
+  boopPlayfulTo: 60,
 };
 
 export const STAGES = [
@@ -671,6 +679,129 @@ export const RANCH_LIFE = {
 export const SKILL_IDS = RANCH_LIFE.skills.map(s => s.id);
 export const SKILL_BY_ID = Object.fromEntries(RANCH_LIFE.skills.map(s => [s.id, s]));
 export const PLACE_BY_ID = Object.fromEntries(RANCH_LIFE.places.map(p => [p.id, p]));
+
+// ---------- Talents: raising shapes what a slime is good at (rules in core/talents.js) ----------
+// Four sources add up to talent points for each of the five skills: what it ate (diet, 0-3), its personality (nature,
+// 0-4), its grown-up form (0 or 2) and its hidden Potential (1-5, rolled from the egg, partly inherited). The total gives
+// a grade per skill; the grade makes that skill's lessons shorter and lifts its star cap. Grade C is exactly the ranch
+// from before talents. Never shown as numbers: the barn card says it in words after the first lesson in a skill.
+export const TALENTS = {
+  // diet: points to a skill = round(scale x the share of its flavours in the slime's traits); Leafy counts half for
+  // Sturdy and half for Smarts
+  diet: { scale: 3, skills: { sweet: { charm: 1 }, heat: { bounce: 1 }, mineral: { sturdy: 1 }, spark: { speed: 1 }, prism: { smarts: 1 }, nature: { sturdy: 0.5, smarts: 0.5 } } },
+  // nature: a personality slider gives the skill of the end it leans to min(max, (distance from 50 - dead) / per)
+  // points. ends: [the low end's skill, the high end's skill]
+  //   playful: Mellow / Playful   bold: Shy / Bold   patient: Impulsive / Patient   cuddly: Independent / Cuddly
+  //   curious: Likes the familiar / Endlessly curious
+  nature: { dead: 10, per: 10, max: 2,
+    ends: { playful: ['sturdy', 'bounce'], bold: ['sturdy', 'bounce'], patient: ['speed', 'smarts'], cuddly: ['speed', 'charm'], curious: ['charm', 'smarts'] } },
+  // form: the grown-up form's specialty gets `points`; `every` forms give that much to every skill instead (Marshmallow,
+  // balanced). Keys: form ids (Pure versions share their form's id), spark forms by their spark id.
+  form: {
+    points: 2,
+    every: { mochi: 1 },
+    skill: {
+      sweet: 'charm', heat: 'bounce', mineral: 'sturdy', nature: 'smarts', spark: 'speed', prism: 'smarts',
+      'heat+sweet': 'charm', 'heat+mineral': 'sturdy', 'nature+sweet': 'charm', 'mineral+nature': 'sturdy', 'prism+spark': 'smarts',
+      'mineral+prism': 'smarts', 'heat+spark': 'bounce', 'spark+sweet': 'bounce', 'nature+spark': 'speed', 'heat+nature': 'bounce',
+      'mineral+spark': 'speed', 'prism+sweet': 'charm', 'heat+prism': 'smarts', 'nature+prism': 'speed', 'mineral+sweet': 'sturdy',
+      smore: 'charm', honeycomb: 'charm', campfire: 'sturdy', storm: 'speed',
+    },
+  },
+  // Potential, the hidden IVs: each skill rolls 1-5 from the egg (weights for 1..5). A bred egg: per skill, `copy` of
+  // the time parent A's, `copy` parent B's, else a fresh roll; a Pure egg (both parents the same form) rolls its fresh
+  // skills `pureRolls` times and keeps the best.
+  // Weights tuned by tools/talent-sim.mjs (T1b; design 15/30/30/18/7): most skills roll 3, so raising decides more and
+  // luck less. A slime raised on purpose for Speed or Smarts has 8 points before Potential (diet 2 at most: Static
+  // Berry and Crystal carry a second flavour), so S 11 needs a 3 (77%); a randomly raised slime's best skill has 6
+  // (half of them), so S needs a 5 (6%, the least that keeps a Pure line reaching a 5 in under 4 generations).
+  potential: { weights: [5, 18, 65, 6, 6], copy: 0.4, pureRolls: 2 },
+  // grades from the total points (the highest whose `min` it reaches): lessons in that skill take x`lessonTime`, and
+  // it can learn up to `cap` stars. C is exactly the ranch from before talents.
+  // Cutoffs tuned by tools/talent-sim.mjs from real raising runs (design: B 4, A 6, S 10). A randomly raised slime
+  // leans hard on a few sliders (answers to ~300 requests over 6 days), so with B 4 / A 6 it had 2.8 skills at A or S
+  // (target about 1); B 6 / A 8 gives 1.4 and 1.5 at B. S 11 (T1: 10) with the weights above keeps S by accident under
+  // 5% while every skill raised on purpose reaches S about 3 times in 4 or more (talents-t1b report).
+  grades: [
+    { id: 'C', min: 0, lessonTime: 1, cap: 5 },
+    { id: 'B', min: 6, lessonTime: 0.85, cap: 5 },
+    { id: 'A', min: 8, lessonTime: 0.70, cap: 6 },
+    { id: 'S', min: 11, lessonTime: 0.55, cap: 7 },
+  ],
+  floor: 'B',          // the cozy rule: a slime whose five skills all come out C has its best one lifted to this grade
+  lessonFloor: 0.40,   // a lesson never takes less than this share of its time (grade x Smarts x loves)
+  // stars 6 and 7 (grades A and S): price and length; each keeps the skill's per-star effect (RANCH_LIFE.skills fx)
+  stars: { pearls: [80, 120], minutes: [480, 1440] },
+  // the barn card's line once the first lesson in a skill is over ({skill}: its name); C says nothing
+  reveal: { S: 'a natural at {skill}!', A: 'takes to {skill} quickly', B: 'getting the hang of {skill}' },
+};
+
+// ---------- Contests: Beauty Show, Slime Sprint, Bounce-Off (rules in core/contests.js) ----------
+// Ranch residents perform three acts from what they trained; you cheer once per act. The score is fixed by the rules
+// (no dice). Win a cup and the next one opens for that slime in that contest: Little -> Big -> Grand -> Champion. The
+// first win of each cup pays pearls once per slime; every trophy makes buyers pay a little more for it; a Champion gets
+// a small lasting perk. Repeat shows pay nothing. Nothing is lost on a loss, there is no entry fee.
+// Rivals are "<Place>'s slime" with a small blob in the place's color (placeholders until C2: names and looks by Nami
+// and Usopp, 3D rivals).
+const RIVAL_COLOR = { school: '#b6e36a', garden: '#8fdcb0', cafe: '#9fd8ff', bakery: '#ffc9a3', springs: '#ffb3c7', windmill: '#ffe08a', mine: '#c9b8a8', museum: '#c9a7ff', observe: '#8fb0ff', festival: '#ff9f80' };
+const rival = (place, score) => ({ place, name: `${BUYER_BY_ID[place].name}'s slime`, color: RIVAL_COLOR[place], score });
+export const CONTESTS = {
+  // Three acts each: the main act (its skill's stars x score.main), the support act (stars x score.support, or Style in
+  // the Beauty Show) and the tricks act (Smarts stars x score.tricks). title: the Champion's name-card title. color: its
+  // cups and dot on the screens (not a metal: the medals own gold, silver and bronze). short: an act's name on the act
+  // strip, the score lines and the name card during the show.
+  contests: [
+    { id: 'beauty', name: 'Beauty Show', title: 'Beauty Champion', color: '#ff74b0', acts: [
+      { id: 'pose', name: 'Pose', short: 'Pose', role: 'main', skill: 'charm' },
+      { id: 'style', name: 'Style', short: 'Style', role: 'support', style: true },
+      { id: 'trick', name: 'A trick', short: 'Tricks', role: 'tricks', skill: 'smarts' }] },
+    { id: 'sprint', name: 'Slime Sprint', title: 'Sprint Champion', color: '#3fa2ff', acts: [
+      { id: 'dash', name: 'The dash', short: 'Dash', role: 'main', skill: 'speed' },
+      { id: 'hill', name: 'The hill', short: 'Hill', role: 'support', skill: 'sturdy' },
+      { id: 'hoops', name: 'The hoops', short: 'Hoops', role: 'tricks', skill: 'smarts' }] },
+    { id: 'bounce', name: 'Bounce-Off', title: 'Bounce-Off Champion', color: '#ff9b2f', acts: [
+      { id: 'bigBounce', name: 'The big bounce', short: 'Bounce', role: 'main', skill: 'bounce' },
+      { id: 'runUp', name: 'The run-up', short: 'Run-up', role: 'support', skill: 'speed' },
+      { id: 'landing', name: 'The landing', short: 'Landing', role: 'tricks', skill: 'smarts' }] },
+  ],
+  // points: main per star (no cap: 50, or 60/70 with a talent's 6th/7th star), support and tricks per star (capped at
+  // `cap`, so a talent's 6th/7th star adds nothing there), flair from the talent grade in the main skill
+  // (core/talents.js gradeOf), mood = floor(happiness / moodPer) (0-5)
+  score: { main: 10, support: 4, tricks: 4, cap: 20, styleCap: 20, flair: { C: 0, B: 3, A: 6, S: 10 }, moodPer: 20 },
+  // Style in the Beauty Show: each outfit worn adds this much, capped at score.styleCap (= a 5-star support)
+  style: { bow: 4, bowtie: 5, glasses: 5, flowers: 6, scarf: 6, beret: 7, shades: 7, party: 8, crown: 9 },
+  // Cheers: once per act a ring closes on the slime. Times in seconds from the ring appearing: it closes on `beat`; the
+  // first tap at or after 0 and before `window` is the only one that counts: within `perfect` of the beat = Perfect,
+  // within `good` = Good, any other = Nice try; no tap = none. Reduced motion: every act is `reduced` (Good).
+  // Tuned with the ring on screen (C1b): the pink ring closes on the gold one in 1.5 s, slow enough for a child to see
+  // it coming; Good is a 0.7 s target (easy), Perfect 0.26 s (with care). It keeps shrinking past the gold ring until
+  // `window`, so a late tap still counts (a Good when it is close).
+  cheer: { beat: 1.5, perfect: 0.13, good: 0.35, window: 2.3, points: { perfect: 3, good: 2, nice: 1, none: 0 }, reduced: 'good' },
+  // The show on the barn's stand (seconds; the screens only, no rule reads these). open: the banner and "To beat" before
+  // act 1; perform: the slime's moves in each act before its cheer; pop: the cheer's label; rest: before the next act;
+  // finale: after act 3, before the results card. ring: the pink ring starts this many times the gold one's size.
+  // With these a show lasts 34 s with taps on the beat (30 s with three very early taps, 36 s with none), 32 s with
+  // Reduced motion (its cheer moment is `reducedCheer` long); the slime coming up on the stand first adds a second.
+  show: { open: 3.0, perform: 5.5, pop: 1.6, rest: 0.8, finale: 2.6, ring: 1.8, reducedCheer: 0.9, swapWait: 4 },
+  // The cup ladder: three friendly rivals each with a fixed score (shown before the show); a tie goes to your slime.
+  // pearls: the first time a slime wins that cup (once per slime per contest); short: its name on the cup tiles
+  cups: [
+    { id: 'little', short: 'Little', name: 'Little Cup', pearls: 5, rivals: [rival('school', 12), rival('garden', 16), rival('cafe', 19)] },
+    { id: 'big', short: 'Big', name: 'Big Cup', pearls: 15, rivals: [rival('bakery', 30), rival('springs', 38), rival('windmill', 45)] },
+    { id: 'grand', short: 'Grand', name: 'Grand Cup', pearls: 40, rivals: [rival('mine', 60), rival('museum', 72), rival('observe', 85)] },
+    { id: 'champion', short: 'Champion', name: 'Champion Cup', pearls: 100, rivals: [rival('springs', 90), rival('museum', 100), rival('festival', 110)] },
+  ],
+  // each trophy: buyers pay this much more for that slime (new homes and auctions). Design: 0.03; tuned by
+  // tools/contest-sim.mjs: 12 trophies x 0.03 + the Beauty Champion's +5% made a fully trophied slime's auctions +41%
+  // (target at most +25%); 0.015 gives +23% (0.0175: +26%, 0.02: +29%).
+  trophyValue: 0.015,
+  // Champion perks, for that slime, lasting: offers (new homes and auctions) +x, trips x shorter, ranch pearls +x
+  perks: { beauty: { offers: 0.05 }, sprint: { tripTime: 0.05 }, bounce: { pearls: 0.03 } },
+  // the title when a slime is Champion in more than one contest
+  titles: { 2: 'Double Champion', 3: 'Triple Champion' },
+};
+export const CONTEST_BY_ID = Object.fromEntries(CONTESTS.contests.map(c => [c.id, c]));
+export const CONTEST_IDS = CONTESTS.contests.map(c => c.id);
 
 // The Greenhouse (Settings > Background, the default home): a room baked outside the repo (its files are in
 // src/assets/greenhouse/; gh.json has the room's footprints and glow spots), drawn by src/view/greenhouse.js, and a
