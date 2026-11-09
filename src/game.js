@@ -1,5 +1,27 @@
 // Coordinator: turns player input into Sim actions, then turns Sim results
 // into slime reactions, effects, sounds and UI. Rules live in core/, looks in view/.
+// This file builds the Game (world, views, HUD, the frame loop) and runs each frame. Everything else the Game does is
+// in its parts, one subject per file in src/game/, mixed into Game.prototype at the bottom (src/mixin.js), so every
+// method is still game.x() for its callers:
+//   egg.js        the egg on the cushion: its look and hint, warming, hatching, naming
+//   care.js       boops, petting, naps, bond-up, dance, buzz
+//   food.js       snacks: tray taps and drags, the toss, eating, what it changes, reactions
+//   mood.js       tutorial hint, idle moments, the face, where it looks, how it sways
+//   growth.js     stage-up card, medal ceremony, the grown-up form's effects
+//   requests.js   the slime's requests and their answers
+//   play.js       bubble play, Lucky Glimmers
+//   shop.js       helpers, upgrades, the Jelly Jar, outfits, heirlooms (buying; the pages are in ui/hud.js)
+//   welcome.js    welcome back, returning to the app
+//   ranch.js      going to the barn and what you do there (petting, pearls, basket, room)
+//   nursery.js    the Nursery: eggs, breeding, special eggs, the cushion swap
+//   move-out.js   the move-out card, the goodbye, a baby's new home
+//   new-homes.js  residents' new homes, auctions, postcards
+//   input.js      pointer and keys
+//   layout.js     theme, resize, where the camera fits the slime
+//   settings.js   the Settings card, save codes, starting over
+//   saving.js     saving and save safety
+//   debug.js      #debug tester tools
+//   shared.js     SLIME_Y, clamp, ease, DEBUG, an
 import * as THREE from 'three';
 import { Sim, createState, migrate } from './core/sim.js';
 import { Requests } from './core/requests.js';
@@ -43,7 +65,6 @@ import { SettingsPart } from './game/settings.js';
 import { SavingPart } from './game/saving.js';
 import { DebugPart } from './game/debug.js';
 import { mixParts } from './mixin.js';
-
 
 export class Game {
   constructor({ canvas, save, store, start = null }) {
@@ -428,4 +449,5 @@ export class Game {
 }
 
 // the rest of Game: its parts (./game/), mixed into Game.prototype (src/mixin.js)
-mixParts(Game, EggPart, WelcomePart, ShopPart, RanchPart, NurseryPart, MoveOutPart, NewHomesPart, InputPart, CarePart, FoodPart, GrowthPart, RequestsPart, PlayPart, MoodPart, LayoutPart, SettingsPart, SavingPart, DebugPart);
+mixParts(Game, EggPart, WelcomePart, ShopPart, RanchPart, NurseryPart, MoveOutPart, NewHomesPart, InputPart, CarePart, FoodPart,
+  GrowthPart, RequestsPart, PlayPart, MoodPart, LayoutPart, SettingsPart, SavingPart, DebugPart);
