@@ -1,6 +1,9 @@
 // Pearl simulator: 30 days of the ranch with the real rules (core/ranch.js + core/ranch-life.js, the real RANCH and
 // RANCH_LIFE numbers), to check the ranch-life balance targets (design: ranch life, section 5).
-// Usage: node tools/pearl-sim.mjs [engaged|casual|spam] [nolife|notrips|nolessons] [days=30] [quiet]
+// Usage: node tools/pearl-sim.mjs [engaged|casual|spam] [nolife|notrips|nolessons] [days=30] [quiet] [allc] [residents=<file>]
+//   allc:    every talent grade C (the ranch from before talents; prints exactly what the simulator printed before them)
+//   residents=<file>: the residents' traits, personality, form and Potential from a JSON list (tools/talent-sim.mjs
+//            writes one from its raising runs), taken in turn by each slime that moves in; default: the stand-ins below
 //   no profile: every profile with and without ranch life, and the table against the targets
 //   engaged: checks in every ~3 h from 8:00 to 22:00 (sessions of 5-25 min, ~85 min a day)
 //   casual:  twice a day (8:00 for 15 min, 20:00 for 25 min)
@@ -24,7 +27,7 @@ const { Ranch } = await import(SRC + '/core/ranch.js');
 const { RanchLife, stars, emptySkills } = await import(SRC + '/core/ranch-life.js');
 const { rng } = await import(SRC + '/core/random.js');
 const C = await import(SRC + '/data/content.js');
-const { RANCH, RANCH_LIFE, BREEDING, SKILL_IDS, PERSONALITY_IDS } = C;
+const { RANCH, RANCH_LIFE, BREEDING, SKILL_IDS, PERSONALITY_IDS, TALENTS } = C;
 
 const args = process.argv.slice(2);
 // tune=<json>: try other RANCH_LIFE numbers without editing content.js, e.g. tune='{"wagons":{"costs":[120,300]}}'
@@ -34,6 +37,9 @@ if (TUNE) {
   merge(RANCH_LIFE, JSON.parse(TUNE.slice(5)));
   console.log('tuned RANCH_LIFE:', TUNE.slice(5));
 }
+if (args.includes('allc')) { TALENTS.grades.splice(1); TALENTS.floor = 'C'; }
+const PROFILE_FILE = args.find(a => a.startsWith('residents='))?.slice(10);
+const RAISED = PROFILE_FILE ? JSON.parse((await import('node:fs')).readFileSync(PROFILE_FILE, 'utf8')) : null;
 const DAYS = +(args.find(a => /^days=\d+$/.test(a))?.slice(5) || 30);
 const QUIET = args.includes('quiet');
 const H = 3600e3, MIN = 60e3, DAY = 24 * H;
@@ -58,10 +64,14 @@ function run(profile, mode) {
   const rl = new RanchLife(st, ranch, { addBond: n => { bondGiven += n; return 0; } });
   const pick = rng(`pearl-sim:${profile}`);
   let made = 0;
+  let raisedAt = 0;
   const newResident = (name, gen, bond, runTotal) => {
     const personality = Object.fromEntries(PERSONALITY_IDS.map(k => [k, Math.round(20 + pick() * 60)]));
-    return { id: `${name}-${gen}`, name, form: { id: 'mochi', name: 'Marshmallow Slime' }, traits: { sweet: 60, heat: 40 }, personality, bondLevel: bond, runTotal, jps: 4,
+    const x = { id: `${name}-${gen}`, name, form: { id: 'mochi', name: 'Marshmallow Slime' }, traits: { sweet: 60, heat: 40 }, personality, bondLevel: bond, runTotal, jps: 4,
       generation: gen, happiness: 90, pearlT: 0.6, petAt: 0, skills: emptySkills(), lesson: null, trip: null, lineage: { parents: [] } };
+    // a raised slime's talents (the personality roll above still happens, so the rest of the run's dice stay the same)
+    if (RAISED) { const r = RAISED[raisedAt++ % RAISED.length]; Object.assign(x, { form: r.form, traits: r.traits, personality: r.personality, potential: r.potential }); }
+    return x;
   };
   // where a player who just got the update starts: two residents, 34 pearls (like tools/fixtures/main-gen3.json)
   R.residents.push(newResident('Juniper', 1, 2, 3e8), newResident('Pebble', 2, 1, 1.2e9));

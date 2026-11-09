@@ -8,11 +8,13 @@ import {
 } from '../data/content.js';
 import { createRanch, migrateRanch, Ranch, residentJpsFor, dayNumber } from './ranch.js';
 import { emptySkills, RanchLife } from './ranch-life.js';
-import { emptyLineage, applyEgg, resolveForm, eggFromLineage, eggLabel } from './breeding.js';
+import { emptyLineage, applyEgg, resolveForm, eggFromLineage, eggLabel, eggPotential } from './breeding.js';
+import { rollPotential, validPotential, migrateTalents } from './talents.js';
 import { medalFor, medalRank } from './medals.js';
 import { createHeirlooms, migrateHeirlooms, heirloomMult, heirloomFlag, startHelpers, forSale, ownsHeirloom } from './heirlooms.js';
 import { rollPlainEgg, oldBody, cleanBody } from './recipe.js';
 import { SAVE_VERSION, num, numOrNull, nums, count } from './save-check.js';
+import { createResidentContests } from './contests.js';
 
 export { SAVE_VERSION };
 
@@ -64,6 +66,8 @@ export function createState() {
       // its body (core/recipe.js, BREEDS in content.js), fixed when the egg is made: breed 'curly' | 'dollop' | 'mixed',
       // variant 'plain' | 'ears' | 'topknot', mix 0 (Curly) .. 1 (Dollop), genes (small quirks)
       ...rollPlainEgg(seed),
+      // its hidden Potential (core/talents.js), fixed by the egg: a plain egg's seed, or its Nursery egg's (applyEgg)
+      potential: rollPotential(seed),
     },
     jelly: 0,
     totalJelly: 0,
@@ -149,6 +153,14 @@ export function migrate(save) {
   }
   if (out.slime.medalShown && !MEDAL_BY_ID[out.slime.medalShown]) out.slime.medalShown = null;
   out.ranch = migrateRanch(save.ranch);
+  // talents (core/talents.js): a save from before them gets the Potential its egg would have given: a Nursery egg's
+  // (inherited from its parents when they still live on the ranch), else a roll from the plain egg's seed, else from
+  // when the slime was born
+  if (out.egg.bred && typeof out.egg.bred === 'object') out.egg.bred.potential = { ...eggPotential(out.egg.bred, out.ranch.residents) };
+  if (!validPotential(save.slime?.potential)) {
+    out.slime.potential = out.egg.bred && typeof out.egg.bred === 'object' ? { ...out.egg.bred.potential }
+      : rollPotential(out.egg.seed ?? `slime:${out.createdAt}:${out.slime.bornAt}`);
+  }
   out.heirlooms = migrateHeirlooms(save.heirlooms);
   out.v = SAVE_VERSION;
   return out;
@@ -416,7 +428,8 @@ export class Sim {
     s.joy = clamp(s.joy + 0.5, 0, 100);
     const bondUp = this.addBond(0.012);
     this.s.stats.boops++;
-    this.nudge('playful', 0.03);
+    const to = TUNING.boopPlayfulTo;
+    this.nudge('playful', 0.03 * (to == null ? 1 : clamp((to - s.personality.playful) / (to - 50), 0, 1)));
     return { gain, fever: this.fever, exhausted: s.energy <= 0, bondUp, tired };
   }
   // A napping slime only lets itself be poked awake once it has rested a little.
@@ -485,6 +498,10 @@ export class Sim {
     const personalityNudge = { chili: ['bold', 0.6], moss: ['patient', 0.5], cookie: ['cuddly', 0.3], berry: ['playful', 0.5], iron: ['patient', 0.3], crystal: ['curious', 0.6] }[id];
     if (personalityNudge) this.nudge(personalityNudge[0], personalityNudge[1]);
     if (firstTime) this.nudge('curious', 2);
+    else {
+      const F = TUNING.familiar, down = F.repeat * (same - 1) + (liked === 'favorite' ? F.favorite : 0);
+      if (down > 0) this.nudge('curious', -down);
+    }
 
     let discovered = null;
     if (liked === 'favorite' && !s.knownFavorite) { s.knownFavorite = true; discovered = 'favorite'; }
@@ -667,7 +684,10 @@ export class Sim {
       lineage: { ...emptyLineage(), ...(sl.lineage || {}) },
       ...cleanBody(sl),   // its body (breed, variant, mix, genes) moves with it
       skills: emptySkills(), lesson: null, trip: null,   // ranch life (core/ranch-life.js)
+      potential: { ...(sl.potential || {}) }, talentsSeen: [],   // talents (core/talents.js): its Potential moves with it
+      contests: createResidentContests(),   // contests (core/contests.js): no trophies yet
     };
+    migrateTalents(resident);   // (a Potential that is not valid: seeded from its new id)
     ranch.residents.push(resident);
     // Family Legacy: the bonus comes from all the jelly the family ever made, so it is recomputed (never lowered)
     const bonusBefore = ranch.family.bonus;
