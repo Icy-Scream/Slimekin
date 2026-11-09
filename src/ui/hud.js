@@ -2,8 +2,8 @@
 // speech/request bubbles, floating numbers, toasts and modals.
 import {
   FOODS, FOOD_BY_ID, STAGES, TRAITS, TRAIT_IDS, BOND, PERSONALITY, PERSONALITY_IDS, COMBOS, NAME_IDEAS, EMOTES,
-  SECRETS, TRICK_LEARNED, OUTFITS, OUTFIT_BY_ID, RANCH, BUYER_BY_ID, BREEDING, SPARK_FORMS, SPARK_BY_ID, FORM_BY_ID,
-  FORM_IDS, PURE_LINE, MEDALS, HEIRLOOMS, HEIRLOOM_TAB, MOVING_DAY,
+  SECRETS, TRICK_LEARNED, RANCH, BUYER_BY_ID, BREEDING, SPARK_FORMS, SPARK_BY_ID, FORM_BY_ID, FORM_IDS, PURE_LINE,
+  MEDALS, HEIRLOOMS, HEIRLOOM_TAB, MOVING_DAY,
 } from '../data/content.js';
 import { fmt, fmtShort, fmtRate, fmtDuration } from '../core/format.js';
 import { ICON, memIcon, slimeArt, slimeUnknown } from './icons.js';
@@ -23,6 +23,7 @@ const SUB_ID = { helpers: 'tab-helpers', upgrades: 'tab-upgrades', slime: 'sub-s
 import { esc } from './esc.js';
 import { HelpersPanel } from './panels/helpers.js';
 import { UpgradesPanel } from './panels/upgrades.js';
+import { OutfitsPanel } from './panels/outfits.js';
 import { mixParts } from '../mixin.js';
 export { esc };   // (one shared copy: ./esc.js)
 
@@ -391,36 +392,6 @@ export class Hud {
     el.classList.remove('shake');
     void el.offsetWidth;
     el.classList.add('shake');
-  }
-
-  // ---------- outfits tab ----------
-  renderOutfits() {
-    const sim = this.g.sim, st = this.g.state, o = st.outfits;
-    const key = o.owned.join(',') + '|' + JSON.stringify(o.worn) + '|' + o.knownFavorite;
-    const body = this.$('body-outfits');
-    if (key !== this.outfitKey) {
-      this.outfitKey = key;
-      const name = esc(st.slime.name || 'your slime');
-      const fav = o.knownFavorite ? `${name}'s favorite: <b>${esc(OUTFIT_BY_ID[o.favorite].name)}</b>. Wearing it makes them extra happy.` : `${name} secretly has a favorite outfit. Wearing it makes them extra happy.`;
-      let html = `<p class="sub">Dress-up for ${name}. One item per spot: head, face and neck. ${fav}</p><div class="outfits">`;
-      for (const def of OUTFITS) {
-        const owned = o.owned.includes(def.id);
-        const worn = o.worn[def.slot] === def.id;
-        const isFav = o.knownFavorite && o.favorite === def.id;
-        const action = !owned ? `<span class="cost">${DROP}${fmtShort(def.cost)}</span>` : worn ? '<span class="wear on">Wearing</span>' : '<span class="wear">Wear</span>';
-        html += `<button class="outfit${worn ? ' worn' : ''}${owned ? ' owned' : ''}" data-id="${def.id}" aria-pressed="${worn}">${isFav ? '<span class="fav-dot" title="Favorite"></span>' : ''}${this.icon(def.id, def.name)}<span class="on">${esc(def.name)}</span><span class="ob">${esc(def.blurb)}</span>${action}</button>`;
-      }
-      html += '</div>';
-      body.innerHTML = html;
-      for (const b of body.querySelectorAll('.outfit')) {
-        b.addEventListener('click', () => {
-          const id = b.dataset.id;
-          if (st.outfits.owned.includes(id)) this.g.wearOutfit(id); else this.g.buyOutfit(id);
-          this.renderOutfits();
-        });
-      }
-    }
-    for (const b of body.querySelectorAll('.outfit:not(.owned)')) b.classList.toggle('poor', !sim.canAfford(OUTFIT_BY_ID[b.dataset.id].cost));
   }
 
   // ---------- the Heirlooms page (its own tab; see mountJellyLoop) ----------
@@ -1328,4 +1299,4 @@ export class Hud {
 }
 
 // the rest of Hud: its parts (./panels/), mixed into Hud.prototype (src/mixin.js)
-mixParts(Hud, HelpersPanel, UpgradesPanel);
+mixParts(Hud, HelpersPanel, UpgradesPanel, OutfitsPanel);
