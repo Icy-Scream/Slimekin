@@ -48,6 +48,20 @@ const FIX = { six: JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', '
     page.setDefaultTimeout(30000);   // (clicks; the waits name their own)
     const consoleLines = [];
     page.on('console', m => consoleLines.push(`${m.type()}: ${m.text()}`));
+    // Requests a part blocks on purpose (URL -> how many were aborted). Each one makes the browser log its own
+    // "Failed to load resource: net::ERR_FAILED" console error; that line is expected, and it is taken off the page
+    // errors the moment it comes (browser-kit's own console listener, set up first, has just added it), however late
+    // it comes. Only as many lines as requests were blocked, for those URLs: any other page error still fails the test.
+    const blockedUrls = new Map();
+    let expectedFails = 0;
+    page.on('console', m => {
+      if (m.type() !== 'error' || !/^Failed to load resource: net::ERR_FAILED$/.test(m.text())) return;
+      const u = m.location().url, n = blockedUrls.get(u) || 0;
+      if (!n) return;
+      blockedUrls.set(u, n - 1);
+      const i = kit.errors.lastIndexOf('console: ' + m.text());
+      if (i >= 0) { kit.errors.splice(i, 1); expectedFails++; }
+    });
     // the save for each page load (?fx=..&n=..: seeded once per n); the trip and the lesson move to this clock
     await kit.context.addInitScript(fx => {
       const q = new URLSearchParams(location.search), key = 'seeded-' + (q.get('n') || '0');
@@ -228,7 +242,15 @@ const FIX = { six: JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', '
       await ev(() => { window.slimekin.barnRanch.view.hold = false; });
       await waitSwap();
       // a swap runs at the full frame rate: the game counts it as not calm (it drops to 30 fps when calm)
-      const calm = await ev(() => { const g = window.slimekin; g.advance(2); g.lastInteract = -1e9; g.lastPointerMove = -1e9; const before = g.calm(); g.barnRanch.request(1); g.advance(0.2); const during = g.calm(); return { before, during }; });
+      // (when the baseline is not calm, it also says what kept it busy: seen once on the slow server, never on the PC)
+      const calm = await ev(() => {
+        const g = window.slimekin; g.advance(2); g.lastInteract = -1e9; g.lastPointerMove = -1e9;
+        const before = g.calm();
+        const busy = before ? null : { phase: g.state.phase, press: !!g.press, held: !!g.held, flying: !!g.flying, eating: !!g.eating, glimmer: !!g.glimmer, bubbleGame: !!g.bubbleGame, fx: g.fx.live.length, movingDay: !!g.movingDay.active, swapping: !!g.barnRanch.view.swapping };
+        g.barnRanch.request(1); g.advance(0.2);
+        const during = g.calm();
+        return busy ? { before, during, busy } : { before, during };
+      });
       await waitSwap();
       expect(calm.before && !calm.during, 'a swap runs at the full frame rate (the game is not "calm" during it)', JSON.stringify(calm));
       log('screenshot', 'swap frames');
@@ -488,8 +510,24 @@ const FIX = { six: JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', '
     // ---------- the barn can't load ----------
     if (ONLY.includes('fail')) await part('fail', async () => {
       let blocked = 0;
-      const errAt = kit.errors.length;
-      await page.route('**/src/assets/barn/**', r => { blocked++; return r.abort(); });
+      await page.route('**/src/assets/barn/**', r => { blocked++; const u = r.request().url(); blockedUrls.set(u, (blockedUrls.get(u) || 0) + 1); return r.abort(); });
+      // every toast the game shows, recorded the moment it is put up: a toast stays 3.6 s, and on a slow machine (software
+      // WebGL, each screenshot waits for a frame) that is over before the test gets to look, so the checks read this
+      // record (what was shown, and when) instead of what is still on the screen
+      await page.addInitScript(() => {
+        window.__toastLog = [];
+        const watch = () => {
+          const box = document.getElementById('toasts');
+          if (!box || box.__watched) return;
+          box.__watched = true;
+          new MutationObserver(ms => {
+            for (const m of ms) for (const n of m.addedNodes) if (n.nodeType === 1 && n.classList.contains('toast')) window.__toastLog.push({ text: (n.innerText || n.textContent).replace(/\n/g, ' '), at: performance.now() });
+          }).observe(box, { childList: true });
+        };
+        document.addEventListener('readystatechange', watch);   // ('interactive' comes before the game's modules run)
+        if (document.readyState !== 'loading') watch();
+      });
+      const toastsShown = (re, from = 0) => ev(([r, k]) => window.__toastLog.slice(k).filter(t => new RegExp(r).test(t.text)).map(t => t.text), [re, from]);
       await boot();
       consoleLines.length = 0;
       await watchRanch();
@@ -497,17 +535,19 @@ const FIX = { six: JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', '
       await page.waitForFunction(() => window.slimekin.barnRanch.view.failed, null, { timeout: 120000 });
       await settle(2);
       const pre = await ev(() => ({ asked: window.slimekin.barnRanch.pre.asked, view: window.slimekin.view, tab: window.slimekin.hud.tab }));
-      const preToasts = await toastsWith('barn needs the internet');
+      const preToasts = (await toastsShown('barn needs the internet')).length;   // (any shown since the page loaded)
       expect(pre.asked && pre.view === 'home' && preToasts === 0 && blocked > 0, 'the barn loads ahead of time; when it can\'t, nothing shows (home as it is, no toast)', JSON.stringify(pre));
       // the Ranch tab (a real tap): it tries again, fails, and home stays
+      const tapAt = await ev(() => window.__toastLog.length);
       await page.click('#tab-ranch');
       await page.waitForFunction(() => !window.slimekin.barnRanch.waiting, null, { timeout: 120000 });
       await settle(2);
       const s = await ev(() => { const g = window.slimekin; return { view: g.view, barn: g.barnRanch.on, ranchBar: !document.getElementById('ranchBar').hidden, atRanch: document.body.classList.contains('at-ranch'), card: !document.getElementById('barnCard').hidden, pill: !document.getElementById('barnWait').hidden, tab: g.hud.tab, room: g.home.room.group.visible }; });
-      const toasts1 = await toastsWith('barn needs the internet the first time');
-      const toastText = await ev(() => [...document.querySelectorAll('#toasts .toast')].map(t => t.innerText.replace(/\n/g, ' ')).find(t => /barn needs/.test(t)) || '');
+      const shown1 = await toastsShown('barn needs the internet the first time', tapAt);   // (shown since the tap)
+      const toastText = shown1[0] || '';
+      const onScreen = await toastsWith('barn needs the internet the first time');
       expect(s.view === 'home' && !s.barn && !s.ranchBar && !s.atRanch && !s.card && !s.pill && s.room, 'the barn can\'t load: Ranch keeps you home (no ranch bar, no card, the room still drawn)', JSON.stringify(s));
-      expect(toasts1 === 1 && /^The barn needs the internet the first time\. ?Try again in a moment\.$/.test(toastText), 'one friendly toast', toastText);
+      expect(shown1.length === 1 && /^The barn needs the internet the first time\. ?Try again in a moment\.$/.test(toastText), 'one friendly toast', `${toastText} (${shown1.length} shown since the tap; ${onScreen} still on screen at this check)`);
       expect(s.tab === 'helpers', 'the menu goes back to the page it was on (Helpers)', s.tab);
       await page.screenshot({ path: path.join(OUT, 'fail-toast-day.png') });
       // the next tap tries again (a second try, a second toast)
@@ -528,10 +568,10 @@ const FIX = { six: JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', '
       expect(back.on && back.view === 'ranch' && back.card, 'the files are back: the next tap opens the barn', JSON.stringify(back));
       const w = await watched();
       expect(w.ranchScreen === 0 && w.frames > 0, `the meadow ranch was never drawn (${w.frames} frames checked)`, w.why.join('; '));
-      // the blocked files' own "Failed to load resource" lines are expected here; any other page error still fails
-      const expected = kit.errors.filter(e => /^console: Failed to load resource: net::ERR_FAILED$/.test(e)).length;
-      for (let i = kit.errors.length - 1; i >= errAt; i--) if (/^console: Failed to load resource: net::ERR_FAILED$/.test(kit.errors[i])) kit.errors.splice(i, 1);
-      log('fail:', `${expected} expected "Failed to load resource" lines for the ${blocked} blocked requests`);
+      // the blocked files' own "Failed to load resource" lines are expected (taken off the page errors as they come, by
+      // URL: see blockedUrls); any other page error still fails. (They come within moments; this wait is for the count.)
+      for (let i = 0; i < 30 && expectedFails < blocked; i++) await page.waitForTimeout(500);
+      log('fail:', `${expectedFails} expected "Failed to load resource" lines for the ${blocked} blocked requests`);
     });
 
     // ---------- the barn's files are slow ----------
