@@ -809,13 +809,14 @@ export const CONTEST_IDS = CONTESTS.contests.map(c => c.id);
 // Pure math (ground, roof, camera limits, spot check) is in src/view/greenhouse-math.js.
 // [perf] Graphics quality "Auto" (game.js trackSpeed): it starts on High (pixel ratio 2) and steps down, never back up
 // in a visit: 1 = pixel ratio `ratio1`, 2 = Low (pixel ratio 1, no see-through jelly; Settings > Graphics > Low). Frames
-// are judged against the display's own beat (the shortest gaps between its frames: 60 Hz, or 30 Hz in Low Power Mode),
-// so a phone that shows 30 a second steadily is not "slow". A frame is late when it comes `late` x its beat (or the
+// are judged against the display's own beat (the short gaps between its frames that the game's work didn't cause, the
+// shortest of the last `beatKeep` windows: 60 Hz, or 30 Hz in Low Power Mode), so a phone that shows 30 a second
+// steadily is not "slow". A frame is late when it comes `late` x its beat (or the
 // game's own cap) or later; a step down comes after `windows` windows of `window` s in a row with at least `lateShare` of
 // their frames late, or one with `veryLate`. The first `settle` windows after the start (the room arriving, shaders),
 // coming back to the app, or a step are not judged, nor a window with a stall (a gap over `stall` ms: the phone busy
 // elsewhere).
-export const AUTO_QUALITY = { ratio1: 1.5, window: 1.5, late: 1.5, lateShare: 0.25, veryLate: 0.6, windows: 2, settle: 2, settleAfter: 1, stall: 250 };
+export const AUTO_QUALITY = { ratio1: 1.5, window: 1.5, late: 1.5, lateShare: 0.25, veryLate: 0.6, windows: 2, settle: 2, settleAfter: 1, stall: 250, beatKeep: 20 };
 
 export const GREENHOUSE = {
   blend: 3,                    // day <-> night blend speed (1/s): about 3 s, like the test page
