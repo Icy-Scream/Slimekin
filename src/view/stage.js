@@ -3,6 +3,7 @@
 // trees, flowers, moon) lives in scenery.js.
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { sizeSeeThrough } from './see-through.js';
 
 export const CUSHION_TOP = 0.3;
 
@@ -317,5 +318,8 @@ export class Stage {
     for (const mo of this.motes) mo.m.visible = !!on;
   }
 
-  render() { this.renderer.render(this.scene, this.camera); }
+  render() {
+    sizeSeeThrough(this.renderer, this.camera);   // [perf] the slime's see-through buffer at its smaller size (see-through.js)
+    this.renderer.render(this.scene, this.camera);
+  }
 }

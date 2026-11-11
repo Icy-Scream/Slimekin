@@ -807,6 +807,16 @@ export const CONTEST_IDS = CONTESTS.contests.map(c => c.id);
 // src/assets/greenhouse/; gh.json has the room's footprints and glow spots), drawn by src/view/greenhouse.js, and a
 // camera you can turn inside it. Room coordinates: x right, y up, z toward you; the slime's stump is at the origin.
 // Pure math (ground, roof, camera limits, spot check) is in src/view/greenhouse-math.js.
+// [perf] Graphics quality "Auto" (src/frame-pace.js): it starts on High (pixel ratio 2) and steps down, never back up
+// in a visit: 1 = pixel ratio `ratio1`, 2 = Low (pixel ratio 1, no see-through jelly; Settings > Graphics > Low).
+// Frames are judged against the display's own beat (the short gaps between its frames that the game's work didn't
+// cause, the shortest of the last `beatKeep` windows: 60 Hz, or 30 Hz in Low Power Mode), so a phone that shows 30 a
+// second steadily is not "slow". A frame is late when it comes `late` x its beat (or the game's own cap) or later; a
+// step down comes after `windows` windows of `window` s in a row with at least `lateShare` of their frames late, or one
+// with `veryLate`. The first `settle` windows after the start (the room arriving, shaders), coming back to the app, or
+// a step are not judged, nor a window with a stall (a gap over `stall` ms: the phone busy elsewhere).
+export const AUTO_QUALITY = { ratio1: 1.5, window: 1.5, late: 1.5, lateShare: 0.25, veryLate: 0.6, windows: 2, settle: 2, settleAfter: 1, stall: 250, beatKeep: 20 };
+
 export const GREENHOUSE = {
   blend: 3,                    // day <-> night blend speed (1/s): about 3 s, like the test page
   // The game's start with the Greenhouse as home: the loading screen ("Warming the nest") stays up until the room is in
@@ -821,8 +831,32 @@ export const GREENHOUSE = {
   },
   // Height of the floor: the stump's flat top (the slime sits on it), its side down to the braided rug, the planks.
   ground: { stumpTop: 0.27, stumpFlat: 0.85, stumpR: 1.14, rugY: 0.06, rugR: 2.3, rugEdge: 0.1, floorY: 0 },
+  // What the terrarium's gh.json does not say (it is the baked file, unchanged): the footprints it still lists for the
+  // stool and the bowl, which are gone (the potting bench and the snack basket stand near them now); the oak hutch
+  // behind the stump (its box, x, z, top, measured from gh.bin; a row of circles of radius r along it); the two hanging
+  // ferns (spheres round their leaves, measured from gh.bin); menu objects standing lower than shelfY are on the floor.
+  // All of it: roomMeta() in src/view/greenhouse-math.js.
+  room: {
+    gone: ['stool', 'bowl'],
+    hutch: { x: [-1.104, 1.104], z: [-5.31, -5.222], top: 1.773, r: 0.19 },
+    ferns: [{ c: [-2.745, 3.15, -2.615], r: 0.7 }, { c: [-2.745, 3.8, -2.615], r: 0.62 }, { c: [1.7, 2.92, -5.0], r: 0.66 }],
+    shelfY: 1,
+  },
+  // The menu objects (tp_objects.json; drawn by src/view/menu-objects.js). The stake's label: the slime's name and
+  // number, drawn at run time in a serif italic like the frames' EB Garamond (iPhone: Hoefler Text), on a canvas this
+  // many pixels wide (the plate's aspect).
+  menu: {
+    labelFont: '"EB Garamond", "Hoefler Text", Garamond, "Palatino Linotype", Palatino, Baskerville, Georgia, serif',
+    labelPx: 392,
+  },
   // The roof over the room: eaves on the side walls, the ridge over the middle (half = half the roof's width).
   roof: { eave: 4.7, ridge: 6.7, half: 3.95 },
+  // [perf] The room's cells (src/view/room-cells.js): each chunk's triangles in cells of at most `leaf` (triangles
+  // longer than `big` m apart); a pass draws only the cells it can show. The picture: the camera's frustum, rebuilt
+  // with `margin` more on each side (so a small turn keeps what it has). The see-through pass: the frustum behind each
+  // see-through thing (the slime's body, the fountain's goo, the spa's water), its sphere grown `grow` x for what it
+  // needs now and `growWant` x when rebuilt, plus `pad` of the picture's half height round it (the jelly's blur).
+  cells: { leaf: 500, big: 0.3, margin: 0.08, grow: 1.1, growWant: 1.3, pad: 0.04 },
   camera: {
     order: ['front', 'wide', 'left', 'right'],   // the camera button steps through these (Front = the home camera)
     // Set angles (Front is computed by the stage, unchanged). Left is the test page's Corner, 0.1 nearer the middle so
@@ -845,8 +879,11 @@ export const GREENHOUSE = {
   // Where the helpers you buy stand in the room ([x, z], on the floor; y comes from the ground). Checked by
   // tools/greenhouse-test.mjs against the room's footprints and walls (gh.json) with each helper's radius below
   // (measured from its model at the size it is shown at; tools/greenhouse-smoke.cjs measures them again).
+  // The planters stand at the sides, out of the Front picture on a phone for every slime size (greenhouse-test checks
+  // it), so none lands in the calm space behind the slime or on a menu object; Wide, Left and Right show them. The
+  // first four are the ones Low shows (two each side; the left side is full of the potting bench, the can and a pot).
   spots: {
-    planters: [[-0.62, -2.72], [0.42, -2.7], [-0.2, -3.42], [-0.98, -3.95], [0.62, -4.05], [-0.25, -4.65]],
+    planters: [[2.55, -2.05], [-2.35, -1.3], [3.15, -3.35], [-2.45, 0.25], [2.45, -0.2], [2.0, 0.6]],
     lamps: [[-1.85, -0.7], [1.85, -0.7], [-3.2, -2.0], [3.25, -2.35], [-2.9, 4.5], [2.9, 4.6]],
     bubbles: [2.35, 1.3], musicbox: [-2.5, 1.15], fountain: [-2.2, 2.65], spa: [2.4, 3.0],
     observatory: [2.05, -3.75],   // the room's telescope spot (gh.json spots.telescope), nudged 0.1 off the stool

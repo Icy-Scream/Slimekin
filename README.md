@@ -31,7 +31,7 @@ The game is published at **https://icy-scream.github.io/Slimekin/** (GitHub Page
 2. Tap the Share button, then **Add to Home Screen**. It gets its own icon, opens full screen, and works offline after the first visit.
 3. To bring a slime over from another device (for example the claude.ai version): on the old device open Settings, **Copy save code**; on the phone open Settings, **Load a save code**, paste, Load.
 
-Phone notes: swipe the menu down (or its grip bar) to close it; drag a notification up or down to move them, tap or swipe one sideways to dismiss it. The game is portrait-only (turning sideways shows a reminder), runs at 60 fps and drops to 30 fps when nothing is happening to save battery, and lowers graphics quality on its own if a device struggles. Settings has a **Speed meter** to see frame rate on your phone. The two keyboard secrets have touch versions: tap the slime's name to call it, and swipe the cheat code on the background.
+Phone notes: swipe the menu down (or its grip bar) to close it; drag a notification up or down to move them, tap or swipe one sideways to dismiss it. The game is portrait-only (turning sideways shows a reminder), runs at 60 fps and drops to 30 fps when nothing is happening to save battery, and on Auto lowers graphics quality on its own if a device struggles (judged against the screen's own pace: an iPhone in Low Power Mode shows at most 30 fps, steadily, and that is not counted as struggling). Settings has a **Speed meter** to see frame rate on your phone. The two keyboard secrets have touch versions: tap the slime's name to call it, and swipe the cheat code on the background.
 
 ## What's in the prototype
 
@@ -69,7 +69,7 @@ Phone notes: swipe the menu down (or its grip bar) to close it; drag a notificat
 | Secrets | 14 hidden interactions, each with a clue in the Journal. |
 | Grown-up forms | All 22 Settled forms have their own look on top of the diet color: a body shape (teardrop, blocky, lumpy...), a pattern (candy stripes, flames, rivets, circuits...), props (a beating heart inside, amethyst clusters, a chimney, a sunflower, a bee or ladybug friend...) and little effects. Head props hide under hats (spark forms keep theirs and the hat sits on top). |
 | The ranch | Grown-up slimes live in a cozy barn. Open the Ranch tab (or tap the pearl counter) and you are in the barn, with one slime at a time on the round show stand. Swipe sideways (or tap ‹ ›) for the next one: it wiggles, burrows into the straw nest in a poof of straw and the next one pops up. Tap or stroke the slime on the stand to pet it, tap its name card for its page. Pearls pop out into the straw; the Pearl Basket at the front right collects them. At home, the Meadow background still shows the ranch hill behind the cushion, where the slimes wander, play and nap in nightcaps after dark. The barn loads in the background a moment after the game starts; tap Ranch before it is in and "Off to the barn" shows at home until it opens (the very first time offline, a toast asks to try again in a moment). |
-| The Greenhouse | Home is a cozy glass greenhouse: plank floor, a braided rug, the slime's mossy stump, a potting bench, jars of snacks, hanging plants, a lantern and fairy lights at night, the garden and sky through the glass, fireflies after dark. It blends from day to night when the theme changes. Every save starts there (an old save on the meadow moves there once; one on Classic stays Classic). Helpers you buy stand in the room. |
+| The Greenhouse | Home is a cozy glass terrarium: slate floor, a moss bed and the slime's stump in front of a plain oak hutch (a calm space behind the slime), a shelf, hanging ferns, a moon lamp and fairy lights at night, the garden and sky through the glass, fireflies after dark. Eight menu objects stand in it (a golden chest, a mirror, a potting bench, the jelly jar and a toy barn on the shelf, a snack basket, a slate, and a name stake with the slime's name and number); at night the jar, the barn's windows and the chest glow. They are not tappable yet. It blends from day to night when the theme changes. Every save starts there (an old save on the meadow moves there once; one on Classic stays Classic). Helpers you buy stand in the room (the planters at its sides, out of the way of the calm space). |
 | Turning the camera | In the Greenhouse, the camera button (top left) steps through Front, Wide, Left and Right, and the game remembers the last one. Drag on the background (not on the slime) to turn the camera around your slime, up and down to look from higher or lower, and pinch with two fingers to come nearer or go farther. It stays inside the room. After you turn it, the button shows a little arrow: tap it to go back to Front. Booping, petting, feeding and everything else work the same from every angle. |
 | The meadow | Settings → Background → **Meadow**: home is outdoors: grass, flowers, rolling hills behind the ranch, drifting clouds, trees, and a moon at night. **Classic** turns it all off for the original plain look, with only your slime to look at. The camera stays fixed in both. |
 | Status at a glance | The slime's name, a heart that fills up as your bond grows (with the bond level), and three rings for tummy, joy and energy, all in one slim pill at the top. A ring pulses when it runs low, and the slime shows a little "Hungry!", "Sleepy..." or "Lonely..." bubble. Tap the heart or a ring for the details. |
@@ -96,7 +96,12 @@ artifact's database when it runs on claude.ai (so it follows you across devices)
 ```
 index.html            page shell, all CSS (light + dark themes), import map
 src/main.js           boot: load save (local + cloud), start the game
-src/game.js           coordinator: input -> rules -> reactions, effects, UI
+src/game.js           coordinator: builds the Game (world, views, HUD, frame loop) and runs each frame
+src/game/            the Game's parts, one subject per file (egg, care, food, mood, growth, requests, play, shop,
+                      welcome, ranch, nursery, move-out, new-homes, input, layout, settings, saving, debug; shared.js
+                      for SLIME_Y, clamp, ease, DEBUG, an); what each holds is listed at the top of game.js
+src/mixin.js          mixParts: copies a part's methods onto its class (partial classes: game.x() / hud.x() as before;
+                      a name defined twice stops the game at load)
 src/behaviors.js      gestures, emotes and tricks, little moments, room play, secrets
 src/data/content.js   ALL tuning and content: stages, foods, traits, helpers, upgrades, combos, bond, forms
 src/core/sim.js       game rules and save state (no three.js, no DOM), including moving to the ranch
@@ -114,7 +119,9 @@ src/view/forms.js     the 22 grown-up form looks: shapes, patterns, props, effec
 src/view/ranch.js     the ranch hill behind home in the Meadow background: residents wandering, the basket, the nest
 src/view/scenery.js   the meadow around home (grass, hills, clouds, flowers, trees, moon); off with the Classic background
 src/view/greenhouse.js the Greenhouse room (baked outside the repo into src/assets/greenhouse/): room, sky, glass, night glows
-src/view/greenhouse-math.js  Greenhouse math without three.js: ground, roof, camera limits and turning, pal hops, spot check
+src/view/menu-objects.js the room's 8 menu objects (tp_<name>.glb + day/night textures, tp_objects.json): shadows, night glows, the stake's label
+src/view/glb.js        a tiny reader for those GLBs (no three.js: node tests read them too)
+src/view/greenhouse-math.js  Greenhouse math without three.js: ground, roof, camera limits and turning, pal hops, spot check, roomMeta (what gh.json doesn't say)
 src/greenhouse-home.js which background home shows (Greenhouse / Meadow / Classic) and the camera you can turn
 src/ui/camera-button.js the Greenhouse camera button
 src/view/face.js      canvas-drawn expressions (eyes, mouth, blush, tears, sweat)
@@ -125,7 +132,10 @@ src/view/egg.js       the egg and hatching shards
 src/view/egg-spark.js the twinkle (and warm night glow) on an egg with a family spark
 src/view/fx.js        sprite particles
 src/audio/sfx.js      synthesized sounds and slime "voice" (Web Audio, no files)
-src/ui/hud.js         DOM interface
+src/ui/hud.js         DOM interface: counters, snack tray, menu tabs and the phone sheet, emotes, bubbles, toasts, modals
+src/ui/panels/       the menu's pages, one per file, parts of the Hud: helpers, upgrades, outfits, heirlooms, slime,
+                      journal, ranch, nursery (listed at the top of hud.js)
+src/ui/dom.js         what the HUD and the menu pages share (the jelly drop drawn before prices)
 src/ui/icons.js       drawn icons (sparkle, heart, Journal memory icons, little slime drawings) used instead of emoji
 src/ui/eggs.js        special eggs in the Nursery, a Nursery egg's title, the Breed line on your slime's page
 tools/serve.mjs       local dev server
@@ -145,7 +155,12 @@ tools/greenhouse-smoke.cjs headless Greenhouse test with real touches (every ang
 tools/greenhouse-offline.cjs each asset folder's own offline cache (the room, the barn) across test builds in tools/out/web-test (never docs/)
 tools/home-load-smoke.cjs  the game's start on a cold load with the room's files late or missing: no other scene before the Greenhouse, the cross-fade past the wait, offline; --film for a filmstrip, --only=cold for the start time
 tools/greenhouse-samples.cjs contact sheet of the new slime body in the Greenhouse (four bodies, Front vs the Meadow, Wide, Left, outfits, eggs, the Cuddly sign)
-src/assets/greenhouse/ the baked room (made outside this repo; do not edit by hand)
+tools/terrarium-shots.cjs  the terrarium room at home, 390 x 844: Front day and night, Wide, Left, Right, Classic, Low, every helper; draw calls in numbers.json
+tools/perf-probe.cjs  what a home frame costs: calls and triangles per pass, CPU/GPU ms, Auto live (CPU slowed down, 30 Hz frames),
+                      profiles, and each frame drawn as before the perf work and as now (--look); runs on the captain's PC too
+src/view/see-through.js the slime's see-through buffer at half size, and the jelly's matching mip level (same look, a quarter of the pixels)
+src/view/room-cells.js the room's chunks in small cells: the picture and the see-through pass each draw only the cells they can show
+src/assets/greenhouse/ the baked room and its menu objects (made outside this repo; do not edit by hand)
 src/assets/barn/      the baked barn for the ranch (made in Blender outside this repo; loaded ahead of time, after home shows)
 src/view/barn.js      the Barn ranch's 3D: the barn, sky, glows, the slime on the stand, the burrow swap, straw, nest, pearls
 src/view/barn-math.js the Barn ranch's plain math (swap pose curve, order and wrap, swipe, name card line, framing, spots)
@@ -196,7 +211,7 @@ AGENTS.md, CLAUDE.md  hand-off guide for coding agents (how it ships, how to tes
 ```
 
 The split follows the OOP guide's boundaries: `core/` owns rules and returns result objects,
-`view/` only presents, `game.js` sequences the two, and content lives in data so balancing never
+`view/` only presents, `game.js` (with its parts in `game/`) sequences the two, and content lives in data so balancing never
 touches logic. It ports to Godot cleanly: `content.js` → Resources, `sim.js` → RefCounted domain
 classes, `slime.js` → the SlimeAvatar scene.
 
@@ -254,8 +269,16 @@ node tools/economy-sim.mjs 4 casual quiet gen2=1e9 bred
 ```
 
 The Greenhouse: `GREENHOUSE` in `content.js` holds the slime's lights in the room (day and night), the ground (stump, rug,
-floor), the four camera angles and the camera's limits, how far a drag or a pinch turns it, and where each helper
-stands. `node tools/greenhouse-test.mjs` checks it (move a helper spot, then run it).
+floor), what the baked `gh.json` doesn't say (`room`: the footprints that are gone, the hutch, the hanging ferns), the stake
+label's font, the four camera angles and the camera's limits, how far a drag or a pinch turns it, and where each helper
+stands. `node tools/greenhouse-test.mjs` checks it (move a helper spot, then run it: no helper in the calm space behind
+the slime, the planters out of the Front picture).
+
+Frame rate (terrarium-perf): `GREENHOUSE.cells` sizes the room's cells and the slack each pass keeps (greenhouse-test checks
+that no triangle a pass could show is left out, for every angle); `AUTO_QUALITY` is how Auto judges frames and steps down
+(High, then pixel ratio 1.5, then Low; never back up in a visit). `node tools/perf-probe.cjs` measures a frame (add
+`--cpu 4` for a phone-like CPU, `--raf30 1` for Low Power Mode, `--live 15` to watch Auto, `--look DIR` for before/after
+pictures of the same frame); on the captain's PC through slimekin-notes' `tools/pc-test.sh`.
 
 The Barn ranch: `BARN` in `content.js` holds the burrow swap's timings and shape, the straw counts for High and Low
 graphics, the swipe, the name card's dot limit, the Nursery nest's spot, where pearls land and how the stand is framed

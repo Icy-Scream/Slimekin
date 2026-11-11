@@ -19,6 +19,87 @@ const { setup, watchdog, log } = require('./browser-kit.cjs');
 
 const SAVE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'barn', 'barn-six.json'), 'utf8')).save;
 
+// Page side of touchEl (sent as source text, installed once per page load as window.__tk).
+//   settle(q, n, ms)  looks at q once per drawn frame (requestAnimationFrame) until it has kept the same spot for n frames
+//                     in a row, topmost there, with no transition or animation running on it or on anything it sits in
+//                     (endless loops like a glow don't count); gives up after ms. Answers the spot, whether it settled,
+//                     the frames and time it took, and what it waited for.
+//   arm(q)            one more look, and the guard is on for the next touch
+//   result()          where that touch landed. The guard: the touch's first event decides. On q (or inside it) the touch
+//                     goes through untouched; anywhere else every event of it is stopped at the window before the game
+//                     sees it, and its click is cancelled.
+function touchKit() {
+  if (window.__tk) return;
+  const tag = e => (e && e.tagName ? `${e.tagName}${e.id ? '#' + e.id : ''}.${String(e.className).slice(0, 30)}` : 'nothing');
+  const moving = el => {
+    for (let e = el; e; e = e.parentElement) {
+      for (const a of e.getAnimations()) {
+        if (a.playState !== 'running' || (a.effect && a.effect.getComputedTiming().endTime === Infinity)) continue;
+        return `${tag(e)} ${a.transitionProperty || a.animationName || 'animation'}`;
+      }
+    }
+    return '';
+  };
+  // the middle of the part of q that shows (inside the sheet's page and above the tab bar), and what is on top there
+  const spot = q => {
+    const el = document.querySelector(q);
+    if (!el) return null;
+    const r = el.getBoundingClientRect(), tabs = document.querySelector('#panel .tabs');
+    let top = Math.max(r.top, 0), bottom = Math.min(r.bottom, innerHeight);
+    const sc = el.closest('.tab-body');
+    if (sc && !el.closest('#modal')) { const b = sc.getBoundingClientRect(); top = Math.max(top, b.top); bottom = Math.min(bottom, b.bottom); }
+    if (tabs && !el.closest('#modal') && !tabs.contains(el)) { const t = tabs.getBoundingClientRect(); if (t.height && t.top < bottom) bottom = Math.min(bottom, t.top); }
+    const x = r.left + r.width / 2, y = (top + bottom) / 2;
+    const e = bottom > top + 4 ? document.elementFromPoint(x, y) : null;
+    return { x, y, ok: !!e && (e === el || el.contains(e)), on: tag(e), moving: moving(el) };
+  };
+  const settle = (q, need, budget) => new Promise(resolve => {
+    const t0 = performance.now(), why = new Set();
+    let last = null, run = 0, frames = 0, done = false, timer = 0;
+    const finish = (settled, s) => {
+      if (done) return;
+      done = true; clearTimeout(timer);
+      resolve({ ...(s || spot(q) || { x: 0, y: 0, ok: false, on: 'nothing (gone)', moving: '' }), settled, frames, ms: Math.round(performance.now() - t0), why: [...why].join('; ') });
+    };
+    timer = setTimeout(() => finish(false), budget + 5000);   // (no frames drawn at all)
+    const look = () => {
+      if (done) return;
+      frames++;
+      const s = spot(q);
+      const same = !!s && !!last && Math.abs(s.x - last.x) < 0.5 && Math.abs(s.y - last.y) < 0.5;
+      if (!s) why.add('gone');
+      else { if (s.moving) why.add(s.moving); if (!s.ok) why.add('under ' + s.on); if (last && !same) why.add('moving'); }
+      run = s && s.ok && !s.moving ? (same ? run + 1 : 1) : 0;
+      last = s;
+      if (run >= need) return finish(true, s);
+      if (performance.now() - t0 > budget) return finish(false, s);
+      requestAnimationFrame(look);
+    };
+    requestAnimationFrame(look);
+  });
+  const G = { q: null, state: null };
+  const guard = e => {
+    if (!G.q) return;
+    if (!G.state && (e.type === 'pointerdown' || e.type === 'touchstart')) G.state = { hit: !!(e.target && e.target.closest && e.target.closest(G.q)), on: tag(e.target), events: [] };
+    if (!G.state) return;
+    G.state.events.push(e.type);
+    if (!G.state.hit) { if (e.cancelable) e.preventDefault(); e.stopImmediatePropagation(); }
+  };
+  for (const t of ['pointerdown', 'pointerup', 'pointercancel', 'touchstart', 'touchend', 'touchcancel', 'mousedown', 'mouseup', 'click']) window.addEventListener(t, guard, { capture: true, passive: false });
+  const arm = q => { G.q = q; G.state = null; return spot(q); };
+  const result = () => new Promise(resolve => {
+    let k = 0;
+    const look = () => {
+      const s = G.state;
+      if (!(s && s.events.some(t => t === 'touchend' || t === 'touchcancel')) && ++k < 30) { requestAnimationFrame(look); return; }
+      if (!s || s.hit) G.q = null;   // (a miss keeps the guard on: anything left of that touch is stopped too)
+      resolve(s ? { hit: s.hit, on: s.on, events: s.events.join(' ') } : { hit: false, on: 'nothing (no touch event came)', events: '' });
+    };
+    look();
+  });
+  window.__tk = { settle, arm, result };
+}
+
 (async () => {
   const errors = [];
   const check = (cond, what, extra = '') => { log(`${cond ? 'ok  ' : 'FAIL'} ${what}${extra ? ' | ' + extra : ''}`); if (!cond) errors.push(what + (extra ? ': ' + extra : '')); };
@@ -97,35 +178,38 @@ const SAVE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'barn',
       await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
     };
     const box = sel => ev(q => { const el = document.querySelector(q); if (!el) return null; el.scrollIntoView({ block: 'center' }); const b = el.getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2, disabled: !!el.disabled }; }, sel);
-    // touch an element where it can be seen, once it stands still (a card that just opened grows in with an animation,
-    // and headless Chrome only moves animations on when it draws a frame). The point is the middle of the part of it that
-    // shows (inside the sheet and above the tab bar); if something else is on top there, it scrolls and looks again.
-    const spot = sel => ev(q => {
-      const el = document.querySelector(q);
-      if (!el) return null;
-      const r = el.getBoundingClientRect(), tabs = document.querySelector('#panel .tabs');
-      let top = Math.max(r.top, 0), bottom = Math.min(r.bottom, innerHeight);
-      const sc = el.closest('.tab-body');
-      if (sc && !el.closest('#modal')) { const b = sc.getBoundingClientRect(); top = Math.max(top, b.top); bottom = Math.min(bottom, b.bottom); }
-      if (tabs && !el.closest('#modal') && !tabs.contains(el)) { const t = tabs.getBoundingClientRect(); if (t.height && t.top < bottom) bottom = Math.min(bottom, t.top); }
-      const x = r.left + r.width / 2, y = (top + bottom) / 2;
-      const e = bottom > top + 4 ? document.elementFromPoint(x, y) : null;
-      const anim = !!(el.closest('.modal-card') && el.closest('.modal-card').getAnimations().some(a => a.playState === 'running'));
-      return { x, y, ok: !!e && (e === el || el.contains(e)), on: e ? `${e.tagName}.${String(e.className).slice(0, 30)}` : 'nothing', anim };
-    }, sel);
+    // Touch an element where it can be seen, once it stands still. Headless Chrome only moves CSS transitions and
+    // animations on when it draws a frame, and under software WebGL a frame can take longer than any fixed wait: two
+    // looks 150 ms apart could both see the menu sheet frozen mid-slide, and the touch then landed on the tab bar. So it
+    // looks once per drawn frame (requestAnimationFrame; the page side is touchKit, at the top of this file): the
+    // element must keep its place for STILL frames in a row, with no transition or animation running on it or on
+    // anything it sits in (the sheet, its page, a card), and be the topmost thing at the spot. The spot is the middle of
+    // the part of it that shows (inside the sheet's page and above the tab bar); if something else is on top there, it
+    // scrolls and looks again. Right before the touch it looks once more, and a guard checks where the touch really
+    // lands: a touch that lands on anything else is stopped before the game sees it (so a miss changes nothing), logged,
+    // and made once more; a second miss fails the test.
+    const STILL = 3;
     const touchEl = async sel => {
       if (!(await ev(q => !!document.querySelector(q), sel))) throw new Error('nothing to touch: ' + sel);
-      let a = null;
-      for (let i = 0; i < 40; i++) {
-        if (i === 0 || (a && !a.ok && i % 5 === 0)) await ev(([q, k]) => { const el = document.querySelector(q); el.scrollIntoView({ block: k ? 'start' : 'center' }); }, [sel, i > 0]);
-        await page.waitForTimeout(150);
-        const b = await spot(sel);
-        if (b && b.ok && !b.anim && a && Math.abs(b.x - a.x) < 0.5 && Math.abs(b.y - a.y) < 0.5) { a = b; break; }
-        a = b;
+      await ev(`(${touchKit})()`);
+      await ev(q => document.querySelector(q).scrollIntoView({ block: 'center' }), sel);
+      let misses = 0;
+      for (let tries = 0; ; tries++) {
+        const a = await ev(([q, n, ms]) => window.__tk.settle(q, n, ms), [sel, STILL, 30000]);
+        if (!a.ok && tries < 2) { await ev(q => document.querySelector(q).scrollIntoView({ block: 'start' }), sel); continue; }
+        if (!a.settled) log(`note: ${sel} did not hold still for ${STILL} frames in ${(a.ms / 1000).toFixed(0)} s (${a.frames} frames; ${a.why}); touching it anyway`);
+        else if (a.why) log(`(${sel}: still after ${a.frames} frames, ${(a.ms / 1000).toFixed(1)} s; it waited for: ${a.why})`);
+        if (!a.ok) log(`note: ${sel} can't be seen to touch (at ${a.x.toFixed(0)}, ${a.y.toFixed(0)} is ${a.on})`);
+        const b = await ev(q => window.__tk.arm(q), sel);   // the last look, right before the touch; the guard is on
+        if (!b) throw new Error('nothing to touch: ' + sel);
+        if ((Math.abs(b.x - a.x) >= 0.5 || Math.abs(b.y - a.y) >= 0.5 || b.ok !== a.ok) && tries < 6) { log(`(${sel} moved after it held still: looking again)`); continue; }
+        await touch(b.x, b.y);
+        const r = await ev(() => window.__tk.result());
+        if (r.hit) return b;
+        log(`note: the touch on ${sel} at ${b.x.toFixed(0)}, ${b.y.toFixed(0)} landed on ${r.on}; it was stopped before the game saw it (${r.events || 'no events'})`);
+        if (++misses >= 2) throw new Error(`the touch on ${sel} landed on ${r.on}, twice`);
+        log(`  touching ${sel} once more`);
       }
-      if (!a || !a.ok) log(`note: ${sel} can't be seen to touch (at ${a && a.x.toFixed(0)}, ${a && a.y.toFixed(0)} is ${a && a.on})`);
-      await touch(a.x, a.y);
-      return a;
     };
     const modalIs = (kind, ms = 60000) => page.waitForFunction(k => !!document.querySelector(`#modalCard [data-cs-card="${k}"]`) && !document.getElementById('modal').hidden, kind, { timeout: ms });
     const modalText = () => ev(() => document.getElementById('modalCard').innerText.replace(/\s+/g, ' ').trim());

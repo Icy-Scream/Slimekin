@@ -10,10 +10,11 @@
 //            no pop)
 //   offline  the room's files can't load (offline on the very first run): home shows the Meadow, the setting stays
 //            Greenhouse, one warning; no other look first
+//   nomenu   only the menu objects' files (tp_*) can't load: the room shows without them, one warning, no page errors
 //   meadow, classic   those Backgrounds never wait: the loading screen goes as soon as the game is built
 //   cold     timing only (--runs=N cold loads, no delay): cold start to playable; --before=<folder> also an older copy;
 //            --delay=<ms> holds the room's files back as in delay3
-//   node tools/home-load-smoke.cjs [--only=delay3,delay12,offline,meadow,classic] [--film] [--nocheck] [--runs=3]
+//   node tools/home-load-smoke.cjs [--only=delay3,delay12,offline,nomenu,meadow,classic] [--film] [--nocheck] [--runs=3]
 // --film saves screenshots taken one after another (each a real frame of the page) with the record to tools/out/home-load/<part>/.
 // --nocheck only films and prints the record (for an older copy of the game: --root=<folder>). --helpers: a save with
 // helpers (they stand where the Background puts them). --film-dir=<name>: film into tools/out/home-load/<name>-<part>/.
@@ -22,7 +23,7 @@ const fs = require('fs');
 const { setup, watchdog, log, deadline } = require('./browser-kit.cjs');
 
 const arg = (k, d) => { const a = process.argv.find(x => x === `--${k}` || x.startsWith(`--${k}=`)); return a ? (a.includes('=') ? a.split('=')[1] : true) : d; };
-const ONLY = String(arg('only', 'delay3,delay12,offline,meadow,classic')).split(',');
+const ONLY = String(arg('only', 'delay3,delay12,offline,nomenu,meadow,classic')).split(',');
 const FILM = !!arg('film', false), CHECK = !arg('nocheck', false), RUNS = +arg('runs', 3), BEFORE = arg('before', null), ROOT = arg('root', null);
 // --helpers: the save also has a few of each helper (as a player who has played a while; the fixture has none)
 const HELPERS = arg('helpers', false) ? { feather: 2, bubbles: 2, garden: 3, slimeling: 2, musicbox: 1, lamp: 2, fountain: 1, observatory: 1, spa: 1, rainbow: 1 } : null;
@@ -33,7 +34,8 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const fails = [];
 const expect = (cond, what, detail = '') => { if (cond) log('ok', what); else { fails.push(what + (detail ? ': ' + detail : '')); log('FAIL', what, detail); } };
 
-// One cold load. room: { delay } holds the room's files back, { block: true } makes them fail.
+// One cold load. room: { delay } holds the room's files back, { block: true } makes them fail ({ block: /re/ }: only the
+// files whose names match).
 async function load(part, { scene = 'greenhouse', delay = 0, block = false, until, root = ROOT }) {
   const kit = await setup({ ...(root ? { root } : {}), contextOptions: { viewport: { width: 393, height: 852 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true } });
   const { page } = kit;
@@ -74,7 +76,7 @@ async function load(part, { scene = 'greenhouse', delay = 0, block = false, unti
   // room arrives about `delay` ms late, as on a slow network, not `delay` per file)
   await page.route('**/src/assets/greenhouse/**', async r => {
     reqs.push(['room', path.basename(r.request().url()), rel()]);
-    if (block) return r.abort('internetdisconnected');
+    if (block === true || (block && block.test(path.basename(r.request().url())))) return r.abort('internetdisconnected');
     if (delay) await (gate = gate || sleep(delay));
     return r.continue().catch(() => {});
   });
@@ -102,7 +104,7 @@ async function load(part, { scene = 'greenhouse', delay = 0, block = false, unti
     const m = n => { const e = performance.getEntriesByName(n)[0]; return e ? Math.round(e.startTime) : null; };
     const g = window.slimekin;
     return { ...window.__load, built: m('slimekin-built'), shown: m('slimekin-shown'), scene: g && g.state.settings.scene, world: g && g.home.world,
-      failed: g && g.home.room.failed, barnAsked: g && g.barnRanch.pre.asked };
+      failed: g && g.home.room.failed, menu: g && !!g.home.room.menu, barnAsked: g && g.barnRanch.pre.asked };
   });
   rec.reqs = reqs.map(([k, f, t]) => [k, f, t - (timeOrigin - origin0)]);   // ms since the page was asked for, like the frames
   rec.warns = warns.filter(w => /Greenhouse/.test(w));
@@ -191,6 +193,16 @@ const PARTS = {
     expect(rec.warns.length === 1, `offline: logged once (${rec.warns.length}: ${rec.warns[0] || ''})`);
     expect(vis.length >= 3 && bad.length === 0, `offline: the Meadow is the first thing shown (${vis.length} frames, ${bad.length} other)`, JSON.stringify(bad.slice(0, 3)));
     expect(rec.errors.filter(e => !/greenhouse|Failed to load resource/i.test(e)).length === 0, 'offline: no page errors', rec.errors.slice(0, 3).join(' | '));
+  },
+  async nomenu() {
+    const rec = await load('nomenu', { block: /^tp_/, until: () => { const b = document.getElementById('boot'); return b.hidden && (document.documentElement.dataset.homeWorld || (window.slimekin && window.slimekin.home.world)) === 'greenhouse'; } });
+    log('nomenu:\n' + story(rec));
+    if (!CHECK) return;
+    const vis = visible(rec), bad = vis.filter(f => f[2] !== 'greenhouse');
+    expect(rec.world === 'greenhouse' && !rec.failed && rec.menu === false, `nomenu: the room shows without its menu objects (world ${rec.world}, failed ${rec.failed}, menu objects ${rec.menu})`);
+    expect(rec.warns.length === 1 && /menu objects could not load/.test(rec.warns[0]), `nomenu: logged once (${rec.warns.length}: ${rec.warns[0] || ''})`);
+    expect(vis.length >= 3 && bad.length === 0, `nomenu: only the Greenhouse is shown (${vis.length} frames, ${bad.length} other)`, JSON.stringify(bad.slice(0, 3)));
+    expect(rec.errors.filter(e => !/greenhouse|Failed to load resource/i.test(e)).length === 0, 'nomenu: no page errors', rec.errors.slice(0, 3).join(' | '));
   },
   async meadow() { await plain('meadow'); },
   async classic() { await plain('classic'); },

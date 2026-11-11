@@ -10,6 +10,7 @@ import { FORM_LOOKS, PROP_MAKERS, makePattern } from './forms.js';
 import { TRAITS, TRAIT_IDS, FOOD_BY_ID, BREEDS } from '../data/content.js';
 import { recipeFor, stageM, cleanBody } from '../core/recipe.js';
 import { scarfLayout, scarfHeight, scarfScratch, fitScarf } from './scarf.js';
+import { seeThroughLod } from './see-through.js';
 
 // How long each snack takes to fully dissolve (seconds of play), and what it breaks into.
 const DIGEST = { cookie: 150, chili: 110, iron: 320, moss: 180, berry: 120, crystal: 360 };
@@ -113,6 +114,7 @@ const BUBBLE_DIRS = [[-0.45, 0.35, 0.8], [0.3, 0.5, 0.82], [0.55, 0.15, 0.85], [
 function jellyShader(U) {
   return sh => {
     Object.assign(sh.uniforms, U);
+    seeThroughLod(sh);   // [perf] the see-through buffer is drawn smaller: sample it as if it were full size (see-through.js)
     sh.vertexShader = 'varying vec3 vLocalP;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vLocalP = transformed;');
     sh.fragmentShader = 'varying vec3 vLocalP;\nuniform float uTime; uniform vec3 uRim; uniform vec3 uLow; uniform float uMk; uniform float uWet; uniform float uRip;\n' +
       'vec3 slimeRipple(vec3 lp) { vec3 q = lp * vec3(7.0, 5.0, 7.0); q.y += uTime * 0.55;\n' +
@@ -152,6 +154,31 @@ const JELLY = {
     transmission: lerp(0.5, 0.32, mk),
   }),
 };
+
+// [perf] The body's normals each frame: three.js's computeVertexNormals (indexed) written out on the arrays, the same
+// sums in the same order with the same float32 stores, so the same numbers (it was a quarter of the body's cost).
+function bodyNormals(geo) {
+  const pos = geo.attributes.position.array, idx = geo.index.array;
+  let na = geo.attributes.normal;
+  if (!na) { na = new THREE.BufferAttribute(new Float32Array(pos.length), 3); geo.setAttribute('normal', na); }
+  const n = na.array;
+  n.fill(0);
+  for (let i = 0; i < idx.length; i += 3) {
+    const a = idx[i] * 3, b = idx[i + 1] * 3, c = idx[i + 2] * 3;
+    const bx = pos[b], by = pos[b + 1], bz = pos[b + 2];
+    const cx = pos[c] - bx, cy = pos[c + 1] - by, cz = pos[c + 2] - bz;
+    const ax = pos[a] - bx, ay = pos[a + 1] - by, az = pos[a + 2] - bz;
+    const x = cy * az - cz * ay, y = cz * ax - cx * az, z = cx * ay - cy * ax;
+    n[a] += x; n[a + 1] += y; n[a + 2] += z;
+    n[b] += x; n[b + 1] += y; n[b + 2] += z;
+    n[c] += x; n[c + 1] += y; n[c + 2] += z;
+  }
+  for (let i = 0; i < n.length; i += 3) {
+    const x = n[i], y = n[i + 1], z = n[i + 2], k = 1 / (Math.sqrt(x * x + y * y + z * z) || 1);
+    n[i] = x * k; n[i + 1] = y * k; n[i + 2] = z * k;
+  }
+  na.needsUpdate = true;
+}
 
 class Spring {
   constructor(k, d, x = 0) { this.k = k; this.d = d; this.x = x; this.v = 0; this.target = x; }
@@ -1129,11 +1156,14 @@ export class SlimeAvatar {
     }
     this.topIdx = ti;
     this.geo.attributes.position.needsUpdate = true;
-    this.geo.computeVertexNormals();
+    bodyNormals(this.geo);
   }
 
   // ---------- frame ----------
-  update(dt) {
+  // drawn: false while nothing draws this avatar (a ranch hill resident while the hill is hidden: the Greenhouse, the
+  // barn): it lives on (springs, hops, blinks, colours) but its body, face patch and face picture aren't reworked.
+  // [perf] (they were most of a hidden resident's cost: six of them every tenth of a second)
+  update(dt, drawn = true) {
     this.time += dt;
     const t = this.time;
 
@@ -1262,7 +1292,7 @@ export class SlimeAvatar {
     if (this.pure) this.mat.iridescenceThicknessRange[1] = 420 + 180 * Math.sin(t * 0.7);
 
     // deform body (every lod-th frame)
-    this._reshaped = ++this._lodN % this.lod === 0;
+    this._reshaped = drawn && ++this._lodN % this.lod === 0;
     if (this._reshaped) this.deform();
     const o = this._o;
     // the baby's feet (they tuck in as it grows) and the bubbles inside, riding the body
@@ -1289,7 +1319,7 @@ export class SlimeAvatar {
 
     // face patch
     const fp = this.faceGeo.attributes.position.array, fd = this.faceDirs;
-    for (let i = 0; i < fd.length; i += 3) {
+    for (let i = 0; i < fd.length && drawn; i += 3) {
       const dx = fd[i], dy = fd[i + 1], dz = fd[i + 2];
       this.shape(dx, dy, dz, Math.atan2(dz, dx), o);
       const ny = o.y - CENTER_Y * (1 + this.sq.x);
@@ -1298,7 +1328,7 @@ export class SlimeAvatar {
       fp[i + 1] = o.y + ny / len * 0.012;
       fp[i + 2] = o.z + o.z / len * 0.012;
     }
-    this.faceGeo.attributes.position.needsUpdate = true;
+    if (drawn) this.faceGeo.attributes.position.needsUpdate = true;
 
     // eyes: look + blink
     if (this.lookTarget) {
@@ -1320,7 +1350,7 @@ export class SlimeAvatar {
       if (this.blinkPhase >= 1) { this.blinkPhase = -1; this.blink = 0; }
     }
     this.faceT -= dt;
-    if (!this.lite || this.faceT <= 0) {
+    if (drawn && (!this.lite || this.faceT <= 0)) {
       this.faceT = 1 / 12;
       this.face.draw(this.expr, this.look, this.blink, t);
       this.face.texture.needsUpdate = true;

@@ -4,6 +4,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { feather, planter, slimeling, moonLampPost, rainbowArch, HELPER_MAKERS } from './models.js';
 import { GREENHOUSE } from '../data/content.js';
 import { groundY as roomGround, palWander, palStart, palToward, palSpotOk } from './greenhouse-math.js';
+import { seeThroughLod } from './see-through.js';
 
 const FEATHER_COLORS = ['#a98bff', '#ff8fbd', '#6fc4ff', '#ffbf47', '#7fd88f'];
 const SLIMELING_COLORS = ['#ffb3d1', '#ffd98a', '#a8d8ff', '#c9b3ff', '#a8f0c8', '#ffc4a3', '#e0b3ff', '#b3f0ec'];
@@ -219,11 +220,33 @@ export class HelperWorld {
       o.traverse(m => {
         const mat = m.material;
         if (!m.isMesh || !mat) return;
-        if (mat.userData.see === undefined) mat.userData.see = mat.transmission || 0;
+        if (mat.userData.see === undefined) {
+          mat.userData.see = mat.transmission || 0;
+          if (mat.userData.see > 0) mat.onBeforeCompile = seeThroughLod;   // [perf] the smaller see-through buffer (see-through.js)
+        }
         const t = plain ? 0 : mat.userData.see;
         if (mat.userData.see > 0 && mat.transmission !== t) { mat.transmission = t; mat.needsUpdate = true; }
       });
     }
+  }
+
+  // [perf] The see-through meshes shown now (the fountain's goo, the spa's water, while see-through), each with a sphere
+  // round it in its own space: the room's see-through pass shows the room behind them (greenhouse.js cull()).
+  seeMeshes() {
+    const out = this._seeList || (this._seeList = []);
+    out.length = 0;
+    if (!this.group.visible) return out;
+    for (const id of ['fountain', 'spa']) {
+      const o = this.singles[id];
+      if (!o || !o.visible) continue;
+      o.traverse(m => {
+        if (!m.isMesh || !m.visible || !m.material || !(m.material.transmission > 0)) return;
+        if (!m.geometry.boundingSphere) m.geometry.computeBoundingSphere();
+        const b = m.geometry.boundingSphere;
+        out.push({ obj: m, c: [b.center.x, b.center.y, b.center.z], r: b.radius });
+      });
+    }
+    return out;
   }
 
   // ---------- where things stand: the meadow (today's spots) or the Greenhouse room ----------
