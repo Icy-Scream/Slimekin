@@ -18,9 +18,10 @@ export class OutfitsPanel {
       let html = `<p class="sub">Dress-up for ${name}. One item per spot: head, face and neck. ${fav}</p><div class="outfits">`;
       for (const def of OUTFITS) {
         const owned = o.owned.includes(def.id);
+        // what it wears reads Wearing (and a touch takes it off), owned or not: the page shows what the slime wears
         const worn = o.worn[def.slot] === def.id;
         const isFav = o.knownFavorite && o.favorite === def.id;
-        const action = !owned ? `<span class="cost">${DROP}${fmtShort(def.cost)}</span>` : worn ? '<span class="wear on">Wearing</span>' : '<span class="wear">Wear</span>';
+        const action = worn ? '<span class="wear on">Wearing</span>' : !owned ? `<span class="cost">${DROP}${fmtShort(def.cost)}</span>` : '<span class="wear">Wear</span>';
         html += `<button class="outfit${worn ? ' worn' : ''}${owned ? ' owned' : ''}" data-id="${def.id}" aria-pressed="${worn}">${isFav ? '<span class="fav-dot" title="Favorite"></span>' : ''}${this.icon(def.id, def.name)}<span class="on">${esc(def.name)}</span><span class="ob">${esc(def.blurb)}</span>${action}</button>`;
       }
       html += '</div>';
@@ -28,11 +29,11 @@ export class OutfitsPanel {
       for (const b of body.querySelectorAll('.outfit')) {
         b.addEventListener('click', () => {
           const id = b.dataset.id;
-          if (st.outfits.owned.includes(id)) this.g.wearOutfit(id); else this.g.buyOutfit(id);
+          if (st.outfits.owned.includes(id) || st.outfits.worn[OUTFIT_BY_ID[id].slot] === id) this.g.wearOutfit(id); else this.g.buyOutfit(id);
           this.renderOutfits();
         });
       }
     }
-    for (const b of body.querySelectorAll('.outfit:not(.owned)')) b.classList.toggle('poor', !sim.canAfford(OUTFIT_BY_ID[b.dataset.id].cost));
+    for (const b of body.querySelectorAll('.outfit:not(.owned):not(.worn)')) b.classList.toggle('poor', !sim.canAfford(OUTFIT_BY_ID[b.dataset.id].cost));
   }
 }

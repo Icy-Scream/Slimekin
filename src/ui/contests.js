@@ -77,7 +77,7 @@ const CSS = `
   .cs-bar { height: 10px; border-radius: 5px; background: var(--chip); overflow: hidden; } .cs-bar i { display: block; height: 100%; border-radius: 5px; background: var(--cs-p); }
   .cs-group { font-weight: 800; font-size: 13.5px; color: var(--ink-2); margin: 2px 0 -4px; }
   .cs-outfit { display: flex; align-items: center; gap: 8px; min-height: 42px; padding: 3px 9px 3px 8px; border-radius: 13px; border: 1px solid var(--cs-line); background: var(--panel-strong); color: var(--ink); text-align: left; font: inherit; width: 100%; box-sizing: border-box; }
-  button.cs-outfit { cursor: pointer; }
+  button.cs-outfit { cursor: pointer; } button.cs-outfit.not { cursor: default; }
   .cs-outfit.on { background: var(--cs-soft); border: 1.6px solid var(--cs-p); }
   .cs-outfit .cs-oic { width: 30px; height: 30px; flex: none; display: grid; place-items: center; }
   .cs-outfit .cs-oic img { width: 30px; height: 30px; }
@@ -351,7 +351,9 @@ export class ContestsUI {
       const list = OUTFITS.filter(o => o.slot === slot).map((o, i) => ({ o, i })).sort((a, b) => rank(a.o) - rank(b.o) || a.i - b.i).map(({ o }) => {
         const on = worn[slot] === o.id, have = owned.has(o.id), st = `+${C.style[o.id] || 0} Style`;
         const icon = `<span class="cs-oic">${g.hud.icon(o.id, o.name).replace('<span style="font-size:30px;line-height:1"', '<span style="font-size:22px;line-height:1"')}</span>`;
-        if (!have) return `<div class="cs-outfit not">${icon}<b>${esc(o.name)}</b><span class="sub">${st}</span><span class="sub" style="flex:none">In Outfits</span></div>`;
+        // one the family does not own: faded, "In Outfits" (where to get it); a touch shakes it. What the slime wears is
+        // always shown as worn (and a touch takes it off), owned or not: the card shows what the stand draws
+        if (!have && !on) return `<button class="cs-outfit not" data-cs="notOwned" data-outfit="${o.id}" aria-disabled="true">${icon}<b>${esc(o.name)}</b><span class="sub">${st}</span><span class="sub" style="flex:none">In Outfits</span></button>`;
         return `<button class="cs-outfit${on ? ' on' : ''}" data-cs="wear" data-slot="${slot}" data-outfit="${o.id}" aria-pressed="${on}">${icon}<b>${esc(o.name)}</b><span class="sub">${st}</span><span class="cs-chip${on ? ' on' : ''}">${on ? `${ICON.check}Wearing` : 'Wear'}</span></button>`;
       }).join('');
       return `<div class="cs-group">${SLOT_NAME[slot] || slot}</div>${list}`;
@@ -362,6 +364,7 @@ export class ContestsUI {
     this.open(html, 'dress', card => {
       for (const b of card.querySelectorAll('[data-cs]')) b.addEventListener('click', () => {
         if (b.dataset.cs === 'done') { g.hud.closeModal(); return; }
+        if (b.dataset.cs === 'notOwned') { g.sfx.error && g.sfx.error(); b.classList.remove('shake'); void b.offsetWidth; b.classList.add('shake'); return; }
         const slot = b.dataset.slot, oid = b.dataset.outfit, on = (x.worn || {})[slot] === oid;
         const r = dressUp(this.state, id, slot, on ? null : oid);
         if (!r.ok) { g.sfx.error && g.sfx.error(); return; }
