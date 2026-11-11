@@ -123,7 +123,8 @@ export class Greenhouse {
     const loader = new THREE.TextureLoader();
     const tex = (name, flipY = true) => new Promise((res, rej) => loader.load(new URL(name, BASE).href, t => { t.colorSpace = THREE.SRGBColorSpace; t.flipY = flipY; t.anisotropy = 8; res(t); }, undefined, () => rej(new Error(name))));
     // the menu objects' files, alongside the room's (glTF texture coordinates: not flipped). If any of them can't load,
-    // the room shows without them.
+    // the room shows without them. (Their failure is told only once the room is in: offline, the room's own warning is
+    // the one line.)
     const menuFiles = (async () => {
       const tp = await get('tp_objects.json', 'json'), files = {};
       await Promise.all(Object.entries(tp.objects).map(async ([n, o]) => {
@@ -132,7 +133,7 @@ export class Greenhouse {
       }));
       const [shadow, glow] = await Promise.all([tex(tp.sprites.shadow), tex(tp.sprites.glow)]);
       return { tp, files, sprites: { shadow, glow } };
-    })().catch(e => { console.warn('Greenhouse: the menu objects could not load; the room shows without them.', e && e.message ? e.message : e); return null; });
+    })().catch(e => ({ error: e }));
     const [meta, bin] = await Promise.all([get('gh.json', 'json'), get('gh.bin', 'bin')]);
     if (meta.format !== 2) throw new Error('unknown room format ' + meta.format);
     const [floorDay, floorNight] = await Promise.all([tex('floor_day.jpg'), tex('floor_night.jpg')]);
@@ -278,10 +279,11 @@ export class Greenhouse {
       this.fly.phase = this.flies.map(f => f.ph);
     }
     // the menu objects
-    const mf = await menuFiles;
-    if (mf) {
+    const mf = await menuFiles, why = e => (e && e.message ? e.message : e);
+    if (mf.error) console.warn('Greenhouse: the menu objects could not load; the room shows without them.', why(mf.error));
+    else {
       try { this.menu = new MenuObjects(mf.tp, mf.files, mf.sprites, this.U, floorMat); g.add(this.menu.group); }
-      catch (e) { console.warn('Greenhouse: the menu objects could not be built; the room shows without them.', e && e.message ? e.message : e); }
+      catch (e) { console.warn('Greenhouse: the menu objects could not be built; the room shows without them.', why(e)); }
     }
     this.meta = roomMeta(meta, this.menu ? this.menu.tp : null);
     this.scene.add(g);
