@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
 import { GREENHOUSE } from '../src/data/content.js';
-import { groundY, roofY, camExcess, insideLimits, CamRig, LIMIT_NAMES, helperSpots, spotProblems, palStart, palWander, palToward, palSpotOk, palHopOk } from '../src/view/greenhouse-math.js';
+import { groundY, roofY, camExcess, insideLimits, CamRig, LIMIT_NAMES, helperSpots, spotProblems, palStart, palWander, palToward, palSpotOk, palHopOk, roomMeta } from '../src/view/greenhouse-math.js';
 import { createState, migrate } from '../src/core/sim.js';
 
 const root = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), '..');
@@ -43,7 +43,10 @@ const bytes = fs.readdirSync(ASSETS).reduce((s, f) => s + fs.statSync(path.join(
 console.log(`     the room: ${tris} triangles in ${meshes.length} meshes, ${(bytes / 1e6).toFixed(2)} MB on disk`);
 
 // ---------- 2. the ground and the helper spots ----------
-const G = GREENHOUSE, room = meta.room, stump = meta.footprints.find(f => f.name === 'stump');
+// the footprints as the game uses them: gh.json's, less the stool and the bowl, plus the hutch and the menu objects
+const tp = JSON.parse(fs.readFileSync(path.join(ASSETS, 'tp_objects.json'), 'utf8'));
+const live = roomMeta(meta, tp), feet = live.footprints;
+const G = GREENHOUSE, room = meta.room, stump = feet.find(f => f.name === 'stump');
 ok(near(groundY(0, 0), room.stump_top) && near(groundY(0, 0), stump.top), `the stump top is ${room.stump_top} (the slime's seat)`);
 ok(near(groundY(1.8, 0), G.ground.rugY) && near(groundY(0, -3), G.ground.floorY), 'the rug and the floor');
 ok(G.ground.stumpR === room.stump_r, `the ground's stump radius matches gh.json (${room.stump_r})`);
@@ -56,11 +59,21 @@ const SHOWN = { high: parse(shownSrc[1]), low: parse(shownSrc[2]) };
 ok(G.spots.planters.length >= SHOWN.high.garden && G.spots.lamps.length >= SHOWN.high.lamp, 'a spot for every planter and Moon Lamp shown on High');
 for (const q of ['high', 'low']) {
   const spots = helperSpots(SHOWN[q]);
-  const p = spotProblems(spots, meta.footprints, room);
+  const p = spotProblems(spots, feet, room);
   ok(!p.length, `${q}: ${spots.length} helpers, none on a footprint, in a wall, outside the room or on another helper`, '\n       ' + p.join('\n       '));
 }
 const tel = meta.spots.find(s => s.name === 'telescope'), ob = G.spots.observatory;
 ok(Math.hypot(ob[0] - tel.x, ob[1] - tel.z) <= 0.15, `the Dream Telescope stands in the room's telescope spot (${Math.hypot(ob[0] - tel.x, ob[1] - tel.z).toFixed(2)} from it)`);
+// the terrarium: the stool and the bowl are gone; the hutch and every menu object standing on the floor have footprints
+ok(!feet.some(f => G.room.gone.includes(f.name)) && G.room.gone.every(n => meta.footprints.some(f => f.name === n)), `the footprints drop the ${G.room.gone.join(' and ')} (gh.json still lists them)`);
+const floorObjs = Object.keys(tp.objects).filter(n => tp.objects[n].position[1] < G.room.shelfY);
+ok(floorObjs.length === 6 && floorObjs.every(n => feet.some(f => f.name === 'tp_' + n && f.menu)), `a footprint for each menu object on the floor (${floorObjs.join(', ')}); the jar and the toy barn are on the shelf`);
+{
+  const hut = feet.filter(f => f.name === 'hutch'), H = G.room.hutch;
+  const covered = x => hut.some(f => Math.abs(x - f.x) <= Math.sqrt(f.r * f.r - (H.z[1] - f.z) ** 2));
+  let gaps = 0; for (let x = H.x[0]; x <= H.x[1]; x += 0.01) if (!covered(x)) gaps++;
+  ok(hut.length >= 6 && gaps === 0, `the hutch: ${hut.length} footprints along its whole front (x ${H.x.join(' to ')})`);
+}
 // the Rainbow Arch: over the garden, all of it behind the back glass
 const A = G.spots.rainbow;
 ok(A.pos[2] + A.tube < room.z_back_in - 2, `the Rainbow Arch is in the garden behind the back glass (z ${A.pos[2]})`);
@@ -68,7 +81,7 @@ ok(A.pos[2] + A.tube < room.z_back_in - 2, `the Rainbow Arch is in the garden be
 // the slimeling pals: thousands of seeded hops (and visits) on the rug and the floor, never into the stump, the bench,
 // a footprint, a helper or each other
 {
-  const statics = [...meta.footprints, ...helperSpots(SHOWN.high)].map(f => ({ x: f.x, z: f.z, r: f.r }));
+  const statics = [...feet, ...helperSpots(SHOWN.high)].map(f => ({ x: f.x, z: f.z, r: f.r }));
   const rnd = seeded(7), pr = G.spots.pals.spacing / 2;
   const pals = [];
   for (let i = 0; i < SHOWN.high.slimeling; i++) pals.push(palStart(rnd, [...statics, ...pals.map(p => ({ x: p[0], z: p[1], r: pr }))], room));

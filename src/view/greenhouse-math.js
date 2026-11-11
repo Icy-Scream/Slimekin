@@ -156,6 +156,26 @@ export function palToward(from, target, rnd, blockers, room = null) {
   return null;
 }
 
+// ---------- the room as the game uses it ----------
+// gh.json is the baked room's file, byte for byte as it was baked. What it does not say about the terrarium is added
+// here, from GREENHOUSE.room (content.js) and tp_objects.json (the menu objects' file, tp = null when it did not load):
+//   footprints  what stands on the floor (the pals hop round them, the helper spots keep clear of them, the travel
+//               bubble sees them as posts): gh.json's, less the furniture the terrarium took out, plus the hutch (a row
+//               of circles along it) and every menu object standing on the floor (the circle round its box, any yaw);
+//   balls       what hangs or stands up high (the bubble sees them): the hanging ferns and the menu objects on the shelf.
+export function roomMeta(meta, tp = null, R = G.room) {
+  const footprints = (meta.footprints || []).filter(f => !R.gone.includes(f.name)).map(f => ({ ...f }));
+  const H = R.hutch, w = H.x[1] - H.x[0] - H.r, n = Math.ceil(w / (1.4 * H.r)) + 1, z = (H.z[0] + H.z[1]) / 2;
+  for (let i = 0; i < n; i++) footprints.push({ name: 'hutch', x: H.x[0] + H.r / 2 + w * i / (n - 1), z, r: H.r, top: H.top });
+  const balls = R.ferns.map(f => ({ c: [...f.c], r: f.r, what: 'a hanging fern' }));
+  for (const [name, o] of Object.entries(tp ? tp.objects : {})) {
+    const [x, y, zz] = o.position, [sx, sy, sz] = o.size;
+    if (y < R.shelfY) footprints.push({ name: 'tp_' + name, x, z: zz, r: Math.hypot(sx, sz) / 2, top: y + sy, menu: true });
+    else balls.push({ c: [x, y + sy / 2, zz], r: Math.hypot(sx, sy, sz) / 2, what: 'the ' + name + ' (menu)' });
+  }
+  return { ...meta, footprints, balls };
+}
+
 // ---------- the helper spots ----------
 // Every helper's place in the room for a number of copies shown: { id, x, z, r }.
 export function helperSpots(shown) {

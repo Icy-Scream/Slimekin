@@ -8,12 +8,14 @@ import url from 'node:url';
 import { createRequire } from 'node:module';
 import { SENDOFF as S, GREENHOUSE } from '../src/data/content.js';
 import { bubbleSize, bubbleBottom, growAt, riseAt, floatAt, framePlanes, inPicture, clearance, greenhouseRoom, OPEN_SKY, sightLines, sightHit, seenMeeting, planFloat, popSwell, cameraMatrix, project } from '../src/view/bubble-math.js';
-import { CamRig, camExcess, insideLimits } from '../src/view/greenhouse-math.js';
+import { CamRig, camExcess, insideLimits, roomMeta } from '../src/view/greenhouse-math.js';
 
 const ROOT = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), '..');
 let pass = 0, fail = 0;
 const ok = (cond, what, detail = '') => { if (cond) { pass++; console.log('ok  ', what, detail ? `(${detail})` : ''); } else { fail++; console.log('FAIL', what, detail); } };
-const meta = JSON.parse(fs.readFileSync(path.join(ROOT, 'src/assets/greenhouse/gh.json'), 'utf8'));
+// the room as the game completes it (gh.json + the terrarium's hutch, ferns and menu objects: roomMeta)
+const readAsset = f => JSON.parse(fs.readFileSync(path.join(ROOT, 'src/assets/greenhouse', f), 'utf8'));
+const meta = roomMeta(readAsset('gh.json'), readAsset('tp_objects.json'));
 const room = greenhouseRoom(meta, GREENHOUSE.roof);
 const SLIME_Y = 0.27;
 const PHONE = 393 / 852;

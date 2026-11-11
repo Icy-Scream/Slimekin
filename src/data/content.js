@@ -821,6 +821,17 @@ export const GREENHOUSE = {
   },
   // Height of the floor: the stump's flat top (the slime sits on it), its side down to the braided rug, the planks.
   ground: { stumpTop: 0.27, stumpFlat: 0.85, stumpR: 1.14, rugY: 0.06, rugR: 2.3, rugEdge: 0.1, floorY: 0 },
+  // What the terrarium's gh.json does not say (it is the baked file, unchanged): the footprints it still lists for the
+  // stool and the bowl, which are gone (the potting bench and the snack basket stand near them now); the oak hutch
+  // behind the stump (its box, x, z, top, measured from gh.bin; a row of circles of radius r along it); the two hanging
+  // ferns (spheres round their leaves, measured from gh.bin); menu objects standing lower than shelfY are on the floor.
+  // All of it: roomMeta() in src/view/greenhouse-math.js.
+  room: {
+    gone: ['stool', 'bowl'],
+    hutch: { x: [-1.104, 1.104], z: [-5.31, -5.222], top: 1.773, r: 0.19 },
+    ferns: [{ c: [-2.745, 3.15, -2.615], r: 0.7 }, { c: [-2.745, 3.8, -2.615], r: 0.62 }, { c: [1.7, 2.92, -5.0], r: 0.66 }],
+    shelfY: 1,
+  },
   // The roof over the room: eaves on the side walls, the ridge over the middle (half = half the roof's width).
   roof: { eave: 4.7, ridge: 6.7, half: 3.95 },
   camera: {

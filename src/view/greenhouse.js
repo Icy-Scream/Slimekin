@@ -7,6 +7,7 @@
 // from gh.json; everything tunable is GREENHOUSE in content.js.
 import * as THREE from 'three';
 import { GREENHOUSE } from '../data/content.js';
+import { roomMeta } from './greenhouse-math.js';
 
 const BASE = new URL('../assets/greenhouse/', import.meta.url);
 const SKY_R = 110;   // the sky dome follows the camera, inside its far plane (the stage keeps far = 120)
@@ -113,12 +114,12 @@ export class Greenhouse {
       if (!res.ok) throw new Error(`${name}: ${res.status}`);
       return kind === 'json' ? res.json() : res.arrayBuffer();
     };
-    const [meta, bin] = await Promise.all([get('gh.json', 'json'), get('gh.bin', 'bin')]);
+    const [meta, bin, tp] = await Promise.all([get('gh.json', 'json'), get('gh.bin', 'bin'), get('tp_objects.json', 'json').catch(() => null)]);
     if (meta.format !== 2) throw new Error('unknown room format ' + meta.format);
     const loader = new THREE.TextureLoader();
     const tex = name => new Promise((res, rej) => loader.load(new URL(name, BASE).href, t => { t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; res(t); }, undefined, () => rej(new Error(name))));
     const [floorDay, floorNight] = await Promise.all([tex('floor_day.jpg'), tex('floor_night.jpg')]);
-    this.meta = meta;
+    this.meta = roomMeta(meta, tp);   // gh.json as the game uses it: the terrarium's footprints (greenhouse-math.js)
     const chunk = (name, Type) => { const [o, n] = meta.chunks[name]; return new Type(bin, o, n / Type.BYTES_PER_ELEMENT); };
     const shared = m => { m.uniforms.uNight = this.U.uNight; return m; };
     const placeQ = m => { m.position.set(...meta.qbox.center); m.scale.set(...meta.qbox.half); return m; };
