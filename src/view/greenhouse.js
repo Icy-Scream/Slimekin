@@ -61,6 +61,10 @@ void main(){
 
 const noRay = o => { o.raycast = () => {}; return o; };
 const lerp = (a, b, t) => a + (b - a) * t;
+// The day/night blend lands on its target once the jump to it is under one level of 255 in any of the room's colours:
+// the steepest the sRGB curve gets is 12.92 (at the darkest), so a jump of uNight under 1 / (255 x 12.92) moves no
+// drawn colour by a whole level. (It used to land within 0.002, a jump of about 1 level on a dark night frame.)
+const BLEND_SNAP = 1 / (255 * 12.92);
 
 export class Greenhouse {
   constructor(scene) {
@@ -251,7 +255,7 @@ export class Greenhouse {
     this.time += dt;
     const U = this.U.uNight, k = GREENHOUSE.blend;
     U.value += (this.target - U.value) * (1 - Math.exp(-dt * k));
-    if (Math.abs(this.target - U.value) < 0.002) U.value = this.target;
+    if (Math.abs(this.target - U.value) < BLEND_SNAP) U.value = this.target;
     const nt = U.value, t = this.time * 1000;
     this.starMat.opacity = nt;
     this.stars.visible = nt > 0.003;
