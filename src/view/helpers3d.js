@@ -230,6 +230,25 @@ export class HelperWorld {
     }
   }
 
+  // [perf] The see-through meshes shown now (the fountain's goo, the spa's water, while see-through), each with a sphere
+  // round it in its own space: the room's see-through pass shows the room behind them (greenhouse.js cull()).
+  seeMeshes() {
+    const out = this._seeList || (this._seeList = []);
+    out.length = 0;
+    if (!this.group.visible) return out;
+    for (const id of ['fountain', 'spa']) {
+      const o = this.singles[id];
+      if (!o || !o.visible) continue;
+      o.traverse(m => {
+        if (!m.isMesh || !m.visible || !m.material || !(m.material.transmission > 0)) return;
+        if (!m.geometry.boundingSphere) m.geometry.computeBoundingSphere();
+        const b = m.geometry.boundingSphere;
+        out.push({ obj: m, c: [b.center.x, b.center.y, b.center.z], r: b.radius });
+      });
+    }
+    return out;
+  }
+
   // ---------- where things stand: the meadow (today's spots) or the Greenhouse room ----------
   ground(x, z) { return this.layout === 'greenhouse' ? roomGround(x, z) : groundY(x, z); }
   // where a pal's body rests (its origin is its middle: PAL_LIFT up from the ground, a little more on the planks)

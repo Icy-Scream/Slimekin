@@ -841,6 +841,12 @@ export const GREENHOUSE = {
   },
   // The roof over the room: eaves on the side walls, the ridge over the middle (half = half the roof's width).
   roof: { eave: 4.7, ridge: 6.7, half: 3.95 },
+  // [perf] The room's cells (src/view/room-cells.js): each chunk's triangles in cells of at most `leaf` (triangles
+  // longer than `big` m apart); a pass draws only the cells it can show. The picture: the camera's frustum, rebuilt
+  // with `margin` more on each side (so a small turn keeps what it has). The see-through pass: the frustum behind each
+  // see-through thing (the slime's body, the fountain's goo, the spa's water), its sphere grown `grow` x for what it
+  // needs now and `growWant` x when rebuilt, plus `pad` of the picture's half height round it (the jelly's blur).
+  cells: { leaf: 500, big: 0.3, margin: 0.08, grow: 1.1, growWant: 1.3, pad: 0.04 },
   camera: {
     order: ['front', 'wide', 'left', 'right'],   // the camera button steps through these (Front = the home camera)
     // Set angles (Front is computed by the stage, unchanged). Left is the test page's Corner, 0.1 nearer the middle so

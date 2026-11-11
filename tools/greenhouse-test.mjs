@@ -9,6 +9,7 @@ import { groundY, roofY, camExcess, insideLimits, CamRig, LIMIT_NAMES, helperSpo
 import { createState, migrate } from '../src/core/sim.js';
 import { cameraMatrix, project } from '../src/view/bubble-math.js';
 import { readGLB } from '../src/view/glb.js';
+import { buildCells, markCells, frustumPlanes, sphereRect, CellPass } from '../src/view/room-cells.js';
 
 const root = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), '..');
 const ASSETS = path.join(root, 'src/assets/greenhouse');
@@ -43,6 +44,92 @@ for (const f of ['floor_day.jpg', 'floor_night.jpg']) ok(fs.statSync(path.join(A
 ok(Array.isArray(meta.footprints) && meta.footprints.length >= 7 && meta.room && meta.spots.some(s => s.name === 'telescope'), 'gh.json has the footprints, the room limits and the telescope spot');
 const bytes = fs.readdirSync(ASSETS).reduce((s, f) => s + fs.statSync(path.join(ASSETS, f)).size, 0);
 console.log(`     the room: ${tris} triangles in ${meshes.length} meshes, ${(bytes / 1e6).toFixed(2)} MB on disk`);
+
+// ---------- 1b. [perf] the room's cells (src/view/room-cells.js): each pass draws only the cells it can show ----------
+{
+  const C = GREENHOUSE.cells, q = 1 / 32767, H = meta.qbox.half, Cn = meta.qbox.center;
+  const PH = 393 / 852, size = 0.75;
+  const pb = Math.min(1.5, 1 + (0.9 - PH) * 0.8);
+  const cams = { front: { pos: [0, 2.25 + size * 0.75, (7.6 + size * 2.4) * pb], look: [0, 0.65 + size * 0.42, 0], fov: 30 },
+    ...Object.fromEntries(Object.entries(GREENHOUSE.camera.views).map(([k, v]) => [k, v])) };
+  const slime = { c: [0, 0.3 + size * 0.75, 0], r: size * 0.95 + 0.05 };   // a hatchling's body, roughly
+  const all = { pic: {}, see: {} };
+  let built = 0, ms = 0;
+  for (const m of meta.room_chunks) {
+    const [po, pn] = meta.chunks[m.name + '.pos'], [io, iN] = meta.chunks[m.name + '.idx'];
+    const pos = new Int16Array(buf, po, pn / 2), idx = new Uint16Array(buf, io, iN / 2);
+    const t0 = performance.now();
+    const cells = buildCells(pos, idx, Cn, H, C);
+    ms += performance.now() - t0;
+    built += cells.n;
+    // every triangle once, in order, inside its cell's box; no cell over the leaf size
+    const key = (a, t) => `${a[t * 3]},${a[t * 3 + 1]},${a[t * 3 + 2]}`;
+    const seen = new Map();
+    for (let t = 0; t < m.tris; t++) seen.set(key(idx, t), (seen.get(key(idx, t)) || 0) + 1);
+    for (let t = 0; t < m.tris; t++) { const k = key(cells.order, t); seen.set(k, (seen.get(k) || 0) - 1); }
+    ok([...seen.values()].every(v => v === 0) && cells.order.length === idx.length, `${m.name}: the cells hold every triangle once (${cells.n} cells)`);
+    let outside = 0, over = 0;
+    const W = v => [Cn[0] + H[0] * Math.max(pos[v * 3] * q, -1), Cn[1] + H[1] * Math.max(pos[v * 3 + 1] * q, -1), Cn[2] + H[2] * Math.max(pos[v * 3 + 2] * q, -1)];
+    for (let c = 0; c < cells.n; c++) {
+      if (cells.count[c] / 3 > C.leaf) over++;
+      for (let i = cells.start[c]; i < cells.start[c] + cells.count[c]; i++) {
+        const p = W(cells.order[i]);
+        for (let a = 0; a < 3; a++) if (p[a] < cells.lo[c * 3 + a] - 1e-4 || p[a] > cells.hi[c * 3 + a] + 1e-4) outside++;
+      }
+    }
+    ok(!outside && !over, `${m.name}: every cell's box holds its triangles, none over ${C.leaf} triangles`, `${outside} outside, ${over} over`);
+    // per angle: the cells marked hold every triangle the pass can show (none left out), and how many that is
+    for (const [name, v] of Object.entries(cams)) {
+      const M = cameraMatrix({ ...v, aspect: PH });
+      const planes = frustumPlanes(M, new Float32Array(24));
+      const mark = new Uint8Array(cells.n);
+      const picTris = markCells(cells, planes, mark);
+      const cellOf = new Uint32Array(m.tris);
+      for (let c = 0; c < cells.n; c++) for (let t = cells.start[c] / 3; t < (cells.start[c] + cells.count[c]) / 3; t++) cellOf[t] = c;
+      // the see-through frustum behind the slime (as greenhouse.js cull() makes it, with `grow`)
+      const r = slime.r * C.grow, rect = sphereRect(M, slime.c, r, C.pad / PH, C.pad);
+      const view = cameraMatrix({ ...v, aspect: PH, fov: 90 });   // (only its direction is used)
+      const f = [v.look[0] - v.pos[0], v.look[1] - v.pos[1], v.look[2] - v.pos[2]], fl = Math.hypot(...f);
+      const fwd = f.map(x => x / fl), fc = fwd[0] * v.pos[0] + fwd[1] * v.pos[1] + fwd[2] * v.pos[2];
+      const depth = fwd[0] * slime.c[0] + fwd[1] * slime.c[1] + fwd[2] * slime.c[2] - fc;
+      const sp = frustumPlanes(M, new Float32Array(24), 0, rect, [fwd[0], fwd[1], fwd[2], -fc - (depth - r)]);
+      const smark = new Uint8Array(cells.n);
+      const seeTris = markCells(cells, sp, smark);
+      void view;
+      let missPic = 0, missSee = 0;
+      for (let t = 0; t < m.tris; t++) {
+        const pts = [0, 1, 2].map(k => W(cells.order[t * 3 + k]));
+        const pr = pts.map(p => project(M, p));
+        // the picture: a triangle with a corner on the picture
+        if (pr.some(p => p && Math.abs(p[0]) <= 1 && Math.abs(p[1]) <= 1) && !mark[cellOf[t]]) missPic++;
+        // the see-through pass: a corner inside the slime's rect and beyond its front
+        const inRect = pts.some((p, k) => pr[k] && pr[k][0] >= rect[0] && pr[k][0] <= rect[1] && pr[k][1] >= rect[2] && pr[k][1] <= rect[3] &&
+          fwd[0] * p[0] + fwd[1] * p[1] + fwd[2] * p[2] - fc >= depth - r);
+        if (inRect && !smark[cellOf[t]]) missSee++;
+      }
+      ok(!missPic && !missSee, `${m.name}, ${name}: no triangle the picture or the see-through pass can show is left out`, `${missPic} / ${missSee} left out`);
+      all.pic[name] = (all.pic[name] || 0) + picTris;
+      all.see[name] = (all.see[name] || 0) + seeTris;
+    }
+  }
+  const total = meta.room_chunks.reduce((s, c) => s + c.tris, 0), pct = v => `${Math.round(v / 1000)}k (${Math.round(v / total * 100)}%)`;
+  for (const name of Object.keys(cams)) console.log(`     ${name.padEnd(6)} the room's chunks drawn: picture ${pct(all.pic[name])}, see-through ${pct(all.see[name])} of ${Math.round(total / 1000)}k`);
+  console.log(`     ${built} cells, built in ${Math.round(ms)} ms`);
+  ok(Object.keys(cams).every(n => all.pic[n] < total * 0.85 && all.see[n] < total * 0.35), 'every angle draws fewer of the room\'s triangles (picture under 85%, see-through under 35%)');
+  // CellPass: keeps its list while what it needs is in it; rebuilds when a needed cell is missing
+  const [po, pn] = meta.chunks['r0.pos'];
+  const pos = new Int16Array(buf, po, pn / 2), [io, iN] = meta.chunks['r0.idx'], idx = new Uint16Array(buf, io, iN / 2);
+  const cells = buildCells(pos, idx, Cn, H, C), out = new Uint16Array(idx.length), pass = new CellPass(cells, out);
+  const M = cameraMatrix({ ...cams.front, aspect: PH }), k = 1 + C.margin;
+  const need = frustumPlanes(M, new Float32Array(24)), want = frustumPlanes(M, new Float32Array(24), 0, [-k, k, -k, k]);
+  ok(pass.update(need, want) && pass.count > 0, 'a pass builds its list the first time');
+  ok(!pass.update(need, want), 'and keeps it while the camera stays');
+  const M2 = cameraMatrix({ ...cams.front, pos: [cams.front.pos[0] + 0.05, cams.front.pos[1], cams.front.pos[2]], aspect: PH });
+  ok(!pass.update(frustumPlanes(M2, new Float32Array(24)), frustumPlanes(M2, new Float32Array(24), 0, [-k, k, -k, k])), 'and through a small sway');
+  const M3 = cameraMatrix({ ...cams.left, aspect: PH });
+  ok(pass.update(frustumPlanes(M3, new Float32Array(24)), frustumPlanes(M3, new Float32Array(24), 0, [-k, k, -k, k])), 'a new angle rebuilds it');
+  ok(pass.all() && pass.count === idx.length, 'all(): every triangle');
+}
 
 // ---------- 2. the ground and the helper spots ----------
 // the footprints as the game uses them: gh.json's, less the stool and the bowl, plus the hutch and the menu objects

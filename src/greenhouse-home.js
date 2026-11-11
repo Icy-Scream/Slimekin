@@ -25,6 +25,7 @@ export class Home {
   constructor(game) {
     this.g = game;
     this.room = new Greenhouse(game.scene);
+    this.room.seeThings = () => this.seeThings();   // [perf] what the room's see-through pass must show the room behind
     this.world = null;          // what shows: 'greenhouse' | 'meadow' | 'classic' | 'loading' (Classic look while the room loads)
     this.shown = false;         // [r3b] the loading screen has gone (from here on a change of the loading look cross-fades)
     this.hold = null;           // [r3b] the loading screen waiting for the room: { n: frames drawn, done }
@@ -164,6 +165,33 @@ export class Home {
     const pos = s.geo.attributes.position, m = s.mesh.matrixWorld, box = b.box.makeEmpty();
     for (let i = 0; i < pos.count; i += 3) box.expandByPoint(b.v.fromBufferAttribute(pos, i).applyMatrix4(m));
     return box.isEmpty() ? b.egg : box;
+  }
+
+  // [perf] The see-through things at home, for the room's see-through pass (greenhouse.js cull()): spheres in each
+  // thing's own space. The slime's body: round its points, measured four times a second (in its own space, so it
+  // follows every hop and the send-off as it happens); its baby feet; the helpers' see-through goo and water.
+  seeThings() {
+    const g = this.g, s = g.slime, out = this._see || (this._see = []);
+    out.length = 0;
+    if (s.root.visible && s.mat.transmission > 0 && !(g.barnRanch && g.barnRanch.active)) {
+      const b = this.bodySphere || (this.bodySphere = { c: [0, 0, 0], r: 0, t: -1, box: new THREE.Box3(), v: new THREE.Vector3() });
+      if (b.t < 0 || g.time - b.t >= 0.25 || g.time < b.t) {
+        b.t = g.time;
+        const pos = s.geo.attributes.position, box = b.box.makeEmpty();
+        for (let i = 0; i < pos.count; i++) box.expandByPoint(b.v.fromBufferAttribute(pos, i));
+        if (box.isEmpty()) { b.c = [0, 0.7, 0]; b.r = 3.2; }   // (the body's own bounding sphere)
+        else {
+          box.getCenter(b.v); b.c = [b.v.x, b.v.y, b.v.z];
+          let r2 = 0;
+          for (let i = 0; i < pos.count; i++) r2 = Math.max(r2, b.v.set(pos.getX(i) - b.c[0], pos.getY(i) - b.c[1], pos.getZ(i) - b.c[2]).lengthSq());
+          b.r = Math.sqrt(r2);
+        }
+      }
+      if (s.mesh.visible) out.push({ obj: s.mesh, c: b.c, r: b.r });
+      for (const f of s.feet) if (f.visible) out.push({ obj: f, c: [0, 0, 0], r: 1 });
+    }
+    for (const t of g.helpers3d.seeMeshes()) out.push(t);
+    return out;
   }
 
   // ---------- the camera ----------
