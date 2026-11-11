@@ -40,6 +40,15 @@ const VARIANT = {
   // the see-through buffer at half its size (three.js sizes it from camera.viewport when there is one)
   rthalf: ['const T = await import("three"), gl = g.stage.renderer.getContext(); g.stage.camera.viewport = new T.Vector4(0, 0, Math.round(gl.drawingBufferWidth / 2), Math.round(gl.drawingBufferHeight / 2));',
     'delete g.stage.camera.viewport;'],
+  // the night glows (5 halos, the fairy bulbs, the fireflies: additive, overdraw) left out (moved to a layer no camera draws)
+  noglow: ['const r = g.home.room; [...r.glows.map(h => h.s), r.bulbs.pts, r.fly && r.fly.pts].forEach(o => o && o.layers && o.layers.set(31));',
+    'const r = g.home.room; [...r.glows.map(h => h.s), r.bulbs.pts, r.fly && r.fly.pts].forEach(o => o && o.layers && o.layers.set(0));'],
+  // the floor's shader as before terrarium-perf: both pictures read and mixed on every pixel, also on a steady day or night
+  floormix: ['g.home.room.group.traverse(m => { const M = m.material; if (m.isMesh && M.uniforms && M.uniforms.tDay && M.userData.fs0 === undefined) { M.userData.fs0 = M.fragmentShader; M.fragmentShader = M.fragmentShader.replace(/vec3 c;[\\s\\S]*?gl_FragColor = vec4\\(c, 1\\.0\\);/, "gl_FragColor = vec4(mix(texture2D(tDay, vUv).rgb, texture2D(tNight, vUv).rgb, uNight), 1.0);"); M.needsUpdate = true; } });',
+    'g.home.room.group.traverse(m => { const M = m.material; if (m.isMesh && M.userData && M.userData.fs0 !== undefined) { M.fragmentShader = M.userData.fs0; delete M.userData.fs0; M.needsUpdate = true; } });'],
+  // the textured floor and what shares its material (two textures mixed day/night) left out
+  nofloor: ['g.home.room.group.traverse(m => { if (m.isMesh && m.material.uniforms && m.material.uniforms.tDay) { m.userData.lay = m.layers.mask; m.layers.set(31); } });',
+    'g.home.room.group.traverse(m => { if (m.userData.lay !== undefined) { m.layers.mask = m.userData.lay; delete m.userData.lay; } });'],
 };
 const HELPERS = { feather: 6, bubbles: 1, garden: 6, slimeling: 5, musicbox: 1, lamp: 6, fountain: 1, observatory: 1, spa: 1, rainbow: 1 };
 
