@@ -143,7 +143,11 @@ export class Home {
     if (this.drawn !== this.world) { this.drawn = this.world; document.documentElement.dataset.homeWorld = this.world; }
     this.veil.update(dt, GREENHOUSE.arrive.fade);   // [r3b]
     this.frameWorld();
-    if (this.inRoom && this.room.group.visible) this.room.update(dt, this.g.stage.camera, this.g.reduced);
+    if (this.inRoom && this.room.group.visible) {
+      const st = this.g.state;
+      this.room.setLabel(st.slime.name, 'No. ' + String(st.ranch.family.generation).padStart(4, '0'));   // the name stake
+      this.room.update(dt, this.g.stage.camera, this.g.reduced);
+    }
     this.frameCamera(dt);
   }
 

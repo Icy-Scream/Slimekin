@@ -1,5 +1,5 @@
-// The Greenhouse, plain node (no browser): the room's files, where the helpers stand, the slimeling pals' hops,
-// the camera's limits, and the one-time move of old saves to the Greenhouse.
+// The Greenhouse, plain node (no browser): the room's files and its menu objects, where the helpers stand, the
+// slimeling pals' hops, the camera's limits, and the one-time move of old saves to the Greenhouse.
 //   node tools/greenhouse-test.mjs
 import fs from 'node:fs';
 import path from 'node:path';
@@ -7,6 +7,7 @@ import url from 'node:url';
 import { GREENHOUSE } from '../src/data/content.js';
 import { groundY, roofY, camExcess, insideLimits, CamRig, LIMIT_NAMES, helperSpots, spotProblems, palStart, palWander, palToward, palSpotOk, palHopOk, roomMeta } from '../src/view/greenhouse-math.js';
 import { createState, migrate } from '../src/core/sim.js';
+import { readGLB } from '../src/view/glb.js';
 
 const root = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), '..');
 const ASSETS = path.join(root, 'src/assets/greenhouse');
@@ -102,6 +103,29 @@ ok(A.pos[2] + A.tube < room.z_back_in - 2, `the Rainbow Arch is in the garden be
     pals[i] = to;
   }
   ok(bad === 0, `pals: ${hops} hops (${visits} visit steps, ${stays} hops in place), every one on the rug or the floor, clear of the stump, the bench, the footprints, the helpers and each other`, `${bad} bad`);
+}
+
+// ---------- 2b. the terrarium's menu objects (tp_objects.json, tp_<name>.glb, src/view/glb.js) ----------
+{
+  const names = Object.keys(tp.objects);
+  ok(names.join() === 'chest,mirror,bench,jar,barn,basket,slate,stake', `tp_objects.json lists the 8 menu objects (${names.join(', ')})`);
+  for (const [n, o] of Object.entries(tp.objects)) {
+    let g = null, why = '';
+    try { const b = fs.readFileSync(path.join(ASSETS, o.glb)); g = readGLB(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength)); } catch (e) { why = e.message; }
+    ok(!!g, `${o.glb} reads (one mesh: positions, texture coordinates, indices; the anchors as child nodes)`, why);
+    if (!g) continue;
+    ok(g.tris === o.tris && g.tris <= 3000, `${n}: ${g.tris} triangles, as tp_objects.json says (<= 3000)`);
+    const want = ['Glow_Anchor', 'Sparkle_Anchor', 'Tag_Anchor', 'Tap_' + n], d = Math.max(...want.map(k => g.nodes[k] && o.nodes[k] ? Math.max(...[0, 1, 2].map(i => Math.max(Math.abs(g.nodes[k].t[i] - o.nodes[k].t[i]), Math.abs(g.nodes[k].s[i] - o.nodes[k].s[i])))) : Infinity));
+    ok(d < 1e-3, `${n}: its anchors (${want.join(', ')}) in the GLB, where tp_objects.json puts them`, `largest difference ${d}`);
+    for (const t of [o.tex.day, o.tex.night]) ok(fs.statSync(path.join(ASSETS, t)).size > 1000, `${n}: ${t} is there`);
+  }
+  for (const f of Object.values(tp.sprites)) ok(fs.statSync(path.join(ASSETS, f)).size > 1000, `${f} is there`);
+  ok(new Set(Object.values(tp.objects).map(o => o.shadow.opacity.join())).size === 1, 'every contact shadow fades the same way by night (they are drawn as one mesh)');
+  ok(Object.values(tp.objects).filter(o => o.glow).map(o => o.glow.color).join() === '#ffd36a,#5fe3b8,#ffcf6a', 'three night glows: the chest, the jar and the toy barn');
+  const L = tp.objects.stake.label;
+  ok(L && L.day.fill && L.night.fill && L.w > 0 && L.h > 0, 'the stake carries a label (written at run time: the name and the number)');
+  const total = fs.readdirSync(ASSETS).reduce((s, f) => s + fs.statSync(path.join(ASSETS, f)).size, 0);
+  ok(total <= 4.7e6, `the room and its menu objects: ${(total / 1e6).toFixed(3)} MB (<= 4.7 MB)`);
 }
 
 // ---------- 3. the camera ----------

@@ -1,13 +1,16 @@
 // The Greenhouse: the cozy glass room that is the slime's home (Settings > Background > Greenhouse, the default).
-// The room was modelled and lit in Blender outside this repo and baked into src/assets/greenhouse/ (format 2:
-// gh.json + gh.bin, two floor textures): the light (sun, sky, bounce, soft shadows, the lantern and fairy lights) is
-// painted into the room's vertex colors, day and night, so the phone only draws it. Live here: the sky through the
-// glass, a faint glass sheen, the night glows (lantern, fairy bulbs, two jars, the cottage window), fireflies in the
-// garden, and the day/night blend. Nothing in the room is tappable. Footprints, glow spots and the room's limits come
-// from gh.json; everything tunable is GREENHOUSE in content.js.
+// Today it is the terrarium room. The room was modelled and lit in Blender outside this repo and baked into
+// src/assets/greenhouse/ (format 2: gh.json + gh.bin, two floor textures): the light (sun, sky, bounce, soft shadows, the
+// moon lamp and fairy lights) is painted into the room's vertex colors, day and night, so the phone only draws it. Live
+// here: the sky through the glass, a faint glass sheen on the panes, the night glows (the
+// moon lamp, fairy bulbs, the cottage window), fireflies in the garden, and the day/night blend. The eight menu objects
+// (chest, mirror, bench, jar, toy barn, basket, slate, stake) are their own files, drawn by menu-objects.js on the same
+// blend. Nothing in the room is tappable yet. Footprints, glow spots and the room's limits come from gh.json, completed
+// by roomMeta() (greenhouse-math.js); everything tunable is GREENHOUSE in content.js.
 import * as THREE from 'three';
 import { GREENHOUSE } from '../data/content.js';
 import { roomMeta } from './greenhouse-math.js';
+import { MenuObjects } from './menu-objects.js';
 
 const BASE = new URL('../assets/greenhouse/', import.meta.url);
 const SKY_R = 110;   // the sky dome follows the camera, inside its far plane (the stage keeps far = 120)
@@ -83,6 +86,7 @@ export class Greenhouse {
     this.flies = [];
     this.time = 0;
     this.loadMs = 0;
+    this.menu = null;      // the menu objects (menu-objects.js), once loaded
     this.light = { hemi: [new THREE.Color(), new THREE.Color(), 1], key: [new THREE.Color(), 1], rim: [new THREE.Color(), 1], env: 0.5 };
     // the slime's lights by day and by night (GREENHOUSE.slimeLight), as colors once
     const col = L => ({ hemi: [new THREE.Color(L.hemi[0]), new THREE.Color(L.hemi[1]), L.hemi[2]], key: [new THREE.Color(L.key[0]), L.key[1]], rim: [new THREE.Color(L.rim[0]), L.rim[1]], env: L.env });
@@ -114,14 +118,34 @@ export class Greenhouse {
       if (!res.ok) throw new Error(`${name}: ${res.status}`);
       return kind === 'json' ? res.json() : res.arrayBuffer();
     };
-    const [meta, bin, tp] = await Promise.all([get('gh.json', 'json'), get('gh.bin', 'bin'), get('tp_objects.json', 'json').catch(() => null)]);
-    if (meta.format !== 2) throw new Error('unknown room format ' + meta.format);
     const loader = new THREE.TextureLoader();
-    const tex = name => new Promise((res, rej) => loader.load(new URL(name, BASE).href, t => { t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; res(t); }, undefined, () => rej(new Error(name))));
+    const tex = (name, flipY = true) => new Promise((res, rej) => loader.load(new URL(name, BASE).href, t => { t.colorSpace = THREE.SRGBColorSpace; t.flipY = flipY; t.anisotropy = 8; res(t); }, undefined, () => rej(new Error(name))));
+    // the menu objects' files, alongside the room's (glTF texture coordinates: not flipped). If any of them can't load,
+    // the room shows without them.
+    const menuFiles = (async () => {
+      const tp = await get('tp_objects.json', 'json'), files = {};
+      await Promise.all(Object.entries(tp.objects).map(async ([n, o]) => {
+        const [glb, day, night] = await Promise.all([get(o.glb, 'bin'), tex(o.tex.day, false), tex(o.tex.night, false)]);
+        files[n] = { glb, day, night };
+      }));
+      const [shadow, glow] = await Promise.all([tex(tp.sprites.shadow), tex(tp.sprites.glow)]);
+      return { tp, files, sprites: { shadow, glow } };
+    })().catch(e => { console.warn('Greenhouse: the menu objects could not load; the room shows without them.', e && e.message ? e.message : e); return null; });
+    const [meta, bin] = await Promise.all([get('gh.json', 'json'), get('gh.bin', 'bin')]);
+    if (meta.format !== 2) throw new Error('unknown room format ' + meta.format);
     const [floorDay, floorNight] = await Promise.all([tex('floor_day.jpg'), tex('floor_night.jpg')]);
-    this.meta = roomMeta(meta, tp);   // gh.json as the game uses it: the terrarium's footprints (greenhouse-math.js)
     const chunk = (name, Type) => { const [o, n] = meta.chunks[name]; return new Type(bin, o, n / Type.BYTES_PER_ELEMENT); };
     const shared = m => { m.uniforms.uNight = this.U.uNight; return m; };
+    // the floor's material (two baked textures mixed on the blend), for the floor and the menu objects
+    const floorMat = (day, night) => {
+      const m = shared(new THREE.ShaderMaterial({
+        uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { tDay: { value: null }, tNight: { value: null }, uNight: { value: 0 } }]),
+        vertexShader: FLOOR_VERT, fragmentShader: FLOOR_FRAG, fog: true, toneMapped: false,
+      }));
+      m.uniforms.tDay.value = day;
+      m.uniforms.tNight.value = night;
+      return m;
+    };
     const placeQ = m => { m.position.set(...meta.qbox.center); m.scale.set(...meta.qbox.half); return m; };
     const baked = (geo, fog = true) => noRay(new THREE.Mesh(geo, shared(new THREE.ShaderMaterial({
       uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uNight: { value: 0 } }]), vertexShader: VERT, fragmentShader: FRAG, fog, toneMapped: false,
@@ -144,13 +168,7 @@ export class Greenhouse {
       geo.setAttribute('position', new THREE.BufferAttribute(chunk('floor.pos', Int16Array), 3, true));
       geo.setAttribute('uv', new THREE.BufferAttribute(chunk('floor.uv', Float32Array), 2));
       geo.setIndex(new THREE.BufferAttribute(chunk('floor.idx', Uint16Array), 1));
-      const m = noRay(new THREE.Mesh(geo, shared(new THREE.ShaderMaterial({
-        uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { tDay: { value: null }, tNight: { value: null }, uNight: { value: 0 } }]),
-        vertexShader: FLOOR_VERT, fragmentShader: FLOOR_FRAG, fog: true, toneMapped: false,
-      }))));
-      m.material.uniforms.tDay.value = floorDay;
-      m.material.uniforms.tNight.value = floorNight;
-      g.add(placeQ(m));
+      g.add(placeQ(noRay(new THREE.Mesh(geo, floorMat(floorDay, floorNight)))));
     }
     // the sky: the Blender sky's colors by elevation, day and night per point
     const skyGeo = new THREE.SphereGeometry(SKY_R, 48, 24);
@@ -240,8 +258,18 @@ export class Greenhouse {
       this.fly = dots(this.flies.map(f => ({ pos: f.home.toArray(), color: '#d8ff8a' })), 0.18);
       this.fly.phase = this.flies.map(f => f.ph);
     }
+    // the menu objects
+    const mf = await menuFiles;
+    if (mf) {
+      try { this.menu = new MenuObjects(mf.tp, mf.files, mf.sprites, this.U, floorMat); g.add(this.menu.group); }
+      catch (e) { console.warn('Greenhouse: the menu objects could not be built; the room shows without them.', e && e.message ? e.message : e); }
+    }
+    this.meta = roomMeta(meta, this.menu ? this.menu.tp : null);
     this.scene.add(g);
   }
+
+  // The stake's label: the slime's name and number (menu-objects.js)
+  setLabel(name, no) { if (this.menu) this.menu.setLabel(name, no); }
 
   // Night (1) or day (0); `instant` skips the blend (the first time the room shows).
   setNight(dark, instant = false) {
@@ -250,7 +278,7 @@ export class Greenhouse {
   }
   get night() { return this.U.uNight.value; }
 
-  // Per frame while the room shows: the day/night blend, glows, fireflies, the sky around the camera.
+  // Per frame while the room shows: the day/night blend, glows, fireflies, the sky around the camera, the menu objects.
   update(dt, camera, reduced = false) {
     if (!this.ready) return;
     this.time += dt;
@@ -283,7 +311,10 @@ export class Greenhouse {
       });
       pos.needsUpdate = true;
     }
-    if (camera) { this.sky.position.copy(camera.position); this.stars.position.copy(camera.position); }
+    if (camera) {
+      this.sky.position.copy(camera.position); this.stars.position.copy(camera.position);
+      if (this.menu) this.menu.update(nt, camera);
+    }
     // the slime's lights and the fog follow the blend
     const [a, b] = this.lights, o = this.light;
     o.hemi[0].lerpColors(a.hemi[0], b.hemi[0], nt);
@@ -303,6 +334,7 @@ export class Greenhouse {
   counts() {
     if (!this.meta) return null;
     const tris = this.meta.room_chunks.reduce((s, c) => s + c.tris, 0) + this.meta.floor.tris;
-    return { tris, chunks: this.meta.room_chunks.length + 1, glows: this.glows.length + this.bulbs.base.length + this.flies.length, loadMs: this.loadMs };
+    return { tris, chunks: this.meta.room_chunks.length + 1, glows: this.glows.length + this.bulbs.base.length + this.flies.length, loadMs: this.loadMs,
+      menu: this.menu ? this.menu.counts() : null };
   }
 }

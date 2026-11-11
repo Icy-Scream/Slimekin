@@ -832,6 +832,13 @@ export const GREENHOUSE = {
     ferns: [{ c: [-2.745, 3.15, -2.615], r: 0.7 }, { c: [-2.745, 3.8, -2.615], r: 0.62 }, { c: [1.7, 2.92, -5.0], r: 0.66 }],
     shelfY: 1,
   },
+  // The menu objects (tp_objects.json; drawn by src/view/menu-objects.js). The stake's label: the slime's name and
+  // number, drawn at run time in a serif italic like the frames' EB Garamond (iPhone: Hoefler Text), on a canvas this
+  // many pixels wide (the plate's aspect).
+  menu: {
+    labelFont: '"EB Garamond", "Hoefler Text", Garamond, "Palatino Linotype", Palatino, Baskerville, Georgia, serif',
+    labelPx: 392,
+  },
   // The roof over the room: eaves on the side walls, the ridge over the middle (half = half the roof's width).
   roof: { eave: 4.7, ridge: 6.7, half: 3.95 },
   camera: {
