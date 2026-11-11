@@ -155,6 +155,31 @@ const JELLY = {
   }),
 };
 
+// [perf] The body's normals each frame: three.js's computeVertexNormals (indexed) written out on the arrays, the same
+// sums in the same order with the same float32 stores, so the same numbers (it was a quarter of the body's cost).
+function bodyNormals(geo) {
+  const pos = geo.attributes.position.array, idx = geo.index.array;
+  let na = geo.attributes.normal;
+  if (!na) { na = new THREE.BufferAttribute(new Float32Array(pos.length), 3); geo.setAttribute('normal', na); }
+  const n = na.array;
+  n.fill(0);
+  for (let i = 0; i < idx.length; i += 3) {
+    const a = idx[i] * 3, b = idx[i + 1] * 3, c = idx[i + 2] * 3;
+    const bx = pos[b], by = pos[b + 1], bz = pos[b + 2];
+    const cx = pos[c] - bx, cy = pos[c + 1] - by, cz = pos[c + 2] - bz;
+    const ax = pos[a] - bx, ay = pos[a + 1] - by, az = pos[a + 2] - bz;
+    const x = cy * az - cz * ay, y = cz * ax - cx * az, z = cx * ay - cy * ax;
+    n[a] += x; n[a + 1] += y; n[a + 2] += z;
+    n[b] += x; n[b + 1] += y; n[b + 2] += z;
+    n[c] += x; n[c + 1] += y; n[c + 2] += z;
+  }
+  for (let i = 0; i < n.length; i += 3) {
+    const x = n[i], y = n[i + 1], z = n[i + 2], k = 1 / (Math.sqrt(x * x + y * y + z * z) || 1);
+    n[i] = x * k; n[i + 1] = y * k; n[i + 2] = z * k;
+  }
+  na.needsUpdate = true;
+}
+
 class Spring {
   constructor(k, d, x = 0) { this.k = k; this.d = d; this.x = x; this.v = 0; this.target = x; }
   step(dt) { const a = -this.k * (this.x - this.target) - this.d * this.v; this.v += a * dt; this.x += this.v * dt; }
@@ -1131,7 +1156,7 @@ export class SlimeAvatar {
     }
     this.topIdx = ti;
     this.geo.attributes.position.needsUpdate = true;
-    this.geo.computeVertexNormals();
+    bodyNormals(this.geo);
   }
 
   // ---------- frame ----------
