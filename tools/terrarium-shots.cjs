@@ -109,7 +109,8 @@ const HELPERS = { feather: 6, bubbles: 1, garden: 6, slimeling: 5, musicbox: 1, 
       // the room and its menu objects load (real time; the game's clock waits), then the loading screen goes
       await settleNet(['greenhouse/gh.bin', 'greenhouse/floor_night.jpg', 'greenhouse/tp_objects.json', 'greenhouse/tp_stake_night.jpg', 'greenhouse/tp_glow.png']);
       await until(() => !!window.slimekin && window.slimekin.home.world === 'greenhouse', 60000, 'the Greenhouse at home', 200);
-      await ev(() => { const g = window.slimekin; g.requests.timer = 1e9; g.glimmerT = 1e9; });
+      // no snack request or glimmer in the pictures (one may already be up if the room took a while: drop it as care.js does)
+      await ev(() => { const g = window.slimekin; g.requests.timer = 1e9; g.glimmerT = 1e9; if (g.requests.active) { g.requests.clear(); g.hud.hideAsk(); } });
       await runSlices(2500);
       await ev(() => window.slimekin.hud.closeModal());
       await runSlices(1500);
