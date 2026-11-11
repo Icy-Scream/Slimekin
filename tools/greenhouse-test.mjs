@@ -7,6 +7,7 @@ import url from 'node:url';
 import { GREENHOUSE } from '../src/data/content.js';
 import { groundY, roofY, camExcess, insideLimits, CamRig, LIMIT_NAMES, helperSpots, spotProblems, palStart, palWander, palToward, palSpotOk, palHopOk, roomMeta } from '../src/view/greenhouse-math.js';
 import { createState, migrate } from '../src/core/sim.js';
+import { cameraMatrix, project } from '../src/view/bubble-math.js';
 import { readGLB } from '../src/view/glb.js';
 
 const root = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), '..');
@@ -74,6 +75,23 @@ ok(floorObjs.length === 6 && floorObjs.every(n => feet.some(f => f.name === 'tp_
   const covered = x => hut.some(f => Math.abs(x - f.x) <= Math.sqrt(f.r * f.r - (H.z[1] - f.z) ** 2));
   let gaps = 0; for (let x = H.x[0]; x <= H.x[1]; x += 0.01) if (!covered(x)) gaps++;
   ok(hut.length >= 6 && gaps === 0, `the hutch: ${hut.length} footprints along its whole front (x ${H.x.join(' to ')})`);
+}
+// the calm space behind the slime (Front, a phone, the hatchling the frames were judged on: the planning box x 85-305,
+// y 280-475 of 390 x 844 pt, design/terrarium-prod-brief.md 1): no helper stands in it. The planters, which stood
+// behind the stump, are now out of the Front picture altogether for every slime size (so never on a menu object).
+{
+  const PH = 390 / 844, SIZES_F = [0.6, 0.681, 0.76, 0.9, 1.04, 1.16];
+  const frontCam = s => { const b = Math.min(1.5, 1 + (0.9 - PH) * 0.8); return cameraMatrix({ pos: [0, 2.25 + s * 0.75, (7.6 + s * 2.4) * b], look: [0, 0.65 + s * 0.42, 0], fov: 30, aspect: PH, h: 844 }); };
+  const ring = (x, z, r, h, m) => { const out = []; for (let a = 0; a < 16; a++) for (const y of [0, h]) { const q = project(m, [x + r * Math.cos(a * Math.PI / 8), y, z + r * Math.sin(a * Math.PI / 8)]); if (q) out.push([(q[0] + 1) / 2 * 390, (1 - q[1]) / 2 * 844]); } return out; };
+  const hatch = frontCam(0.681), inZone = [];
+  for (const s of helperSpots(SHOWN.high)) {
+    const p = ring(s.x, s.z, s.r, 1.6, hatch), b = [Math.min(...p.map(v => v[0])), Math.min(...p.map(v => v[1])), Math.max(...p.map(v => v[0])), Math.max(...p.map(v => v[1]))];
+    if (b[2] > 85 && b[0] < 305 && b[3] > 280 && b[1] < 475) inZone.push(s.id);
+  }
+  ok(!inZone.length, 'Front (hatchling, phone): no helper stands in the calm space behind the slime', inZone.join(', '));
+  const seen = [];
+  G.spots.planters.forEach(([x, z], i) => SIZES_F.forEach(s => { if (ring(x, z, G.radius.planter, 0.62, frontCam(s)).some(([u, v]) => u > 0 && u < 390 && v > 0 && v < 844)) seen.push(`planter ${i} (size ${s})`); }));
+  ok(!seen.length, `Front (phone, slime sizes ${SIZES_F.join(', ')}): every planter spot is out of the picture`, seen.join(', '));
 }
 // the Rainbow Arch: over the garden, all of it behind the back glass
 const A = G.spots.rainbow;

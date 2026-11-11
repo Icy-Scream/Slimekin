@@ -863,8 +863,11 @@ export const GREENHOUSE = {
   // Where the helpers you buy stand in the room ([x, z], on the floor; y comes from the ground). Checked by
   // tools/greenhouse-test.mjs against the room's footprints and walls (gh.json) with each helper's radius below
   // (measured from its model at the size it is shown at; tools/greenhouse-smoke.cjs measures them again).
+  // The planters stand at the sides, out of the Front picture on a phone for every slime size (greenhouse-test checks
+  // it), so none lands in the calm space behind the slime or on a menu object; Wide, Left and Right show them. The
+  // first four are the ones Low shows (two each side; the left side is full of the potting bench, the can and a pot).
   spots: {
-    planters: [[-0.62, -2.72], [0.42, -2.7], [-0.2, -3.42], [-0.98, -3.95], [0.62, -4.05], [-0.25, -4.65]],
+    planters: [[2.55, -2.05], [-2.35, -1.3], [3.15, -3.35], [-2.45, 0.25], [2.45, -0.2], [2.0, 0.6]],
     lamps: [[-1.85, -0.7], [1.85, -0.7], [-3.2, -2.0], [3.25, -2.35], [-2.9, 4.5], [2.9, 4.6]],
     bubbles: [2.35, 1.3], musicbox: [-2.5, 1.15], fountain: [-2.2, 2.65], spa: [2.4, 3.0],
     observatory: [2.05, -3.75],   // the room's telescope spot (gh.json spots.telescope), nudged 0.1 off the stool
