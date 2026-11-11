@@ -7,10 +7,14 @@
 // camera so the object's own bumps don't cut into them); the stake's brass label carries the slime's name and number,
 // written at run time. The Greenhouse (greenhouse.js) loads the files and owns this; the reference drawing is Usopp's
 // P3 kit page (slimekin-notes, samples/terrarium-p3/src/kit/tp3.js).
+//   Draw calls: the slime's see-through body makes three.js draw every opaque thing a second time (its transmission
+// pass). The objects are on MENU_LAYER, which that pass leaves out (greenhouse.js turns the layer off for it), unless
+// one could be seen behind the slime from where the camera is: then it is drawn in both, so the jelly shows it.
 import * as THREE from 'three';
 import { GREENHOUSE } from '../data/content.js';
 import { readGLB } from './glb.js';
 
+export const MENU_LAYER = 1;
 const LABEL_VERT = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }';
 const LABEL_FRAG = `
 uniform sampler2D tDay, tNight; uniform float uNight;
@@ -44,13 +48,17 @@ export class MenuObjects {
       mesh.name = 'tp_' + name;
       mesh.position.set(...o.position);
       mesh.rotation.y = o.yaw;
+      mesh.layers.set(MENU_LAYER);
       this.group.add(mesh);
       this.tris += g.tris;
       // its anchors in the room (the GLB's own empties: Glow_, Sparkle_, Tag_Anchor, Tap_<name> with its half extents)
       const c = Math.cos(o.yaw), s = Math.sin(o.yaw), P = o.position;
       const at = t => [P[0] + t[0] * c + t[2] * s, P[1] + t[1], P[2] - t[0] * s + t[2] * c];
       const anchors = Object.fromEntries(Object.entries(g.nodes).map(([k, v]) => [k, { at: at(v.t), half: v.s }]));
-      this.items.push({ name, o, mesh, anchors });
+      // its box's corners in the room (base centre at the origin, turned by the yaw), for the see-through check
+      const corners = [];
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) for (const y of [0, o.size[1]]) corners.push(new THREE.Vector3(...at([sx * o.size[0] / 2, y, sz * o.size[2] / 2])));
+      this.items.push({ name, o, mesh, anchors, corners, inPass: false });
       // the contact shadow: a w x d quad on the floor at position + offset, turned by the yaw (as tp3.js lays it)
       const S = o.shadow, base = shPos.length / 3;
       for (const [sx, sz] of [[-1, -1], [-1, 1], [1, 1], [1, -1]]) {
@@ -88,6 +96,7 @@ export class MenuObjects {
       this.group.add(this.shadows);
     }
     this._dir = new THREE.Vector3();
+    this._v = new THREE.Vector3();
   }
 
   // the stake's brass label: a quad at Tag_Anchor, turned by the stake's yaw, tilted back, 1.5 mm in front of the plate;
@@ -142,8 +151,9 @@ export class MenuObjects {
     lb.tNight.needsUpdate = true;
   }
 
-  // Per frame: the shadows and glows follow the blend (nt: 0 day, 1 night), and the glows face the camera.
-  update(nt, camera) {
+  // Per frame: the shadows and glows follow the blend (nt: 0 day, 1 night), the glows face the camera, and each object is
+  // in the slime's see-through pass only while it could be seen behind the slime (slime: a Box3 round its body).
+  update(nt, camera, slime = null) {
     const K = this.shadowK;
     this.shadowMat.opacity = K[0] + (K[1] - K[0]) * nt;
     const e = camera.position;
@@ -154,10 +164,56 @@ export class MenuObjects {
       const d = this._dir.set(e.x - g.at[0], e.y - g.at[1], e.z - g.at[2]).normalize().multiplyScalar(g.toward);
       g.sp.position.set(g.at[0] + d.x, g.at[1] + d.y, g.at[2] + d.z);
     }
+    this.seeThrough(camera, slime);
+  }
+
+  // Which objects the slime's see-through body could show: those behind its middle (their farthest point farther from
+  // the camera) whose box, on screen, comes within `margin` of the slime's round picture (the sphere of its box's
+  // longest half side: plus room for the jelly bending what is behind it). Screen units: the picture is 2 high.
+  // Without a slime box, or with part of it behind the camera, every object is in the pass.
+  seeThrough(camera, slime, margin = 0.03) {
+    camera.updateMatrixWorld();
+    let cx = 0, cy = 0, cr = -1, mid = 0;
+    if (slime && !slime.isEmpty()) {
+      const c = slime.getCenter(this._c || (this._c = new THREE.Vector3())), h = slime.getSize(this._v), r = Math.max(h.x, h.y, h.z) / 2 + 0.05;
+      mid = c.distanceTo(camera.position);
+      const v = this._v.copy(c).applyMatrix4(camera.matrixWorldInverse);
+      if (-v.z > r + camera.near) {
+        v.applyMatrix4(camera.projectionMatrix);
+        cx = v.x * camera.aspect; cy = v.y; cr = r / (mid * Math.tan(camera.fov * Math.PI / 360)) + margin;
+      }
+    }
+    for (const it of this.items) {
+      let inPass = true;
+      if (cr > 0) {
+        const q = this.rect(it.corners, camera);
+        if (q) {
+          const dx = cx - Math.max(q.x0, Math.min(cx, q.x1)), dy = cy - Math.max(q.y0, Math.min(cy, q.y1));
+          inPass = q.far > mid && dx * dx + dy * dy <= cr * cr;
+        }
+      }
+      if (inPass !== it.inPass) { it.inPass = inPass; it.mesh.layers.set(inPass ? 0 : MENU_LAYER); }
+    }
+  }
+
+  // some points' picture: their screen rectangle (x in units of the picture's height) and how far the farthest one is
+  // from the camera; null when one of them is behind it
+  rect(pts, camera) {
+    const o = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity, far: 0 }, v = this._v;
+    for (const p of pts) {
+      o.far = Math.max(o.far, p.distanceTo(camera.position));
+      v.copy(p).applyMatrix4(camera.matrixWorldInverse);
+      if (v.z > -camera.near) return null;
+      v.applyMatrix4(camera.projectionMatrix);
+      const x = v.x * camera.aspect;
+      o.x0 = Math.min(o.x0, x); o.x1 = Math.max(o.x1, x); o.y0 = Math.min(o.y0, v.y); o.y1 = Math.max(o.y1, v.y);
+    }
+    return o;
   }
 
   // what they add to a frame: draw calls (the meshes, the shadows, the label, the glows lit now) and triangles
   counts() {
-    return { objects: this.items.length, tris: this.tris, draws: this.items.length + 1 + (this.labelMesh ? 1 : 0) + this.glows.filter(g => g.sp.visible).length };
+    return { objects: this.items.length, tris: this.tris, draws: this.items.length + 1 + (this.labelMesh ? 1 : 0) + this.glows.filter(g => g.sp.visible).length,
+      inSeeThrough: this.items.filter(i => i.inPass).map(i => i.name) };
   }
 }

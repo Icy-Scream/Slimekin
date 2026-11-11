@@ -10,7 +10,7 @@
 import * as THREE from 'three';
 import { GREENHOUSE } from '../data/content.js';
 import { roomMeta } from './greenhouse-math.js';
-import { MenuObjects } from './menu-objects.js';
+import { MenuObjects, MENU_LAYER } from './menu-objects.js';
 
 const BASE = new URL('../assets/greenhouse/', import.meta.url);
 const SKY_R = 110;   // the sky dome follows the camera, inside its far plane (the stage keeps far = 120)
@@ -191,6 +191,12 @@ export class Greenhouse {
     this.sky.material.depthWrite = false;
     this.sky.renderOrder = -10;
     this.sky.frustumCulled = false;
+    // The menu objects are on MENU_LAYER: drawn in the picture, not again in the slime's see-through pass (three.js draws
+    // every opaque thing a second time for it, into a render target). The sky is the first opaque thing drawn in each
+    // pass (renderOrder -10), so it turns the layer off for that pass and back on for the picture.
+    this.sky.onBeforeRender = (renderer, scene, camera) => {
+      if (renderer.getRenderTarget() === null) camera.layers.enable(MENU_LAYER); else camera.layers.disable(MENU_LAYER);
+    };
     g.add(this.sky);
     // stars (night): a fixed seeded field over the garden, behind the back glass
     {
@@ -279,7 +285,8 @@ export class Greenhouse {
   get night() { return this.U.uNight.value; }
 
   // Per frame while the room shows: the day/night blend, glows, fireflies, the sky around the camera, the menu objects.
-  update(dt, camera, reduced = false) {
+  // slime: a THREE.Box3 round the slime's see-through body (which menu objects it may show).
+  update(dt, camera, reduced = false, slime = null) {
     if (!this.ready) return;
     this.time += dt;
     const U = this.U.uNight, k = GREENHOUSE.blend;
@@ -313,7 +320,8 @@ export class Greenhouse {
     }
     if (camera) {
       this.sky.position.copy(camera.position); this.stars.position.copy(camera.position);
-      if (this.menu) this.menu.update(nt, camera);
+      camera.layers.enable(MENU_LAYER);   // (the sky turns it off and on again within each frame)
+      if (this.menu) this.menu.update(nt, camera, slime);
     }
     // the slime's lights and the fog follow the blend
     const [a, b] = this.lights, o = this.light;

@@ -9,6 +9,7 @@
 //     ranch screen is the Barn ranch in every Background (barn-ranch.js): nothing of home is drawn there.
 //   - The camera turns only in the Greenhouse, at home, with no modal open: the camera button steps through the set
 //     angles; a one-finger drag that starts on empty background turns it around the slime; two fingers pinch to zoom.
+import * as THREE from 'three';
 import { GREENHOUSE } from './data/content.js';
 import { CUSHION_TOP } from './view/stage.js';
 import { Greenhouse } from './view/greenhouse.js';
@@ -146,9 +147,22 @@ export class Home {
     if (this.inRoom && this.room.group.visible) {
       const st = this.g.state;
       this.room.setLabel(st.slime.name, 'No. ' + String(st.ranch.family.generation).padStart(4, '0'));   // the name stake
-      this.room.update(dt, this.g.stage.camera, this.g.reduced);
+      this.room.update(dt, this.g.stage.camera, this.g.reduced, this.slimeBox());
     }
     this.frameCamera(dt);
+  }
+
+  // The box round the slime's see-through body (or round the egg on the stump), for the menu objects that body may show.
+  // Measured from the body's points four times a second (its shape changes slowly; the wobble is small).
+  slimeBox() {
+    const g = this.g, s = g.slime, b = this.body || (this.body = { box: new THREE.Box3(), t: -1, v: new THREE.Vector3(),
+      egg: new THREE.Box3(new THREE.Vector3(-0.6, CUSHION_TOP, -0.6), new THREE.Vector3(0.6, CUSHION_TOP + 1.2, 0.6)) });
+    if (!s.root.visible) { b.t = -1; return b.egg; }
+    if (b.t >= 0 && g.time - b.t < 0.25) return b.box;
+    b.t = g.time;
+    const pos = s.geo.attributes.position, m = s.mesh.matrixWorld, box = b.box.makeEmpty();
+    for (let i = 0; i < pos.count; i += 3) box.expandByPoint(b.v.fromBufferAttribute(pos, i).applyMatrix4(m));
+    return box.isEmpty() ? b.egg : box;
   }
 
   // ---------- the camera ----------
