@@ -31,7 +31,7 @@ The game is published at **https://icy-scream.github.io/Slimekin/** (GitHub Page
 2. Tap the Share button, then **Add to Home Screen**. It gets its own icon, opens full screen, and works offline after the first visit.
 3. To bring a slime over from another device (for example the claude.ai version): on the old device open Settings, **Copy save code**; on the phone open Settings, **Load a save code**, paste, Load.
 
-Phone notes: swipe the menu down (or its grip bar) to close it; drag a notification up or down to move them, tap or swipe one sideways to dismiss it. The game is portrait-only (turning sideways shows a reminder), runs at 60 fps and drops to 30 fps when nothing is happening to save battery, and lowers graphics quality on its own if a device struggles. Settings has a **Speed meter** to see frame rate on your phone. The two keyboard secrets have touch versions: tap the slime's name to call it, and swipe the cheat code on the background.
+Phone notes: swipe the menu down (or its grip bar) to close it; drag a notification up or down to move them, tap or swipe one sideways to dismiss it. The game is portrait-only (turning sideways shows a reminder), runs at 60 fps and drops to 30 fps when nothing is happening to save battery, and on Auto lowers graphics quality on its own if a device struggles (judged against the screen's own pace: an iPhone in Low Power Mode shows at most 30 fps, steadily, and that is not counted as struggling). Settings has a **Speed meter** to see frame rate on your phone. The two keyboard secrets have touch versions: tap the slime's name to call it, and swipe the cheat code on the background.
 
 ## What's in the prototype
 
@@ -156,6 +156,10 @@ tools/greenhouse-offline.cjs each asset folder's own offline cache (the room, th
 tools/home-load-smoke.cjs  the game's start on a cold load with the room's files late or missing: no other scene before the Greenhouse, the cross-fade past the wait, offline; --film for a filmstrip, --only=cold for the start time
 tools/greenhouse-samples.cjs contact sheet of the new slime body in the Greenhouse (four bodies, Front vs the Meadow, Wide, Left, outfits, eggs, the Cuddly sign)
 tools/terrarium-shots.cjs  the terrarium room at home, 390 x 844: Front day and night, Wide, Left, Right, Classic, Low, every helper; draw calls in numbers.json
+tools/perf-probe.cjs  what a home frame costs: calls and triangles per pass, CPU/GPU ms, Auto live (CPU slowed down, 30 Hz frames),
+                      profiles, and each frame drawn as before the perf work and as now (--look); runs on the captain's PC too
+src/view/see-through.js the slime's see-through buffer at half size, and the jelly's matching mip level (same look, a quarter of the pixels)
+src/view/room-cells.js the room's chunks in small cells: the picture and the see-through pass each draw only the cells they can show
 src/assets/greenhouse/ the baked room and its menu objects (made outside this repo; do not edit by hand)
 src/assets/barn/      the baked barn for the ranch (made in Blender outside this repo; loaded ahead of time, after home shows)
 src/view/barn.js      the Barn ranch's 3D: the barn, sky, glows, the slime on the stand, the burrow swap, straw, nest, pearls
@@ -269,6 +273,12 @@ floor), what the baked `gh.json` doesn't say (`room`: the footprints that are go
 label's font, the four camera angles and the camera's limits, how far a drag or a pinch turns it, and where each helper
 stands. `node tools/greenhouse-test.mjs` checks it (move a helper spot, then run it: no helper in the calm space behind
 the slime, the planters out of the Front picture).
+
+Frame rate (terrarium-perf): `GREENHOUSE.cells` sizes the room's cells and the slack each pass keeps (greenhouse-test checks
+that no triangle a pass could show is left out, for every angle); `AUTO_QUALITY` is how Auto judges frames and steps down
+(High, then pixel ratio 1.5, then Low; never back up in a visit). `node tools/perf-probe.cjs` measures a frame (add
+`--cpu 4` for a phone-like CPU, `--raf30 1` for Low Power Mode, `--live 15` to watch Auto, `--look DIR` for before/after
+pictures of the same frame); on the captain's PC through slimekin-notes' `tools/pc-test.sh`.
 
 The Barn ranch: `BARN` in `content.js` holds the burrow swap's timings and shape, the straw counts for High and Low
 graphics, the swipe, the name card's dot limit, the Nursery nest's spot, where pearls land and how the stand is framed
