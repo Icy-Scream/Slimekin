@@ -54,7 +54,13 @@ uniform sampler2D tDay, tNight; uniform float uNight;
 varying vec2 vUv;
 #include <fog_pars_fragment>
 void main(){
-  gl_FragColor = vec4(mix(texture2D(tDay, vUv).rgb, texture2D(tNight, vUv).rgb, uNight), 1.0);
+  // [perf] On a steady day or night (the blend lands exactly on 0 or 1) only that picture is read: the same colour as
+  // the mix gives there, half the texture reads (8x anisotropic) on the biggest surface on screen.
+  vec3 c;
+  if (uNight <= 0.0) c = texture2D(tDay, vUv).rgb;
+  else if (uNight >= 1.0) c = texture2D(tNight, vUv).rgb;
+  else c = mix(texture2D(tDay, vUv).rgb, texture2D(tNight, vUv).rgb, uNight);
+  gl_FragColor = vec4(c, 1.0);
   #include <colorspace_fragment>
   #include <fog_fragment>
 }`;
