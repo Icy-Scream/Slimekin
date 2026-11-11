@@ -1,6 +1,7 @@
 // The terrarium room in the game (P4): HOME at 390 x 844 (the frames the captain judges, beside Usopp's P2 frames), with
 // numbers. From tools/fixtures/barn/barn-six.json (Pebble, a hatchling): Playwright's clock paused (the game moves only
-// when the script runs it), Math.random seeded, Reduced motion on (no sway), graphics High unless Low is asked for.
+// when the script runs it), Math.random seeded, Reduced motion on (no sway), graphics High unless Low is asked for; no
+// snack request, no glimmer, the speech and thought bubbles hidden (they come at random and would sit in the calm zone).
 //   node tools/terrarium-shots.cjs [--dpr 2] [--only front,night,angles,classic,low,helpers] [--out DIR]
 //   front    Front, day                                 front-day.png
 //   night    Front, night (the blend run to its end)    front-night.png
@@ -112,6 +113,8 @@ const HELPERS = { feather: 6, bubbles: 1, garden: 6, slimeling: 5, musicbox: 1, 
       // no snack request or glimmer in the pictures (one may already be up if the room took a while: drop it as care.js does)
       // (clear() restarts the request timer, so the timer is pushed away after it)
       await ev(() => { const g = window.slimekin; if (g.requests.active) { g.requests.clear(); g.hud.hideAsk(); } g.requests.timer = 1e9; g.glimmerT = 1e9; });
+      // nor its speech and thought bubbles (a daydream comes at random and sits over the calm zone): the room is judged here
+      await ev(() => { document.getElementById('bubbleLayer').style.visibility = 'hidden'; });
       await runSlices(2500);
       await ev(() => window.slimekin.hud.closeModal());
       await runSlices(1500);
