@@ -161,6 +161,16 @@ it up the next time it is opened online (sometimes it takes two opens). Never ed
   from `tools/fixtures/`), and `node tools/breeding-smoke.cjs` (headless play-through from an old save,
   screenshots in `tools/out/breeding/`). `g.debug('pearls')` adds 100 pearls.
 
+- Outfits: `node tools/outfit-test.mjs` (plain node: every slot and every pair at home and in Dress up, an outfit worn but
+  not owned, `worn` cleaned on load, every old save) and `node tools/outfit-smoke.cjs [--quick] [--only=dress,pairs,swap,
+  reload,unowned,counter]` (headless: the save, the 3D slime with every outfit object still attached to it, and the page
+  must agree, at home, on the barn stand, the hidden ranch avatar and Dress up, through swaps and a reload; screenshots
+  in `tools/out/outfits/`). Mochi's stars and the Train picker's reasons: `node tools/star-smoke.cjs [--quick]`
+  (`tools/out/stars/`). Both load the :8822 test copy's save (`tools/fixtures/talents/ranch-trained.json` + 5 outfits).
+- What a slime wears goes through `cleanWorn()` (`core/contests.js`) on load and in Dress up: one outfit of the right
+  kind per slot. The pages show what it wears as worn even when the family does not own it (a touch takes it off).
+- A skill's star places on every screen come from `starSlots()` (`core/ranch-life.js`); don't count them anywhere else.
+
 UI work: `UI-CHANGES.md` lists every on-screen element the breeding core and the playtest fixes added or changed. Its last section
 ("UI pass 1") lists the drawn icon set in `src/ui/icons.js`: use it instead of emoji or text glyphs for new UI.
 

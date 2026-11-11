@@ -181,6 +181,9 @@ src/core/ranch-life.js ranch life rules: skills, lessons, lanes, trips, wagons, 
 src/ui/ranch-life.js  ranch life menus: a resident's skills and pickers, the Ranch life row, the return card (plain cards)
 tools/ranch-life-test.mjs ranch life rules check in plain node (lessons, trips, rewards fixed at departure, old saves)
 tools/ranch-life-smoke.cjs headless ranch life play-through from an old save (train, trip, close and reopen, refusals)
+tools/outfit-test.mjs     plain-node outfits rules: every slot and pair at home and in Dress up, worn but not owned, worn cleaned on load
+tools/outfit-smoke.cjs    headless outfits: the save, the 3D slime (home, barn stand, ranch avatar) and the page agree; swaps, reload, the counter font
+tools/star-smoke.cjs      headless stars: Mochi's 6th Smarts star, the Train picker's reasons, lesson toast and card star places
 tools/pearl-sim.mjs   pearl simulator: 30 days of the ranch with and without ranch life, against the design targets
 src/moving-day.js     plays the Moving Day signs (built from what the slime already does) and the travel bundle
 src/view/medal-pin.js the small medal pin on a grown slime's chest (placeholder, drawn from the emoji)
