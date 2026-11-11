@@ -4,6 +4,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { feather, planter, slimeling, moonLampPost, rainbowArch, HELPER_MAKERS } from './models.js';
 import { GREENHOUSE } from '../data/content.js';
 import { groundY as roomGround, palWander, palStart, palToward, palSpotOk } from './greenhouse-math.js';
+import { seeThroughLod } from './see-through.js';
 
 const FEATHER_COLORS = ['#a98bff', '#ff8fbd', '#6fc4ff', '#ffbf47', '#7fd88f'];
 const SLIMELING_COLORS = ['#ffb3d1', '#ffd98a', '#a8d8ff', '#c9b3ff', '#a8f0c8', '#ffc4a3', '#e0b3ff', '#b3f0ec'];
@@ -219,7 +220,10 @@ export class HelperWorld {
       o.traverse(m => {
         const mat = m.material;
         if (!m.isMesh || !mat) return;
-        if (mat.userData.see === undefined) mat.userData.see = mat.transmission || 0;
+        if (mat.userData.see === undefined) {
+          mat.userData.see = mat.transmission || 0;
+          if (mat.userData.see > 0) mat.onBeforeCompile = seeThroughLod;   // [perf] the smaller see-through buffer (see-through.js)
+        }
         const t = plain ? 0 : mat.userData.see;
         if (mat.userData.see > 0 && mat.transmission !== t) { mat.transmission = t; mat.needsUpdate = true; }
       });

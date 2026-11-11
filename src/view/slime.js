@@ -10,6 +10,7 @@ import { FORM_LOOKS, PROP_MAKERS, makePattern } from './forms.js';
 import { TRAITS, TRAIT_IDS, FOOD_BY_ID, BREEDS } from '../data/content.js';
 import { recipeFor, stageM, cleanBody } from '../core/recipe.js';
 import { scarfLayout, scarfHeight, scarfScratch, fitScarf } from './scarf.js';
+import { seeThroughLod } from './see-through.js';
 
 // How long each snack takes to fully dissolve (seconds of play), and what it breaks into.
 const DIGEST = { cookie: 150, chili: 110, iron: 320, moss: 180, berry: 120, crystal: 360 };
@@ -113,6 +114,7 @@ const BUBBLE_DIRS = [[-0.45, 0.35, 0.8], [0.3, 0.5, 0.82], [0.55, 0.15, 0.85], [
 function jellyShader(U) {
   return sh => {
     Object.assign(sh.uniforms, U);
+    seeThroughLod(sh);   // [perf] the see-through buffer is drawn smaller: sample it as if it were full size (see-through.js)
     sh.vertexShader = 'varying vec3 vLocalP;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vLocalP = transformed;');
     sh.fragmentShader = 'varying vec3 vLocalP;\nuniform float uTime; uniform vec3 uRim; uniform vec3 uLow; uniform float uMk; uniform float uWet; uniform float uRip;\n' +
       'vec3 slimeRipple(vec3 lp) { vec3 q = lp * vec3(7.0, 5.0, 7.0); q.y += uTime * 0.55;\n' +
