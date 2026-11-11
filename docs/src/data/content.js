@@ -20,6 +20,14 @@ export const TUNING = {
   feverBondEvery: 120,          // Giggle Fever only adds bond once every 2 minutes (so spamming can't farm it)
   tiredBoop: 0.3,               // boops on an exhausted slime (energy under 8) give only 30%
   wakeEnergy: 35,               // a napping slime can't be poked awake before it has this much energy
+  // Raising nudges that talents read (TALENTS.nature; neither changes any jelly):
+  // familiar: a snack it has eaten before nudges Curious down by `repeat` x (how many more times it was among its
+  //   last 6 snacks) + `favorite` when it is its favorite, so a slime fed the same few snacks on purpose turns "Likes
+  //   the familiar" while a varied menu barely moves it (new snacks still give +2)
+  familiar: { repeat: 0.02, favorite: 0.02 },
+  // boopPlayfulTo: a boop's +0.03 Playful shrinks as Playful rises past 50 and stops here (null: never), so booping
+  //   alone does not make every slime Playful; play, berries and answering play requests still do
+  boopPlayfulTo: 60,
 };
 
 export const STAGES = [
@@ -478,13 +486,13 @@ export const HEIRLOOMS = [
     effect: 'Lucky Glimmers give twice as much.', fx: { glimmerMult: 2 } },
   { id: 'jarlid',   name: 'Golden Jar Lid',       icon: '🫙', price: 1e10, where: 'on the Jelly Jar',
     effect: 'The Jelly Jar keeps its size when a slime moves out (what is inside still starts over).', fx: { keepJar: true } },
-  { id: 'lanterns', name: 'Ranch Lanterns',       icon: '🏮', price: 1e11, where: 'along the ranch fence',
+  { id: 'lanterns', name: 'Ranch Lanterns',       icon: '🏮', price: 1e11, where: 'by the barn door',
     effect: 'Ranch slimes make 25% more pearls.', fx: { ranchPearls: 1.25 } },
   { id: 'quilt',    name: 'Patchwork Quilt',      icon: '🧵', price: 1e12, where: 'in the Nursery',
     effect: 'New Nursery eggs are ready twice as fast.', fx: { eggTime: 0.5 } },
   { id: 'portrait', name: 'Family Portrait',      icon: '🖼️', price: 1e13, where: 'on the nursery wall',
     effect: "Ranch slimes' happiness fades half as fast.", fx: { happyDecay: 0.5 } },
-  { id: 'statue',   name: 'Family Statue',        icon: '🗿', price: 1e14, where: 'on the ranch hill',
+  { id: 'statue',   name: 'Family Statue',        icon: '🗿', price: 1e14, where: 'in the barn',
     effect: 'Buyers pay 25% more pearls (new homes and auctions).', fx: { buyerPay: 1.25 } },
   { id: 'wishstar', name: 'Wishing Star',         icon: '⭐', price: 1e15, where: 'over the ranch at night',
     effect: 'Rare eggs twice as likely: a plain egg hatches a surprise Cat-ear or Topknot Dollop twice as often.', fx: { rareEggs: 2 } },
@@ -671,3 +679,258 @@ export const RANCH_LIFE = {
 export const SKILL_IDS = RANCH_LIFE.skills.map(s => s.id);
 export const SKILL_BY_ID = Object.fromEntries(RANCH_LIFE.skills.map(s => [s.id, s]));
 export const PLACE_BY_ID = Object.fromEntries(RANCH_LIFE.places.map(p => [p.id, p]));
+
+// ---------- Talents: raising shapes what a slime is good at (rules in core/talents.js) ----------
+// Four sources add up to talent points for each of the five skills: what it ate (diet, 0-3), its personality (nature,
+// 0-4), its grown-up form (0 or 2) and its hidden Potential (1-5, rolled from the egg, partly inherited). The total gives
+// a grade per skill; the grade makes that skill's lessons shorter and lifts its star cap. Grade C is exactly the ranch
+// from before talents. Never shown as numbers: the barn card says it in words after the first lesson in a skill.
+export const TALENTS = {
+  // diet: points to a skill = round(scale x the share of its flavours in the slime's traits); Leafy counts half for
+  // Sturdy and half for Smarts
+  diet: { scale: 3, skills: { sweet: { charm: 1 }, heat: { bounce: 1 }, mineral: { sturdy: 1 }, spark: { speed: 1 }, prism: { smarts: 1 }, nature: { sturdy: 0.5, smarts: 0.5 } } },
+  // nature: a personality slider gives the skill of the end it leans to min(max, (distance from 50 - dead) / per)
+  // points. ends: [the low end's skill, the high end's skill]
+  //   playful: Mellow / Playful   bold: Shy / Bold   patient: Impulsive / Patient   cuddly: Independent / Cuddly
+  //   curious: Likes the familiar / Endlessly curious
+  nature: { dead: 10, per: 10, max: 2,
+    ends: { playful: ['sturdy', 'bounce'], bold: ['sturdy', 'bounce'], patient: ['speed', 'smarts'], cuddly: ['speed', 'charm'], curious: ['charm', 'smarts'] } },
+  // form: the grown-up form's specialty gets `points`; `every` forms give that much to every skill instead (Marshmallow,
+  // balanced). Keys: form ids (Pure versions share their form's id), spark forms by their spark id.
+  form: {
+    points: 2,
+    every: { mochi: 1 },
+    skill: {
+      sweet: 'charm', heat: 'bounce', mineral: 'sturdy', nature: 'smarts', spark: 'speed', prism: 'smarts',
+      'heat+sweet': 'charm', 'heat+mineral': 'sturdy', 'nature+sweet': 'charm', 'mineral+nature': 'sturdy', 'prism+spark': 'smarts',
+      'mineral+prism': 'smarts', 'heat+spark': 'bounce', 'spark+sweet': 'bounce', 'nature+spark': 'speed', 'heat+nature': 'bounce',
+      'mineral+spark': 'speed', 'prism+sweet': 'charm', 'heat+prism': 'smarts', 'nature+prism': 'speed', 'mineral+sweet': 'sturdy',
+      smore: 'charm', honeycomb: 'charm', campfire: 'sturdy', storm: 'speed',
+    },
+  },
+  // Potential, the hidden IVs: each skill rolls 1-5 from the egg (weights for 1..5). A bred egg: per skill, `copy` of
+  // the time parent A's, `copy` parent B's, else a fresh roll; a Pure egg (both parents the same form) rolls its fresh
+  // skills `pureRolls` times and keeps the best.
+  // Weights tuned by tools/talent-sim.mjs (T1b; design 15/30/30/18/7): most skills roll 3, so raising decides more and
+  // luck less. A slime raised on purpose for Speed or Smarts has 8 points before Potential (diet 2 at most: Static
+  // Berry and Crystal carry a second flavour), so S 11 needs a 3 (77%); a randomly raised slime's best skill has 6
+  // (half of them), so S needs a 5 (6%, the least that keeps a Pure line reaching a 5 in under 4 generations).
+  potential: { weights: [5, 18, 65, 6, 6], copy: 0.4, pureRolls: 2 },
+  // grades from the total points (the highest whose `min` it reaches): lessons in that skill take x`lessonTime`, and
+  // it can learn up to `cap` stars. C is exactly the ranch from before talents.
+  // Cutoffs tuned by tools/talent-sim.mjs from real raising runs (design: B 4, A 6, S 10). A randomly raised slime
+  // leans hard on a few sliders (answers to ~300 requests over 6 days), so with B 4 / A 6 it had 2.8 skills at A or S
+  // (target about 1); B 6 / A 8 gives 1.4 and 1.5 at B. S 11 (T1: 10) with the weights above keeps S by accident under
+  // 5% while every skill raised on purpose reaches S about 3 times in 4 or more (talents-t1b report).
+  grades: [
+    { id: 'C', min: 0, lessonTime: 1, cap: 5 },
+    { id: 'B', min: 6, lessonTime: 0.85, cap: 5 },
+    { id: 'A', min: 8, lessonTime: 0.70, cap: 6 },
+    { id: 'S', min: 11, lessonTime: 0.55, cap: 7 },
+  ],
+  floor: 'B',          // the cozy rule: a slime whose five skills all come out C has its best one lifted to this grade
+  lessonFloor: 0.40,   // a lesson never takes less than this share of its time (grade x Smarts x loves)
+  // stars 6 and 7 (grades A and S): price and length; each keeps the skill's per-star effect (RANCH_LIFE.skills fx)
+  stars: { pearls: [80, 120], minutes: [480, 1440] },
+  // the barn card's line once the first lesson in a skill is over ({skill}: its name); C says nothing
+  reveal: { S: 'a natural at {skill}!', A: 'takes to {skill} quickly', B: 'getting the hang of {skill}' },
+};
+
+// ---------- Contests: Beauty Show, Slime Sprint, Bounce-Off (rules in core/contests.js) ----------
+// Ranch residents perform three acts from what they trained; you cheer once per act. The score is fixed by the rules
+// (no dice). Win a cup and the next one opens for that slime in that contest: Little -> Big -> Grand -> Champion. The
+// first win of each cup pays pearls once per slime; every trophy makes buyers pay a little more for it; a Champion gets
+// a small lasting perk. Repeat shows pay nothing. Nothing is lost on a loss, there is no entry fee.
+// Rivals are "<Place>'s slime" with a small blob in the place's color (placeholders until C2: names and looks by Nami
+// and Usopp, 3D rivals).
+const RIVAL_COLOR = { school: '#b6e36a', garden: '#8fdcb0', cafe: '#9fd8ff', bakery: '#ffc9a3', springs: '#ffb3c7', windmill: '#ffe08a', mine: '#c9b8a8', museum: '#c9a7ff', observe: '#8fb0ff', festival: '#ff9f80' };
+const rival = (place, score) => ({ place, name: `${BUYER_BY_ID[place].name}'s slime`, color: RIVAL_COLOR[place], score });
+export const CONTESTS = {
+  // Three acts each: the main act (its skill's stars x score.main), the support act (stars x score.support, or Style in
+  // the Beauty Show) and the tricks act (Smarts stars x score.tricks). title: the Champion's name-card title. color: its
+  // cups and dot on the screens (not a metal: the medals own gold, silver and bronze). short: an act's name on the act
+  // strip, the score lines and the name card during the show.
+  contests: [
+    { id: 'beauty', name: 'Beauty Show', title: 'Beauty Champion', color: '#ff74b0', acts: [
+      { id: 'pose', name: 'Pose', short: 'Pose', role: 'main', skill: 'charm' },
+      { id: 'style', name: 'Style', short: 'Style', role: 'support', style: true },
+      { id: 'trick', name: 'A trick', short: 'Tricks', role: 'tricks', skill: 'smarts' }] },
+    { id: 'sprint', name: 'Slime Sprint', title: 'Sprint Champion', color: '#3fa2ff', acts: [
+      { id: 'dash', name: 'The dash', short: 'Dash', role: 'main', skill: 'speed' },
+      { id: 'hill', name: 'The hill', short: 'Hill', role: 'support', skill: 'sturdy' },
+      { id: 'hoops', name: 'The hoops', short: 'Hoops', role: 'tricks', skill: 'smarts' }] },
+    { id: 'bounce', name: 'Bounce-Off', title: 'Bounce-Off Champion', color: '#ff9b2f', acts: [
+      { id: 'bigBounce', name: 'The big bounce', short: 'Bounce', role: 'main', skill: 'bounce' },
+      { id: 'runUp', name: 'The run-up', short: 'Run-up', role: 'support', skill: 'speed' },
+      { id: 'landing', name: 'The landing', short: 'Landing', role: 'tricks', skill: 'smarts' }] },
+  ],
+  // points: main per star (no cap: 50, or 60/70 with a talent's 6th/7th star), support and tricks per star (capped at
+  // `cap`, so a talent's 6th/7th star adds nothing there), flair from the talent grade in the main skill
+  // (core/talents.js gradeOf), mood = floor(happiness / moodPer) (0-5)
+  score: { main: 10, support: 4, tricks: 4, cap: 20, styleCap: 20, flair: { C: 0, B: 3, A: 6, S: 10 }, moodPer: 20 },
+  // Style in the Beauty Show: each outfit worn adds this much, capped at score.styleCap (= a 5-star support)
+  style: { bow: 4, bowtie: 5, glasses: 5, flowers: 6, scarf: 6, beret: 7, shades: 7, party: 8, crown: 9 },
+  // Cheers: once per act a ring closes on the slime. Times in seconds from the ring appearing: it closes on `beat`; the
+  // first tap at or after 0 and before `window` is the only one that counts: within `perfect` of the beat = Perfect,
+  // within `good` = Good, any other = Nice try; no tap = none. Reduced motion: every act is `reduced` (Good).
+  // Tuned with the ring on screen (C1b): the pink ring closes on the gold one in 1.5 s, slow enough for a child to see
+  // it coming; Good is a 0.7 s target (easy), Perfect 0.26 s (with care). It keeps shrinking past the gold ring until
+  // `window`, so a late tap still counts (a Good when it is close).
+  cheer: { beat: 1.5, perfect: 0.13, good: 0.35, window: 2.3, points: { perfect: 3, good: 2, nice: 1, none: 0 }, reduced: 'good' },
+  // The show on the barn's stand (seconds; the screens only, no rule reads these). open: the banner and "To beat" before
+  // act 1; perform: the slime's moves in each act before its cheer; pop: the cheer's label; rest: before the next act;
+  // finale: after act 3, before the results card. ring: the pink ring starts this many times the gold one's size.
+  // With these a show lasts 34 s with taps on the beat (30 s with three very early taps, 36 s with none), 32 s with
+  // Reduced motion (its cheer moment is `reducedCheer` long); the slime coming up on the stand first adds a second.
+  show: { open: 3.0, perform: 5.5, pop: 1.6, rest: 0.8, finale: 2.6, ring: 1.8, reducedCheer: 0.9, swapWait: 4 },
+  // The cup ladder: three friendly rivals each with a fixed score (shown before the show); a tie goes to your slime.
+  // pearls: the first time a slime wins that cup (once per slime per contest); short: its name on the cup tiles
+  cups: [
+    { id: 'little', short: 'Little', name: 'Little Cup', pearls: 5, rivals: [rival('school', 12), rival('garden', 16), rival('cafe', 19)] },
+    { id: 'big', short: 'Big', name: 'Big Cup', pearls: 15, rivals: [rival('bakery', 30), rival('springs', 38), rival('windmill', 45)] },
+    { id: 'grand', short: 'Grand', name: 'Grand Cup', pearls: 40, rivals: [rival('mine', 60), rival('museum', 72), rival('observe', 85)] },
+    { id: 'champion', short: 'Champion', name: 'Champion Cup', pearls: 100, rivals: [rival('springs', 90), rival('museum', 100), rival('festival', 110)] },
+  ],
+  // each trophy: buyers pay this much more for that slime (new homes and auctions). Design: 0.03; tuned by
+  // tools/contest-sim.mjs: 12 trophies x 0.03 + the Beauty Champion's +5% made a fully trophied slime's auctions +41%
+  // (target at most +25%); 0.015 gives +23% (0.0175: +26%, 0.02: +29%).
+  trophyValue: 0.015,
+  // Champion perks, for that slime, lasting: offers (new homes and auctions) +x, trips x shorter, ranch pearls +x
+  perks: { beauty: { offers: 0.05 }, sprint: { tripTime: 0.05 }, bounce: { pearls: 0.03 } },
+  // the title when a slime is Champion in more than one contest
+  titles: { 2: 'Double Champion', 3: 'Triple Champion' },
+};
+export const CONTEST_BY_ID = Object.fromEntries(CONTESTS.contests.map(c => [c.id, c]));
+export const CONTEST_IDS = CONTESTS.contests.map(c => c.id);
+
+// The Greenhouse (Settings > Background, the default home): a room baked outside the repo (its files are in
+// src/assets/greenhouse/; gh.json has the room's footprints and glow spots), drawn by src/view/greenhouse.js, and a
+// camera you can turn inside it. Room coordinates: x right, y up, z toward you; the slime's stump is at the origin.
+// Pure math (ground, roof, camera limits, spot check) is in src/view/greenhouse-math.js.
+export const GREENHOUSE = {
+  blend: 3,                    // day <-> night blend speed (1/s): about 3 s, like the test page
+  // The game's start with the Greenhouse as home: the loading screen ("Warming the nest") stays up until the room is in
+  // and drawn `frames` times, at most `wait` seconds after the game is built. Past that, home shows the plain Classic
+  // look and the room cross-fades in when it arrives: the last frame before it stays over the room and fades out over
+  // `fade` seconds (never a pop). The Meadow and Classic never wait.
+  arrive: { wait: 8, frames: 2, fade: 0.8 },
+  // The lights on the slime and the helpers (the room's own light is baked into it). Day and night, blended with the room.
+  slimeLight: {
+    day:   { hemi: ['#fff4e6', '#d9b48a', 0.85], key: ['#fff1de', 1.6],  rim: ['#ffe6c2', 1.1], env: 0.45 },
+    night: { hemi: ['#6d64b8', '#2e2140', 0.5],  key: ['#ffcf98', 1.15], rim: ['#ffc27a', 1.5], env: 0.26 },
+  },
+  // Height of the floor: the stump's flat top (the slime sits on it), its side down to the braided rug, the planks.
+  ground: { stumpTop: 0.27, stumpFlat: 0.85, stumpR: 1.14, rugY: 0.06, rugR: 2.3, rugEdge: 0.1, floorY: 0 },
+  // The roof over the room: eaves on the side walls, the ridge over the middle (half = half the roof's width).
+  roof: { eave: 4.7, ridge: 6.7, half: 3.95 },
+  camera: {
+    order: ['front', 'wide', 'left', 'right'],   // the camera button steps through these (Front = the home camera)
+    // Set angles (Front is computed by the stage, unchanged). Left is the test page's Corner, 0.1 nearer the middle so
+    // it is inside the side limit (x 3.4); Right is Left mirrored.
+    views: {
+      wide:  { pos: [0, 4.7, 9.6],   look: [0, 1.3, -2.2],  fov: 58 },
+      left:  { pos: [-3.4, 3.1, 7.6], look: [1.1, 1.3, -3.0], fov: 50 },
+      right: { pos: [3.4, 3.1, 7.6],  look: [-1.1, 1.3, -3.0], fov: 50 },
+    },
+    // Where you can turn it yourself: inside the side walls (|x|), above the floor and under the roof (minus a gap),
+    // not past the front (z), at least near[0] + near[1] x slime size from the point it looks at, and at most `around`
+    // degrees around the slime from straight on (so never from behind it).
+    limits: { x: 3.4, yMin: 0.9, roofGap: 0.3, zMax: 13.5, near: [2.2, 1.2], around: 55, pitch: 80 },
+    turn: 0.0048,              // radians around the slime per pixel dragged sideways (a full phone width is about 105 degrees)
+    tilt: 0.0036,              // radians up or down per pixel dragged up or down
+    glide: 3,                  // how fast the camera glides to a set angle (like the Front camera's own follow)
+    follow: 16,                // how fast it follows your finger while you turn it
+    pinch: [0.5, 2],           // one pinch gesture zooms at most this much (each move is clamped to it)
+  },
+  // Where the helpers you buy stand in the room ([x, z], on the floor; y comes from the ground). Checked by
+  // tools/greenhouse-test.mjs against the room's footprints and walls (gh.json) with each helper's radius below
+  // (measured from its model at the size it is shown at; tools/greenhouse-smoke.cjs measures them again).
+  spots: {
+    planters: [[-0.62, -2.72], [0.42, -2.7], [-0.2, -3.42], [-0.98, -3.95], [0.62, -4.05], [-0.25, -4.65]],
+    lamps: [[-1.85, -0.7], [1.85, -0.7], [-3.2, -2.0], [3.25, -2.35], [-2.9, 4.5], [2.9, 4.6]],
+    bubbles: [2.35, 1.3], musicbox: [-2.5, 1.15], fountain: [-2.2, 2.65], spa: [2.4, 3.0],
+    observatory: [2.05, -3.75],   // the room's telescope spot (gh.json spots.telescope), nudged 0.1 off the stool
+    turn: { bubbles: -0.6, musicbox: 0.5, fountain: 0, observatory: 2.2, spa: -0.5 },   // which way each one faces (radians)
+    pals: { ring: [1.85, 2.6], step: 0.5, spacing: 0.55 },   // pals hop on the rug and the floor around the stump
+    rainbow: { pos: [0, -0.6, -9.5], radius: 4.6, tube: 0.2 },   // over the garden behind the back glass
+  },
+  radius: { planter: 0.3, lamp: 0.42, bubbles: 0.42, musicbox: 0.5, fountain: 0.63, spa: 0.96, observatory: 0.53, slimeling: 0.28 },
+  // model origin above the floor (the planters and the wand would sink into the planks; a pal sits a bit higher than
+  // on the meadow's grass so its round bottom doesn't dip into the floor)
+  lift: { planter: 0.27, bubbles: 0.58, musicbox: 0.2, slimeling: 0.05 },
+};
+
+// ---------- The Barn ranch (the ranch screen) ----------
+// The ranch is the baked barn (src/assets/barn/, lit and baked in Blender outside this repo, the same format as the
+// Greenhouse room): one resident at a time on the show stand, swiped through with the burrow swap. The camera, the
+// stand, the lanterns, the bulbs and the Pearl Basket come from barn.json; what you can tune is here. Timings and
+// counts copy the barn test page the captain played (and the Blender clip its swap copies).
+export const BARN = {
+  blend: 3,                  // day <-> night blend speed (1/s): about 3 s, like the test page and the Greenhouse
+  size: 0.86,                // the resident on the stand (the size a resident has on the meadow ranch)
+  // The burrow swap, in seconds (Slow motion = the test page's x3 is not in the game). It wiggles, sinks into the straw
+  // nest, the straw poofs while it is hidden (the next resident is put on then), it pops up and lands with a spring.
+  swap: {
+    wiggle: 0.14, sink: 0.33, under: 0.4, rise: 0.55, land: 0.68,   // where each part ends
+    wiggleDeg: 9, wiggleEvery: 0.07, wiggleSquash: 0.08,              // the wiggle: lean (degrees), its period, a little squash
+    depth: 1.6, hide: 1.5, over: 0.35,                                // how deep it sinks, where it waits, how high it pops
+    stretch: { sink: 0.18, under: 1.36, rise: 0.1, land: 0.26 },      // taller while it sinks, under the straw, rising, landing
+    burst1: 0.28, wear: 0.36, burst2: 0.42,                          // the big straw poof, the new resident put on, the small poof
+    clip: [0.12, 0.6],                                               // the clip plane is on in between (it sinks INTO the nest)
+    spring: { squash: 0.24, decay: 0.085, period: 0.24, length: 1.2 },  // the landing spring
+    queueGap: 0.12,                                                  // a swap asked for during a swap starts this long after it
+    fade: 0.36,                                                      // Reduced motion: a fade out and in instead (no straw)
+  },
+  // Straw strips (one instanced mesh) and how many fly in each poof; Low graphics draws half.
+  straw: { high: { strips: 760, burst1: 520, burst2: 110 }, low: { strips: 380, burst1: 260, burst2: 55 } },
+  dust: 0.36,                // the hay dust puffs' life (s)
+  sparkle: { life: 0.45, stagger: 0.04 },   // the landing sparkles: each one's life (s), one after another
+  // A quick sideways swipe anywhere on the barn (swipe left = next, like turning a page). Petting needs the finger to
+  // stay on the slime: a press only pets once it can no longer be a swipe (it turned back, went mostly up or down, or
+  // lasted longer than a swipe can), or when it ends without being one (a tap).
+  swipe: { minPx: 60, ratio: 1.5, maxMs: 700, turnPx: 14, upPx: 30 },
+  strokeEvery: 0.35,         // stroking keeps petting this often (today's ranch)
+  dots: 8,                   // the name card shows a dot per resident up to this many, then "3 of 12"
+  justBack: 1800,            // "just back from Puddle Café" for this long after a trip (seconds; not saved)
+  // The Nursery's straw nest: the Pearl Basket's spot mirrored to the front left of the stand (barn.json pearls:
+  // x 1.29, z 0.95), inside the aisle and clear of the stand; drawn only while the Nursery has eggs.
+  nest: { x: -1.29, z: 0.95, r: 0.38 },
+  basket: { r: 0.42, shown: 12 },   // the basket's tap target around its pearls; live pearls on top show how full it is
+  // Pearls made while you watch land in the stand's straw ring in front of the slime (the floor in front of the stand is
+  // under the name card, and its sides are at the screen's edges): this far from the stand's middle, within this many
+  // degrees either side of the front. Left there, they roll off to the basket as on the meadow ranch.
+  pearlRing: { r: [1.0, 1.1], arc: 62 },
+  // Framing: the stand, the nest, the basket and the slime (up to `top`) stay between the top bar and the name card.
+  frame: { top: 2.35, bottom: 0, front: 1.25, side: 1.3, gap: 8 },
+  // The barn's files load ahead of time, in the background, once home has shown (they never slow the game's start):
+  // after this many frames and seconds of home (the Greenhouse room comes in first when it is home), in idle time (at
+  // most `idle` ms later). Ranch tapped before they are in: home stays and a short "Off to the barn" moment shows.
+  preload: { frames: 10, after: 1.5, idle: 2000 },
+};
+
+// ---------- The send-off: a travel bubble (moving to the ranch, and a baby's new home) ----------
+// The goodbye: hearts and a happy face, a wave, then a see-through bubble grows around the slime, lifts it off the cushion
+// and floats up and out of the picture with a trail of sparkles (a baby drifts a little toward the side its new family
+// waits on). In any camera angle where it would be seen meeting the room (the Greenhouse roof, a wall, the lantern) or
+// come near the camera while still in the picture, it pops first in a burst of sparkles. Then the white fade and the
+// rule, as before.
+// Seconds count from the goodbye's start. The rule and the path: src/view/bubble-math.js; the bubble: travel-bubble.js.
+export const SENDOFF = {
+  wave: [0.2, 1.05],         // the wave (the nub a baby always waved with): out, back in (before the bubble closes)
+  grow: [1.0, 0.55],         // the bubble starts growing, and takes this long
+  lift: 1.6,                 // it lifts off the cushion
+  latest: 3.95,              // still in the picture by now: it pops (just before the white fade)
+  fade: 4.2, rule: 5.3,      // the white fade, then the rule and the reload (as before the bubble)
+  pad: 1.06,                 // the bubble's radius over the smallest that holds the slime
+  rest: 0.07,                // the slime sits this much of the radius above the bubble's bottom
+  gap: { cushion: 0.03, room: 0.15, camera: 0.5 },   // how close it comes: the cushion, the room (as seen), the camera
+  rise: { accel: 2.3, top: 5 },     // upward: eases in (units a second, per second) to a top speed (units a second)
+  sway: { amp: 0.16, hz: 0.55 },    // a gentle side to side (across the camera's view)
+  toward: 0.35,              // toward the camera, per unit it rises (it leaves the picture lower, well under a roof)
+  side: 0.3,                 // a baby: toward its family's side, per unit it rises
+  wobble: 0.03,              // the bubble's soft wobble (of its radius)
+  trail: 0.06,               // a sparkle behind it this often while it floats
+  popTime: 0.14,             // a pop: the bubble swells and fades, the slime shrinks into the sparkles
+  popSwell: 0.12,            // how much it swells as it pops (of its radius; less when the room is nearer than that)
+  reduced: { glow: 1.7, fade: [2.4, 1.2] },   // Reduced motion: no float; it glows from 1.7 s and fades out in place
+};

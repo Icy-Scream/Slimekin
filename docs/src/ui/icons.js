@@ -14,6 +14,12 @@ export const ICON = {
   sparkle: svg(`<path d="${P.sparkle}" fill="#ffc53d"/><path d="${P.sparkle}" fill="#fff6c8" transform="translate(12 12) scale(.42) translate(-12 -12)"/>`, 'gi spark'),
   heart: svg(`<path d="${P.heart}" fill="#f2577f"/><path d="M7.2 6.6c-1.4.2-2.4 1.3-2.5 2.6" stroke="#ffc2d3" stroke-width="1.5" fill="none" stroke-linecap="round"/>`, 'gi heart'),
   hourglass: svg('<path d="M6 2.5h12M6 21.5h12" stroke="#8a6fb2" stroke-width="2" stroke-linecap="round"/><path d="M7.5 3.5h9c0 4-2.8 5.4-4.5 8.5-1.7-3.1-4.5-4.5-4.5-8.5zM7.5 20.5h9c0-3.4-2.8-4.6-4.5-7.4-1.7 2.8-4.5 4-4.5 7.4z" fill="#d9ccf0"/><path d="M9.6 19.6h4.8c-.4-1.6-1.4-2.4-2.4-3.4-1 1-2 1.8-2.4 3.4z" fill="#ffb3cc"/>'),
+  // the Greenhouse camera button: a little camera; `cameraBack` adds a curved arrow (you turned it: tap for the front view)
+  camera: svg('<path d="M8.2 5.6l1.3-1.9h5l1.3 1.9h3A2.6 2.6 0 0 1 21.4 8.2v9.4a2.6 2.6 0 0 1-2.6 2.6H5.2a2.6 2.6 0 0 1-2.6-2.6V8.2a2.6 2.6 0 0 1 2.6-2.6z" fill="#8a6fd6"/><circle cx="12" cy="12.8" r="4.6" fill="#f3ecff"/><circle cx="12" cy="12.8" r="2.9" fill="#5e4a8c"/><circle cx="10.9" cy="11.7" r="1" fill="#fff"/><circle cx="18.2" cy="8.6" r="1" fill="#ffd36a"/>', 'gi cam'),
+  // the Barn ranch's previous / next buttons (a soft chevron)
+  chevronLeft: svg('<path d="M14.8 5.2L8 12l6.8 6.8" stroke="#6b4bd6" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>', 'gi chev'),
+  chevronRight: svg('<path d="M9.2 5.2L16 12l-6.8 6.8" stroke="#6b4bd6" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>', 'gi chev'),
+  cameraBack: svg('<path d="M7.4 6.4l1.1-1.6h4.2l1.1 1.6h2.5a2.2 2.2 0 0 1 2.2 2.2v7.8a2.2 2.2 0 0 1-2.2 2.2H4.8a2.2 2.2 0 0 1-2.2-2.2V8.6a2.2 2.2 0 0 1 2.2-2.2z" fill="#8a6fd6"/><circle cx="10.6" cy="12.6" r="3.8" fill="#f3ecff"/><circle cx="10.6" cy="12.6" r="2.3" fill="#5e4a8c"/><path d="M15.6 20.6a5.2 5.2 0 0 0 5.6-6.4" stroke="#f08a2c" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M18.6 13.4l2.8.4.6-2.7" stroke="#f08a2c" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>', 'gi cam'),
 };
 
 // Journal memory icons, keyed by the emoji stored in saves (old saves keep working).
@@ -37,6 +43,8 @@ const MEM = {
   '🌙': svg(`<path d="M15.6 3.2A8.8 8.8 0 1 0 20.8 16 7.2 7.2 0 0 1 15.6 3.2z" fill="#ffe08a"/><path d="${P.sparkle}" fill="#fff4c4" transform="translate(14.5 3) scale(.32)"/>`),
   '☀️': svg('<circle cx="12" cy="12" r="5" fill="#ffc53d"/><g stroke="#ffb020" stroke-width="2" stroke-linecap="round"><path d="M12 2.4v2.4M12 19.2v2.4M2.4 12h2.4M19.2 12h2.4M5.2 5.2l1.7 1.7M17.1 17.1l1.7 1.7M5.2 18.8l1.7-1.7M17.1 6.9l1.7-1.7"/></g>'),
   '⏳': ICON.hourglass,
+  // a trip (ranch life): a little suitcase with a sticker
+  '🧳': svg('<path d="M9 6.6V5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5v1.6" stroke="#8a5a3a" stroke-width="1.7" fill="none"/><rect x="2.8" y="6.4" width="18.4" height="13.8" rx="2.6" fill="#f2aa6a"/><rect x="2.8" y="6.4" width="18.4" height="3.6" rx="1.8" fill="#e38c4c"/><path d="M7.4 6.8v13M16.6 6.8v13" stroke="#b8642e" stroke-width="1.7"/><circle cx="12" cy="14.6" r="2.5" fill="#7fd4c0"/><path d="M10.9 14.7l.8.8 1.5-1.6" stroke="#fff" stroke-width=".9" fill="none" stroke-linecap="round" stroke-linejoin="round"/>'),
 };
 // ---------- medals (MEDALS in content.js): a ribbon, a metal disc and an emblem; higher medals get gems ----------
 let medalN = 0;
@@ -83,6 +91,37 @@ Object.assign(MEM, MEDAL_ART, HEIRLOOM_ART);
 export const memIcon = (emoji, fallback) => { const v = MEM[emoji]; return typeof v === 'function' ? v() : (v || fallback); };
 // The same drawing as a standalone SVG document (for canvas textures such as the medal pin), or null.
 export const iconSvgDoc = emoji => { const v = memIcon(emoji, null); return v ? v.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" ') : null; };
+
+// ---------- contests (C1b) ----------
+// A cup in a contest's color (CONTESTS color: Beauty pink, Sprint blue, Bounce-Off orange; never a metal, the medals own
+// gold, silver and bronze), sized by its tier with the classes cup-1..cup-4 (Little..Champion), a star on the Champion
+// Cup. ghost: a cup not won yet (an outline in the text color). Also the coach's whistle, a ribbon bow (Dress up), a
+// check mark and a rival's little blob.
+const hex2 = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+const mix = (a, b, t) => '#' + hex2(a).map((v, i) => Math.round(v + (hex2(b)[i] - v) * t).toString(16).padStart(2, '0')).join('');
+const STAR = (cx, cy, r1, r2) => Array.from({ length: 10 }, (_, i) => { const r = i % 2 ? r2 : r1, a = (-90 + i * 36) * Math.PI / 180; return `${(cx + r * Math.cos(a)).toFixed(2)},${(cy + r * Math.sin(a)).toFixed(2)}`; }).join(' ');
+export function cupIcon(color, { tier = 1, champion = false, ghost = false } = {}) {
+  const base = ghost ? 'currentColor' : color, dark = ghost ? 'currentColor' : mix(color, '#3a1f3a', 0.38), lite = ghost ? 'currentColor' : mix(color, '#ffffff', 0.55);
+  const fo = ghost ? ' fill-opacity=".22"' : '', so = ghost ? ' stroke-opacity=".55"' : '';
+  const star = champion ? `<polygon points="${STAR(12.6, 9.4, 3.15, 1.37)}" fill="${ghost ? 'currentColor' : mix(color, '#ffffff', 0.85)}"${ghost ? ' fill-opacity=".55"' : ''}/>` : '';
+  return `<svg class="gi cup cup-${tier}${ghost ? ' ghost' : ''}" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <path d="M4.44 4.04A3.57 3.57 0 0 0 4.44 11.18M19.56 4.04A3.57 3.57 0 0 1 19.56 11.18" fill="none" stroke="${dark}" stroke-width="1.6"${so}/>
+    <path d="M3.18 4.88A8.82 9.66 0 0 0 20.82 4.88Z" fill="${base}"${fo} stroke="${dark}" stroke-width=".9"${so}/>
+    <rect x="2.55" y="3.2" width="18.9" height="2.31" rx="1.05" fill="${lite}"${fo} stroke="${dark}" stroke-width=".9"${so}/>
+    <rect x="10.74" y="14.1" width="2.52" height="3.6" fill="${dark}"${ghost ? ' fill-opacity=".55"' : ''}/>
+    <rect x="6.75" y="17.48" width="10.5" height="3.36" rx="1.05" fill="${ghost ? 'currentColor' : dark}"${fo} stroke="${dark}" stroke-width=".9"${so}/>
+    ${ghost ? '' : `<ellipse cx="6.96" cy="8.66" rx="1.26" ry="2.1" fill="${mix(color, '#ffffff', 0.62)}"/>`}${star}</svg>`;
+}
+ICON.whistle = svg('<ellipse cx="9" cy="14.2" rx="6.6" ry="6.4" fill="#f2a21b"/><rect x="10.6" y="7.6" width="11.2" height="5.4" rx="1.3" fill="#f2a21b"/><circle cx="8.4" cy="14.8" r="2" fill="#fff" fill-opacity=".8"/><path d="M3.6 9.4l-1.8-2.2" stroke="#c97e0c" stroke-width="1.4" stroke-linecap="round"/>');
+ICON.bow = svg('<path d="M11 12.4L7.4 21l3-.6zM13 12.4l3.6 8.6-3-.6z" fill="#e0558f"/><ellipse cx="6.6" cy="10.6" rx="5.6" ry="4.6" fill="#ff79ad" stroke="#e0558f" stroke-width="1.1"/><ellipse cx="17.4" cy="10.6" rx="5.6" ry="4.6" fill="#ff79ad" stroke="#e0558f" stroke-width="1.1"/><ellipse cx="12" cy="11" rx="2.8" ry="2.9" fill="#e0558f"/>');
+ICON.check = svg('<path d="M5 12.6l4.4 4.4L19.4 6.8" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>', 'gi check');
+export function blobIcon(color) {
+  const dark = mix(color, '#2c2142', 0.35), lite = mix(color, '#ffffff', 0.6);
+  return `<svg class="gi blob" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 4.6c-.9 0-1.6.6-1.8 1.4C5.6 6.6 2.4 10 2.4 14.2c0 3.6 3.6 5.6 9.6 5.6s9.6-2 9.6-5.6c0-4.2-3.4-7.8-8-8.3-.2-.7-.8-1.3-1.6-1.3z" fill="${color}" stroke="${dark}" stroke-width="1"/>
+    <ellipse cx="6.4" cy="10.4" rx="2" ry="1.3" fill="${lite}"/><ellipse cx="8.8" cy="13.6" rx="1.2" ry="1.7" fill="#2c2142"/><ellipse cx="15.2" cy="13.6" rx="1.2" ry="1.7" fill="#2c2142"/></svg>`;
+}
+// the Journal's contest line (a cup won): one cup in all three contests' colors
+MEM['🏆'] = svg(`<path d="M4.44 4.04A3.57 3.57 0 0 0 4.44 11.18M19.56 4.04A3.57 3.57 0 0 1 19.56 11.18" fill="none" stroke="#3fa2ff" stroke-width="1.7"/><path d="M3.18 4.88A8.82 9.66 0 0 0 20.82 4.88Z" fill="#ff74b0" stroke="#b8467a" stroke-width=".9"/><rect x="2.55" y="3.2" width="18.9" height="2.31" rx="1.05" fill="#ffc2dc" stroke="#b8467a" stroke-width=".9"/><rect x="10.74" y="14.1" width="2.52" height="3.6" fill="#c9701c"/><rect x="6.75" y="17.48" width="10.5" height="3.36" rx="1.05" fill="#ff9b2f" stroke="#c9701c" stroke-width=".9"/><ellipse cx="6.96" cy="8.66" rx="1.26" ry="2.1" fill="#ffd0e4"/><polygon points="${STAR(12.6, 9.4, 3.15, 1.37)}" fill="#fff4c4"/>`);
 
 // A little slime drawing for the family tree and the spark-form list. motif adds the spark form's mark.
 const MOTIF = {

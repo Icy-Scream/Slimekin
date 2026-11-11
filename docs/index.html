@@ -76,6 +76,9 @@ button { font: inherit; color: inherit; }
 #scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: default; }
 #scene.can-boop { cursor: pointer; }
 #scene.petting { cursor: grabbing; }
+/* the Greenhouse room arriving after the loading screen has gone: the last frame before it, fading out over it */
+.home-fade { position: fixed; inset: 0; width: 100%; height: 100%; display: block; pointer-events: none; }
+.home-fade[hidden] { display: none; }
 
 .boot { position: fixed; inset: 0; display: grid; place-items: center; background: var(--bg); z-index: 50; font-family: var(--display); font-size: 20px; color: var(--ink-2); transition: opacity .5s; }
 .boot[hidden] { display: none !important; }
@@ -176,6 +179,15 @@ body.at-ranch .egg-hint { display: none !important; }
 .emote-fab[aria-expanded="true"] { background: color-mix(in srgb, var(--berry) 20%, var(--panel)); }
 .emote-fab.pulse { animation: btn-pulse 1.2s ease-in-out infinite; }
 .fps { position: fixed; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 4px); transform: translateX(-50%); z-index: 40; font: 700 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace; padding: 4px 8px; border-radius: 99px; background: var(--ink); color: var(--panel-strong); pointer-events: none; }
+/* the Greenhouse camera button (src/ui/camera-button.js): under the top bar on the left (top set in JS from the bar),
+   under the HUD layer (#ui is z-index 5) so a stretched menu sheet covers it */
+.cam-btn { position: fixed; left: max(16px, env(safe-area-inset-left, 0px)); top: calc(env(safe-area-inset-top, 0px) + 14px); z-index: 4; width: 44px; height: 44px; border-radius: 50%; padding: 0; display: grid; place-items: center; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.cam-btn[hidden] { display: none; }
+.cam-btn .ic .gi { width: 25px; height: 25px; vertical-align: 0; display: block; }
+.cam-btn.free { box-shadow: 0 0 0 2.5px color-mix(in srgb, #f08a2c 55%, transparent), 0 14px 34px -18px var(--shade); }
+.cam-btn:active { transform: scale(.94); }
+.cam-btn .tip { position: absolute; left: 52px; top: 50%; transform: translateY(-50%); white-space: nowrap; padding: 5px 10px; border-radius: 99px; background: var(--panel-strong, #fff); color: var(--ink); font: 800 12px/1 var(--body, system-ui); box-shadow: 0 6px 16px -8px var(--shade); opacity: 0; pointer-events: none; transition: opacity .25s; }
+.cam-btn.tipping .tip { opacity: 1; }
 .rotate { display: none; position: fixed; inset: 0; z-index: 60; background: var(--bg); place-items: center; text-align: center; padding: 20px; }
 .rotate > div { display: flex; flex-direction: column; align-items: center; gap: 8px; color: var(--ink-2); font-size: 14px; }
 .rotate b { font-family: var(--display); font-size: 22px; color: var(--ink); }
@@ -352,6 +364,10 @@ body.at-ranch .egg-hint { display: none !important; }
 .modal { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 20px max(16px, env(safe-area-inset-right, 0px)) 20px max(16px, env(safe-area-inset-left, 0px)); background: color-mix(in srgb, var(--bg) 45%, transparent); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
 .modal-card { width: min(420px, 100%); max-height: calc(100% - 20px); overflow-y: auto; border-radius: 28px; background: var(--panel-strong); border: 1.5px solid var(--edge); box-shadow: 0 30px 60px -24px var(--shade); padding: 24px 22px 20px; display: flex; flex-direction: column; gap: 12px; animation: card-in .4s cubic-bezier(.3, 1.4, .6, 1); }
 @keyframes card-in { from { opacity: 0; transform: translateY(20px) scale(.92); } }
+/* save safety cards (src/ui/notice.js): above everything, the loading screen included */
+.modal.notice { z-index: 60; }
+.modal-card .notice-note { font-size: 12px; line-height: 1.4; opacity: .7; word-break: break-word; }
+.modal-card .code-msg.bad { color: var(--berry); font-weight: 800; }
 .modal-card h2 { margin: 0; font-family: var(--display); font-weight: 700; font-size: 26px; line-height: 1.15; text-wrap: balance; }
 .modal-card p { margin: 0; line-height: 1.55; color: var(--ink-2); font-size: 14.5px; }
 .modal-card .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
@@ -416,6 +432,10 @@ body.at-ranch .egg-hint { display: none !important; }
 .need.low { animation: need-ring 1.2s ease-in-out infinite; }
 @keyframes need-ring { 50% { transform: scale(1.14); } }
 .slime-card .icon-btn { width: 32px; height: 32px; }
+/* a name too long for the one-line pill (hud.js fitName) gets the first line to itself */
+.slime-card.long-name { border-radius: 24px !important; }
+.slime-card.long-name .name-row { flex-wrap: wrap; row-gap: 3px; }
+.slime-card.long-name .name { flex: 1 0 100%; max-width: none; padding-right: 6px; }
 /* a little bubble by the slime when a need runs low */
 .say.need-say { display: flex; align-items: center; gap: 6px; font-size: 15px; padding: 6px 12px 6px 8px; }
 .say.need-say svg { width: 20px; height: 20px; flex: none; }

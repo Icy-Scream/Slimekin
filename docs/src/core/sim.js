@@ -8,12 +8,15 @@ import {
 } from '../data/content.js';
 import { createRanch, migrateRanch, Ranch, residentJpsFor, dayNumber } from './ranch.js';
 import { emptySkills, RanchLife } from './ranch-life.js';
-import { emptyLineage, applyEgg, resolveForm, eggFromLineage, eggLabel } from './breeding.js';
+import { emptyLineage, applyEgg, resolveForm, eggFromLineage, eggLabel, eggPotential } from './breeding.js';
+import { rollPotential, validPotential, migrateTalents } from './talents.js';
 import { medalFor, medalRank } from './medals.js';
 import { createHeirlooms, migrateHeirlooms, heirloomMult, heirloomFlag, startHelpers, forSale, ownsHeirloom } from './heirlooms.js';
 import { rollPlainEgg, oldBody, cleanBody } from './recipe.js';
+import { SAVE_VERSION, num, numOrNull, nums, count } from './save-check.js';
+import { createResidentContests } from './contests.js';
 
-export const SAVE_VERSION = 1;
+export { SAVE_VERSION };
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const pick = arr => arr[Math.floor(Math.random() * arr.length)];
@@ -63,6 +66,8 @@ export function createState() {
       // its body (core/recipe.js, BREEDS in content.js), fixed when the egg is made: breed 'curly' | 'dollop' | 'mixed',
       // variant 'plain' | 'ears' | 'topknot', mix 0 (Curly) .. 1 (Dollop), genes (small quirks)
       ...rollPlainEgg(seed),
+      // its hidden Potential (core/talents.js), fixed by the egg: a plain egg's seed, or its Nursery egg's (applyEgg)
+      potential: rollPotential(seed),
     },
     jelly: 0,
     totalJelly: 0,
@@ -78,7 +83,10 @@ export function createState() {
     lastMorning: null,
     stats: { boops: 0, feeds: 0, petTime: 0, fevers: 0, dizzies: 0, naps: 0, glimmers: 0, requests: 0, playTime: 0, visits: 1 },
     tutorial: 0,
-    settings: { sound: true, music: true, purr: true, soundOnSilent: true, reducedMotion: false, quality: 'auto', showFps: false },
+    // scene: home's background ('greenhouse' | 'meadow' | 'classic'); sceneMoved: this save has had the one-time move to
+    // the Greenhouse (see migrate); camView: the Greenhouse camera's last set angle ('front' | 'wide' | 'left' | 'right')
+    settings: { sound: true, music: true, purr: true, soundOnSilent: true, reducedMotion: false, quality: 'auto', showFps: false,
+      scene: 'greenhouse', sceneMoved: true, camView: 'front' },
     ranch: createRanch(),
     heirlooms: createHeirlooms(),   // family treasures (core/heirlooms.js): they stay through every move-out
   };
@@ -96,6 +104,13 @@ export function migrate(save) {
   out.helpers = { ...fresh.helpers, ...(save.helpers || {}) };
   out.stats = { ...fresh.stats, ...(save.stats || {}) };
   out.settings = { ...fresh.settings, ...(save.settings || {}) };
+  // The Greenhouse, once: the game used to write 'meadow' into every save (the old default), so a chosen Meadow can't be
+  // told from it. A save from before the Greenhouse moves there one time; a Classic save stays Classic (a real choice).
+  // After the move, a player who picks the Meadow again keeps it.
+  if (!(save.settings && save.settings.sceneMoved)) {
+    if (out.settings.scene !== 'classic') out.settings.scene = 'greenhouse';
+    out.settings.sceneMoved = true;
+  }
   out.egg = { ...fresh.egg, ...(save.egg || {}) };
   out.jar = { ...fresh.jar, ...(save.jar || {}) };
   out.outfits = { ...fresh.outfits, ...(save.outfits || {}) };
@@ -113,6 +128,24 @@ export function migrate(save) {
   if (out.egg.bred && typeof out.egg.bred === 'object' && !out.egg.bred.body) out.egg.bred.body = cleanBody(out.slime);
   // a bred egg put on the cushion before the cushion remembered its egg: rebuild that egg from the baby's lineage
   if (out.phase === 'egg' && !out.egg.bred && out.slime.lineage.parents.length === 2) out.egg.bred = { ...eggFromLineage(out.slime.lineage), body: cleanBody(out.slime) };
+  // numbers (save safety): a string or NaN in a number field becomes the fresh value, so it never turns into NaN in the
+  // game (core/save-check.js). A finite number is kept exactly as it is.
+  for (const k of ['jelly', 'totalJelly', 'createdAt', 'savedAt']) out[k] = num(out[k], fresh[k]);
+  out.tutorial = count(out.tutorial, 0);
+  const sl = out.slime, fs = fresh.slime;
+  if (typeof sl.name !== 'string') sl.name = '';
+  for (const k of ['growth', 'tummy', 'joy', 'energy', 'bondXp']) sl[k] = num(sl[k], fs[k]);
+  sl.bornAt = numOrNull(sl.bornAt);
+  sl.traits = nums(sl.traits, fs.traits);
+  sl.personality = nums(sl.personality, fs.personality);
+  sl.recent = nums(sl.recent, fs.recent);
+  sl.eaten = nums(sl.eaten);
+  out.helpers = nums(out.helpers, fresh.helpers);
+  out.stats = nums(out.stats, fresh.stats);
+  out.jar.level = count(out.jar.level, 0);
+  for (const k of ['stored', 'lastFill']) out.jar[k] = num(out.jar[k], fresh.jar[k]);
+  out.egg.warmth = num(out.egg.warmth, 0);
+  out.egg.readyAt = numOrNull(out.egg.readyAt);
   // medals: a save from before medals starts with the medal its slime already has, so no old ceremony replays
   if (!('medalShown' in (save.slime || {}))) {
     const grown = (out.slime.growth || 0) >= STAGES[STAGES.length - 1].minGrowth;
@@ -120,6 +153,14 @@ export function migrate(save) {
   }
   if (out.slime.medalShown && !MEDAL_BY_ID[out.slime.medalShown]) out.slime.medalShown = null;
   out.ranch = migrateRanch(save.ranch);
+  // talents (core/talents.js): a save from before them gets the Potential its egg would have given: a Nursery egg's
+  // (inherited from its parents when they still live on the ranch), else a roll from the plain egg's seed, else from
+  // when the slime was born
+  if (out.egg.bred && typeof out.egg.bred === 'object') out.egg.bred.potential = { ...eggPotential(out.egg.bred, out.ranch.residents) };
+  if (!validPotential(save.slime?.potential)) {
+    out.slime.potential = out.egg.bred && typeof out.egg.bred === 'object' ? { ...out.egg.bred.potential }
+      : rollPotential(out.egg.seed ?? `slime:${out.createdAt}:${out.slime.bornAt}`);
+  }
   out.heirlooms = migrateHeirlooms(save.heirlooms);
   out.v = SAVE_VERSION;
   return out;
@@ -387,7 +428,8 @@ export class Sim {
     s.joy = clamp(s.joy + 0.5, 0, 100);
     const bondUp = this.addBond(0.012);
     this.s.stats.boops++;
-    this.nudge('playful', 0.03);
+    const to = TUNING.boopPlayfulTo;
+    this.nudge('playful', 0.03 * (to == null ? 1 : clamp((to - s.personality.playful) / (to - 50), 0, 1)));
     return { gain, fever: this.fever, exhausted: s.energy <= 0, bondUp, tired };
   }
   // A napping slime only lets itself be poked awake once it has rested a little.
@@ -456,6 +498,10 @@ export class Sim {
     const personalityNudge = { chili: ['bold', 0.6], moss: ['patient', 0.5], cookie: ['cuddly', 0.3], berry: ['playful', 0.5], iron: ['patient', 0.3], crystal: ['curious', 0.6] }[id];
     if (personalityNudge) this.nudge(personalityNudge[0], personalityNudge[1]);
     if (firstTime) this.nudge('curious', 2);
+    else {
+      const F = TUNING.familiar, down = F.repeat * (same - 1) + (liked === 'favorite' ? F.favorite : 0);
+      if (down > 0) this.nudge('curious', -down);
+    }
 
     let discovered = null;
     if (liked === 'favorite' && !s.knownFavorite) { s.knownFavorite = true; discovered = 'favorite'; }
@@ -638,7 +684,10 @@ export class Sim {
       lineage: { ...emptyLineage(), ...(sl.lineage || {}) },
       ...cleanBody(sl),   // its body (breed, variant, mix, genes) moves with it
       skills: emptySkills(), lesson: null, trip: null,   // ranch life (core/ranch-life.js)
+      potential: { ...(sl.potential || {}) }, talentsSeen: [],   // talents (core/talents.js): its Potential moves with it
+      contests: createResidentContests(),   // contests (core/contests.js): no trophies yet
     };
+    migrateTalents(resident);   // (a Potential that is not valid: seeded from its new id)
     ranch.residents.push(resident);
     // Family Legacy: the bonus comes from all the jelly the family ever made, so it is recomputed (never lowered)
     const bonusBefore = ranch.family.bonus;

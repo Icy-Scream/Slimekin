@@ -5,14 +5,21 @@
 // Cozy rules: nothing fails and nothing is lost (a lesson always finishes, a trip always comes home); real time only,
 // so tapping never speeds anything up; no luck in progress (souvenirs come in a fixed order, a trip's pearls and
 // souvenir are fixed when it leaves; seeded dice only pick the story line).
-import { RANCH_LIFE, SKILL_IDS, SKILL_BY_ID, PLACE_BY_ID } from '../data/content.js';
+import { RANCH_LIFE, TALENTS, SKILL_IDS, SKILL_BY_ID, PLACE_BY_ID } from '../data/content.js';
 import { rng } from './random.js';
+import { talentLessonMult, starCap, maxStars, migrateTalents, revealSkill, gradeOf, revealText } from './talents.js';
 // (movingday.js imports ranch.js, which imports this file: a harmless cycle, nothing here runs at load time)
 import { movingDaySign } from './movingday.js';
+// (contests.js imports this file too: the same kind of harmless cycle)
+import { contestTripMult } from './contests.js';
 
 const L = RANCH_LIFE;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const clampStars = v => clamp(Math.floor(Number.isFinite(+v) ? +v : 0), 0, L.maxStars);
+// stars a skill can hold: up to 7 (grade S, core/talents.js); a skill's own cap only limits new lessons, so nobody loses one
+const clampStars = v => clamp(Math.floor(Number.isFinite(+v) ? +v : 0), 0, maxStars());
+// The Nth star's lesson: stars 1-5 from RANCH_LIFE.lesson, 6 and 7 (talents) from TALENTS.stars.
+const starPearls = n => (n <= L.maxStars ? L.lesson.pearls[n - 1] : TALENTS.stars.pearls[n - L.maxStars - 1]);
+const starMinutes = n => (n <= L.maxStars ? L.lesson.minutes[n - 1] : TALENTS.stars.minutes[n - L.maxStars - 1]);
 
 // ---------- save ----------
 // ranch.life: lanes and wagons owned, souvenirs found ({ souvenirId: { at, by } }), places you are a Friend of,
@@ -34,6 +41,7 @@ export function migrateLife(saved) {
 }
 export const emptySkills = () => Object.fromEntries(SKILL_IDS.map(id => [id, 0]));
 // A resident from before ranch life: 0 stars, no lesson, no trip. Keeps a valid lesson/trip; drops a broken one.
+// From before talents: Potential seeded from its id; the skills it already had lessons in count as revealed.
 export function migrateResident(x) {
   x.skills = { ...emptySkills(), ...(x.skills && typeof x.skills === 'object' ? x.skills : {}) };
   for (const id of SKILL_IDS) x.skills[id] = clampStars(x.skills[id]);
@@ -41,6 +49,7 @@ export function migrateResident(x) {
   if (!(l && typeof l === 'object' && SKILL_BY_ID[l.skill] && Number.isFinite(l.doneAt) && Number.isFinite(l.startAt))) x.lesson = null;
   const t = x.trip;
   if (!(t && typeof t === 'object' && PLACE_BY_ID[t.place] && Number.isFinite(t.homeAt) && Number.isFinite(t.startAt))) x.trip = null;
+  migrateTalents(x);
   return x;
 }
 
@@ -56,13 +65,16 @@ const loveFx = (x, key) => lovesDef(x)?.fx?.[key] || 0;
 export const pearlSkillMult = x => 1 + skillFx(x, 'pearls');                                  // Bounce
 export const fadeMult = x => (x ? (1 - skillFx(x, 'fade')) * (1 - loveFx(x, 'fade')) : 1);       // Sturdy, Shy
 export const offerSkillMult = x => 1 + skillFx(x, 'offers');                                   // Charm
-export const tripTimeMult = x => (1 - skillFx(x, 'tripTime')) * (1 - loveFx(x, 'tripTime'));    // Speed, Independent
+// Speed, Independent; the Sprint Champion perk (core/contests.js: exactly 1 without it)
+export const tripTimeMult = x => (1 - skillFx(x, 'tripTime')) * (1 - loveFx(x, 'tripTime')) * contestTripMult(x);
 export const tripPearlMult = x => 1 + skillFx(x, 'tripPearls') + loveFx(x, 'tripPearls');       // Smarts, Curious
-// Smarts shortens every lesson; a "loves" lesson bonus counts for its own skill (or every skill when it names none)
+// Smarts shortens every lesson; a "loves" lesson bonus counts for its own skill (or every skill when it names none);
+// the talent in that skill (core/talents.js) multiplies with both. Never under TALENTS.lessonFloor (grade C: as before
+// talents, whose shortest was x0.5625, so the floor never touches it).
 export function lessonTimeMult(x, skill) {
   const lv = lovesDef(x)?.fx || {};
   const love = lv.lessonTime && (!lv.skill || lv.skill === skill) ? lv.lessonTime : 0;
-  return (1 - skillFx(x, 'lessonTime')) * (1 - love);
+  return Math.max(TALENTS.lessonFloor, (1 - skillFx(x, 'lessonTime')) * (1 - love) * talentLessonMult(x, skill));
 }
 // Friend of a place: its buyer pays more for any of your slimes (new homes and auctions).
 export function friendMult(state, buyerId) {
@@ -109,12 +121,13 @@ export class RanchLife {
   }
 
   // ---------- lessons ----------
-  // The next lesson in a skill: the star it earns, its price and its length for this slime (null at 5 stars).
+  // The next lesson in a skill: the star it earns, its price and its length for this slime (null at its star cap:
+  // 5, or 6 and 7 for a talent graded A and S).
   lessonFor(x, skill) {
     if (!x || !SKILL_BY_ID[skill]) return null;
     const star = stars(x, skill) + 1;
-    if (star > L.maxStars) return null;
-    return { skill, star, pearls: L.lesson.pearls[star - 1], seconds: Math.round(L.lesson.minutes[star - 1] * 60 * lessonTimeMult(x, skill)) };
+    if (star > starCap(x, skill)) return null;
+    return { skill, star, pearls: starPearls(star), seconds: Math.round(starMinutes(star) * 60 * lessonTimeMult(x, skill)) };
   }
   canTrain(id, skill) {
     const x = this.ranch.resident(id);
@@ -135,7 +148,8 @@ export class RanchLife {
     x.lesson = { skill, star: c.star, startAt: now, doneAt: now + c.seconds * 1000, pearls: c.pearls };
     return { resident: x, lesson: x.lesson, cost: c.pearls, seconds: c.seconds };
   }
-  // A lesson ends: one more star, a little happier.
+  // A lesson ends: one more star, a little happier. The first lesson in a skill reveals its talent there (talent: the
+  // barn card's words, '' for grade C).
   finishLesson(x) {
     const l = x.lesson;
     if (!l) return null;
@@ -144,7 +158,9 @@ export class RanchLife {
     x.happiness = Math.min(100, (x.happiness || 0) + L.lesson.happy);
     x.lesson = null;
     this.life.lessons++;
-    return { kind: 'lesson', id: x.id, name: x.name, skill: l.skill, star: x.skills[l.skill], at: l.doneAt };
+    const revealed = revealSkill(x, l.skill);
+    return { kind: 'lesson', id: x.id, name: x.name, skill: l.skill, star: x.skills[l.skill], at: l.doneAt,
+      talent: revealed ? revealText(gradeOf(x, l.skill), l.skill) : null };
   }
 
   // ---------- trips ----------

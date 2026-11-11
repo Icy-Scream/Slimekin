@@ -2,11 +2,17 @@
 // placement (selling to a good home) and auctions. No three.js, no DOM.
 import { RANCH, BUYERS, BUYER_BY_ID, TRAIT_IDS, BREEDING, SPARK_BY_ID, BREEDS } from '../data/content.js';
 import { rng } from './random.js';
-import { makeEgg, sparkFor, pureFor, emptyLineage } from './breeding.js';
+import { makeEgg, sparkFor, pureFor, emptyLineage, eggPotential } from './breeding.js';
+import { rollPotential } from './talents.js';
 import { residentMedal } from './medals.js';
 import { heirloomMult } from './heirlooms.js';
 import { oldBody, cleanBody, rollSpecialEgg } from './recipe.js';
 import { createLife, migrateLife, migrateResident, pearlSkillMult, fadeMult, offerSkillMult, friendMult, busy } from './ranch-life.js';
+import { num, numOrNull, nums, count } from './save-check.js';
+import { createRanchContests, migrateRanchContests, migrateResidentContests, contestPearlMult, contestOfferMult } from './contests.js';
+
+// a resident's number fields and the value a broken one gets (save safety)
+const RESIDENT_NUMS = [['runTotal', 0], ['bondXp', 0], ['bondLevel', 0], ['happiness', 90], ['pearlT', 0], ['petAt', 0], ['movedAt', 0], ['generation', 1]];
 
 export function createRanch() {
   return {
@@ -27,6 +33,7 @@ export function createRanch() {
     nearMiss: {},     // spark babies that settled into a normal form, per spark form
     pures: [],        // forms raised Pure (same form as both parents)
     life: createLife(),   // ranch life (core/ranch-life.js): lanes, wagons, souvenirs, Friend of places
+    contests: createRanchContests(),   // contests (core/contests.js): the Trophy Shelf and how many shows were played
   };
 }
 
@@ -36,18 +43,24 @@ export function migrateRanch(saved) {
   const out = { ...fresh, ...saved };
   out.basket = { ...fresh.basket, ...(saved.basket || {}) };
   out.family = { ...fresh.family, ...(saved.family || {}) };
-  const num = v => (Number.isFinite(+v) && +v > 0 ? +v : 0);
-  for (const k of ['bonus', 'lifetime']) out.family[k] = num(out.family[k]);
+  const pos = v => (Number.isFinite(+v) && +v > 0 ? +v : 0);
+  for (const k of ['bonus', 'lifetime']) out.family[k] = pos(out.family[k]);
   // Family Legacy: a save from before the lifetime rule keeps its Family Bonus exactly. The extra lifetime jelly
   // that gives that bonus becomes a hidden head start, so every later move-out still raises it. Filled once.
   if (!Number.isFinite(saved.family?.legacy)) out.family.legacy = legacyFor(out.family.bonus, out.family.lifetime);
+  // numbers (save safety, core/save-check.js): a string or NaN becomes the fresh value; a finite number is kept as it is
+  for (const k of ['slots', 'pearls', 'totalPearls', 'lastVisit']) out[k] = num(out[k], fresh[k]);
+  for (const k of ['level', 'stored']) out.basket[k] = num(out.basket[k], fresh.basket[k]);
+  out.family.generation = count(out.family.generation, 1, 1);
   if (!Array.isArray(out.residents)) out.residents = [];
   if (!Array.isArray(out.placed)) out.placed = [];
   out.nursery = { ...fresh.nursery, ...(saved.nursery || {}) };
+  for (const k of ['made', 'given', 'bought']) out.nursery[k] = num(out.nursery[k], 0);
   if (!Array.isArray(out.nursery.eggs)) out.nursery.eggs = [];
   for (const k of ['sparks', 'nearMiss']) if (!out[k] || typeof out[k] !== 'object' || Array.isArray(out[k])) out[k] = {};
   if (!Array.isArray(out.pures)) out.pures = [];
   out.life = migrateLife(saved.life);
+  out.contests = migrateRanchContests(saved.contests);
   // residents from before breeding: first of their family line, no parents on record
   // (and from before ranch life: 0 stars in every skill, no lesson, no trip)
   for (const x of out.residents) {
@@ -57,9 +70,21 @@ export function migrateRanch(saved) {
     // the recipe body: residents from before it are Curlys (plain, mix 0, neutral genes)
     Object.assign(x, 'breed' in x ? cleanBody(x) : oldBody());
     migrateResident(x);   // ranch life: skills, lesson, trip
+    migrateResidentContests(x);   // contests: no trophies yet
+    // numbers (save safety): only the fields it has; a string or NaN becomes a safe value
+    for (const [k, d] of RESIDENT_NUMS) if (k in x) x[k] = num(x[k], d);
+    if ('jps' in x) x.jps = num(x.jps, residentJpsFor(x.runTotal || 0));
+    if ('bornAt' in x) x.bornAt = numOrNull(x.bornAt);
+    if (x.traits && typeof x.traits === 'object') x.traits = nums(x.traits, Object.fromEntries(TRAIT_IDS.map(t => [t, 0])));
+    if (x.personality && typeof x.personality === 'object') x.personality = nums(x.personality);
   }
-  // Nursery eggs from before the recipe body hatch Curlys
-  for (const e of out.nursery.eggs) if (e && typeof e === 'object') e.body = e.body ? cleanBody(e.body) : oldBody();
+  // Nursery eggs from before the recipe body hatch Curlys; from before talents, their Potential comes from their parents
+  // (when they still live here) or a roll from the egg's seed (core/breeding.js eggPotential)
+  for (const e of out.nursery.eggs) if (e && typeof e === 'object') {
+    e.body = e.body ? cleanBody(e.body) : oldBody();
+    e.potential = { ...eggPotential(e, out.residents.filter(x => x && typeof x === 'object')) };
+    for (const k of ['laidAt', 'readyAt']) if (k in e) e[k] = num(e[k], 0);
+  }
   out.residents = out.residents.filter(x => x && typeof x === 'object');
   return out;
 }
@@ -93,9 +118,10 @@ export class Ranch {
   // offers. Old residents get theirs from runTotal (nothing new is saved for residents). Heirlooms multiply on top:
   // Ranch Lanterns (pearls), Family Statue (what buyers pay).
   medal(x) { return residentMedal(x); }
-  // Ranch life (core/ranch-life.js): Bounce stars add pearls, Charm stars add to offers.
-  pearlMult(x) { return this.medal(x).pearls * heirloomMult(this.s, 'ranchPearls') * pearlSkillMult(x); }
-  offerMult(x) { return (1 + this.medal(x).offers) * heirloomMult(this.s, 'buyerPay') * offerSkillMult(x); }
+  // Ranch life (core/ranch-life.js): Bounce stars add pearls, Charm stars add to offers. Contests (core/contests.js):
+  // trophies and the Beauty Champion perk add to offers, the Bounce-Off Champion perk to pearls (both exactly 1 without).
+  pearlMult(x) { return this.medal(x).pearls * heirloomMult(this.s, 'ranchPearls') * pearlSkillMult(x) * contestPearlMult(x); }
+  offerMult(x) { return (1 + this.medal(x).offers) * heirloomMult(this.s, 'buyerPay') * offerSkillMult(x) * contestOfferMult(x); }
   // happiness lost per hour (the Family Portrait halves it; a resident's Sturdy stars and a Shy lean slow it down)
   happyDecay(x) { return RANCH.happyDecayPerHour * heirloomMult(this.s, 'happyDecay') * fadeMult(x); }
   // pearls per second for one resident
@@ -219,7 +245,7 @@ export class Ranch {
     this.spend(def.price);
     const id = `s${now.toString(36)}-${n.made}`, seed = `${variant}|${id}`;
     const egg = { id, seed, laidAt: now, readyAt: now + this.newEggSeconds() * 1000, parents: [], special: variant, spark: null, pure: null,
-      line: 1, bias: {}, personality: {}, favorite: null, body: rollSpecialEgg(variant, seed) };
+      line: 1, bias: {}, personality: {}, favorite: null, body: rollSpecialEgg(variant, seed), potential: rollPotential(seed) };
     n.made++;
     n.bought = (n.bought || 0) + 1;
     n.eggs.push(egg);
