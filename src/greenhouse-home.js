@@ -46,6 +46,7 @@ export class Home {
   // From applySettings: pick what home shows for settings.scene.
   apply() {
     const g = this.g, want = g.state.settings.scene;
+    this.room.setQuality(g.resolvedQuality());   // (Low: no cloche glass, no fireflies, steady fairy bulbs)
     let world = want;
     if (want === 'greenhouse') {
       if (this.room.failed) world = 'meadow';

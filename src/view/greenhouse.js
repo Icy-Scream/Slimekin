@@ -2,7 +2,7 @@
 // Today it is the terrarium room. The room was modelled and lit in Blender outside this repo and baked into
 // src/assets/greenhouse/ (format 2: gh.json + gh.bin, two floor textures): the light (sun, sky, bounce, soft shadows, the
 // moon lamp and fairy lights) is painted into the room's vertex colors, day and night, so the phone only draws it. Live
-// here: the sky through the glass, a faint glass sheen on the panes, the night glows (the
+// here: the sky through the glass, a faint glass sheen (the panes and the shelf's glass cloche), the night glows (the
 // moon lamp, fairy bulbs, the cottage window), fireflies in the garden, and the day/night blend. The eight menu objects
 // (chest, mirror, bench, jar, toy barn, basket, slate, stake) are their own files, drawn by menu-objects.js on the same
 // blend. Nothing in the room is tappable yet. Footprints, glow spots and the room's limits come from gh.json, completed
@@ -86,7 +86,9 @@ export class Greenhouse {
     this.flies = [];
     this.time = 0;
     this.loadMs = 0;
+    this.quality = 'high';
     this.menu = null;      // the menu objects (menu-objects.js), once loaded
+    this.cloches = [];
     this.light = { hemi: [new THREE.Color(), new THREE.Color(), 1], key: [new THREE.Color(), 1], rim: [new THREE.Color(), 1], env: 0.5 };
     // the slime's lights by day and by night (GREENHOUSE.slimeLight), as colors once
     const col = L => ({ hemi: [new THREE.Color(L.hemi[0]), new THREE.Color(L.hemi[1]), L.hemi[2]], key: [new THREE.Color(L.key[0]), L.key[1]], rim: [new THREE.Color(L.rim[0]), L.rim[1]], env: L.env });
@@ -222,6 +224,17 @@ export class Greenhouse {
       m.renderOrder = 2;
       g.add(m);
     }
+    // the shelf's glass cloche (its brass foot and knob are baked): a glass wall and a low dome, with the panes' sheen
+    for (const cl of meta.cloches || []) {
+      const wall = cl.h - 0.7 * cl.r, pts = [new THREE.Vector2(cl.r, 0), new THREE.Vector2(cl.r, wall)];
+      for (let i = 1; i <= 8; i++) { const a = i / 8 * Math.PI / 2; pts.push(new THREE.Vector2(cl.r * Math.cos(a), wall + 0.7 * cl.r * Math.sin(a))); }
+      const m = noRay(new THREE.Mesh(new THREE.LatheGeometry(pts, 32), glassMat));
+      m.position.set(cl.center[0], cl.base_y, cl.center[2]);
+      m.renderOrder = 2;
+      m.visible = this.quality !== 'low';
+      g.add(m);
+      this.cloches.push(m);
+    }
     // glows: additive halos, no lights (the room's own light is baked); only drawn at night
     const dot = document.createElement('canvas');
     dot.width = dot.height = 64;
@@ -274,6 +287,13 @@ export class Greenhouse {
     this.scene.add(g);
   }
 
+  // Graphics quality ('high' or 'low', the game's resolved setting): Low draws no glass on the cloche, no fireflies, and
+  // the fairy bulbs without their twinkle (design/terrarium-prod-brief.md 3). The room's files are the same.
+  setQuality(q) {
+    this.quality = q === 'low' ? 'low' : 'high';
+    for (const c of this.cloches) c.visible = this.quality !== 'low';
+  }
+
   // The stake's label: the slime's name and number (menu-objects.js)
   setLabel(name, no) { if (this.menu) this.menu.setLabel(name, no); }
 
@@ -300,17 +320,21 @@ export class Greenhouse {
       h.m.opacity = nt * tw;
       h.s.visible = h.m.opacity > 0.003;
     }
-    const on = nt > 0.003, tanHalf = camera ? Math.tan(camera.fov * Math.PI / 360) : 0.268;
+    const on = nt > 0.003, low = this.quality === 'low', tanHalf = camera ? Math.tan(camera.fov * Math.PI / 360) : 0.268;
     for (const [d, tw] of [[this.bulbs, (ph) => 0.75 + 0.25 * Math.sin(t / 700 + ph)], [this.fly, (ph) => Math.max(0, Math.sin(t / 600 + ph * 3)) ** 2]]) {
-      d.pts.visible = on;
-      if (!on) continue;
+      const show = on && !(low && d === this.fly);   // Low: no fireflies
+      d.pts.visible = show;
+      if (!show) continue;
       d.mat.opacity = nt;
       d.mat.size = d.world / tanHalf;   // the same size on screen as a halo `world` units wide, at any fov
+      const flat = reduced || low;      // no twinkle (Reduced motion; Low for the bulbs)
+      if (flat && d.flat) continue;     // (already drawn steady)
+      d.flat = flat;
       const col = d.pts.geometry.attributes.color;
-      d.base.forEach((c, i) => { const k = reduced ? 1 : tw(d.phase[i]); col.setXYZ(i, c.r * k, c.g * k, c.b * k); });
+      d.base.forEach((c, i) => { const k = flat ? 1 : tw(d.phase[i]); col.setXYZ(i, c.r * k, c.g * k, c.b * k); });
       col.needsUpdate = true;
     }
-    if (on) {
+    if (on && !low) {
       const pos = this.fly.pts.geometry.attributes.position;
       this.flies.forEach((f, i) => {
         const q = t / 1000 * f.sp + f.ph;
@@ -343,6 +367,6 @@ export class Greenhouse {
     if (!this.meta) return null;
     const tris = this.meta.room_chunks.reduce((s, c) => s + c.tris, 0) + this.meta.floor.tris;
     return { tris, chunks: this.meta.room_chunks.length + 1, glows: this.glows.length + this.bulbs.base.length + this.flies.length, loadMs: this.loadMs,
-      menu: this.menu ? this.menu.counts() : null };
+      cloches: this.cloches.length, menu: this.menu ? this.menu.counts() : null };
   }
 }
