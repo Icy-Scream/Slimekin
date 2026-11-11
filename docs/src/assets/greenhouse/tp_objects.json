@@ -1,0 +1,776 @@
+{
+ "format": "terrarium menu objects 1",
+ "units": "metres, glTF +Y up, front +Z, base centre at the origin",
+ "shader": "the floor day/night shader (unlit; day/night textures mixed on uNight)",
+ "sprites": {
+  "shadow": "tp_shadow.png",
+  "glow": "tp_glow.png"
+ },
+ "objects": {
+  "chest": {
+   "glb": "tp_chest.glb",
+   "tex": {
+    "day": "tp_chest_day.jpg",
+    "night": "tp_chest_night.jpg"
+   },
+   "tex_size": 512,
+   "tris": 1312,
+   "position": [
+    -1.158,
+    0.0585,
+    1.3757
+   ],
+   "yaw": 0.10403,
+   "size": [
+    0.3765,
+    0.3221,
+    0.3042
+   ],
+   "nodes": {
+    "Glow_Anchor": {
+     "t": [
+      0,
+      0.1924,
+      0.1307
+     ],
+     "s": [
+      1,
+      1,
+      1
+     ]
+    },
+    "Sparkle_Anchor": {
+     "t": [
+      0.1004,
+      0.3556,
+      0.0345
+     ],
+     "s": [
+      1,
+      1,
+      1
+     ]
+    },
+    "Tag_Anchor": {
+     "t": [
+      0,
+      0.3388,
+      -0.0074
+     ],
+     "s": [
+      1,
+      1,
+      1
+     ]
+    },
+    "Tap_chest": {
+     "t": [
+      -0.0241,
+      0.1519,
+      0
+     ],
+     "s": [
+      0.2142,
+      0.1979,
+      0.1621
+     ]
+    }
+   },
+   "tap_home_pt": [
+    -0.0,
+    61.5,
+    514.9,
+    580.1
+   ],
+   "shadow": {
+    "w": 0.546,
+    "d": 0.517,
+    "offset": [
+     0.04,
+     0.006,
+     0.03
+    ],
+    "opacity": [
+     1.0,
+     0.8
+    ]
+   },
+   "glow": {
+    "color": "#ffd36a",
+    "size": 0.489,
+    "opacity": 0.4,
+    "at": "Glow_Anchor",
+    "blend": "additive",
+    "night_only": true,
+    "toward_camera_m": 0.39,
+    "note": "the sprite stands at Glow_Anchor moved toward the camera by toward_camera_m (the object radius about the anchor), depthTest on, depthWrite off: at the anchor itself the protruding parts (the chest straps and lock) cut hard dark wedges out of it",
+    "pulse_opacity": [
+     0.2,
+     0.6
+    ]
+   }
+  },
+  "mirror": {
+   "glb": "tp_mirror.glb",
+   "tex": {
+    "day": "tp_mirror_day.jpg",
+    "night": "tp_mirror_night.jpg"
+   },
+   "tex_size": 512,
+   "tris": 2942,
+   "position": [
+    -1.3415,
+    0.0,
+    -2.74
+   ],
+   "yaw": 0.08799,
+   "size": [
+    0.5274,
+    1.0658,
+    0.2312
+   ],
+   "nodes": {
+    "Glow_Anchor": {
+     "t": [
+      0,
+      0.7153,
+      0.0144
+     ],
+     "s": [
+      1,
+      1,
+      1
+     ]
+    },
+    "Sparkle_Anchor": {
+     "t": [
+      0.1589,
+      1.0621,
+      0.0361
+     ],
+     "s": [
+      1,
+      1,
+      1
+     ]
+    },
+    "Tag_Anchor": {
+     "t": [
+      0,
+      1.1199,
+      0
+     ],
+     "s": [
+      1,
+      1,
+      1
+     ]
+    },
+    "Tap_mirror": {
+     "t": [
+      0.0036,
+      0.7059,
+      0
+     ],
+     "s": [
+      0.2567,
+      0.6436,
+      0.1256
+     ]
+    }
+   },
+   "tap_home_pt": [
+    30.0,
+    85.0,
+    335.0,
+    470.0
+   ],
+   "shadow": {
+    "w": 0.765,
+    "d": 0.393,
+    "offset": [
+     0.04,
+     0.006,
+     0.03
+    ],
+    "opacity": [
+     1.0,
+     0.8
+    ]
+   }
+  },
+  "bench": {
+   "glb": "tp_bench.glb",
+   "tex": {
+    "day": "tp_bench_day.jpg",
+    "night": "tp_bench_night.jpg"
+   },
+   "tex_size": 512,
+   "tris": 2248,
+   "position": [
+    1.4446,
+    0.0,
+    -2.7874
+   ],
+   "yaw": -0.09442,
+   "size": [
+    0.664,
+    0.705,
+    0.3525
+   ],
+   "nodes": {
+    "Glow_Anchor": {
+     "t": [
+      0,
+      0.4918,
+      0.082
+     ],
+     "s": [
+      1,
+      1,
+      1
+     ]
+    },
+    "Sparkle_Anchor": {
+     "t": [
+      0.2459,
+      0.7787,
+      0.082
+     ],
+     "s": [
+      1,
+      1,
+      1
+     ]
+    },
+    "Tag_Anchor": {
+     "t": [
+      0,
+      0.7787,
+      0
+     ],
+     "s": [
+      1,
+      1,
+      1
+     ]
+    },
+    "Tap_bench": {
+     "t": [
+      -0.0001,
+      0.3553,
+      0
+     ],
+     "s": [
+      0.3565,
+      0.3872,
+      0.1862
+     ]
+    }
+   },
+   "tap_home_pt": [
+    305.0,
+    380.0,
+    395.0,
+    480.0
+   ],
+   "shadow": {
+    "w": 0.963,
+    "d": 0.599,
+    "offset": [
+     0.04,
+     0.006,
+     0.03
+    ],
+    "opacity": [
+     1.0,
+     0.8
+    ]
+   }
+  },
+  "jar": {
+   "glb": "tp_jar.glb",
+   "tex": {
+    "day": "tp_jar_day.jpg",
+    "night": "tp_jar_night.jpg"
+   },
+   "tex_size": 512,
+   "tris": 1832,
+   "position": [
+    0.585,
+    2.3695,
+    -5.287
+   ],
+   "yaw": -0.03294,
+   "size": [
+    0.3653,
+    0.5841,
+    0.3653
+   ],
+   "nodes": {
+    "Glow_Anchor": {
+     "t": [
+      0,
+      0.1954,
+      0
+     ],
+     "s": [
+      1,
+      1,
+      1
+     ]
+    },
+    "Sparkle_Anchor": {
+     "t": [
+      0.1274,
+      0.5894,
+      0.085
+     ],
+     "s": [
+      1,
+      1,
+      1
+     ]
+    },
+    "Tag_Anchor": {
+     "t": [
+      0,
+      0.5682,
+      0.1699
+     ],
+     "s": [
+      1,
+      1,
+      1
+     ]
+    },
+    "Tap_jar": {
+     "t": [
+      0.0001,
+      0.3315,
+      0
+     ],
+     "s": [
+      0.2467,
+      0.3222,
+      0.1927
+     ]
+    }
+   },
+   "tap_home_pt": [
+    225.0,
+    270.0,
+    165.0,
+    224.0
+   ],
+   "shadow": {
+    "w": 0.475,
+    "d": 0.4,
+    "offset": [
+     0.0,
+     0.004,
+     0.0
+    ],
+    "opacity": [
+     1.0,
+     0.8
+    ]
+   },
+   "glow": {
+    "color": "#5fe3b8",
+    "size": 0.876,
+    "opacity": 0.5,
+    "at": "Glow_Anchor",
+    "blend": "additive",
+    "night_only": true,
+    "toward_camera_m": 0.467,
+    "note": "the sprite stands at Glow_Anchor moved toward the camera by toward_camera_m (the object radius about the anchor), depthTest on, depthWrite off: at the anchor itself the protruding parts (the chest straps and lock) cut hard dark wedges out of it"
+   }
+  },
+  "barn": {
+   "glb": "tp_barn.glb",
+   "tex": {
+    "day": "tp_barn_day.jpg",
+    "night": "tp_barn_night.jpg"
+   },
+   "tex_size": 512,
+   "tris": 824,
+   "position": [
+    -0.4466,
+    2.3552,
+    -5.287
+   ],
+   "yaw": 0.02515,
+   "size": [
+    0.4295,
+    0.4837,
+    0.328
+   ],
+   "nodes": {
+    "Glow_Anchor": {
+     "t": [
+      0,
+      0.1556,
+      0.1549
+     ],
+     "s": [
+      1,
+      1,
+      1
+     ]
+    },
+    "Sparkle_Anchor": {
+     "t": [
+      0.1367,
+      0.4928,
+      0.0729
+     ],
+     "s": [
+      1,
+      1,
+      1
+     ]
+    },
+    "Tag_Anchor": {
+     "t": [
+      0,
+      0.5292,
+      0
+     ],
+     "s": [
+      1,
+      1,
+      1
+     ]
+    },
+    "Tap_barn": {
+     "t": [
+      0.0008,
+      0.2913,
+      0
+     ],
+     "s": [
+      0.2753,
+      0.2681,
+      0.174
+     ]
+    }
+   },
+   "tap_home_pt": [
+    130.0,
+    180.0,
+    175.0,
+    224.0
+   ],
+   "shadow": {
+    "w": 0.558,
+    "d": 0.4,
+    "offset": [
+     0.0,
+     0.004,
+     0.0
+    ],
+    "opacity": [
+     1.0,
+     0.8
+    ]
+   },
+   "glow": {
+    "color": "#ffcf6a",
+    "size": 0.677,
+    "opacity": 0.55,
+    "at": "Glow_Anchor",
+    "blend": "additive",
+    "night_only": true,
+    "toward_camera_m": 0.505,
+    "note": "the sprite stands at Glow_Anchor moved toward the camera by toward_camera_m (the object radius about the anchor), depthTest on, depthWrite off: at the anchor itself the protruding parts (the chest straps and lock) cut hard dark wedges out of it"
+   }
+  },
+  "basket": {
+   "glb": "tp_basket.glb",
+   "tex": {
+    "day": "tp_basket_day.jpg",
+    "night": "tp_basket_night.jpg"
+   },
+   "tex_size": 512,
+   "tris": 2576,
+   "position": [
+    1.1099,
+    0.0583,
+    1.433
+   ],
+   "yaw": -0.10026,
+   "size": [
+    0.4986,
+    0.3683,
+    0.4986
+   ],
+   "nodes": {
+    "Glow_Anchor": {
+     "t": [
+      0,
+      0.1094,
+      0.0952
+     ],
+     "s": [
+      1,
+      1,
+      1
+     ]
+    },
+    "Sparkle_Anchor": {
+     "t": [
+      0.1618,
+      0.3568,
+      0.0952
+     ],
+     "s": [
+      1,
+      1,
+      1
+     ]
+    },
+    "Tag_Anchor": {
+     "t": [
+      0,
+      0.3378,
+      0
+     ],
+     "s": [
+      1,
+      1,
+      1
+     ]
+    },
+    "Tap_basket": {
+     "t": [
+      0.0004,
+      0.1668,
+      0
+     ],
+     "s": [
+      0.2415,
+      0.1732,
+      0.2593
+     ]
+    }
+   },
+   "tap_home_pt": [
+    315.0,
+    385.0,
+    515.0,
+    580.0
+   ],
+   "shadow": {
+    "w": 0.723,
+    "d": 0.848,
+    "offset": [
+     0.04,
+     0.006,
+     0.03
+    ],
+    "opacity": [
+     1.0,
+     0.8
+    ]
+   }
+  },
+  "slate": {
+   "glb": "tp_slate.glb",
+   "tex": {
+    "day": "tp_slate_day.jpg",
+    "night": "tp_slate_night.jpg"
+   },
+   "tex_size": 256,
+   "tris": 580,
+   "position": [
+    0.59,
+    0.0583,
+    1.4528
+   ],
+   "yaw": -0.05352,
+   "size": [
+    0.3909,
+    0.3281,
+    0.1413
+   ],
+   "nodes": {
+    "Glow_Anchor": {
+     "t": [
+      0,
+      0.1671,
+      0.0533
+     ],
+     "s": [
+      1,
+      1,
+      1
+     ]
+    },
+    "Sparkle_Anchor": {
+     "t": [
+      0.1412,
+      0.3734,
+      0.0533
+     ],
+     "s": [
+      1,
+      1,
+      1
+     ]
+    },
+    "Tag_Anchor": {
+     "t": [
+      0,
+      0.3734,
+      -0.001
+     ],
+     "s": [
+      1,
+      1,
+      1
+     ]
+    },
+    "Tap_slate": {
+     "t": [
+      -0.0004,
+      0.1672,
+      0
+     ],
+     "s": [
+      0.1937,
+      0.1803,
+      0.0806
+     ]
+    }
+   },
+   "tap_home_pt": [
+    250.0,
+    305.0,
+    520.0,
+    575.0
+   ],
+   "shadow": {
+    "w": 0.567,
+    "d": 0.24,
+    "offset": [
+     0.04,
+     0.006,
+     0.03
+    ],
+    "opacity": [
+     1.0,
+     0.8
+    ]
+   }
+  },
+  "stake": {
+   "glb": "tp_stake.glb",
+   "tex": {
+    "day": "tp_stake_day.jpg",
+    "night": "tp_stake_night.jpg"
+   },
+   "tex_size": 256,
+   "tris": 688,
+   "position": [
+    -0.7965,
+    0.0585,
+    1.0072
+   ],
+   "yaw": 0.06939,
+   "size": [
+    0.3597,
+    0.4753,
+    0.1991
+   ],
+   "nodes": {
+    "Glow_Anchor": {
+     "t": [
+      0,
+      0.3759,
+      0.0494
+     ],
+     "s": [
+      1,
+      1,
+      1
+     ]
+    },
+    "Sparkle_Anchor": {
+     "t": [
+      0.2198,
+      0.5457,
+      0.0494
+     ],
+     "s": [
+      1,
+      1,
+      1
+     ]
+    },
+    "Tag_Anchor": {
+     "t": [
+      0,
+      0.3752,
+      0.0253
+     ],
+     "s": [
+      1,
+      1,
+      1
+     ]
+    },
+    "Tap_stake": {
+     "t": [
+      0.0043,
+      0.2361,
+      0
+     ],
+     "s": [
+      0.1864,
+      0.2731,
+      0.1095
+     ]
+    }
+   },
+   "tap_home_pt": [
+    62.5,
+    114.0,
+    485.5,
+    564.5
+   ],
+   "shadow": {
+    "w": 0.522,
+    "d": 0.338,
+    "offset": [
+     0.04,
+     0.006,
+     0.03
+    ],
+    "opacity": [
+     1.0,
+     0.8
+    ]
+   },
+   "label": {
+    "w": 0.3597,
+    "h": 0.1998,
+    "tilt": 0.12,
+    "at": "Tag_Anchor",
+    "lines": [
+     "<slime name>",
+     "No. <0001>"
+    ],
+    "day": {
+     "fill": "#3e2c12",
+     "lip": "#f0d488"
+    },
+    "night": {
+     "fill": "#8f7a4a",
+     "lip": null
+    },
+    "note": "the game writes the text on this quad, mixed day -> night on uNight with the room. Day: engraved, #3e2c12 with a #f0d488 lower lip. Night: the letters catch the lamp, #8f7a4a, no lip, drawn as is (not darkened). Fonts as stake_text_pebble*.png: EB Garamond Italic (name), Bold (number)"
+   }
+  }
+ }
+}

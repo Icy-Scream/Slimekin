@@ -98,9 +98,12 @@ export function clearance(c, r, room) {
   return { gap, what };
 }
 
-// The Greenhouse as the bubble sees it, from gh.json (meta) and GREENHOUSE.roof: the two halves of the roof (they
-// reach to the front of the side walls), the side walls, the back glass, the hanging lantern and jars, and the
-// furniture on the floor. The stump the bubble rises from is left out.
+// The Greenhouse as the bubble sees it, from the room's meta (gh.json as roomMeta() in greenhouse-math.js completes it)
+// and GREENHOUSE.roof: the two halves of the roof (they reach to the front of the side walls), the side walls, the
+// back glass, the hanging lantern, the hanging ferns and what stands on the shelf (meta.balls), and the furniture on
+// the floor and the hutch (meta.footprints). The stump the bubble rises from is left out, and so are the menu objects on
+// the floor (low, in front of the stump: from a camera turned down low they stand in front of the bubble as it lifts off,
+// which is not the bubble meeting them; it rises clear of them).
 export function greenhouseRoom(meta, roof) {
   const R = meta.room, s = (roof.ridge - roof.eave) / roof.half, k = Math.hypot(s, 1);
   return {
@@ -111,8 +114,9 @@ export function greenhouseRoom(meta, roof) {
       { n: [1, 0, 0], d: R.x_in, zMax: R.z_side_end, what: 'the left wall' },
       { n: [0, 0, 1], d: -R.z_back_in, what: 'the back glass' },
     ],
-    balls: [{ c: meta.lantern, r: 0.45, what: 'the lantern' }, ...(meta.jars || []).map(c => ({ c, r: 0.25, what: 'a jar' }))],
-    posts: (meta.footprints || []).filter(f => f.name !== 'stump').map(f => ({ x: f.x, z: f.z, r: f.r, top: f.top, what: 'the ' + f.name })),
+    balls: [{ c: meta.lantern, r: 0.45, what: 'the lantern' }, ...(meta.jars || []).map(c => ({ c, r: 0.25, what: 'a jar' })),
+      ...(meta.balls || []).map(b => ({ c: b.c, r: b.r, what: b.what || 'something' }))],
+    posts: (meta.footprints || []).filter(f => f.name !== 'stump' && !f.menu).map(f => ({ x: f.x, z: f.z, r: f.r, top: f.top, what: 'the ' + f.name })),
   };
 }
 // The open sky (the Meadow, the Classic look): nothing over it.

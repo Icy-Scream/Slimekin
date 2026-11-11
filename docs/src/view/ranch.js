@@ -500,12 +500,15 @@ export class RanchView {
     if (this.slow < 0.1) return;
     const step = this.slow;
     this.slow = 0;
-    for (const r of this.residents.values()) this.think(r, step);
+    // [perf] while the hill is hidden (the Greenhouse, Classic, the barn) they live on unseen: their bodies and faces
+    // aren't reworked (SlimeAvatar.update's `drawn`)
+    const shown = this.group.visible;
+    for (const r of this.residents.values()) this.think(r, step, shown);
     const pulse = this.basketFull ? 0.5 + 0.5 * Math.sin(t * 4) : 0;
     this.basket.scale.setScalar(1.15 * (1 + pulse * 0.05));
   }
 
-  think(r, dt) {
+  think(r, dt, shown = true) {
     const av = r.av, h = r.holder;
     r.timer -= dt;
     r.happyT -= dt;
@@ -541,7 +544,7 @@ export class RanchView {
         av.sizeTarget = 0.001;
         if (av.size < 0.05 || r.timer <= -1.5) { this.group.remove(h); this.residents.delete(r.id); r.onGone && r.onGone(); return; }
       }
-      av.update(dt);
+      av.update(dt, shown);
       return;
     }
     if (r.state === 'walk') {
@@ -559,6 +562,6 @@ export class RanchView {
       }
       if (dist < 0.15 || r.timer <= 0) { r.state = 'idle'; r.timer = 2 + Math.random() * 5; }
     }
-    av.update(dt);
+    av.update(dt, shown);
   }
 }

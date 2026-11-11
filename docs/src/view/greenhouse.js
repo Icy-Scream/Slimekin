@@ -1,12 +1,22 @@
 // The Greenhouse: the cozy glass room that is the slime's home (Settings > Background > Greenhouse, the default).
-// The room was modelled and lit in Blender outside this repo and baked into src/assets/greenhouse/ (format 2:
-// gh.json + gh.bin, two floor textures): the light (sun, sky, bounce, soft shadows, the lantern and fairy lights) is
-// painted into the room's vertex colors, day and night, so the phone only draws it. Live here: the sky through the
-// glass, a faint glass sheen, the night glows (lantern, fairy bulbs, two jars, the cottage window), fireflies in the
-// garden, and the day/night blend. Nothing in the room is tappable. Footprints, glow spots and the room's limits come
-// from gh.json; everything tunable is GREENHOUSE in content.js.
+// Today it is the terrarium room. The room was modelled and lit in Blender outside this repo and baked into
+// src/assets/greenhouse/ (format 2: gh.json + gh.bin, two floor textures): the light (sun, sky, bounce, soft shadows, the
+// moon lamp and fairy lights) is painted into the room's vertex colors, day and night, so the phone only draws it. Live
+// here: the sky through the glass, a faint glass sheen (the panes and the shelf's glass cloche), the night glows (the
+// moon lamp, fairy bulbs, the cottage window), fireflies in the garden, and the day/night blend. The eight menu objects
+// (chest, mirror, bench, jar, toy barn, basket, slate, stake) are their own files, drawn by menu-objects.js on the same
+// blend. Nothing in the room is tappable yet. Footprints, glow spots and the room's limits come from gh.json, completed
+// by roomMeta() (greenhouse-math.js); everything tunable is GREENHOUSE in content.js.
 import * as THREE from 'three';
 import { GREENHOUSE } from '../data/content.js';
+import { roomMeta } from './greenhouse-math.js';
+import { MenuObjects, MENU_LAYER } from './menu-objects.js';
+import { buildCells, CellPass, frustumPlanes, sphereRect } from './room-cells.js';
+
+// [perf] Layers: the room's cells for the picture are on MENU_LAYER (with the menu objects: drawn in the picture, not in
+// the slime's see-through pass); its cells for the see-through pass on SEE_LAYER (drawn only there). The sky switches
+// them for each pass (see build()).
+export const SEE_LAYER = 2;
 
 const BASE = new URL('../assets/greenhouse/', import.meta.url);
 const SKY_R = 110;   // the sky dome follows the camera, inside its far plane (the stage keeps far = 120)
@@ -44,7 +54,13 @@ uniform sampler2D tDay, tNight; uniform float uNight;
 varying vec2 vUv;
 #include <fog_pars_fragment>
 void main(){
-  gl_FragColor = vec4(mix(texture2D(tDay, vUv).rgb, texture2D(tNight, vUv).rgb, uNight), 1.0);
+  // [perf] On a steady day or night (the blend lands exactly on 0 or 1) only that picture is read: the same colour as
+  // the mix gives there, half the texture reads (8x anisotropic) on the biggest surface on screen.
+  vec3 c;
+  if (uNight <= 0.0) c = texture2D(tDay, vUv).rgb;
+  else if (uNight >= 1.0) c = texture2D(tNight, vUv).rgb;
+  else c = mix(texture2D(tDay, vUv).rgb, texture2D(tNight, vUv).rgb, uNight);
+  gl_FragColor = vec4(c, 1.0);
   #include <colorspace_fragment>
   #include <fog_fragment>
 }`;
@@ -61,6 +77,10 @@ void main(){
 
 const noRay = o => { o.raycast = () => {}; return o; };
 const lerp = (a, b, t) => a + (b - a) * t;
+// The day/night blend lands on its target once the jump to it is under one level of 255 in any of the room's colours:
+// the steepest the sRGB curve gets is 12.92 (at the darkest), so a jump of uNight under 1 / (255 x 12.92) moves no
+// drawn colour by a whole level. (It used to land within 0.002, a jump of about 1 level on a dark night frame.)
+const BLEND_SNAP = 1 / (255 * 12.92);
 
 export class Greenhouse {
   constructor(scene) {
@@ -78,6 +98,9 @@ export class Greenhouse {
     this.flies = [];
     this.time = 0;
     this.loadMs = 0;
+    this.quality = 'high';
+    this.menu = null;      // the menu objects (menu-objects.js), once loaded
+    this.cloches = [];
     this.light = { hemi: [new THREE.Color(), new THREE.Color(), 1], key: [new THREE.Color(), 1], rim: [new THREE.Color(), 1], env: 0.5 };
     // the slime's lights by day and by night (GREENHOUSE.slimeLight), as colors once
     const col = L => ({ hemi: [new THREE.Color(L.hemi[0]), new THREE.Color(L.hemi[1]), L.hemi[2]], key: [new THREE.Color(L.key[0]), L.key[1]], rim: [new THREE.Color(L.rim[0]), L.rim[1]], env: L.env });
@@ -109,43 +132,75 @@ export class Greenhouse {
       if (!res.ok) throw new Error(`${name}: ${res.status}`);
       return kind === 'json' ? res.json() : res.arrayBuffer();
     };
+    const loader = new THREE.TextureLoader();
+    const tex = (name, flipY = true) => new Promise((res, rej) => loader.load(new URL(name, BASE).href, t => { t.colorSpace = THREE.SRGBColorSpace; t.flipY = flipY; t.anisotropy = 8; res(t); }, undefined, () => rej(new Error(name))));
+    // the menu objects' files, alongside the room's (glTF texture coordinates: not flipped). If any of them can't load,
+    // the room shows without them. (Their failure is told only once the room is in: offline, the room's own warning is
+    // the one line.)
+    const menuFiles = (async () => {
+      const tp = await get('tp_objects.json', 'json'), files = {};
+      await Promise.all(Object.entries(tp.objects).map(async ([n, o]) => {
+        const [glb, day, night] = await Promise.all([get(o.glb, 'bin'), tex(o.tex.day, false), tex(o.tex.night, false)]);
+        files[n] = { glb, day, night };
+      }));
+      const [shadow, glow] = await Promise.all([tex(tp.sprites.shadow), tex(tp.sprites.glow)]);
+      return { tp, files, sprites: { shadow, glow } };
+    })().catch(e => ({ error: e }));
     const [meta, bin] = await Promise.all([get('gh.json', 'json'), get('gh.bin', 'bin')]);
     if (meta.format !== 2) throw new Error('unknown room format ' + meta.format);
-    const loader = new THREE.TextureLoader();
-    const tex = name => new Promise((res, rej) => loader.load(new URL(name, BASE).href, t => { t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; res(t); }, undefined, () => rej(new Error(name))));
     const [floorDay, floorNight] = await Promise.all([tex('floor_day.jpg'), tex('floor_night.jpg')]);
-    this.meta = meta;
     const chunk = (name, Type) => { const [o, n] = meta.chunks[name]; return new Type(bin, o, n / Type.BYTES_PER_ELEMENT); };
     const shared = m => { m.uniforms.uNight = this.U.uNight; return m; };
+    // the floor's material (two baked textures mixed on the blend), for the floor and the menu objects
+    const floorMat = (day, night) => {
+      const m = shared(new THREE.ShaderMaterial({
+        uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { tDay: { value: null }, tNight: { value: null }, uNight: { value: 0 } }]),
+        vertexShader: FLOOR_VERT, fragmentShader: FLOOR_FRAG, fog: true, toneMapped: false,
+      }));
+      m.uniforms.tDay.value = day;
+      m.uniforms.tNight.value = night;
+      return m;
+    };
     const placeQ = m => { m.position.set(...meta.qbox.center); m.scale.set(...meta.qbox.half); return m; };
     const baked = (geo, fog = true) => noRay(new THREE.Mesh(geo, shared(new THREE.ShaderMaterial({
       uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uNight: { value: 0 } }]), vertexShader: VERT, fragmentShader: FRAG, fog, toneMapped: false,
     }))));
     const g = this.group;
-    // the room: a few big chunks, one draw call each
+    // the room: a few big chunks. [perf] Each is drawn twice a frame at most (the picture, the see-through pass), and
+    // each time only its cells that pass can show (room-cells.js): two meshes share the chunk's points and colours,
+    // each with an index list of its own, rebuilt when the camera or the see-through things move (cull()).
+    const t0 = performance.now();
+    this.cells = [];
     for (const { name } of meta.room_chunks) {
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute('position', new THREE.BufferAttribute(chunk(name + '.pos', Int16Array), 3, true));
-      geo.setAttribute('colDay', new THREE.BufferAttribute(chunk(name + '.day', Uint8Array), 3, true));
-      geo.setAttribute('colNight', new THREE.BufferAttribute(chunk(name + '.night', Uint8Array), 3, true));
-      geo.setIndex(new THREE.BufferAttribute(chunk(name + '.idx', Uint16Array), 1));
-      const m = placeQ(baked(geo));
-      m.frustumCulled = false;
-      g.add(m);
+      const pos = chunk(name + '.pos', Int16Array), idx = chunk(name + '.idx', Uint16Array);
+      const attrs = { position: new THREE.BufferAttribute(pos, 3, true), colDay: new THREE.BufferAttribute(chunk(name + '.day', Uint8Array), 3, true),
+        colNight: new THREE.BufferAttribute(chunk(name + '.night', Uint8Array), 3, true) };
+      const cells = buildCells(pos, idx, meta.qbox.center, meta.qbox.half, GREENHOUSE.cells);
+      const mat = baked(new THREE.BufferGeometry()).material;
+      const part = layer => {
+        const geo = new THREE.BufferGeometry();
+        for (const k in attrs) geo.setAttribute(k, attrs[k]);
+        const out = new Uint16Array(idx.length);
+        geo.setIndex(new THREE.BufferAttribute(out, 1));
+        geo.setDrawRange(0, 0);
+        const m = placeQ(noRay(new THREE.Mesh(geo, mat)));
+        m.frustumCulled = false;
+        m.layers.set(layer);
+        g.add(m);
+        return { mesh: m, geo, pass: new CellPass(cells, out) };
+      };
+      this.cells.push({ name, cells, idx, pic: part(MENU_LAYER), see: part(SEE_LAYER) });
     }
+    this.cellMs = Math.round(performance.now() - t0);
+    this.cullU = { m: new THREE.Matrix4(), fwd: new THREE.Vector3(), v: new THREE.Vector3(), s: new THREE.Sphere(),
+      picNeed: new Float32Array(24), picWant: new Float32Array(24), seeNeed: new Float32Array(24 * 8), seeWant: new Float32Array(24 * 8) };
     // the plank floor: textured (day and night)
     {
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.BufferAttribute(chunk('floor.pos', Int16Array), 3, true));
       geo.setAttribute('uv', new THREE.BufferAttribute(chunk('floor.uv', Float32Array), 2));
       geo.setIndex(new THREE.BufferAttribute(chunk('floor.idx', Uint16Array), 1));
-      const m = noRay(new THREE.Mesh(geo, shared(new THREE.ShaderMaterial({
-        uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { tDay: { value: null }, tNight: { value: null }, uNight: { value: 0 } }]),
-        vertexShader: FLOOR_VERT, fragmentShader: FLOOR_FRAG, fog: true, toneMapped: false,
-      }))));
-      m.material.uniforms.tDay.value = floorDay;
-      m.material.uniforms.tNight.value = floorNight;
-      g.add(placeQ(m));
+      g.add(placeQ(noRay(new THREE.Mesh(geo, floorMat(floorDay, floorNight)))));
     }
     // the sky: the Blender sky's colors by elevation, day and night per point
     const skyGeo = new THREE.SphereGeometry(SKY_R, 48, 24);
@@ -168,6 +223,14 @@ export class Greenhouse {
     this.sky.material.depthWrite = false;
     this.sky.renderOrder = -10;
     this.sky.frustumCulled = false;
+    // The menu objects are on MENU_LAYER: drawn in the picture, not again in the slime's see-through pass (three.js draws
+    // every opaque thing a second time for it, into a render target). The sky is the first opaque thing drawn in each
+    // pass (renderOrder -10), so it turns the layer off for that pass and back on for the picture; and SEE_LAYER (the
+    // room's cells for the see-through pass) the other way round.
+    this.sky.onBeforeRender = (renderer, scene, camera) => {
+      if (renderer.getRenderTarget() === null) { camera.layers.enable(MENU_LAYER); camera.layers.disable(SEE_LAYER); }
+      else { camera.layers.disable(MENU_LAYER); camera.layers.enable(SEE_LAYER); }
+    };
     g.add(this.sky);
     // stars (night): a fixed seeded field over the garden, behind the back glass
     {
@@ -192,6 +255,17 @@ export class Greenhouse {
       m.position.set(...c);
       m.renderOrder = 2;
       g.add(m);
+    }
+    // the shelf's glass cloche (its brass foot and knob are baked): a glass wall and a low dome, with the panes' sheen
+    for (const cl of meta.cloches || []) {
+      const wall = cl.h - 0.7 * cl.r, pts = [new THREE.Vector2(cl.r, 0), new THREE.Vector2(cl.r, wall)];
+      for (let i = 1; i <= 8; i++) { const a = i / 8 * Math.PI / 2; pts.push(new THREE.Vector2(cl.r * Math.cos(a), wall + 0.7 * cl.r * Math.sin(a))); }
+      const m = noRay(new THREE.Mesh(new THREE.LatheGeometry(pts, 32), glassMat));
+      m.position.set(cl.center[0], cl.base_y, cl.center[2]);
+      m.renderOrder = 2;
+      m.visible = this.quality !== 'low';
+      g.add(m);
+      this.cloches.push(m);
     }
     // glows: additive halos, no lights (the room's own light is baked); only drawn at night
     const dot = document.createElement('canvas');
@@ -235,8 +309,94 @@ export class Greenhouse {
       this.fly = dots(this.flies.map(f => ({ pos: f.home.toArray(), color: '#d8ff8a' })), 0.18);
       this.fly.phase = this.flies.map(f => f.ph);
     }
+    // the menu objects
+    const mf = await menuFiles, why = e => (e && e.message ? e.message : e);
+    if (mf.error) console.warn('Greenhouse: the menu objects could not load; the room shows without them.', why(mf.error));
+    else {
+      try { this.menu = new MenuObjects(mf.tp, mf.files, mf.sprites, this.U, floorMat); g.add(this.menu.group); }
+      catch (e) { console.warn('Greenhouse: the menu objects could not be built; the room shows without them.', why(e)); }
+    }
+    this.meta = roomMeta(meta, this.menu ? this.menu.tp : null);
     this.scene.add(g);
+    // [perf] each pass's cells, right before each frame is drawn (the camera is where the frame is drawn from)
+    const before = this.scene.onBeforeRender;
+    this.scene.onBeforeRender = (renderer, scene, camera, target) => { before.call(scene, renderer, scene, camera, target); this.cull(renderer, scene, camera); };
   }
+
+  // [perf] Which of the room's cells each pass draws this frame (room-cells.js). The picture: the camera's frustum. The
+  // see-through pass: the frustum behind each see-through thing (seeThings(): [{ obj, c, r }], a sphere in obj's own
+  // space), from its front on. Anything see-through drawn last frame that isn't one of them (a thing this doesn't know
+  // about): the whole room in that pass, as before.
+  cull(renderer, scene, camera) {
+    if (!this.ready || !this.group.visible || !this.cells.length) return;
+    if (this.cellsOff) {   // (#debug, the probe's "before": every chunk whole, in its own order, in both passes)
+      for (const c of this.cells) { if (c.pic.pass.original(c.idx)) this.send(c.pic); if (c.see.pass.original(c.idx)) this.send(c.see); }
+      return;
+    }
+    const U = this.cullU, C = GREENHOUSE.cells;
+    const M = U.m.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse).elements, k = 1 + C.margin;
+    frustumPlanes(M, U.picNeed, 0);
+    frustumPlanes(M, U.picWant, 0, [-k, k, -k, k]);
+    for (const c of this.cells) if (c.pic.pass.update(U.picNeed, U.picWant)) this.send(c.pic);
+    const things = this.seeThings ? this.seeThings() : [];
+    let all = false;
+    const last = renderer.renderLists.get(scene, 0).transmissive;
+    for (let i = 0; i < last.length && !all; i++) if (!things.some(t => t.obj === last[i].object)) all = true;
+    if (!all && !things.length) return;   // nothing see-through: that pass isn't drawn
+    let need = 0, want = 0;
+    if (!all) {
+      const fwd = camera.getWorldDirection(U.fwd), cam = U.v.setFromMatrixPosition(camera.matrixWorld), fc = fwd.dot(cam);
+      const near = [fwd.x, fwd.y, fwd.z, 0], S = U.s, c = [0, 0, 0];
+      for (const t of things) {
+        S.center.set(t.c[0], t.c[1], t.c[2]).applyMatrix4(t.obj.matrixWorld);
+        const r = t.r * t.obj.matrixWorld.getMaxScaleOnAxis();
+        c[0] = S.center.x; c[1] = S.center.y; c[2] = S.center.z;
+        const depth = fwd.dot(S.center) - fc;
+        for (const [grow, planes, isNeed] of [[C.grow, U.seeNeed, true], [C.growWant, U.seeWant, false]]) {
+          const rect = sphereRect(M, c, r * grow, C.pad / camera.aspect, C.pad);
+          if (!rect) continue;
+          const n = isNeed ? need : want;
+          if (n >= 8 || rect === 'all') { all = true; break; }
+          near[3] = -fc - (depth - r * grow);
+          frustumPlanes(M, planes, n * 24, rect, near);
+          if (isNeed) need++; else want++;
+        }
+        if (all) break;
+      }
+    }
+    for (const c of this.cells) {
+      const p = c.see.pass;
+      if (all ? p.all() : p.update(U.seeNeed.subarray(0, need * 24), U.seeWant.subarray(0, want * 24))) this.send(c.see);
+    }
+  }
+
+  // a pass's new index list to the GPU (only the part in use)
+  send(part) {
+    const ix = part.geo.index, n = part.pass.count;
+    part.geo.setDrawRange(0, n);
+    if (!n) return;
+    ix.clearUpdateRanges();
+    ix.addUpdateRange(0, n);
+    ix.needsUpdate = true;
+  }
+
+  // what the cells drew last (for the probe and the tests): triangles per pass and how often their lists were rebuilt
+  cellStats() {
+    if (!this.cells) return null;
+    const sum = f => this.cells.reduce((s, c) => s + f(c), 0);
+    return { ms: this.cellMs, cells: sum(c => c.cells.n), tris: sum(c => c.cells.tris),
+      picture: sum(c => c.pic.pass.tris), seeThrough: sum(c => c.see.pass.tris), builds: [sum(c => c.pic.pass.builds), sum(c => c.see.pass.builds)] };
+  }
+
+  // Graphics quality ('high' or 'low', the game's resolved setting): Low draws no glass on the cloche, no fireflies, and
+  // the fairy bulbs without their twinkle (design/terrarium-prod-brief.md 3). The room's files are the same.
+  setQuality(q) {
+    this.quality = q === 'low' ? 'low' : 'high';
+    for (const c of this.cloches) c.visible = this.quality !== 'low';
+  }
+
+  // The stake's label: the slime's name and number (menu-objects.js)
+  setLabel(name, no) { if (this.menu) this.menu.setLabel(name, no); }
 
   // Night (1) or day (0); `instant` skips the blend (the first time the room shows).
   setNight(dark, instant = false) {
@@ -245,13 +405,14 @@ export class Greenhouse {
   }
   get night() { return this.U.uNight.value; }
 
-  // Per frame while the room shows: the day/night blend, glows, fireflies, the sky around the camera.
-  update(dt, camera, reduced = false) {
+  // Per frame while the room shows: the day/night blend, glows, fireflies, the sky around the camera, the menu objects.
+  // slime: a THREE.Box3 round the slime's see-through body (which menu objects it may show).
+  update(dt, camera, reduced = false, slime = null) {
     if (!this.ready) return;
     this.time += dt;
     const U = this.U.uNight, k = GREENHOUSE.blend;
     U.value += (this.target - U.value) * (1 - Math.exp(-dt * k));
-    if (Math.abs(this.target - U.value) < 0.002) U.value = this.target;
+    if (Math.abs(this.target - U.value) < BLEND_SNAP) U.value = this.target;
     const nt = U.value, t = this.time * 1000;
     this.starMat.opacity = nt;
     this.stars.visible = nt > 0.003;
@@ -260,17 +421,21 @@ export class Greenhouse {
       h.m.opacity = nt * tw;
       h.s.visible = h.m.opacity > 0.003;
     }
-    const on = nt > 0.003, tanHalf = camera ? Math.tan(camera.fov * Math.PI / 360) : 0.268;
+    const on = nt > 0.003, low = this.quality === 'low', tanHalf = camera ? Math.tan(camera.fov * Math.PI / 360) : 0.268;
     for (const [d, tw] of [[this.bulbs, (ph) => 0.75 + 0.25 * Math.sin(t / 700 + ph)], [this.fly, (ph) => Math.max(0, Math.sin(t / 600 + ph * 3)) ** 2]]) {
-      d.pts.visible = on;
-      if (!on) continue;
+      const show = on && !(low && d === this.fly);   // Low: no fireflies
+      d.pts.visible = show;
+      if (!show) continue;
       d.mat.opacity = nt;
       d.mat.size = d.world / tanHalf;   // the same size on screen as a halo `world` units wide, at any fov
+      const flat = reduced || low;      // no twinkle (Reduced motion; Low for the bulbs)
+      if (flat && d.flat) continue;     // (already drawn steady)
+      d.flat = flat;
       const col = d.pts.geometry.attributes.color;
-      d.base.forEach((c, i) => { const k = reduced ? 1 : tw(d.phase[i]); col.setXYZ(i, c.r * k, c.g * k, c.b * k); });
+      d.base.forEach((c, i) => { const k = flat ? 1 : tw(d.phase[i]); col.setXYZ(i, c.r * k, c.g * k, c.b * k); });
       col.needsUpdate = true;
     }
-    if (on) {
+    if (on && !low) {
       const pos = this.fly.pts.geometry.attributes.position;
       this.flies.forEach((f, i) => {
         const q = t / 1000 * f.sp + f.ph;
@@ -278,7 +443,12 @@ export class Greenhouse {
       });
       pos.needsUpdate = true;
     }
-    if (camera) { this.sky.position.copy(camera.position); this.stars.position.copy(camera.position); }
+    if (camera) {
+      this.sky.position.copy(camera.position); this.stars.position.copy(camera.position);
+      camera.layers.enable(MENU_LAYER);   // (the sky turns it off and on again within each frame)
+      camera.layers.enable(SEE_LAYER);    // [perf] (in the frame's list of things to draw; the sky picks the pass)
+      if (this.menu) this.menu.update(nt, camera, slime);
+    }
     // the slime's lights and the fog follow the blend
     const [a, b] = this.lights, o = this.light;
     o.hemi[0].lerpColors(a.hemi[0], b.hemi[0], nt);
@@ -298,6 +468,7 @@ export class Greenhouse {
   counts() {
     if (!this.meta) return null;
     const tris = this.meta.room_chunks.reduce((s, c) => s + c.tris, 0) + this.meta.floor.tris;
-    return { tris, chunks: this.meta.room_chunks.length + 1, glows: this.glows.length + this.bulbs.base.length + this.flies.length, loadMs: this.loadMs };
+    return { tris, chunks: this.meta.room_chunks.length + 1, glows: this.glows.length + this.bulbs.base.length + this.flies.length, loadMs: this.loadMs,
+      cloches: this.cloches.length, menu: this.menu ? this.menu.counts() : null };
   }
 }

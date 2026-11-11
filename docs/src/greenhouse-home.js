@@ -9,6 +9,7 @@
 //     ranch screen is the Barn ranch in every Background (barn-ranch.js): nothing of home is drawn there.
 //   - The camera turns only in the Greenhouse, at home, with no modal open: the camera button steps through the set
 //     angles; a one-finger drag that starts on empty background turns it around the slime; two fingers pinch to zoom.
+import * as THREE from 'three';
 import { GREENHOUSE } from './data/content.js';
 import { CUSHION_TOP } from './view/stage.js';
 import { Greenhouse } from './view/greenhouse.js';
@@ -24,6 +25,7 @@ export class Home {
   constructor(game) {
     this.g = game;
     this.room = new Greenhouse(game.scene);
+    this.room.seeThings = () => this.seeThings();   // [perf] what the room's see-through pass must show the room behind
     this.world = null;          // what shows: 'greenhouse' | 'meadow' | 'classic' | 'loading' (Classic look while the room loads)
     this.shown = false;         // [r3b] the loading screen has gone (from here on a change of the loading look cross-fades)
     this.hold = null;           // [r3b] the loading screen waiting for the room: { n: frames drawn, done }
@@ -45,6 +47,7 @@ export class Home {
   // From applySettings: pick what home shows for settings.scene.
   apply() {
     const g = this.g, want = g.state.settings.scene;
+    this.room.setQuality(g.resolvedQuality());   // (Low: no cloche glass, no fireflies, steady fairy bulbs)
     let world = want;
     if (want === 'greenhouse') {
       if (this.room.failed) world = 'meadow';
@@ -143,8 +146,52 @@ export class Home {
     if (this.drawn !== this.world) { this.drawn = this.world; document.documentElement.dataset.homeWorld = this.world; }
     this.veil.update(dt, GREENHOUSE.arrive.fade);   // [r3b]
     this.frameWorld();
-    if (this.inRoom && this.room.group.visible) this.room.update(dt, this.g.stage.camera, this.g.reduced);
+    if (this.inRoom && this.room.group.visible) {
+      const st = this.g.state;
+      this.room.setLabel(st.slime.name, 'No. ' + String(st.ranch.family.generation).padStart(4, '0'));   // the name stake
+      this.room.update(dt, this.g.stage.camera, this.g.reduced, this.slimeBox());
+    }
     this.frameCamera(dt);
+  }
+
+  // The box round the slime's see-through body (or round the egg on the stump), for the menu objects that body may show.
+  // Measured from the body's points four times a second (its shape changes slowly; the wobble is small).
+  slimeBox() {
+    const g = this.g, s = g.slime, b = this.body || (this.body = { box: new THREE.Box3(), t: -1, v: new THREE.Vector3(),
+      egg: new THREE.Box3(new THREE.Vector3(-0.6, CUSHION_TOP, -0.6), new THREE.Vector3(0.6, CUSHION_TOP + 1.2, 0.6)) });
+    if (!s.root.visible) { b.t = -1; return b.egg; }
+    if (b.t >= 0 && g.time - b.t < 0.25) return b.box;
+    b.t = g.time;
+    const pos = s.geo.attributes.position, m = s.mesh.matrixWorld, box = b.box.makeEmpty();
+    for (let i = 0; i < pos.count; i += 3) box.expandByPoint(b.v.fromBufferAttribute(pos, i).applyMatrix4(m));
+    return box.isEmpty() ? b.egg : box;
+  }
+
+  // [perf] The see-through things at home, for the room's see-through pass (greenhouse.js cull()): spheres in each
+  // thing's own space. The slime's body: round its points, measured four times a second (in its own space, so it
+  // follows every hop and the send-off as it happens); its baby feet; the helpers' see-through goo and water.
+  seeThings() {
+    const g = this.g, s = g.slime, out = this._see || (this._see = []);
+    out.length = 0;
+    if (s.root.visible && s.mat.transmission > 0 && !(g.barnRanch && g.barnRanch.active)) {
+      const b = this.bodySphere || (this.bodySphere = { c: [0, 0, 0], r: 0, t: -1, box: new THREE.Box3(), v: new THREE.Vector3() });
+      if (b.t < 0 || g.time - b.t >= 0.25 || g.time < b.t) {
+        b.t = g.time;
+        const pos = s.geo.attributes.position, box = b.box.makeEmpty();
+        for (let i = 0; i < pos.count; i++) box.expandByPoint(b.v.fromBufferAttribute(pos, i));
+        if (box.isEmpty()) { b.c = [0, 0.7, 0]; b.r = 3.2; }   // (the body's own bounding sphere)
+        else {
+          box.getCenter(b.v); b.c = [b.v.x, b.v.y, b.v.z];
+          let r2 = 0;
+          for (let i = 0; i < pos.count; i++) r2 = Math.max(r2, b.v.set(pos.getX(i) - b.c[0], pos.getY(i) - b.c[1], pos.getZ(i) - b.c[2]).lengthSq());
+          b.r = Math.sqrt(r2);
+        }
+      }
+      if (s.mesh.visible) out.push({ obj: s.mesh, c: b.c, r: b.r });
+      for (const f of s.feet) if (f.visible) out.push({ obj: f, c: [0, 0, 0], r: 1 });
+    }
+    for (const t of g.helpers3d.seeMeshes()) out.push(t);
+    return out;
   }
 
   // ---------- the camera ----------
