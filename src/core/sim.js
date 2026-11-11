@@ -14,7 +14,7 @@ import { medalFor, medalRank } from './medals.js';
 import { createHeirlooms, migrateHeirlooms, heirloomMult, heirloomFlag, startHelpers, forSale, ownsHeirloom } from './heirlooms.js';
 import { rollPlainEgg, oldBody, cleanBody } from './recipe.js';
 import { SAVE_VERSION, num, numOrNull, nums, count } from './save-check.js';
-import { createResidentContests } from './contests.js';
+import { createResidentContests, cleanWorn } from './contests.js';
 
 export { SAVE_VERSION };
 
@@ -114,7 +114,8 @@ export function migrate(save) {
   out.egg = { ...fresh.egg, ...(save.egg || {}) };
   out.jar = { ...fresh.jar, ...(save.jar || {}) };
   out.outfits = { ...fresh.outfits, ...(save.outfits || {}) };
-  out.outfits.worn = { ...fresh.outfits.worn, ...(save.outfits?.worn || {}) };
+  // what it wears: one outfit of the right kind per slot (an unknown one or one in another slot's place comes off)
+  out.outfits.worn = cleanWorn({ ...fresh.outfits.worn, ...(save.outfits?.worn || {}) });
   if (!Array.isArray(out.outfits.owned)) out.outfits.owned = [];
   if (Array.isArray(save.upgrades)) out.upgrades = [...new Set(save.upgrades.map(id => UPGRADE_RENAMES[id] || id))];
   for (const k of ['upgrades', 'combos', 'buffs', 'memories', 'memKeys', 'secrets']) if (!Array.isArray(out[k])) out[k] = [];
@@ -777,11 +778,14 @@ export class Sim {
     o.owned.push(id);
     return def;
   }
+  // Put an outfit the family owns on (the one in its slot comes off), or take the one it wears off. Anything it wears
+  // can come off, even one the family does not own (a hand-made save); only an owned one goes on.
   wear(id) {
     const def = OUTFIT_BY_ID[id];
     const o = this.s.outfits;
-    if (!def || !o.owned.includes(id)) return null;
+    if (!def) return null;
     const on = o.worn[def.slot] !== id;
+    if (on && !o.owned.includes(id)) return null;
     o.worn[def.slot] = on ? id : null;
     let discovered = false;
     if (on && id === o.favorite && !o.knownFavorite) { o.knownFavorite = true; discovered = true; }

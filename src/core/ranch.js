@@ -9,7 +9,7 @@ import { heirloomMult } from './heirlooms.js';
 import { oldBody, cleanBody, rollSpecialEgg } from './recipe.js';
 import { createLife, migrateLife, migrateResident, pearlSkillMult, fadeMult, offerSkillMult, friendMult, busy } from './ranch-life.js';
 import { num, numOrNull, nums, count } from './save-check.js';
-import { createRanchContests, migrateRanchContests, migrateResidentContests, contestPearlMult, contestOfferMult } from './contests.js';
+import { createRanchContests, migrateRanchContests, migrateResidentContests, contestPearlMult, contestOfferMult, cleanWorn } from './contests.js';
 
 // a resident's number fields and the value a broken one gets (save safety)
 const RESIDENT_NUMS = [['runTotal', 0], ['bondXp', 0], ['bondLevel', 0], ['happiness', 90], ['pearlT', 0], ['petAt', 0], ['movedAt', 0], ['generation', 1]];
@@ -71,6 +71,7 @@ export function migrateRanch(saved) {
     Object.assign(x, 'breed' in x ? cleanBody(x) : oldBody());
     migrateResident(x);   // ranch life: skills, lesson, trip
     migrateResidentContests(x);   // contests: no trophies yet
+    x.worn = cleanWorn(x.worn);   // what it wears: one outfit of the right kind per slot (none for one from before outfits)
     // numbers (save safety): only the fields it has; a string or NaN becomes a safe value
     for (const [k, d] of RESIDENT_NUMS) if (k in x) x[k] = num(x[k], d);
     if ('jps' in x) x.jps = num(x.jps, residentJpsFor(x.runTotal || 0));
