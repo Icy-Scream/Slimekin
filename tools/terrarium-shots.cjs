@@ -4,6 +4,9 @@
 //   node tools/terrarium-shots.cjs [--dpr 2] [--only front,night,angles,classic,low,helpers] [--out DIR]
 //   front    Front, day                                 front-day.png
 //   night    Front, night (the blend run to its end)    front-night.png
+//   p2cam    Front day and night through the camera of Usopp's P2 frames (his capture: the same room at the same
+//            spot on the screen, for his calm-zone numbers and a like-for-like look)   p2cam-day.png, p2cam-night.png;
+//            and each again without the slime (p2cam-day-noslime.png...): the difference is the game's own silhouette
 //   angles   Wide, Left, Right, day                     wide-day.png, left-day.png, right-day.png
 //   classic  Settings > Background > Classic, day       classic-day.png (the plain floor; none of the room)
 //   low      Graphics Low, Front, night                 low-night.png (no cloche glass, no fireflies)
@@ -19,11 +22,16 @@ const { setup, watchdog, log } = require('./browser-kit.cjs');
 
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
 const DPR = +arg('dpr', 2);
-const ONLY = String(arg('only', 'front,night,angles,classic,low,helpers')).split(',');
+const ONLY = String(arg('only', 'front,night,p2cam,angles,classic,low,helpers')).split(',');
 const OUT = path.resolve(arg('out', path.join(__dirname, 'out', 'terrarium-p4')));
 fs.mkdirSync(OUT, { recursive: true });
 const SAVE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/barn/barn-six.json'), 'utf8')).save;
 const T0 = Date.UTC(2026, 10, 11, 14, 0, 0);   // 14:00 (UTC on the test machines): the slime is awake
+// the camera of Usopp's P2 HOME frames (slimekin-notes-usopp-t2 samples/terrarium-p2/masks/pebble_cam.json: Pebble at
+// growth 48, a hatchling, 390 x 844; the frames' menu was a mock, shorter than the game's, so the game's own Front camera
+// sits a little lower and nearer)
+const P2CAM = { matrixWorld: [1, 0, 0, 0, 0, 0.9894570799517027, -0.1448264027498085, 0, 0, 0.1448264027498085, 0.9894570799517027, 0, 0, 2.761029044872625, 12.467766497693578, 1],
+  fov: 30, aspect: 0.46208530805687204, near: 0.1, far: 120, offsetY: 2.3874061196981495 };
 const HELPERS = { feather: 6, bubbles: 1, garden: 6, slimeling: 5, musicbox: 1, lamp: 6, fountain: 1, observatory: 1, spa: 1, rainbow: 1 };
 
 (async () => {
@@ -129,6 +137,39 @@ const HELPERS = { feather: 6, bubbles: 1, garden: 6, slimeling: 5, musicbox: 1, 
       log('draw calls', JSON.stringify(numbers.drawCalls));
     }, 300000);
     if (ONLY.includes('night')) await step('front night', async () => { await night(true); await shot('front-night'); await night(false); }, 400000);
+    if (ONLY.includes('p2cam')) {
+      await step('the P2 camera', async () => {
+        // pinned at every render (the game sets its camera's offset and eases its fov each frame), the see-through
+        // check rerun for it; put back afterwards
+        await ev(c => {
+          const g = window.slimekin, st = g.stage, cam = st.camera, keep = { fov: cam.fov, aspect: cam.aspect, near: cam.near, far: cam.far };
+          st.p2keep = { render: st.render, keep };
+          st.render = function () {
+            const root = g.slime.root, shown = root.visible;
+            if (st.p2keep.noSlime) root.visible = false;
+            cam.matrix.fromArray(c.matrixWorld); cam.matrix.decompose(cam.position, cam.quaternion, cam.scale);
+            cam.fov = c.fov; cam.aspect = c.aspect; cam.near = c.near; cam.far = c.far;
+            cam.setViewOffset(390, 844, 0, c.offsetY, 390, 844);
+            cam.updateMatrixWorld(true);
+            if (g.home.room.menu) g.home.room.menu.seeThrough(cam, g.home.slimeBox());
+            st.p2keep.render.call(st);
+            root.visible = shown;
+          };
+        }, P2CAM);
+        const noSlime = on => ev(o => { window.slimekin.stage.p2keep.noSlime = o; }, on);
+        await shot('p2cam-day');
+        await noSlime(true); await shot('p2cam-day-noslime'); await noSlime(false);
+        await night(true);
+        await shot('p2cam-night');
+        await noSlime(true); await shot('p2cam-night-noslime'); await noSlime(false);
+        await night(false);
+        await ev(() => {
+          const st = window.slimekin.stage, cam = st.camera;
+          st.render = st.p2keep.render; Object.assign(cam, st.p2keep.keep); cam.updateProjectionMatrix(); delete st.p2keep;
+        });
+        await runSlices(1500);
+      }, 600000);
+    }
     if (ONLY.includes('angles')) {
       for (const v of ['wide', 'left', 'right']) await step(v, async () => { await view(v); await shot(v + '-day'); }, 300000);
       await step('back to front', () => view('front'), 120000);
