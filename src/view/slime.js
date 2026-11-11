@@ -1160,7 +1160,10 @@ export class SlimeAvatar {
   }
 
   // ---------- frame ----------
-  update(dt) {
+  // drawn: false while nothing draws this avatar (a ranch hill resident while the hill is hidden: the Greenhouse, the
+  // barn): it lives on (springs, hops, blinks, colours) but its body, face patch and face picture aren't reworked.
+  // [perf] (they were most of a hidden resident's cost: six of them every tenth of a second)
+  update(dt, drawn = true) {
     this.time += dt;
     const t = this.time;
 
@@ -1289,7 +1292,7 @@ export class SlimeAvatar {
     if (this.pure) this.mat.iridescenceThicknessRange[1] = 420 + 180 * Math.sin(t * 0.7);
 
     // deform body (every lod-th frame)
-    this._reshaped = ++this._lodN % this.lod === 0;
+    this._reshaped = drawn && ++this._lodN % this.lod === 0;
     if (this._reshaped) this.deform();
     const o = this._o;
     // the baby's feet (they tuck in as it grows) and the bubbles inside, riding the body
@@ -1316,7 +1319,7 @@ export class SlimeAvatar {
 
     // face patch
     const fp = this.faceGeo.attributes.position.array, fd = this.faceDirs;
-    for (let i = 0; i < fd.length; i += 3) {
+    for (let i = 0; i < fd.length && drawn; i += 3) {
       const dx = fd[i], dy = fd[i + 1], dz = fd[i + 2];
       this.shape(dx, dy, dz, Math.atan2(dz, dx), o);
       const ny = o.y - CENTER_Y * (1 + this.sq.x);
@@ -1325,7 +1328,7 @@ export class SlimeAvatar {
       fp[i + 1] = o.y + ny / len * 0.012;
       fp[i + 2] = o.z + o.z / len * 0.012;
     }
-    this.faceGeo.attributes.position.needsUpdate = true;
+    if (drawn) this.faceGeo.attributes.position.needsUpdate = true;
 
     // eyes: look + blink
     if (this.lookTarget) {
@@ -1347,7 +1350,7 @@ export class SlimeAvatar {
       if (this.blinkPhase >= 1) { this.blinkPhase = -1; this.blink = 0; }
     }
     this.faceT -= dt;
-    if (!this.lite || this.faceT <= 0) {
+    if (drawn && (!this.lite || this.faceT <= 0)) {
       this.faceT = 1 / 12;
       this.face.draw(this.expr, this.look, this.blink, t);
       this.face.texture.needsUpdate = true;
