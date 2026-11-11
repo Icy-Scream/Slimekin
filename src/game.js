@@ -25,7 +25,7 @@
 import * as THREE from 'three';
 import { Sim, createState, migrate } from './core/sim.js';
 import { Requests } from './core/requests.js';
-import { FOODS, FOOD_BY_ID, HELPERS, UPGRADE_BY_ID, OUTFITS } from './data/content.js';
+import { FOODS, FOOD_BY_ID, HELPERS, UPGRADE_BY_ID, OUTFITS, AUTO_QUALITY } from './data/content.js';
 import { Stage, CUSHION_TOP } from './view/stage.js';
 import { SlimeAvatar } from './view/slime.js';
 import { FX } from './view/fx.js';
@@ -175,7 +175,10 @@ export class Game {
     this.cloudSoon = false;
     this.viewOff = new THREE.Vector2();
     this.viewGoal = new THREE.Vector2();
-    this.perf = { t: 0, frames: 0, slow: 0, work: 0, level: 0 };
+    // frame-rate watch (trackSpeed): the window's frames, their gaps (win), caps and work; the display's beat from the last 32
+    // gaps between its frames (beats); level: Auto's step (0 High, 1 pixel ratio 1.5, 2 Low)
+    this.perf = { t: 0, frames: 0, work: 0, level: 0, beat: 1000 / 60, rafAt: 0, beats: new Float64Array(32), bi: 0, bn: 0, sorted: new Float64Array(32),
+      win: new Float64Array(512), cap: new Float64Array(512), bad: 0, settle: AUTO_QUALITY.settle, stalled: false, steps: [] };
     this.v1 = new THREE.Vector3();
     this.v2 = new THREE.Vector3();
     this.v3 = new THREE.Vector3();
@@ -215,6 +218,7 @@ export class Game {
     // Capped at 60 fps (120 Hz phones would otherwise burn battery), 30 fps when things are calm.
     const loop = now => {
       requestAnimationFrame(loop);
+      this.beatTick(now);   // [perf] every callback, drawn or not: the display's own beat
       const target = this.calm() ? 1000 / 30 : 1000 / 60;
       const gap = now - this.last;
       if (gap < target - 2) return;
@@ -277,7 +281,7 @@ export class Game {
     this.barnRanch.view.setQuality(this.resolvedQuality());   // [barn]
     if (s.quality === 'low') this.stage.setPixelRatio(1);
     else if (s.quality === 'high') this.stage.setPixelRatio(2);
-    else this.stage.setPixelRatio(this.perf.level >= 1 ? 1.25 : 2);
+    else this.stage.setPixelRatio(this.perf.level >= 1 ? AUTO_QUALITY.ratio1 : 2);
     this.resize();
   }
 
@@ -314,21 +318,44 @@ export class Game {
       !(this.barnRanch.active && this.barnRanch.view.swapping);   // [barn] the burrow swap: full frame rate
   }
 
-  // Watches for frames arriving late. Lowers graphics quality on "Auto" if the device keeps struggling.
+  // [perf] The display's own beat: the gap between the browser's frame callbacks, drawn or not (60 Hz: 16.7 ms; Low Power
+  // Mode on an iPhone, or a 30 Hz screen: 33.3 ms).
+  beatTick(now) {
+    const p = this.perf, d = now - p.rafAt;
+    p.rafAt = now;
+    if (d > 0 && d < AUTO_QUALITY.stall) { p.beats[p.bi] = d; p.bi = (p.bi + 1) % p.beats.length; if (p.bn < p.beats.length) p.bn++; }
+  }
+
+  // Watches for frames arriving late, and on "Auto" lowers graphics quality if the device keeps struggling. [perf] A frame
+  // is late when it misses its beat (the display's own, or the game's cap when calm): a phone in Low Power Mode, which
+  // shows 30 frames a second, steady, is not struggling. Steps down after a few seconds of late frames, never back up
+  // (no flip-flop); see AUTO_QUALITY.
   trackSpeed(gap, target, workMs) {
-    const p = this.perf;
+    const p = this.perf, A = AUTO_QUALITY;
+    if (gap > A.stall) { p.stalled = true; return; }   // a stall (the phone busy elsewhere, an alert): not the game's pace
+    if (p.frames < p.win.length) { p.win[p.frames] = gap; p.cap[p.frames] = target; }
     p.t += gap / 1000;
     p.frames++;
     p.work += workMs;
-    if (gap > target * 1.5 + 4) p.slow++;
-    if (p.t >= 3) {
-      const fps = p.frames / p.t, slowShare = p.slow / p.frames, work = p.work / p.frames;
-      p.t = 0; p.frames = 0; p.slow = 0; p.work = 0;
-      this.hud.setSpeed(this.state.settings.showFps ? `${Math.round(fps)} fps · ${work.toFixed(1)} ms · ${['high', 'medium', 'low'][p.level]}` : null);
-      if (this.state.settings.quality === 'auto' && slowShare > 0.4 && p.level < 2 && !document.hidden) {
-        p.level++;
-        this.applySettings();
-      }
+    if (p.t < A.window) return;
+    // the beat: a low quarter of the last gaps between frame callbacks (missed beats show as longer gaps)
+    if (p.bn >= 8) { const s = p.sorted.subarray(0, p.bn); s.set(p.beats.subarray(0, p.bn)); s.sort(); p.beat = s[p.bn >> 2]; }
+    const n = Math.min(p.frames, p.win.length);
+    let late = 0;
+    for (let i = 0; i < n; i++) if (p.win[i] > Math.max(p.cap[i], p.beat) * A.late) late++;
+    const fps = p.frames / p.t, lateShare = late / n, work = p.work / p.frames;
+    p.t = 0; p.frames = 0; p.work = 0;
+    p.lateShare = lateShare;
+    this.hud.setSpeed(this.state.settings.showFps ? `${Math.round(fps)} fps · ${work.toFixed(1)} ms · ${['high', 'medium', 'low'][p.level]}` : null);
+    if (p.settle > 0 || p.stalled) { p.settle = Math.max(0, p.settle - 1); p.stalled = false; p.bad = 0; return; }
+    if (this.state.settings.quality !== 'auto' || p.level >= 2 || document.hidden) { p.bad = 0; return; }
+    p.bad = lateShare >= A.lateShare ? p.bad + 1 : 0;
+    if (p.bad >= A.windows || lateShare >= A.veryLate) {
+      p.level++;
+      p.bad = 0;
+      p.settle = A.settleAfter;
+      p.steps.push({ at: +this.time.toFixed(1), level: p.level, lateShare: +lateShare.toFixed(2), beat: +p.beat.toFixed(1) });
+      this.applySettings();
     }
   }
 

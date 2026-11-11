@@ -58,6 +58,7 @@ export class WelcomePart {
       this.sfx.purr(false);
     } else {
       this.sfx.resume();
+      this.perf.settle = Math.max(this.perf.settle, 1);   // [perf] (Auto quality: the first frames back are not judged)
       this.behave.morningCheck();
       if (this.hiddenAt) {
         const ra = this.life.passTime((Date.now() - this.hiddenAt) / 1000);   // (ranch life too)
