@@ -1,11 +1,12 @@
 // The room's cells (terrarium-perf): plain math, no three.js (tools/greenhouse-test.mjs runs it in node).
-// Each of the room's chunks (gh.bin) is one mesh with up to 120k triangles. Most of them are off the picture in any
-// one camera angle (Front sees about 38% of the room), and the slime's see-through body only ever shows the few behind
-// it (about 6-9%). So, once at load, each chunk's triangles are re-sorted into small spatial cells (a k-d tree on the
-// triangle centres, the long triangles kept apart so they don't stretch the small cells' boxes): every cell is a run of
-// the sorted index list with a box round it. A pass then draws only the cells inside its frustum, through an index
-// list of its own (CellPass): the picture the camera's frustum, the see-through pass the narrow frustums behind the
-// see-through things. The baked vertex colours are untouched; it's the same triangles, fewer of them sent.
+// Each of the room's chunks (gh.bin) is one mesh with up to 120k triangles. Many of them are off the picture in any one
+// camera angle (Front's picture shows about 40% of the room's triangles), and the slime's see-through body only ever
+// shows the few behind it (about 6-9%). So, once at load, each chunk's triangles are re-sorted into small spatial cells
+// (a k-d tree on the triangle centres, the long triangles kept apart so they don't stretch the small cells' boxes):
+// every cell is a run of the sorted index list with a box round it. A pass then draws only the cells inside its
+// frustum, through an index list of its own (CellPass): the picture the camera's frustum, the see-through pass the
+// narrow frustums behind the see-through things. The baked vertex colours are untouched; it's the same triangles, fewer
+// of them sent.
 //
 // Planes: a flat array of [nx, ny, nz, c] per plane (inside where n . p + c >= 0), six per frustum.
 
