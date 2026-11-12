@@ -896,9 +896,11 @@ function foldAll(cv, idx, ramp, steps) {
 // opts: fam ('curly' | 'dollop' | 'mixed'), frame (a kit frame id), form (a form id: 'spark', 'heat+sweet', ...), theme,
 // expr (open, blink, happy, determined, cheer, think), worn (kit outfit names, head / face / neck order), pure, propFrame
 // (0 | 1), spark (the Volt's surge spark frame or null), breed ('ears' | 'topknot' | null), ramps (a body ramp
-// { day: {outline..highlight}, night: {...} } for a rival's place colour; null: the form's own, from the kit)
+// { day: {outline..highlight}, night: {...} } for a rival's place colour or a slime's own colour; null: the form's own,
+// from the kit), fc (the form's forms_colours entry with its colours moved: race-colour.js; null: the kit's)
 // Returns a Uint8ClampedArray(56 * 56 * 4).
-export function composeRunner(kit, { fam, frame, form, theme = 'day', expr = 'open', worn = [], pure = false, propFrame = 0, spark = null, breed = null, ramps = null }) {
+export function composeRunner(kit, { fam, frame, form, theme = 'day', expr = 'open', worn = [], pure = false, propFrame = 0, spark = null, breed = null, ramps = null, fc = null }) {
+  const FC = fc || kit.fc[form];   // fc: the form's colours moved to this slime's own (race-colour.js runnerColours)
   const fid = frame;
   const extra = worn.filter(w => !PILOT_WORN.includes(w));
   const pilot = worn.filter(w => PILOT_WORN.includes(w));
@@ -906,7 +908,7 @@ export function composeRunner(kit, { fam, frame, form, theme = 'day', expr = 'op
   if (form === 'spark') {
     ({ cv, info, idx, F } = composeBase(kit, fam, fid, theme, expr, propFrame, pilot, 'volt', spark, ramps));
   } else {
-    const fcf = kit.fc[form];
+    const fcf = FC;
     const rr = ramps || fcf.ramps[fam];
     ({ cv, info, idx, F, ramp } = composeBase(kit, fam, fid, theme, expr, 0, pilot, form, spark, rr));
     const top = topMap(F), formDef = kit.forms[form];
@@ -944,11 +946,11 @@ export function composeRunner(kit, { fam, frame, form, theme = 'day', expr = 'op
   const top = topMap(F);
   if (breed) {
     const steps = kit.j.steps;
-    const src = form === 'spark' ? (ramps || kit.j.families[fam].ramp) : (ramps || kit.fc[form].ramps[fam]);
+    const src = form === 'spark' ? (ramps || kit.j.families[fam].ramp) : (ramps || FC.ramps[fam]);
     const rp = Object.fromEntries(Object.entries(src[theme]).map(([s, v]) => [s, hexrgb(v)]));
     let rampAt;
-    if (((kit.fc[form] || {}).pattern_names || []).includes('aurora')) {
-      const bands = kit.fc[form].pattern.aurora.bands;
+    if (((FC || {}).pattern_names || []).includes('aurora')) {
+      const bands = FC.pattern.aurora.bands;
       let xL = CAN, xR = -1;
       for (let p = 0; p < N; p++) if (idx[p]) { const x = p % CAN; if (x < xL) xL = x; if (x > xR) xR = x; }
       const pick = bd => (theme === 'night' ? bd.ramp_night[fam] : bd.ramp);
