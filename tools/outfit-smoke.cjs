@@ -4,9 +4,14 @@
 // Everywhere it checks three things agree: what the save says it wears, what the 3D slime draws (every outfit object
 // still attached to it, so a leftover shows up) and what the page shows as worn.
 //   dress    real touches (CDP Input.dispatchTouchEvent): Mochi's Dress up shows the Artist Beret she wears (the family
-//            does not own one) as Wearing; touching the Tiny Crown (not owned) shakes it and changes nothing; the crown
-//            bought in Outfits goes on Pebble at home, then Dress up puts it on Mochi: the beret is gone from the stand
-//            and the hidden ranch avatar, and its row reads "In Outfits"
+//            does not own one) as Wearing, the family's outfits as "Wear", the rest as "Needs N jelly" (a touch does
+//            nothing); "Wear" puts the Round Glasses on; with more jelly the open card turns rows into "<price> Buy &
+//            wear", and touching the Tiny Crown's buys it with the Outfits page's rule (jelly down by exactly its price)
+//            and puts it on Mochi: the beret is gone from the save, the stand and the ranch avatar, the Style meter counts
+//            the crown, Pebble keeps what she wore; a reload keeps it (the captain, 11 Nov: "I should be able to wear
+//            items from my outfits and select wear too")
+//   home     the Outfits page's tiles read the same labels ("✓ Wearing", "Wear", "<price> Buy & wear", "Needs N jelly");
+//            "Needs" does nothing, "Buy & wear" buys at the price and Pebble wears it
 //   pairs    clicks: every slot, every pair of outfits in it, in both orders, as one walk per slot: at home in the
 //            Outfits page and on Mochi in Dress up (the stand and the ranch avatar too); the same one again takes it off
 //   swap     two residents dressed differently swap on the stand back and forth: each wears only its own
@@ -15,7 +20,7 @@
 //            worn and a touch takes it off
 //   counter  the jelly counter's number is set in M PLUS Rounded 1c 800 (design/STYLE.md §4: DynaPuff's B reads as 8)
 // Fails on any page error. Screenshots (day, and night unless --quick) in tools/out/outfits/.
-//   node tools/outfit-smoke.cjs [--quick] [--dpr 2] [--only=dress,pairs,swap,reload,unowned,counter] [--fonts <dir>]
+//   node tools/outfit-smoke.cjs [--quick] [--dpr 2] [--only=dress,home,pairs,swap,reload,unowned,counter] [--fonts <dir>]
 //   (--fonts: a folder with DynaPuff[wdth,wght].ttf and MPLUSRounded1c-Bold/ExtraBold.ttf, for screenshots in the
 //   game's own fonts; offline the page falls back to the system's)
 const path = require('path');
@@ -25,7 +30,7 @@ const { setup, watchdog, log } = require('./browser-kit.cjs');
 const arg = (name, def) => { const a = process.argv.find(x => x.startsWith(`--${name}=`)); if (a) return a.slice(name.length + 3); const i = process.argv.indexOf('--' + name); return i > 0 && process.argv[i + 1] && !process.argv[i + 1].startsWith('--') ? process.argv[i + 1] : def; };
 const QUICK = process.argv.includes('--quick');
 const DPR = Number(arg('dpr', 1));
-const ONLY = arg('only', 'dress,pairs,swap,reload,unowned,counter').split(',').filter(Boolean);
+const ONLY = arg('only', 'dress,home,pairs,swap,reload,unowned,counter').split(',').filter(Boolean);
 const want = k => ONLY.includes(k);
 const FONTS = arg('fonts', process.env.SLIMEKIN_FONTS || '');
 const OUT = path.join(__dirname, 'out', 'outfits');
@@ -252,7 +257,7 @@ function touchKit() {
       if (JSON.stringify(r.av.held) !== JSON.stringify(e)) why.push(`3D holds ${W(r.av.held)}`);
       if (JSON.stringify(r.av.attached) !== JSON.stringify(on)) why.push(`3D draws ${r.av.attached.join('+') || 'nothing'}`);
       if (r.rows && JSON.stringify(r.ui.map(u => u.id).sort()) !== JSON.stringify(on)) why.push(`page marks ${r.ui.map(u => u.id).join('+') || 'nothing'} worn`);
-      if (r.rows && r.ui.some(u => u.chip !== 'Wearing' || u.pressed !== 'true')) why.push(`a worn row reads ${r.ui.map(u => `${u.id}:${u.chip}:${u.pressed}`).join(' ')}`);
+      if (r.rows && r.ui.some(u => !/^Wearing$/.test(u.chip.trim()) || u.pressed !== 'true')) why.push(`a worn row reads ${r.ui.map(u => `${u.id}:${u.chip}:${u.pressed}`).join(' ')}`);
       return why;
     };
     const agreeRes = (r, exp, { stand = true } = {}) => {
@@ -271,53 +276,171 @@ function touchKit() {
     };
 
     // ---------------- the captain's path, real touches ----------------
+    // a Dress up row as the player reads it (what is shown; a hidden label is not in innerText), by outfit id
+    const dressRow = oid => ev(o => { const row = document.querySelector(`#modalCard .cs-outfit[data-outfit="${o}"]`); return row ? { text: row.innerText.replace(/\s+/g, ' ').trim(), pressed: row.getAttribute('aria-pressed') } : null; }, oid);
+    const meter = () => ev(() => (document.querySelector('#modalCard .cs-meter b') || {}).textContent || '');
+    // prices, their short labels and Style, from the game's own content.js
+    const content = () => ev(async () => {
+      const c = await import('/src/data/content.js'), f = await import('/src/core/format.js');
+      return { cost: Object.fromEntries(c.OUTFITS.map(o => [o.id, o.cost])), short: Object.fromEntries(c.OUTFITS.map(o => [o.id, f.fmtShort(o.cost)])), slot: Object.fromEntries(c.OUTFITS.map(o => [o.id, o.slot])), style: c.CONTESTS.style, cap: c.CONTESTS.score.styleCap };
+    });
+    // every buy from here on, with the jelly just before and just after it (helpers keep making jelly between frames, so
+    // the price is checked inside the call): Sim.buyOutfit (the Outfits page's rule) and Sim.buyAndDress (Dress up's)
+    const probe = () => ev(() => {
+      const sim = window.slimekin.sim;
+      if (sim.__probe) { sim.__probe.length = 0; return; }
+      sim.__probe = [];
+      for (const k of ['buyOutfit', 'buyAndDress']) {
+        const orig = sim[k];
+        if (typeof orig !== 'function') continue;
+        sim[k] = function (...a) { const before = this.s.jelly, r = orig.apply(this, a); sim.__probe.push({ k, a, before, after: this.s.jelly, ok: !!r && r.ok !== false }); return r; };
+      }
+    });
     if (want('dress')) {
-      await step('dress: Mochi\'s Dress up, the beret she wears', async () => {
+      await step('dress: Mochi\'s Dress up, every kind of row', async () => {
         await toBarn();
         await onStand(MOCHI);
         await touchEl('#body-ranch [data-cs="dress"]');
         await modalIs('dress');
+        const K = await content();
         const r = await ev(i => window.__ok.res(i), MOCHI);
-        const first = await ev(() => { const g = [...document.querySelectorAll('#modalCard .cs-group')].find(e => e.textContent === 'Head'), row = g && g.nextElementSibling; return row ? { text: row.innerText.replace(/\s+/g, ' ').trim(), pressed: row.getAttribute('aria-pressed'), not: row.classList.contains('not') } : null; });
+        const first = await ev(() => { const g = [...document.querySelectorAll('#modalCard .cs-group')].find(e => e.textContent === 'Head'), row = g && g.nextElementSibling; return row ? { text: row.innerText.replace(/\s+/g, ' ').trim(), pressed: row.getAttribute('aria-pressed'), id: row.dataset.outfit } : null; });
         log('Head, first row:', JSON.stringify(first), '| worn', W(r.state), '| stand', r.stand && r.stand.attached.join('+'));
         check(r.state.head === 'beret' && r.stand && r.stand.attached.join() === 'beret', 'the test ranch: Mochi wears the Artist Beret (the family owns none) and the stand draws it', JSON.stringify(r.stand));
-        check(!!first && /^Artist Beret .*Wearing$/.test(first.text) && first.pressed === 'true' && !first.not, 'Dress up shows the beret she wears as Wearing (first under Head), not as an outfit she can\'t have', JSON.stringify(first));
-        await shot('dress-1-beret');
-        // the Tiny Crown: the family does not own it yet
-        await ev(() => { const row = [...document.querySelectorAll('#modalCard .cs-outfit')].find(e => (e.querySelector('b') || {}).textContent === 'Tiny Crown'); row.setAttribute('data-test', 'crown'); });
-        await touchEl('#modalCard [data-test="crown"]');
-        await page.waitForTimeout(150);
-        const t = await ev(i => { const row = document.querySelector('#modalCard [data-test="crown"]') || [...document.querySelectorAll('#modalCard .cs-outfit')].find(e => (e.querySelector('b') || {}).textContent === 'Tiny Crown'); return { shook: !!row && row.classList.contains('shake'), text: row && row.innerText.replace(/\s+/g, ' ').trim(), res: window.__ok.res(i) }; }, MOCHI);
-        check(t.shook && /In Outfits/.test(t.text), 'touching the Tiny Crown (not owned) answers: the row shakes, and it says where to get one ("In Outfits")', JSON.stringify({ shook: t.shook, text: t.text }));
-        check(!agreeRes(t.res, { head: 'beret' }).length, 'and nothing changes: she keeps the beret (save, stand, ranch avatar, card)', agreeRes(t.res, { head: 'beret' }).join('; '));
-        await touchEl('#modalCard [data-cs="done"]');
-        await page.waitForFunction(() => document.getElementById('modal').hidden, null, { timeout: 30000 });
+        check(!!first && first.id === 'beret' && /^Artist Beret .*Wearing$/.test(first.text) && first.pressed === 'true', 'Dress up shows the beret she wears as "Wearing", first under Head', JSON.stringify(first));
+        const jelly0 = await ev(() => window.slimekin.state.jelly);
+        const rows = {};
+        for (const o of ['bow', 'flowers', 'party', 'crown', 'glasses', 'shades', 'bowtie', 'scarf']) rows[o] = await dressRow(o);
+        log('rows:', Object.entries(rows).map(([k, v]) => `${k}: ${v && v.text}`).join(' | '));
+        const owned = ['bow', 'flowers', 'glasses', 'bowtie', 'scarf'], poor = ['party', 'crown', 'shades'];
+        check(owned.every(o => rows[o] && / Wear$/.test(rows[o].text) && rows[o].pressed === 'false'), 'every outfit the family owns reads "Wear"', owned.map(o => rows[o] && rows[o].text).join(' / '));
+        check(poor.every(o => rows[o] && rows[o].text.endsWith(`Needs ${K.short[o]} jelly`) && !/Buy|In Outfits/.test(rows[o].text)), `with ${Math.round(jelly0)} jelly, the ones the family can't afford read "Needs N jelly" (the Tiny Crown: "Needs ${K.short.crown} jelly")`, poor.map(o => rows[o] && rows[o].text).join(' / '));
+        await shot('dress-1-needs');
+        // touching a row it can't afford does nothing
+        await probe();
+        await touchEl('#modalCard .cs-outfit[data-outfit="crown"]');
+        await page.waitForTimeout(300);
+        const t = await ev(i => { const g = window.slimekin; return { res: window.__ok.res(i), owned: g.state.outfits.owned.slice(), jelly: g.state.jelly, probe: g.sim.__probe.slice() }; }, MOCHI);
+        const crownRow = await dressRow('crown');
+        check(!agreeRes(t.res, { head: 'beret' }).length && !t.owned.includes('crown') && t.jelly >= jelly0 && !t.probe.length && crownRow.text.endsWith(`Needs ${K.short.crown} jelly`),
+          `touching "Needs ${K.short.crown} jelly" does nothing: nothing bought, no jelly spent, she keeps the beret (save, stand, ranch avatar, card)`, agreeRes(t.res, { head: 'beret' }).join('; ') + ` | ${JSON.stringify(t.probe)} | ${crownRow.text}`);
       }, 400000);
-      await step('dress: buy the Tiny Crown in Outfits (it goes on Pebble at home)', async () => {
-        await touchEl('#tab-outfits');
-        await page.waitForFunction(() => window.slimekin.view !== 'ranch' && !!document.querySelector('#body-outfits .outfit[data-id="crown"]'), null, { timeout: 60000 });
-        await ev(() => window.slimekin.debug('tera'));
-        await touchEl('#body-outfits .outfit[data-id="crown"]');
-        await page.waitForFunction(() => window.slimekin.state.outfits.owned.includes('crown'), null, { timeout: 30000 });
-        const h = await ev(() => window.__ok.home());
-        check(!agreeHome(h, { head: 'crown' }).length, 'bought: Pebble wears the Tiny Crown (save, 3D, Outfits page)', agreeHome(h, { head: 'crown' }).join('; '));
-      }, 300000);
-      await step('dress: the Tiny Crown on Mochi', async () => {
-        await toBarn();
-        await onStand(MOCHI);
-        await touchEl('#body-ranch [data-cs="dress"]');
-        await modalIs('dress');
-        await touchEl('#modalCard [data-outfit="crown"]');
-        await page.waitForFunction(() => !!document.querySelector('#modalCard [data-outfit="crown"][aria-pressed="true"]'), null, { timeout: 30000 });
+      await step('dress: "Wear" on an outfit the family owns', async () => {
+        const K = await content();
+        const m0 = await meter();
+        await touchEl('#modalCard .cs-outfit[data-outfit="glasses"]');
+        await page.waitForFunction(() => !!document.querySelector('#modalCard .cs-outfit[data-outfit="glasses"][aria-pressed="true"]'), null, { timeout: 30000 });
         const r = await ev(i => window.__ok.res(i), MOCHI);
-        const beret = await ev(() => { const row = [...document.querySelectorAll('#modalCard .cs-outfit')].find(e => (e.querySelector('b') || {}).textContent === 'Artist Beret'); return row && { text: row.innerText.replace(/\s+/g, ' ').trim(), not: row.classList.contains('not') }; });
-        check(!agreeRes(r, { head: 'crown' }).length, 'Mochi wears the Tiny Crown: the save, the stand and the ranch avatar draw only the crown, the card marks only the crown', agreeRes(r, { head: 'crown' }).join('; ') || W(r.state));
-        check(!!beret && beret.not && /In Outfits/.test(beret.text), 'the beret is off; its row now reads "In Outfits" (the family does not own one)', JSON.stringify(beret));
-        await shot('dress-2-crown');
+        const m1 = await meter(), row = await dressRow('glasses');
+        check(!agreeRes(r, { head: 'beret', face: 'glasses' }).length && /Wearing$/.test(row.text), 'touching "Wear" on the Round Glasses puts them on: the save, the stand, the ranch avatar and the card agree', agreeRes(r, { head: 'beret', face: 'glasses' }).join('; ') + ' | ' + row.text);
+        check(m1 === `Style ${Math.min(K.style.beret + K.style.glasses, K.cap)} of ${K.cap}` && m1 !== m0, `the Style meter moves straight away (${m0} -> ${m1})`);
+      }, 300000);
+      await step('dress: "Buy & wear" the Tiny Crown on Mochi', async () => {
+        const K = await content();
+        // the rows follow the jelly while the card is open
+        await ev(() => { window.slimekin.state.jelly = 1e10; });
+        await page.waitForFunction(() => /Buy & wear$/.test((document.querySelector('#modalCard .cs-outfit[data-outfit="party"]') || {}).innerText || ''), null, { timeout: 20000 });
+        const rows = {};
+        for (const o of ['party', 'shades', 'crown']) rows[o] = await dressRow(o);
+        check(rows.party.text.endsWith(`${K.short.party} Buy & wear`) && rows.shades.text.endsWith(`${K.short.shades} Buy & wear`) && rows.crown.text.endsWith(`Needs ${K.short.crown} jelly`),
+          `with 10B jelly, the card still open: "${K.short.party} Buy & wear" on the Party Hat, "${K.short.shades} Buy & wear" on the Star Shades, still "Needs ${K.short.crown} jelly" on the Tiny Crown`, Object.values(rows).map(x => x.text).join(' / '));
+        await ev(() => document.querySelector('#modalCard .cs-meter').scrollIntoView({ block: 'start' }));
+        await shot('dress-2-kinds');
+        await ev(() => { window.slimekin.state.jelly = 1.5e11; });
+        await page.waitForFunction(() => /Buy & wear$/.test((document.querySelector('#modalCard .cs-outfit[data-outfit="crown"]') || {}).innerText || ''), null, { timeout: 20000 });
+        const crown0 = await dressRow('crown');
+        check(crown0.text.endsWith(`${K.short.crown} Buy & wear`), `with 150B jelly the Tiny Crown reads "${K.short.crown} Buy & wear"`, crown0.text);
+        await probe();
+        const home0 = await ev(() => ({ ...window.slimekin.state.outfits.worn }));
+        await touchEl('#modalCard .cs-outfit[data-outfit="crown"]');
+        await page.waitForFunction(() => !!document.querySelector('#modalCard .cs-outfit[data-outfit="crown"][aria-pressed="true"]'), null, { timeout: 30000 });
+        const t = await ev(i => {
+          const g = window.slimekin, s = JSON.parse(localStorage.getItem('slimekin.save.v1'));
+          return { res: window.__ok.res(i), probe: g.sim.__probe.slice(), owned: g.state.outfits.owned.slice(), home: { ...g.state.outfits.worn }, saved: { owned: s.outfits.owned, worn: s.ranch.residents.find(x => x.id === i).worn } };
+        }, MOCHI);
+        const bd = t.probe.filter(p => p.k === 'buyAndDress'), bo = t.probe.filter(p => p.k === 'buyOutfit');
+        check(bd.length === 1 && bo.length === 1 && bo[0].a[0] === 'crown' && bo[0].ok && bd[0].after === bd[0].before - K.cost.crown && bo[0].after === bo[0].before - K.cost.crown,
+          `bought with the Outfits page's rule (Sim.buyOutfit, once): the jelly went down by exactly its price, ${K.cost.crown}`, JSON.stringify(t.probe));
+        check(!agreeRes(t.res, { head: 'crown', face: 'glasses' }).length, 'Mochi wears the Tiny Crown: the beret is gone from the save, the stand and the ranch avatar, and the card marks the crown', agreeRes(t.res, { head: 'crown', face: 'glasses' }).join('; ') || W(t.res.state));
+        const beret = await dressRow('beret'), m = await meter();
+        check(!!beret && beret.pressed === 'false' && beret.text.endsWith(`${K.short.beret} Buy & wear`), `the beret's row now reads "${K.short.beret} Buy & wear"`, JSON.stringify(beret));
+        check(m === `Style ${Math.min(K.style.crown + K.style.glasses, K.cap)} of ${K.cap}`, 'the Style meter counts the crown', m);
+        check(t.owned.filter(o => o === 'crown').length === 1 && JSON.stringify(want0(t.home)) === JSON.stringify(want0(home0)), 'the family owns one Tiny Crown; Pebble at home wears what she wore', `${t.owned.join(',')} | home ${W(t.home)}`);
+        check(t.saved.owned.includes('crown') && t.saved.worn.head === 'crown', 'the game saved it straight away', JSON.stringify(t.saved));
+        await shot('dress-3-crown');
         await touchEl('#modalCard [data-cs="done"]');
         await page.waitForFunction(() => document.getElementById('modal').hidden, null, { timeout: 30000 });
         await ev(() => window.slimekin.hud.setSheet('closed', false));
-        await shot('dress-3-stand-crown', { night: false });
+        await shot('dress-4-stand-crown', { night: false });
+      }, 400000);
+      await step('dress: a reload keeps the crown on Mochi', async () => {
+        const K = await content();
+        await page.reload();   // no saveNow first: what the game saved when it bought the crown
+        await boot();
+        await toBarn();
+        await onStand(MOCHI);
+        const r = await ev(i => window.__ok.res(i), MOCHI);
+        const owned = await ev(() => window.slimekin.state.outfits.owned.slice());
+        check(!agreeRes(r, { head: 'crown', face: 'glasses' }).length && owned.includes('crown'), 'after a reload Mochi wears the crown and the glasses on the stand and the ranch avatar, and the family owns the crown', agreeRes(r, { head: 'crown', face: 'glasses' }).join('; ') || owned.join(','));
+        await touchEl('#body-ranch [data-cs="dress"]');
+        await modalIs('dress');
+        const crown = await dressRow('crown'), beret = await dressRow('beret');
+        check(/Wearing$/.test(crown.text) && crown.pressed === 'true' && beret.text.endsWith(`${K.short.beret} Buy & wear`), 'and her Dress up reads "Wearing" on the crown, "Buy & wear" on the beret', `${crown.text} / ${beret.text}`);
+        await touchEl('#modalCard [data-cs="done"]');
+        await page.waitForFunction(() => document.getElementById('modal').hidden, null, { timeout: 30000 });
+      }, 600000);
+    }
+
+    // ---------------- the Outfits page at home: the same labels ----------------
+    if (want('home')) {
+      await step('home: the Outfits page reads Wearing, Wear, Buy & wear, Needs N jelly', async () => {
+        const K = await content();
+        await ev(() => { const g = window.slimekin; g.hud.closeModal(); g.hud.onModalClose = null; });
+        await touchEl('#tab-outfits');
+        await page.waitForFunction(() => window.slimekin.view !== 'ranch' && !!document.querySelector('#body-outfits .outfit[data-id="crown"]'), null, { timeout: 60000 });
+        await ev(() => { window.slimekin.state.jelly = 1e9; });
+        await page.waitForTimeout(600);
+        // what each tile should read, from the save: worn, owned, enough jelly (the Outfits page's canAfford), or not
+        const rows = () => ev(() => { const g = window.slimekin, o = g.state.outfits; return { jelly: g.state.jelly, worn: { ...o.worn }, owned: o.owned.slice(),
+          tiles: [...document.querySelectorAll('#body-outfits .outfit')].map(b => ({ id: b.dataset.id, text: b.innerText.replace(/\s+/g, ' ').trim(), check: !!b.querySelector('.wear.on .gi.check') })) }; });
+        const kind = (r, id) => (r.worn[K.slot[id]] === id ? 'wearing' : r.owned.includes(id) ? 'wear' : r.jelly + 1e-9 >= K.cost[id] ? 'buy' : 'needs');
+        const label = (r, id) => ({ wearing: 'Wearing', wear: 'Wear', buy: `${K.short[id]} Buy & wear`, needs: `Needs ${K.short[id]} jelly` })[kind(r, id)];
+        const bad = r => r.tiles.filter(x => !x.text.endsWith(' ' + label(r, x.id)) || (kind(r, x.id) === 'wearing') !== x.check);
+        // the bow goes on with "Wear" (so every kind shows)
+        await ev(() => { const o = window.slimekin.state.outfits; if (o.worn.head === 'bow') window.slimekin.wearOutfit('bow'); });
+        await touchEl('#body-outfits .outfit[data-id="bow"]');
+        await page.waitForFunction(() => window.slimekin.state.outfits.worn.head === 'bow', null, { timeout: 30000 });
+        await page.waitForTimeout(300);
+        const r1 = await rows();
+        log('tiles:', r1.tiles.map(x => `${x.id}: ${x.text.split(' ').slice(-4).join(' ')}`).join(' | '));
+        const kinds = new Set(r1.tiles.map(x => kind(r1, x.id)));
+        check(!bad(r1).length && r1.tiles.length === 9 && kinds.size === 4, 'at 1B jelly every tile reads its label: "✓ Wearing" on the bow Pebble wears, "Wear" on the other owned ones, "N Buy & wear" or "Needs N jelly" on the rest',
+          bad(r1).map(x => `${x.id}: ${x.text} (want ${label(r1, x.id)})`).join(' | ') || [...kinds].join(','));
+        const h = await ev(() => window.__ok.home());
+        check(!agreeHome(h, { head: 'bow' }).length, 'Pebble wears the bow: the save, the 3D slime and the page agree', agreeHome(h, { head: 'bow' }).join('; '));
+        // a tile it can't afford does nothing; a "Buy & wear" one buys with the same rule and puts it on Pebble
+        const ids = r1.tiles.map(x => x.id);
+        const needs = ids.find(i => kind(r1, i) === 'needs'), buy = ids.find(i => kind(r1, i) === 'buy' && K.slot[i] !== 'head') || ids.find(i => kind(r1, i) === 'buy');
+        await probe();
+        await touchEl(`#body-outfits .outfit[data-id="${needs}"]`);
+        await page.waitForTimeout(300);
+        const t1 = await ev(() => ({ probe: window.slimekin.sim.__probe.slice(), worn: { ...window.slimekin.state.outfits.worn } }));
+        const r2 = await rows();
+        check(!t1.probe.some(p => p.ok) && JSON.stringify(want0(t1.worn)) === JSON.stringify(want0(r1.worn)) && r2.tiles.find(x => x.id === needs).text.endsWith(`Needs ${K.short[needs]} jelly`),
+          `touching "Needs ${K.short[needs]} jelly" (${needs}) buys nothing and changes nothing`, JSON.stringify(t1));
+        await probe();
+        await touchEl(`#body-outfits .outfit[data-id="${buy}"]`);
+        await page.waitForFunction(i => window.slimekin.state.outfits.owned.includes(i), buy, { timeout: 30000 });
+        await page.waitForTimeout(300);
+        const t2 = await ev(() => window.slimekin.sim.__probe.slice());
+        const bo = t2.filter(p => p.k === 'buyOutfit'), exp = { ...r1.worn, [K.slot[buy]]: buy };
+        const h2 = await ev(() => window.__ok.home());
+        check(bo.length === 1 && bo[0].after === bo[0].before - K.cost[buy] && !agreeHome(h2, exp).length, `touching "${K.short[buy]} Buy & wear" (${buy}) buys it at its price and Pebble wears it (save, 3D, page "Wearing")`, JSON.stringify(t2) + ' | ' + agreeHome(h2, exp).join('; '));
+        const r3 = await rows();
+        check(!bad(r3).length, `and every tile still reads its label (${Math.round(r3.jelly / 1e6)}M jelly left)`, bad(r3).map(x => `${x.id}: ${x.text} (want ${label(r3, x.id)})`).join(' | '));
+        // the lower half: Wear, Buy & wear, Wearing and Needs N jelly side by side
+        await ev(() => document.querySelector('#body-outfits .outfit[data-id="scarf"]').scrollIntoView({ block: 'start' }));
+        await shot('home-labels');
       }, 400000);
     }
 
@@ -334,6 +457,8 @@ function touchKit() {
         const look = async what => { const r = await ev(() => window.__ok.home()); const why = agreeHome(r, exp); if (why.length) bad.push(`${what}: ${why.join('; ')}`); };
         for (const s of SL) {
           const seq = walk(ITEMS[s]);
+          // the walk's first touch must put seq[0] on: if an earlier scenario left it on, take it off first
+          if (exp[s] === seq[0]) { await tap(seq[0]); exp[s] = null; await look(`${s} ${seq[0]} off first`); }
           for (let i = 0; i < seq.length; i++) { const was = exp[s]; await tap(seq[i]); exp[s] = seq[i]; await look(`${s} ${was || '(nothing)'} -> ${seq[i]}`); }
           await tap(seq[seq.length - 1]); exp[s] = null; await look(`${s} ${seq[seq.length - 1]} again (off)`);
           await tap(seq[1]); exp[s] = seq[1]; await look(`${s} ${seq[1]} on`);
@@ -359,6 +484,8 @@ function touchKit() {
         };
         for (const s of SL) {
           const seq = walk(ITEMS[s]);
+          // the walk's first touch must put seq[0] on: if an earlier scenario left it on, take it off first
+          if (exp[s] === seq[0]) { await tap(seq[0]); exp[s] = null; await look(`${s} ${seq[0]} off first`); }
           for (let i = 0; i < seq.length; i++) { const was = exp[s]; await tap(seq[i]); exp[s] = seq[i]; await look(`${s} ${was || '(nothing)'} -> ${seq[i]}`); }
           await tap(seq[seq.length - 1]); exp[s] = null; await look(`${s} ${seq[seq.length - 1]} again (off)`);
           await tap(seq[2 % seq.length]); exp[s] = seq[2 % seq.length]; await look(`${s} ${exp[s]} on`);
@@ -447,7 +574,7 @@ function touchKit() {
         await page.waitForTimeout(300);
         const h2 = await ev(() => window.__ok.home());
         const after = await ev(() => { const b = document.querySelector('#body-outfits .outfit[data-id="party"]'); return b.innerText.replace(/\s+/g, ' ').trim(); });
-        check(!agreeHome(h2, {}).length && /5B/.test(after), 'a touch takes it off: nothing on the head (save, 3D, page), and the Party Hat shows its price again', agreeHome(h2, {}).join('; ') + ' | ' + after);
+        check(!agreeHome(h2, {}).length && /Needs 5B jelly$/.test(after), 'a touch takes it off: nothing on the head (save, 3D, page), and the Party Hat reads "Needs 5B jelly" (1000 jelly)', agreeHome(h2, {}).join('; ') + ' | ' + after);
         await shot('unowned-2-off');
       }, 400000);
     }

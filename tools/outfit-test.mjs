@@ -4,7 +4,9 @@
 // slime wears that the family does not own (the :8822 test ranch's Mochi in her Artist Beret, tools/fixtures/talents/
 // ranch-trained.json): it can come off, and it never goes back on until the family owns it. `worn` values a save can't
 // use (an unknown outfit, one in another slot's place, text, a missing box, a stray key) are cleaned on load, and every
-// old save (tools/fixtures/, barn/, talents/) keeps every outfit it wears.
+// old save (tools/fixtures/, barn/, talents/) keeps every outfit it wears. Dress up's rows (Sim.outfitChoice: Wearing,
+// Wear, Buy & wear, Needs N jelly) and its Buy & wear (Sim.buyAndDress: the Outfits page's price, nothing spent when it
+// can't go on).
 //   node tools/outfit-test.mjs
 import url from 'node:url';
 import path from 'node:path';
@@ -153,6 +155,72 @@ console.log('\n# old saves');
     ok(homeOk && resOk && style && JSON.stringify(load(m)) === JSON.stringify(m), `${f}: every outfit worn at home and on the ranch is kept, each slot holds its own kind, Style is unchanged`,
       `home ${show(m.outfits.worn)}; ${m.ranch.residents.filter(x => SLOTS.some(s => x.worn[s])).map(x => `${x.name}: ${SLOTS.map(s => x.worn[s]).filter(Boolean).join('+')}`).join(', ') || 'no resident wears anything'}`);
   }
+}
+
+// ---------- 6. Dress up's rows: Wearing, Wear, Buy & wear, Needs N jelly (the captain, 11 Nov) ----------
+// "Dress up, menu I should be able to wear items from my outfits and select wear too": every outfit is choosable from
+// the card. One rule names a row for both pages (Sim.outfitChoice); Buy & wear (Sim.buyAndDress) buys with the Outfits
+// page's rule and price (Sim.buyOutfit) and puts it on the resident; nothing is spent when it can't go on.
+console.log('\n# Dress up: Buy & wear, and the rows\' labels');
+{
+  const save = JSON.parse(fs.readFileSync(path.join(HERE, 'fixtures', 'talents', 'ranch-trained.json'), 'utf8')).save;
+  save.outfits.owned = ['bow', 'bowtie', 'flowers', 'glasses', 'scarf'];   // as the test copy's "Load the test ranch"
+  const fresh = () => { const st = load(save), sim = new Sim(st); return { st, sim, mochi: st.ranch.residents.find(x => x.name === 'Mochi') }; };
+  const crown = OUTFIT_BY_ID.crown;
+  {
+    const { st, sim, mochi } = fresh();
+    ok(typeof sim.outfitChoice === 'function' && typeof sim.buyAndDress === 'function', 'Sim has outfitChoice (the row\'s label) and buyAndDress (Dress up\'s Buy & wear)');
+    try {
+      const kinds = Object.fromEntries(ALL.map(o => [o, sim.outfitChoice(o, mochi.worn)]));
+      ok(kinds.beret === 'wearing' && kinds.flowers === 'wear' && kinds.bow === 'wear' && kinds.glasses === 'wear' && kinds.crown === 'needs' && kinds.party === 'needs',
+        `Mochi on the test ranch (${Math.round(st.jelly)} jelly): the beret she wears "Wearing", owned ones "Wear", the rest "Needs N jelly"`, JSON.stringify(kinds));
+      st.jelly = 1e10;
+      const k2 = Object.fromEntries(ALL.map(o => [o, sim.outfitChoice(o, mochi.worn)]));
+      ok(k2.party === 'buy' && k2.shades === 'buy' && k2.crown === 'needs' && k2.beret === 'wearing' && k2.flowers === 'wear', 'with 10B jelly: the Party Hat (5B) and Star Shades "Buy & wear", the Tiny Crown (100B) still "Needs"', JSON.stringify(k2));
+      st.jelly = crown.cost;
+      ok(sim.outfitChoice('crown', mochi.worn) === 'buy', 'exactly the price is enough (the Outfits page\'s canAfford)');
+      ok(sim.outfitChoice('crown') === 'buy' && sim.outfitChoice('bow') === 'wear' && sim.outfitChoice('nope') === null, 'at home (no worn given): the slime at home\'s outfits; an unknown outfit has no row');
+      st.outfits.worn.head = 'bow';
+      ok(sim.outfitChoice('bow') === 'wearing' && sim.outfitChoice('bow', mochi.worn) === 'wear', 'the label follows whose outfits they are: Pebble wears the bow, Mochi does not');
+    } catch (e) { ok(false, 'the rows\' labels', e.message); }
+  }
+  try {
+    // Buy & wear the Tiny Crown on Mochi: the same jelly as buying it on the Outfits page
+    const { st, sim, mochi } = fresh();
+    const twin = fresh();
+    st.jelly = twin.st.jelly = 1.5e11 + 0.37;
+    const home0 = clone(st.outfits.worn), others0 = clone(st.ranch.residents.filter(x => x !== mochi).map(x => x.worn));
+    twin.sim.buyOutfit('crown');
+    const before = st.jelly, r = sim.buyAndDress(mochi.id, 'crown');
+    ok(r.ok && st.jelly === before - crown.cost && st.jelly === twin.st.jelly, `Buy & wear the Tiny Crown: jelly down by exactly its Outfits price (${crown.cost}), the same as buying it on the Outfits page`, `${before} -> ${st.jelly} (Outfits page: ${twin.st.jelly})`);
+    ok(st.outfits.owned.filter(o => o === 'crown').length === 1 && JSON.stringify(st.outfits.owned) === JSON.stringify(twin.st.outfits.owned), 'the family owns one Tiny Crown (the same list as buying it on the Outfits page)', st.outfits.owned.join(','));
+    ok(mochi.worn.head === 'crown' && !Object.values(mochi.worn).includes('beret') && same(mochi.worn, { ...none(), head: 'crown' }) && same(r.worn, mochi.worn), 'Mochi wears the crown; the beret is off; her other slots are as they were', show(mochi.worn));
+    ok(same(st.outfits.worn, home0) && st.ranch.residents.filter(x => x !== mochi).every((x, i) => same(x.worn, others0[i])), 'Pebble at home and every other resident wear what they wore (buying for Mochi dresses only Mochi)');
+    const after = load(st), m2 = after.ranch.residents.find(x => x.name === 'Mochi');
+    ok(same(m2.worn, mochi.worn) && after.outfits.owned.includes('crown') && after.jelly === st.jelly && checkSave(after).ok, 'a reload keeps it: she wears the crown, the family owns it, the jelly is what was left; a good save');
+    ok(sim.outfitChoice('crown', mochi.worn) === 'wearing' && sim.outfitChoice('crown') === 'wear' && sim.outfitChoice('beret', mochi.worn) === 'buy', 'now her crown row reads "Wearing", Pebble\'s "Wear" (owned by the family), and the beret "Buy & wear"');
+    const jun = st.ranch.residents.find(x => x.name === 'Juniper');
+    ok(K.dressUp(st, jun.id, 'head', 'crown').ok && jun.worn.head === 'crown', 'family-wide: Juniper can wear the crown Mochi\'s Dress up bought');
+    // again on an owned outfit: it goes on, nothing is spent
+    const j1 = st.jelly, again = sim.buyAndDress(mochi.id, 'flowers');
+    ok(again.ok && mochi.worn.head === 'flowers' && st.jelly === j1 && st.outfits.owned.length === 6, 'an outfit the family owns: it goes on and nothing is spent', `${j1} -> ${st.jelly}`);
+  } catch (e) { ok(false, 'Buy & wear the Tiny Crown on Mochi', e.message); }
+  try {
+    // what can't happen spends nothing and changes nothing
+    const { st, sim, mochi } = fresh();
+    const keep = () => JSON.stringify({ j: st.jelly, o: st.outfits, r: st.ranch.residents.map(x => x.worn) });
+    const k0 = keep(), poor = sim.buyAndDress(mochi.id, 'crown');
+    ok(!poor.ok && poor.reason === 'poor' && keep() === k0, `can't afford (${Math.round(st.jelly)} jelly, the crown is ${crown.cost}): nothing bought, nothing worn, no jelly spent; she keeps the beret`, JSON.stringify(poor));
+    st.jelly = 1e12;
+    const k1 = keep();
+    const bub = st.ranch.residents.find(x => x.name === 'Bubblegum');
+    const away = sim.buyAndDress(bub.id, 'crown'), missing = sim.buyAndDress('nobody', 'crown'), unknown = sim.buyAndDress(mochi.id, 'tophat');
+    ok(away.reason === 'away' && missing.reason === 'missing' && unknown.reason === 'outfit' && keep() === k1, 'a slime on a trip, one not on the ranch, an outfit that does not exist: nothing spent, nothing changes', [away, missing, unknown].map(x => x.reason).join(' '));
+    // the Outfits page's own buy (Sim.buyOutfit) is unchanged
+    const j = st.jelly;
+    sim.buyOutfit('party');
+    ok(st.jelly === j - OUTFIT_BY_ID.party.cost && st.outfits.owned.includes('party'), 'the Outfits page\'s buy (Sim.buyOutfit) is the same rule as before');
+  } catch (e) { ok(false, 'Buy & wear when it can\'t happen', e.message); }
 }
 
 console.log(`\n${passes} passed, ${fails} failed`);
