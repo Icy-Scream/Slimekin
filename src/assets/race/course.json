@@ -1,0 +1,997 @@
+{
+ "sheet": "course_sprint.png",
+ "index": "0 clear, n = palette_day/night.json entry n-1",
+ "pieces": {
+  "sky": {
+   "rect": [
+    0,
+    0,
+    96,
+    115
+   ],
+   "anchor": [
+    0,
+    0
+   ],
+   "tile": true,
+   "keep_day": false,
+   "extra": false,
+   "colours": [
+    "cream",
+    "shade",
+    "sky_hi",
+    "sky_mid",
+    "white"
+   ],
+   "note": "frame A rows 0-114: bands, checker seams, two clouds; 96 px period"
+  },
+  "hills": {
+   "rect": [
+    0,
+    182,
+    192,
+    47
+   ],
+   "anchor": [
+    0,
+    88
+   ],
+   "tile": true,
+   "keep_day": false,
+   "extra": false,
+   "colours": [
+    "hill_far",
+    "hill_near"
+   ],
+   "note": "frame A rows 88-134, periodic in 192 px"
+  },
+  "tree_line": {
+   "rect": [
+    0,
+    116,
+    196,
+    65
+   ],
+   "anchor": [
+    0,
+    110
+   ],
+   "tile": true,
+   "keep_day": false,
+   "extra": false,
+   "colours": [
+    "cream",
+    "hill_near",
+    "ink",
+    "lane_a",
+    "red",
+    "red_dark",
+    "shade",
+    "tree",
+    "white",
+    "window",
+    "wood",
+    "wood_dark"
+   ],
+   "note": "frame A rows 110-174 with the toy barn and the windmill tower; 196 px period; ground band behind the crowd and fence"
+  },
+  "windmill_sails_0": {
+   "rect": [
+    193,
+    182,
+    43,
+    43
+   ],
+   "anchor": [
+    21,
+    21
+   ],
+   "tile": false,
+   "keep_day": false,
+   "extra": false,
+   "colours": [
+    "ink",
+    "white",
+    "wood_dark"
+   ],
+   "note": "the sails turned 0.0 deg; hub on the tower at tree-line x 150, frame A y 126"
+  },
+  "windmill_sails_1": {
+   "rect": [
+    0,
+    230,
+    43,
+    43
+   ],
+   "anchor": [
+    21,
+    21
+   ],
+   "tile": false,
+   "keep_day": false,
+   "extra": false,
+   "colours": [
+    "ink",
+    "white",
+    "wood_dark"
+   ],
+   "note": "the sails turned 22.5 deg; hub on the tower at tree-line x 150, frame A y 126"
+  },
+  "windmill_sails_2": {
+   "rect": [
+    44,
+    230,
+    43,
+    43
+   ],
+   "anchor": [
+    21,
+    21
+   ],
+   "tile": false,
+   "keep_day": false,
+   "extra": false,
+   "colours": [
+    "ink",
+    "white",
+    "wood_dark"
+   ],
+   "note": "the sails turned 45.0 deg; hub on the tower at tree-line x 150, frame A y 126"
+  },
+  "windmill_sails_3": {
+   "rect": [
+    88,
+    230,
+    43,
+    43
+   ],
+   "anchor": [
+    21,
+    21
+   ],
+   "tile": false,
+   "keep_day": false,
+   "extra": false,
+   "colours": [
+    "ink",
+    "white",
+    "wood_dark"
+   ],
+   "note": "the sails turned 67.5 deg; hub on the tower at tree-line x 150, frame A y 126"
+  },
+  "fence": {
+   "rect": [
+    20,
+    305,
+    8,
+    15
+   ],
+   "anchor": [
+    0,
+    160
+   ],
+   "tile": true,
+   "keep_day": false,
+   "extra": false,
+   "colours": [
+    "wood",
+    "wood_dark"
+   ],
+   "note": "frame A rows 160-174, 8 px period"
+  },
+  "bunting": {
+   "rect": [
+    0,
+    322,
+    96,
+    8
+   ],
+   "anchor": [
+    2,
+    158
+   ],
+   "tile": true,
+   "keep_day": false,
+   "extra": false,
+   "colours": [
+    "blue",
+    "orange",
+    "pink",
+    "wood_dark"
+   ],
+   "note": "frame A rows 158-165, 96 px period (3 spans, colours repeat)"
+  },
+  "lane_a": {
+   "rect": [
+    0,
+    274,
+    32,
+    30
+   ],
+   "anchor": null,
+   "tile": true,
+   "keep_day": false,
+   "extra": false,
+   "colours": [
+    "cream",
+    "lane_a",
+    "lane_b"
+   ],
+   "note": "lanes 1 and 3 (frame A), 30 rows, chalk line on the front row"
+  },
+  "lane_b": {
+   "rect": [
+    33,
+    274,
+    32,
+    30
+   ],
+   "anchor": null,
+   "tile": true,
+   "keep_day": false,
+   "extra": false,
+   "colours": [
+    "cream",
+    "lane_a",
+    "lane_b"
+   ],
+   "note": "lanes 2 and 4"
+  },
+  "gate_closed": {
+   "rect": [
+    66,
+    274,
+    19,
+    26
+   ],
+   "anchor": [
+    0,
+    25
+   ],
+   "tile": false,
+   "keep_day": false,
+   "extra": false,
+   "colours": [
+    "blue",
+    "white",
+    "wood",
+    "wood_dark"
+   ],
+   "note": "the start stall, ribbons across"
+  },
+  "gate_drop_1": {
+   "rect": [
+    86,
+    274,
+    19,
+    26
+   ],
+   "anchor": [
+    0,
+    25
+   ],
+   "tile": false,
+   "keep_day": false,
+   "extra": false,
+   "colours": [
+    "blue",
+    "white",
+    "wood",
+    "wood_dark"
+   ],
+   "note": "the start stall, ribbons falling 1"
+  },
+  "gate_drop_2": {
+   "rect": [
+    106,
+    274,
+    19,
+    26
+   ],
+   "anchor": [
+    0,
+    25
+   ],
+   "tile": false,
+   "keep_day": false,
+   "extra": false,
+   "colours": [
+    "blue",
+    "white",
+    "wood",
+    "wood_dark"
+   ],
+   "note": "the start stall, ribbons falling 2"
+  },
+  "gate_open": {
+   "rect": [
+    126,
+    274,
+    19,
+    26
+   ],
+   "anchor": [
+    0,
+    25
+   ],
+   "tile": false,
+   "keep_day": false,
+   "extra": false,
+   "colours": [
+    "blue",
+    "white",
+    "wood",
+    "wood_dark"
+   ],
+   "note": "the start stall, ribbons dropped (frame A)"
+  },
+  "bell_rest": {
+   "rect": [
+    124,
+    305,
+    13,
+    9
+   ],
+   "anchor": [
+    6,
+    8
+   ],
+   "tile": false,
+   "keep_day": false,
+   "extra": false,
+   "colours": [
+    "gold",
+    "red_dark",
+    "white",
+    "wood_dark"
+   ],
+   "note": "the starting bell (frame A) on lane 4's left post"
+  },
+  "bell_ring": {
+   "rect": [
+    138,
+    305,
+    13,
+    9
+   ],
+   "anchor": [
+    6,
+    8
+   ],
+   "tile": false,
+   "keep_day": false,
+   "extra": false,
+   "colours": [
+    "gold",
+    "red_dark",
+    "white",
+    "wood_dark"
+   ],
+   "note": "the bell rings: top tipped 1 px, clapper out, 4 ring marks"
+  },
+  "finish_post": {
+   "rect": [
+    132,
+    230,
+    10,
+    40
+   ],
+   "anchor": [
+    5,
+    39
+   ],
+   "tile": false,
+   "keep_day": false,
+   "extra": false,
+   "colours": [
+    "ink",
+    "shade",
+    "white",
+    "wood_dark"
+   ],
+   "note": "the finish post with the chequered board; the robin perches on it"
+  },
+  "finish_tape_taut": {
+   "rect": [
+    182,
+    230,
+    12,
+    34
+   ],
+   "anchor": [
+    1,
+    33
+   ],
+   "tile": false,
+   "keep_day": false,
+   "extra": false,
+   "colours": [
+    "red",
+    "red_dark",
+    "wood_dark"
+   ],
+   "note": "the finish tape across a lane, taut"
+  },
+  "finish_tape_pressed": {
+   "rect": [
+    156,
+    230,
+    12,
+    34
+   ],
+   "anchor": [
+    1,
+    33
+   ],
+   "tile": false,
+   "keep_day": false,
+   "extra": false,
+   "colours": [
+    "red",
+    "red_dark",
+    "wood_dark"
+   ],
+   "note": "the finish tape across a lane, pressed"
+  },
+  "finish_tape_snap": {
+   "rect": [
+    169,
+    230,
+    12,
+    34
+   ],
+   "anchor": [
+    1,
+    33
+   ],
+   "tile": false,
+   "keep_day": false,
+   "extra": false,
+   "colours": [
+    "red",
+    "red_dark",
+    "wood_dark"
+   ],
+   "note": "the finish tape across a lane, snap"
+  },
+  "finish_tape_parted": {
+   "rect": [
+    143,
+    230,
+    12,
+    34
+   ],
+   "anchor": [
+    1,
+    33
+   ],
+   "tile": false,
+   "keep_day": false,
+   "extra": false,
+   "colours": [
+    "red",
+    "red_dark",
+    "wood_dark"
+   ],
+   "note": "the finish tape across a lane, parted"
+  },
+  "hill": {
+   "rect": [
+    187,
+    274,
+    64,
+    16
+   ],
+   "anchor": [
+    0,
+    15
+   ],
+   "tile": false,
+   "keep_day": false,
+   "extra": false,
+   "colours": [
+    "hill_near",
+    "lane_a",
+    "lane_b",
+    "verge"
+   ],
+   "note": "the hill leg's mound, lane_a (swap lane_a -> lane_b on lanes 2 and 4)"
+  },
+  "hoop_back": {
+   "rect": [
+    195,
+    230,
+    18,
+    31
+   ],
+   "anchor": [
+    9,
+    30
+   ],
+   "tile": false,
+   "keep_day": false,
+   "extra": false,
+   "colours": [
+    "blue",
+    "pink",
+    "white"
+   ],
+   "note": "the hoop's far (right) arc, drawn behind the runner"
+  },
+  "hoop_front": {
+   "rect": [
+    214,
+    230,
+    18,
+    31
+   ],
+   "anchor": [
+    9,
+    30
+   ],
+   "tile": false,
+   "keep_day": false,
+   "extra": false,
+   "colours": [
+    "blue",
+    "pink",
+    "white",
+    "wood",
+    "wood_dark"
+   ],
+   "note": "the hoop's near (left) arc and its foot, drawn over the runner"
+  },
+  "flag": {
+   "rect": [
+    122,
+    322,
+    5,
+    7
+   ],
+   "anchor": [
+    0,
+    6
+   ],
+   "tile": false,
+   "keep_day": false,
+   "extra": false,
+   "colours": [
+    "blue",
+    "wood_dark"
+   ],
+   "note": "the blue lane flag (frame A), foot on the lane's back line, every 60 px"
+  },
+  "hay_round": {
+   "rect": [
+    40,
+    305,
+    14,
+    11
+   ],
+   "anchor": [
+    7,
+    10
+   ],
+   "tile": false,
+   "keep_day": false,
+   "extra": false,
+   "colours": [
+    "gold",
+    "honey",
+    "windmill",
+    "wood"
+   ],
+   "note": "a round hay bale"
+  },
+  "hay_square": {
+   "rect": [
+    152,
+    305,
+    16,
+    9
+   ],
+   "anchor": [
+    8,
+    8
+   ],
+   "tile": false,
+   "keep_day": false,
+   "extra": false,
+   "colours": [
+    "gold",
+    "honey",
+    "windmill",
+    "wood",
+    "wood_dark"
+   ],
+   "note": "a square hay bale"
+  },
+  "bulb_board": {
+   "rect": [
+    146,
+    274,
+    40,
+    20
+   ],
+   "anchor": [
+    20,
+    19
+   ],
+   "tile": false,
+   "keep_day": true,
+   "extra": false,
+   "colours": [
+    "gold",
+    "ink",
+    "white",
+    "window",
+    "wood",
+    "wood_dark"
+   ],
+   "note": "the bulb tote board at the finish (keeps day colours)"
+  },
+  "lantern_0": {
+   "rect": [
+    0,
+    305,
+    9,
+    16
+   ],
+   "anchor": [
+    4,
+    15
+   ],
+   "tile": false,
+   "keep_day": true,
+   "extra": false,
+   "colours": [
+    "gold",
+    "honey",
+    "white",
+    "wood_dark"
+   ],
+   "note": "a lantern on a course post, flicker A (keeps day colours)"
+  },
+  "lantern_1": {
+   "rect": [
+    10,
+    305,
+    9,
+    16
+   ],
+   "anchor": [
+    4,
+    15
+   ],
+   "tile": false,
+   "keep_day": true,
+   "extra": false,
+   "colours": [
+    "gold",
+    "honey",
+    "white",
+    "wood_dark"
+   ],
+   "note": "flicker B"
+  },
+  "lantern_pool": {
+   "rect": [
+    97,
+    322,
+    24,
+    8
+   ],
+   "anchor": [
+    12,
+    4
+   ],
+   "tile": false,
+   "keep_day": true,
+   "extra": false,
+   "colours": [
+    "gold",
+    "honey"
+   ],
+   "note": "the warm pool under a lantern, night only (keeps day colours)"
+  },
+  "robin_stand": {
+   "rect": [
+    113,
+    305,
+    10,
+    10
+   ],
+   "anchor": [
+    4,
+    9
+   ],
+   "tile": false,
+   "keep_day": false,
+   "extra": false,
+   "colours": [
+    "ink",
+    "orange",
+    "wood",
+    "wood_dark"
+   ],
+   "note": "the robin on the finish board, stand"
+  },
+  "robin_peck": {
+   "rect": [
+    102,
+    305,
+    10,
+    10
+   ],
+   "anchor": [
+    4,
+    9
+   ],
+   "tile": false,
+   "keep_day": false,
+   "extra": false,
+   "colours": [
+    "ink",
+    "orange",
+    "wood",
+    "wood_dark"
+   ],
+   "note": "the robin on the finish board, peck"
+  },
+  "robin_hop": {
+   "rect": [
+    91,
+    305,
+    10,
+    10
+   ],
+   "anchor": [
+    4,
+    9
+   ],
+   "tile": false,
+   "keep_day": false,
+   "extra": false,
+   "colours": [
+    "ink",
+    "orange",
+    "wood",
+    "wood_dark"
+   ],
+   "note": "the robin on the finish board, hop"
+  },
+  "robin_call": {
+   "rect": [
+    80,
+    305,
+    10,
+    10
+   ],
+   "anchor": [
+    4,
+    9
+   ],
+   "tile": false,
+   "keep_day": false,
+   "extra": false,
+   "colours": [
+    "ink",
+    "orange",
+    "wood",
+    "wood_dark"
+   ],
+   "note": "the robin on the finish board, call"
+  },
+  "verge": {
+   "rect": [
+    55,
+    305,
+    7,
+    11
+   ],
+   "anchor": [
+    0,
+    175
+   ],
+   "tile": true,
+   "keep_day": false,
+   "extra": true,
+   "colours": [
+    "hill_near",
+    "verge"
+   ],
+   "note": "EXTRA (frame A, not in 4.7): verge rows 175-185, 7 px period"
+  },
+  "near_rail": {
+   "rect": [
+    63,
+    305,
+    16,
+    10
+   ],
+   "anchor": [
+    0,
+    310
+   ],
+   "tile": true,
+   "keep_day": false,
+   "extra": true,
+   "colours": [
+    "shade",
+    "verge",
+    "white"
+   ],
+   "note": "EXTRA: the near rail, frame A rows 310-319, 16 px period"
+  },
+  "near_grass": {
+   "rect": [
+    29,
+    305,
+    10,
+    12
+   ],
+   "anchor": [
+    0,
+    321
+   ],
+   "tile": true,
+   "keep_day": false,
+   "extra": true,
+   "colours": [
+    "lane_a",
+    "lane_b"
+   ],
+   "note": "EXTRA: near grass, frame A rows 321-421, 10 x 12 period"
+  }
+ },
+ "layout": [
+  {
+   "y": 0,
+   "piece": "sky",
+   "repeat": "x"
+  },
+  {
+   "y": 88,
+   "piece": "hills",
+   "repeat": "x"
+  },
+  {
+   "y": 110,
+   "piece": "tree_line",
+   "repeat": "x"
+  },
+  {
+   "piece": "windmill_sails_*",
+   "at": [
+    150,
+    126
+   ],
+   "note": "hub, in tree-line x (repeat with it); frame 0 is frame A"
+  },
+  {
+   "note": "the crowd stands on y 165 (crowd sprites), behind the bunting and the fence"
+  },
+  {
+   "y": 158,
+   "piece": "bunting",
+   "repeat": "x",
+   "x0": 2
+  },
+  {
+   "y": 160,
+   "piece": "fence",
+   "repeat": "x"
+  },
+  {
+   "y": 175,
+   "piece": "verge",
+   "repeat": "x"
+  },
+  {
+   "y": 186,
+   "piece": "lane_b",
+   "repeat": "x",
+   "lane": 4
+  },
+  {
+   "y": 216,
+   "piece": "lane_a",
+   "repeat": "x",
+   "lane": 3
+  },
+  {
+   "y": 246,
+   "piece": "lane_b",
+   "repeat": "x",
+   "lane": 2
+  },
+  {
+   "y": 276,
+   "piece": "lane_a",
+   "repeat": "x",
+   "lane": 1
+  },
+  {
+   "y": 306,
+   "fill": "verge",
+   "h": 4
+  },
+  {
+   "y": 310,
+   "piece": "near_rail",
+   "repeat": "x"
+  },
+  {
+   "y": 320,
+   "fill": "verge",
+   "h": 1
+  },
+  {
+   "y": 321,
+   "piece": "near_grass",
+   "repeat": "xy"
+  },
+  {
+   "piece": "flag",
+   "note": "foot on each lane's back line (lane y0), every 60 px (frame A x 58, 118, 178)"
+  },
+  {
+   "piece": "gate_*",
+   "note": "per lane, top-left at (1, lane y1 - 27); bell_* anchor at (3, lane 4 y1 - 28)"
+  },
+  {
+   "piece": "finish_tape_*",
+   "note": "per lane at the finish x, anchor on the lane's front line - 1"
+  },
+  {
+   "piece": "finish_post",
+   "note": "beside lane 4 at the finish x, foot on lane 4's back line; robin on its board"
+  }
+ ],
+ "lanes": {
+  "4": [
+   186,
+   216
+  ],
+  "3": [
+   216,
+   246
+  ],
+  "2": [
+   246,
+   276
+  ],
+  "1": [
+   276,
+   306
+  ]
+ },
+ "checks": {
+  "pieces": 39,
+  "counted": 36,
+  "extra": 3,
+  "palette": 32,
+  "no_000000_day": true,
+  "no_000000_night": true,
+  "ink_darkest_day": true,
+  "ink_darkest_night": true,
+  "night_L_range": [
+   27.3,
+   64.9
+  ],
+  "ink_L": 15.6,
+  "tiles_seam_ok": {
+   "sky": true,
+   "hills": true,
+   "tree_line": true,
+   "fence": true,
+   "bunting": true,
+   "lane_a": true,
+   "lane_b": true,
+   "verge": true,
+   "near_rail": true,
+   "near_grass": true
+  },
+  "max_colours_per_piece": 12
+ }
+}

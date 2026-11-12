@@ -1,0 +1,19 @@
+The race kit (design/contests-race-view.md v2 §4), copied UNCHANGED (byte for byte) from Usopp's kit:
+
+  repo:   /root/projects/slimekin-notes (worktree slimekin-notes-usopp-pilot)
+  branch: usopp/race-kit
+  commit: 48c0f45 (race-kit: report, re-test round; Nami SHIP 62da1a2, Yamato QA)
+  folder: samples/race-kit/kit/
+  copied: 2026-11-12 with `git show 48c0f45:samples/race-kit/kit/<file>`; md5 of every file checked against the worktree
+
+Files: the three body sheets, the breed / props / accessory / outfit / effect / crowd overlays, the Sprint course,
+the day palette, the 16 pattern tiles (tiles/) and tile_zigzag.png, and their JSON (kit.json, forms.json,
+forms_colours.json, props.json, outfits.json, breed.json, fx.json, course.json, palette_day.json).
+Not copied (not needed by the game): the 4x/6x preview sheets, numbers*.json, outputs.json, race_moment*.json,
+palette.json, palette_night.json (night is RV3).
+
+Every PNG is an 8-bit index sheet (greyscale PNG): 0 clear, n = entry n-1 of that sprite's palette (body sheets and
+breed overlays: the runner's 5 ramp steps). The game's composer (src/view/race-compose.js) is a port of the kit's own
+reference composer (samples/race-kit/src/compose.py + compose_kit.py @ 48c0f45); tools/race-compose-test.mjs checks
+it against that composer's output pixel for pixel (tools/race-compose-ref.py makes tools/fixtures/race/compose-ref.json).
+Do not edit these files by hand: a change comes from the kit (Usopp), then this folder is copied again.

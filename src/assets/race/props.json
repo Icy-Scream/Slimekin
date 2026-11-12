@@ -1,0 +1,2239 @@
+{
+ "props": {
+  "sheet": "overlay_props.png",
+  "sprites": {
+   "heartCore": {
+    "form": "heat+sweet",
+    "loop": "flicker",
+    "layer": "inner",
+    "place": [
+     "body",
+     -8,
+     -5
+    ],
+    "rows_added_on_top": 0,
+    "palette_day": [
+     "#ff8a6e",
+     "#ff5a3c"
+    ],
+    "palette_night": [
+     "#fd886c",
+     "#fd583a"
+    ],
+    "night_dL": -0.63,
+    "size": [
+     5,
+     4
+    ],
+    "n_colours": 2,
+    "anchor": "centre",
+    "offset": {
+     "curly": [
+      -1.59,
+      -5.03
+     ],
+     "dollop": [
+      -1.59,
+      -5.03
+     ],
+     "mixed": [
+      -1.59,
+      -5.03
+     ]
+    },
+    "trait": null,
+    "region": null,
+    "rects": [
+     [
+      0,
+      0,
+      5,
+      4
+     ],
+     [
+      0,
+      22,
+      5,
+      4
+     ]
+    ]
+   },
+   "geodeCrystals": {
+    "form": "mineral+prism",
+    "loop": "flicker",
+    "layer": "front",
+    "place": [
+     "parts"
+    ],
+    "rows_added_on_top": 0,
+    "palette_day": [
+     "#dcc8ff",
+     "#b48cff",
+     "#8e66f0"
+    ],
+    "palette_night": [
+     "#dfcbff",
+     "#b78fff",
+     "#9169f3"
+    ],
+    "night_dL": 1.04,
+    "size": [
+     19,
+     5
+    ],
+    "n_colours": 3,
+    "anchor": "centre",
+    "offset": {
+     "curly": [
+      0.0,
+      7.63
+     ],
+     "dollop": [
+      0.0,
+      7.63
+     ],
+     "mixed": [
+      0.0,
+      7.63
+     ]
+    },
+    "trait": null,
+    "region": null,
+    "parts": [
+     {
+      "cols": [
+       0,
+       7
+      ],
+      "at": [
+       "top",
+       -5
+      ]
+     },
+     {
+      "cols": [
+       8,
+       12
+      ],
+      "at": [
+       "edge",
+       "back",
+       0.14,
+       2
+      ]
+     },
+     {
+      "cols": [
+       13,
+       19
+      ],
+      "at": [
+       "edge",
+       "front",
+       0.5,
+       3
+      ]
+     }
+    ],
+    "rects": [
+     [
+      6,
+      0,
+      19,
+      5
+     ],
+     [
+      6,
+      22,
+      19,
+      5
+     ]
+    ]
+   },
+   "blossom": {
+    "form": "nature+sweet",
+    "loop": "bob",
+    "layer": "front",
+    "place": [
+     "top",
+     1
+    ],
+    "rows_added_on_top": 1,
+    "palette_day": [
+     "#ffc4dc",
+     "#ff8fbd",
+     "#ffd23f",
+     "#ffb000"
+    ],
+    "palette_night": [
+     "#fbc0d8",
+     "#fb8bb9",
+     "#fbce3b",
+     "#fbac00"
+    ],
+    "night_dL": -1.37,
+    "size": [
+     5,
+     6
+    ],
+    "n_colours": 4,
+    "anchor": "head_top",
+    "offset": {
+     "curly": [
+      3.87,
+      8.14
+     ],
+     "dollop": [
+      3.62,
+      1.92
+     ],
+     "mixed": [
+      4.38,
+      5.45
+     ]
+    },
+    "trait": null,
+    "region": null,
+    "rects": [
+     [
+      26,
+      0,
+      5,
+      6
+     ],
+     [
+      26,
+      22,
+      5,
+      6
+     ]
+    ]
+   },
+   "bee": {
+    "form": "nature+sweet",
+    "loop": "flap",
+    "layer": "front",
+    "place": [
+     "float",
+     -10,
+     2
+    ],
+    "rows_added_on_top": 0,
+    "palette_day": [
+     "#ffffff",
+     "#ffcf33",
+     "#3a2a20"
+    ],
+    "palette_night": [
+     "#fbfbfb",
+     "#fbcb2e",
+     "#37271d"
+    ],
+    "night_dL": -1.37,
+    "size": [
+     5,
+     5
+    ],
+    "n_colours": 3,
+    "anchor": "centre",
+    "offset": {
+     "curly": [
+      0.0,
+      7.63
+     ],
+     "dollop": [
+      0.0,
+      7.63
+     ],
+     "mixed": [
+      0.0,
+      7.63
+     ]
+    },
+    "trait": null,
+    "region": null,
+    "rects": [
+     [
+      32,
+      0,
+      5,
+      5
+     ],
+     [
+      32,
+      22,
+      5,
+      5
+     ]
+    ]
+   },
+   "roots": {
+    "form": "mineral+nature",
+    "loop": "none",
+    "layer": "behind",
+    "place": [
+     "corners"
+    ],
+    "rows_added_on_top": 0,
+    "palette_day": [
+     "#7a5232"
+    ],
+    "palette_night": [
+     "#795131"
+    ],
+    "night_dL": -0.46,
+    "size": [
+     12,
+     2
+    ],
+    "n_colours": 1,
+    "anchor": "centre",
+    "offset": {
+     "curly": [
+      0.0,
+      7.63
+     ],
+     "dollop": [
+      0.0,
+      7.63
+     ],
+     "mixed": [
+      0.0,
+      7.63
+     ]
+    },
+    "trait": null,
+    "region": null,
+    "rects": [
+     [
+      38,
+      0,
+      12,
+      2
+     ],
+     [
+      38,
+      22,
+      12,
+      2
+     ]
+    ]
+   },
+   "moss": {
+    "form": "mineral+nature",
+    "loop": "bob",
+    "layer": "front",
+    "place": [
+     "body",
+     -13,
+     -8
+    ],
+    "rows_added_on_top": 1,
+    "palette_day": [
+     "#86c75c",
+     "#5e9e3c",
+     "#477f30"
+    ],
+    "palette_night": [
+     "#85c65b",
+     "#5d9d3b",
+     "#467e2f"
+    ],
+    "night_dL": -0.46,
+    "size": [
+     14,
+     7
+    ],
+    "n_colours": 3,
+    "anchor": "centre",
+    "offset": {
+     "curly": [
+      0.0,
+      7.63
+     ],
+     "dollop": [
+      0.0,
+      7.63
+     ],
+     "mixed": [
+      0.0,
+      7.63
+     ]
+    },
+    "trait": null,
+    "region": null,
+    "rects": [
+     [
+      51,
+      0,
+      14,
+      7
+     ],
+     [
+      51,
+      22,
+      14,
+      7
+     ]
+    ]
+   },
+   "mushroom": {
+    "form": "mineral+nature",
+    "loop": "bob",
+    "layer": "front",
+    "place": [
+     "top",
+     -7
+    ],
+    "rows_added_on_top": 1,
+    "palette_day": [
+     "#ff5a4f",
+     "#ffffff",
+     "#c8433b",
+     "#fff4e2"
+    ],
+    "palette_night": [
+     "#fe594e",
+     "#fefefe",
+     "#c7423a",
+     "#fef3e1"
+    ],
+    "night_dL": -0.46,
+    "size": [
+     5,
+     5
+    ],
+    "n_colours": 4,
+    "anchor": "head_top",
+    "offset": {
+     "curly": [
+      -3.3,
+      12.16
+     ],
+     "dollop": [
+      -3.92,
+      6.37
+     ],
+     "mixed": [
+      -3.15,
+      8.11
+     ]
+    },
+    "trait": null,
+    "region": null,
+    "rects": [
+     [
+      66,
+      0,
+      5,
+      5
+     ],
+     [
+      66,
+      22,
+      5,
+      5
+     ]
+    ]
+   },
+   "flameCrown": {
+    "form": "heat",
+    "loop": "flicker",
+    "layer": "front",
+    "place": [
+     "tops",
+     0
+    ],
+    "rows_added_on_top": 0,
+    "palette_day": [
+     "#ff7a2e",
+     "#ff5a1f",
+     "#ffe066"
+    ],
+    "palette_night": [
+     "#ff7c30",
+     "#ff5c21",
+     "#ffe268"
+    ],
+    "night_dL": 0.59,
+    "size": [
+     9,
+     5
+    ],
+    "n_colours": 3,
+    "anchor": "head_top",
+    "offset": {
+     "curly": [
+      0.45,
+      7.74
+     ],
+     "dollop": [
+      -0.01,
+      3.82
+     ],
+     "mixed": [
+      0.87,
+      5.7
+     ]
+    },
+    "trait": null,
+    "region": null,
+    "rects": [
+     [
+      72,
+      0,
+      9,
+      5
+     ],
+     [
+      72,
+      22,
+      9,
+      5
+     ]
+    ]
+   },
+   "ladybug": {
+    "form": "nature",
+    "loop": "bob",
+    "layer": "front",
+    "place": [
+     "body",
+     -11,
+     -6
+    ],
+    "rows_added_on_top": 1,
+    "palette_day": [
+     "#e8312f",
+     "#1e1a1a"
+    ],
+    "palette_night": [
+     "#e8312f",
+     "#1e1a1a"
+    ],
+    "night_dL": -0.08,
+    "size": [
+     5,
+     4
+    ],
+    "n_colours": 2,
+    "anchor": "centre",
+    "offset": {
+     "curly": [
+      0.0,
+      7.63
+     ],
+     "dollop": [
+      0.0,
+      7.63
+     ],
+     "mixed": [
+      0.0,
+      7.63
+     ]
+    },
+    "trait": null,
+    "region": null,
+    "rects": [
+     [
+      82,
+      0,
+      5,
+      4
+     ],
+     [
+      82,
+      22,
+      5,
+      4
+     ]
+    ]
+   },
+   "crystalCrown": {
+    "form": "prism",
+    "loop": "flicker",
+    "layer": "front",
+    "place": [
+     "top",
+     0
+    ],
+    "rows_added_on_top": 0,
+    "palette_day": [
+     "#e8f6ff",
+     "#9fd8ff",
+     "#5fa6d6"
+    ],
+    "palette_night": [
+     "#d8e5ee",
+     "#8fc8ee",
+     "#4e97c6"
+    ],
+    "night_dL": -5.79,
+    "size": [
+     9,
+     5
+    ],
+    "n_colours": 3,
+    "anchor": "head_top",
+    "offset": {
+     "curly": [
+      -0.08,
+      9.0
+     ],
+     "dollop": [
+      -1.1,
+      2.83
+     ],
+     "mixed": [
+      0.43,
+      5.64
+     ]
+    },
+    "trait": null,
+    "region": null,
+    "rects": [
+     [
+      88,
+      0,
+      9,
+      5
+     ],
+     [
+      88,
+      22,
+      9,
+      5
+     ]
+    ]
+   },
+   "prismCore": {
+    "form": "prism",
+    "loop": "cycle",
+    "layer": "inner",
+    "place": [
+     "body",
+     -7,
+     -4
+    ],
+    "rows_added_on_top": 0,
+    "palette_day": [
+     "#ffffff",
+     "#ff9ad5",
+     "#ffe17a",
+     "#8ff0c0",
+     "#8cc8ff",
+     "#c7a6ff"
+    ],
+    "palette_night": [
+     "#eeeeee",
+     "#ee8ac5",
+     "#eed16b",
+     "#7fdfb0",
+     "#7bb8ee",
+     "#b797ee"
+    ],
+    "night_dL": -5.79,
+    "size": [
+     5,
+     5
+    ],
+    "n_colours": 6,
+    "anchor": "centre",
+    "offset": {
+     "curly": [
+      -1.59,
+      -4.64
+     ],
+     "dollop": [
+      -1.59,
+      -4.64
+     ],
+     "mixed": [
+      -1.59,
+      -4.64
+     ]
+    },
+    "trait": null,
+    "region": null,
+    "rects": [
+     [
+      98,
+      0,
+      5,
+      5
+     ],
+     [
+      98,
+      22,
+      5,
+      5
+     ]
+    ]
+   },
+   "chimney": {
+    "form": "heat+mineral",
+    "loop": "bob",
+    "layer": "front",
+    "place": [
+     "top",
+     -3
+    ],
+    "rows_added_on_top": 1,
+    "palette_day": [
+     "#3d3333",
+     "#8c5a4a",
+     "#6b4436"
+    ],
+    "palette_night": [
+     "#403636",
+     "#905e4e",
+     "#6f4839"
+    ],
+    "night_dL": 1.51,
+    "size": [
+     3,
+     6
+    ],
+    "n_colours": 3,
+    "anchor": "head_top",
+    "offset": {
+     "curly": [
+      0.01,
+      8.2
+     ],
+     "dollop": [
+      3.15,
+      0.96
+     ],
+     "mixed": [
+      0.4,
+      5.75
+     ]
+    },
+    "trait": null,
+    "region": null,
+    "rects": [
+     [
+      104,
+      0,
+      3,
+      6
+     ],
+     [
+      104,
+      22,
+      3,
+      6
+     ]
+    ]
+   },
+   "fuse": {
+    "form": "heat+spark",
+    "loop": "flicker",
+    "layer": "front",
+    "place": [
+     "top",
+     2
+    ],
+    "rows_added_on_top": 0,
+    "palette_day": [
+     "#ffffff",
+     "#ffd75a",
+     "#6b4a32"
+    ],
+    "palette_night": [
+     "#ffffff",
+     "#ffd85b",
+     "#6c4b33"
+    ],
+    "night_dL": 0.32,
+    "size": [
+     6,
+     7
+    ],
+    "n_colours": 3,
+    "anchor": "head_top",
+    "offset": {
+     "curly": [
+      0.43,
+      7.26
+     ],
+     "dollop": [
+      -0.76,
+      2.69
+     ],
+     "mixed": [
+      0.56,
+      5.31
+     ]
+    },
+    "trait": null,
+    "region": null,
+    "rects": [
+     [
+      108,
+      0,
+      6,
+      7
+     ],
+     [
+      108,
+      22,
+      6,
+      7
+     ]
+    ]
+   },
+   "straw": {
+    "form": "spark+sweet",
+    "loop": "bob",
+    "layer": "front",
+    "place": [
+     "top",
+     -6
+    ],
+    "rows_added_on_top": 1,
+    "palette_day": [
+     "#ffffff",
+     "#ff5a8a",
+     "#c94a72"
+    ],
+    "palette_night": [
+     "#efefef",
+     "#ee4a7c",
+     "#b93b65"
+    ],
+    "night_dL": -5.43,
+    "size": [
+     3,
+     8
+    ],
+    "n_colours": 3,
+    "anchor": "head_top",
+    "offset": {
+     "curly": [
+      -4.0,
+      9.04
+     ],
+     "dollop": [
+      -4.31,
+      4.19
+     ],
+     "mixed": [
+      -3.81,
+      6.9
+     ]
+    },
+    "trait": null,
+    "region": null,
+    "rects": [
+     [
+      115,
+      0,
+      3,
+      8
+     ],
+     [
+      115,
+      22,
+      3,
+      8
+     ]
+    ]
+   },
+   "innerBubbles": {
+    "form": "spark+sweet",
+    "loop": "bob",
+    "layer": "inner",
+    "place": [
+     "body",
+     -9,
+     -6
+    ],
+    "rows_added_on_top": 1,
+    "palette_day": [
+     "#ffffff"
+    ],
+    "palette_night": [
+     "#efefef"
+    ],
+    "night_dL": -5.43,
+    "size": [
+     9,
+     8
+    ],
+    "n_colours": 1,
+    "anchor": "centre",
+    "offset": {
+     "curly": [
+      0.0,
+      7.63
+     ],
+     "dollop": [
+      0.0,
+      7.63
+     ],
+     "mixed": [
+      0.0,
+      7.63
+     ]
+    },
+    "trait": null,
+    "region": null,
+    "rects": [
+     [
+      119,
+      0,
+      9,
+      8
+     ],
+     [
+      119,
+      22,
+      9,
+      8
+     ]
+    ]
+   },
+   "fireflies": {
+    "form": "nature+spark",
+    "loop": "flicker",
+    "layer": "front",
+    "place": [
+     "around",
+     -14,
+     -1
+    ],
+    "rows_added_on_top": 0,
+    "palette_day": [
+     "#d4ff3a",
+     "#f2ffb0",
+     "#6b3f1d"
+    ],
+    "palette_night": [
+     "#d8ff3f",
+     "#f6ffb4",
+     "#6f4220"
+    ],
+    "night_dL": 1.43,
+    "size": [
+     27,
+     6
+    ],
+    "n_colours": 3,
+    "anchor": "centre",
+    "offset": {
+     "curly": [
+      0.0,
+      7.63
+     ],
+     "dollop": [
+      0.0,
+      7.63
+     ],
+     "mixed": [
+      0.0,
+      7.63
+     ]
+    },
+    "trait": null,
+    "region": null,
+    "rects": [
+     [
+      129,
+      0,
+      27,
+      6
+     ],
+     [
+      129,
+      22,
+      27,
+      6
+     ]
+    ]
+   },
+   "sunflower": {
+    "form": "heat+nature",
+    "loop": "bob",
+    "layer": "front",
+    "place": [
+     "top",
+     -3
+    ],
+    "rows_added_on_top": 1,
+    "palette_day": [
+     "#ffd23a",
+     "#ffb81f",
+     "#6b3f1d",
+     "#5fb04a",
+     "#4c9a3b"
+    ],
+    "palette_night": [
+     "#ffd23a",
+     "#ffb81f",
+     "#6b3f1d",
+     "#5fb04a",
+     "#4c9a3b"
+    ],
+    "night_dL": -0.04,
+    "size": [
+     7,
+     8
+    ],
+    "n_colours": 5,
+    "anchor": "head_top",
+    "offset": {
+     "curly": [
+      -0.6,
+      8.0
+     ],
+     "dollop": [
+      2.35,
+      1.57
+     ],
+     "mixed": [
+      -0.36,
+      4.84
+     ]
+    },
+    "trait": null,
+    "region": null,
+    "rects": [
+     [
+      157,
+      0,
+      7,
+      8
+     ],
+     [
+      157,
+      22,
+      7,
+      8
+     ]
+    ]
+   },
+   "leafSkirt": {
+    "form": "heat+nature",
+    "loop": "bob",
+    "layer": "behind",
+    "place": [
+     "base",
+     -19,
+     -3
+    ],
+    "rows_added_on_top": 1,
+    "palette_day": [
+     "#5fb04a",
+     "#4c9a3b"
+    ],
+    "palette_night": [
+     "#5fb04a",
+     "#4c9a3b"
+    ],
+    "night_dL": -0.04,
+    "size": [
+     38,
+     5
+    ],
+    "n_colours": 2,
+    "anchor": "centre",
+    "offset": {
+     "curly": [
+      0.0,
+      7.63
+     ],
+     "dollop": [
+      0.0,
+      7.63
+     ],
+     "mixed": [
+      0.0,
+      7.63
+     ]
+    },
+    "trait": null,
+    "region": null,
+    "rects": [
+     [
+      165,
+      0,
+      38,
+      5
+     ],
+     [
+      165,
+      22,
+      38,
+      5
+     ]
+    ]
+   },
+   "windupKey": {
+    "form": "mineral+spark",
+    "loop": "bob",
+    "layer": "behind",
+    "place": [
+     "back",
+     -6,
+     1,
+     2
+    ],
+    "rows_added_on_top": 0,
+    "palette_day": [
+     "#e0b04a",
+     "#a87f2e"
+    ],
+    "palette_night": [
+     "#e3b34d",
+     "#ab8231"
+    ],
+    "night_dL": 1.0,
+    "size": [
+     6,
+     5
+    ],
+    "n_colours": 2,
+    "anchor": "centre",
+    "offset": {
+     "curly": [
+      -0.77,
+      -4.36
+     ],
+     "dollop": [
+      -0.9,
+      -4.27
+     ],
+     "mixed": [
+      -0.79,
+      -4.09
+     ]
+    },
+    "trait": null,
+    "region": null,
+    "rects": [
+     [
+      204,
+      0,
+      6,
+      5
+     ],
+     [
+      204,
+      22,
+      6,
+      5
+     ]
+    ]
+   },
+   "gumdrops": {
+    "form": "prism+sweet",
+    "loop": "spin",
+    "layer": "surface",
+    "place": [
+     "body",
+     -9,
+     -5
+    ],
+    "rows_added_on_top": 0,
+    "palette_day": [
+     "#ff5a8a",
+     "#ffd23f",
+     "#5ad1ff",
+     "#9b6bff",
+     "#6be38a",
+     "#ffffff"
+    ],
+    "palette_night": [
+     "#ef4b7d",
+     "#efc42f",
+     "#47c3f0",
+     "#8c5ef0",
+     "#5cd47d",
+     "#f0f0f0"
+    ],
+    "night_dL": -5.1,
+    "size": [
+     21,
+     21
+    ],
+    "n_colours": 6,
+    "anchor": "centre",
+    "offset": {
+     "curly": [
+      0.0,
+      7.63
+     ],
+     "dollop": [
+      0.0,
+      7.63
+     ],
+     "mixed": [
+      0.0,
+      7.63
+     ]
+    },
+    "trait": null,
+    "region": [
+     0.0,
+     1.0,
+     0.0,
+     1.0
+    ],
+    "margin": true,
+    "spacing": 3,
+    "rects": [
+     [
+      211,
+      0,
+      21,
+      21
+     ],
+     [
+      211,
+      22,
+      21,
+      21
+     ]
+    ]
+   },
+   "sunHalo": {
+    "form": "heat+prism",
+    "loop": "flicker",
+    "layer": "front",
+    "place": [
+     "float",
+     0,
+     2
+    ],
+    "rows_added_on_top": 0,
+    "palette_day": [
+     "#ffc93c",
+     "#ffae00"
+    ],
+    "palette_night": [
+     "#fbc538",
+     "#fbaa00"
+    ],
+    "night_dL": -1.36,
+    "size": [
+     10,
+     3
+    ],
+    "n_colours": 2,
+    "anchor": "head_top",
+    "offset": {
+     "curly": [
+      -0.07,
+      3.51
+     ],
+     "dollop": [
+      0.49,
+      -0.59
+     ],
+     "mixed": [
+      0.22,
+      1.84
+     ]
+    },
+    "trait": null,
+    "region": null,
+    "rects": [
+     [
+      233,
+      0,
+      10,
+      3
+     ],
+     [
+      233,
+      22,
+      10,
+      3
+     ]
+    ]
+   },
+   "sunCore": {
+    "form": "heat+prism",
+    "loop": "flicker",
+    "layer": "inner",
+    "place": [
+     "body",
+     -5,
+     -4
+    ],
+    "rows_added_on_top": 0,
+    "palette_day": [
+     "#ffcf5a",
+     "#ffe9a0",
+     "#ffb000"
+    ],
+    "palette_night": [
+     "#fbcb56",
+     "#fbe59c",
+     "#fbac00"
+    ],
+    "night_dL": -1.36,
+    "size": [
+     4,
+     4
+    ],
+    "n_colours": 3,
+    "anchor": "centre",
+    "offset": {
+     "curly": [
+      -1.59,
+      -5.03
+     ],
+     "dollop": [
+      -1.59,
+      -5.03
+     ],
+     "mixed": [
+      -1.59,
+      -5.03
+     ]
+    },
+    "trait": null,
+    "region": null,
+    "rects": [
+     [
+      244,
+      0,
+      4,
+      4
+     ],
+     [
+      244,
+      22,
+      4,
+      4
+     ]
+    ]
+   },
+   "dewLeaf": {
+    "form": "nature+prism",
+    "loop": "bob",
+    "layer": "front",
+    "place": [
+     "top",
+     -1
+    ],
+    "rows_added_on_top": 1,
+    "palette_day": [
+     "#5cc56a",
+     "#3f8f45"
+    ],
+    "palette_night": [
+     "#4bb55b",
+     "#2e8037"
+    ],
+    "night_dL": -5.86,
+    "size": [
+     7,
+     4
+    ],
+    "n_colours": 2,
+    "anchor": "head_top",
+    "offset": {
+     "curly": [
+      0.18,
+      5.42
+     ],
+     "dollop": [
+      1.22,
+      2.0
+     ],
+     "mixed": [
+      0.29,
+      3.66
+     ]
+    },
+    "trait": null,
+    "region": null,
+    "rects": [
+     [
+      249,
+      0,
+      7,
+      4
+     ],
+     [
+      249,
+      22,
+      7,
+      4
+     ]
+    ]
+   },
+   "droplets": {
+    "form": "nature+prism",
+    "loop": "bob",
+    "layer": "surface",
+    "place": [
+     "body",
+     -12,
+     -7
+    ],
+    "rows_added_on_top": 1,
+    "palette_day": [
+     "#ffffff",
+     "#bfe9ff"
+    ],
+    "palette_night": [
+     "#eeeeee",
+     "#afd8ee"
+    ],
+    "night_dL": -5.86,
+    "size": [
+     12,
+     7
+    ],
+    "n_colours": 2,
+    "anchor": "centre",
+    "offset": {
+     "curly": [
+      0.0,
+      7.63
+     ],
+     "dollop": [
+      0.0,
+      7.63
+     ],
+     "mixed": [
+      0.0,
+      7.63
+     ]
+    },
+    "trait": null,
+    "region": [
+     0.1,
+     0.55,
+     0.3,
+     0.8
+    ],
+    "rects": [
+     [
+      257,
+      0,
+      12,
+      7
+     ],
+     [
+      257,
+      22,
+      12,
+      7
+     ]
+    ]
+   },
+   "helmet": {
+    "form": "mineral+sweet",
+    "loop": "flicker",
+    "layer": "front",
+    "place": [
+     "top",
+     1
+    ],
+    "rows_added_on_top": 0,
+    "palette_day": [
+     "#ff4f5e",
+     "#c83a48",
+     "#d7dde8",
+     "#9aa3b3",
+     "#4a4f5c",
+     "#ffffff"
+    ],
+    "palette_night": [
+     "#fe4e5e",
+     "#c73948",
+     "#d6dce7",
+     "#99a2b2",
+     "#4a4f5c",
+     "#fefefe"
+    ],
+    "night_dL": -0.19,
+    "size": [
+     11,
+     7
+    ],
+    "n_colours": 6,
+    "anchor": "head_top",
+    "offset": {
+     "curly": [
+      -0.98,
+      8.65
+     ],
+     "dollop": [
+      -2.22,
+      3.9
+     ],
+     "mixed": [
+      -0.84,
+      6.41
+     ]
+    },
+    "trait": null,
+    "region": null,
+    "rects": [
+     [
+      270,
+      0,
+      11,
+      7
+     ],
+     [
+      270,
+      22,
+      11,
+      7
+     ]
+    ],
+    "family_rects": {
+     "curly": [
+      [
+       282,
+       0,
+       10,
+       7
+      ],
+      [
+       282,
+       22,
+       10,
+       7
+      ]
+     ],
+     "mixed": [
+      [
+       282,
+       0,
+       10,
+       7
+      ],
+      [
+       282,
+       22,
+       10,
+       7
+      ]
+     ]
+    }
+   },
+   "grahamBase": {
+    "form": "spark:smore",
+    "loop": "none",
+    "layer": "behind",
+    "place": [
+     "graham",
+     -20,
+     0
+    ],
+    "rows_added_on_top": 0,
+    "palette_day": [
+     "#fbe9c6",
+     "#e8c58f",
+     "#c8955a"
+    ],
+    "palette_night": [
+     "#fdebc8",
+     "#eac791",
+     "#ca975c"
+    ],
+    "night_dL": 0.81,
+    "size": [
+     40,
+     3
+    ],
+    "n_colours": 3,
+    "anchor": "centre",
+    "offset": {
+     "curly": [
+      0.0,
+      7.63
+     ],
+     "dollop": [
+      0.0,
+      7.63
+     ],
+     "mixed": [
+      0.0,
+      7.63
+     ]
+    },
+    "trait": null,
+    "region": null,
+    "chocolate": {
+     "day": "#5a3020",
+     "night": "#5c3222",
+     "drips": [
+      0.35,
+      0.8
+     ],
+     "drip_len": 2,
+     "rule": "after the sprite (top-left at centre x + dx, bottom + dy): the colour on the row under the bottom row, from the bottom row's middle to its front end (inside the footprint); drips: 1 px wide, drip_len rows from the row below that, at those fractions of the front half"
+    },
+    "rects": [
+     [
+      293,
+      0,
+      40,
+      3
+     ],
+     [
+      293,
+      22,
+      40,
+      3
+     ]
+    ]
+   },
+   "honeyDipper": {
+    "form": "spark:honeycomb",
+    "loop": "bob",
+    "layer": "front",
+    "place": [
+     "top",
+     -2
+    ],
+    "rows_added_on_top": 1,
+    "palette_day": [
+     "#ffd36b",
+     "#f2a516",
+     "#b85f00",
+     "#7a4a2a"
+    ],
+    "palette_night": [
+     "#f7cc64",
+     "#ea9e06",
+     "#b05800",
+     "#734424"
+    ],
+    "night_dL": -2.69,
+    "size": [
+     4,
+     9
+    ],
+    "n_colours": 4,
+    "anchor": "head_top",
+    "offset": {
+     "curly": [
+      -0.07,
+      25.79
+     ],
+     "dollop": [
+      1.78,
+      17.58
+     ],
+     "mixed": [
+      0.23,
+      21.96
+     ]
+    },
+    "trait": null,
+    "region": null,
+    "rects": [
+     [
+      334,
+      0,
+      4,
+      9
+     ],
+     [
+      334,
+      22,
+      4,
+      9
+     ]
+    ]
+   },
+   "logRing": {
+    "form": "spark:campfire",
+    "loop": "bob",
+    "layer": "behind",
+    "place": [
+     "base",
+     -21,
+     -3
+    ],
+    "rows_added_on_top": 1,
+    "palette_day": [
+     "#7a4e2e",
+     "#5a3820",
+     "#e8c58f",
+     "#6aa84a"
+    ],
+    "palette_night": [
+     "#7b4f2f",
+     "#5b3921",
+     "#e9c690",
+     "#6ba94b"
+    ],
+    "night_dL": 0.5,
+    "size": [
+     42,
+     4
+    ],
+    "n_colours": 4,
+    "anchor": "centre",
+    "offset": {
+     "curly": [
+      0.0,
+      7.63
+     ],
+     "dollop": [
+      0.0,
+      7.63
+     ],
+     "mixed": [
+      0.0,
+      7.63
+     ]
+    },
+    "trait": null,
+    "region": null,
+    "rects": [
+     [
+      339,
+      0,
+      42,
+      4
+     ],
+     [
+      339,
+      22,
+      42,
+      4
+     ]
+    ]
+   },
+   "cloudPuffs": {
+    "form": "spark:storm",
+    "loop": "bob",
+    "layer": "front",
+    "place": [
+     "top",
+     0
+    ],
+    "rows_added_on_top": 1,
+    "palette_day": [
+     "#f4f6ff",
+     "#c9cfe6"
+    ],
+    "palette_night": [
+     "#f1f3fc",
+     "#c6cce3"
+    ],
+    "night_dL": -1.2,
+    "size": [
+     20,
+     5
+    ],
+    "n_colours": 2,
+    "anchor": "centre",
+    "offset": {
+     "curly": [
+      0.0,
+      7.63
+     ],
+     "dollop": [
+      0.0,
+      7.63
+     ],
+     "mixed": [
+      0.0,
+      7.63
+     ]
+    },
+    "trait": null,
+    "region": null,
+    "rects": [
+     [
+      382,
+      0,
+      20,
+      5
+     ],
+     [
+      382,
+      22,
+      20,
+      5
+     ]
+    ]
+   },
+   "rainbowArc": {
+    "form": "spark:storm",
+    "loop": "bob",
+    "layer": "behind",
+    "place": [
+     "top",
+     -9
+    ],
+    "rows_added_on_top": 1,
+    "palette_day": [
+     "#ff8fb8",
+     "#ffb36b",
+     "#ffe27a",
+     "#8fe8a8",
+     "#86c8ff",
+     "#c3a2ff"
+    ],
+    "palette_night": [
+     "#fb8cb5",
+     "#fbb068",
+     "#fbdf77",
+     "#8ce5a5",
+     "#83c5fc",
+     "#c09ffb"
+    ],
+    "night_dL": -1.2,
+    "size": [
+     18,
+     10
+    ],
+    "n_colours": 6,
+    "anchor": "head_top",
+    "offset": {
+     "curly": [
+      -11.74,
+      13.84
+     ],
+     "dollop": [
+      -14.72,
+      6.84
+     ],
+     "mixed": [
+      -12.52,
+      9.63
+     ]
+    },
+    "trait": null,
+    "region": null,
+    "rects": [
+     [
+      403,
+      0,
+      18,
+      10
+     ],
+     [
+      403,
+      22,
+      18,
+      10
+     ]
+    ]
+   },
+   "stormBolt": {
+    "form": "spark:storm",
+    "loop": "flicker",
+    "layer": "front",
+    "place": [
+     "top",
+     6
+    ],
+    "rows_added_on_top": 0,
+    "palette_day": [
+     "#ffd92e",
+     "#ffb000"
+    ],
+    "palette_night": [
+     "#fbd629",
+     "#fbad00"
+    ],
+    "night_dL": -1.2,
+    "size": [
+     4,
+     6
+    ],
+    "n_colours": 2,
+    "anchor": "head_top",
+    "offset": {
+     "curly": [
+      4.2,
+      8.79
+     ],
+     "dollop": [
+      3.51,
+      2.18
+     ],
+     "mixed": [
+      4.87,
+      5.14
+     ]
+    },
+    "trait": null,
+    "region": null,
+    "rects": [
+     [
+      422,
+      0,
+      4,
+      6
+     ],
+     [
+      422,
+      22,
+      4,
+      6
+     ]
+    ]
+   }
+  }
+ },
+ "acc": {
+  "sheet": "overlay_acc.png",
+  "sprites": {
+   "flame": {
+    "form": "heat+sweet",
+    "loop": "none",
+    "layer": "front",
+    "place": [
+     "top",
+     -8
+    ],
+    "rows_added_on_top": 0,
+    "palette_day": [
+     "#ff7a2e",
+     "#ffe066",
+     "#ff5a1f"
+    ],
+    "palette_night": [
+     "#fd782c",
+     "#fdde64",
+     "#fd581d"
+    ],
+    "night_dL": -0.63,
+    "size": [
+     3,
+     4
+    ],
+    "n_colours": 3,
+    "anchor": "head_top",
+    "offset": {
+     "curly": [
+      -2.7,
+      9.15
+     ],
+     "dollop": [
+      -2.98,
+      4.44
+     ],
+     "mixed": [
+      -2.15,
+      5.59
+     ]
+    },
+    "trait": "heat",
+    "region": null,
+    "rects": [
+     [
+      0,
+      0,
+      3,
+      4
+     ]
+    ]
+   },
+   "sprout": {
+    "form": "mineral+nature",
+    "loop": "none",
+    "layer": "front",
+    "place": [
+     "top",
+     0
+    ],
+    "rows_added_on_top": 0,
+    "palette_day": [
+     "#6fbf4f",
+     "#3f8a3a"
+    ],
+    "palette_night": [
+     "#6ebe4e",
+     "#3e8939"
+    ],
+    "night_dL": -0.46,
+    "size": [
+     5,
+     3
+    ],
+    "n_colours": 2,
+    "anchor": "head_top",
+    "offset": {
+     "curly": [
+      -0.8,
+      7.9
+     ],
+     "dollop": [
+      -1.13,
+      3.03
+     ],
+     "mixed": [
+      -0.17,
+      5.28
+     ]
+    },
+    "trait": "nature",
+    "region": null,
+    "rects": [
+     [
+      4,
+      0,
+      5,
+      3
+     ]
+    ]
+   },
+   "crystals": {
+    "form": "prism",
+    "loop": "none",
+    "layer": "surface",
+    "place": [
+     "body",
+     -12,
+     -6
+    ],
+    "rows_added_on_top": 0,
+    "palette_day": [
+     "#b5e9ff",
+     "#47b5ff",
+     "#ffffff"
+    ],
+    "palette_night": [
+     "#a5d9ee",
+     "#2da5ee",
+     "#eeeeee"
+    ],
+    "night_dL": -5.79,
+    "size": [
+     12,
+     7
+    ],
+    "n_colours": 3,
+    "anchor": "head_top",
+    "offset": {
+     "curly": [
+      -2.66,
+      9.9
+     ],
+     "dollop": [
+      -3.98,
+      3.66
+     ],
+     "mixed": [
+      -2.32,
+      6.2
+     ]
+    },
+    "trait": "prism",
+    "region": [
+     0.1,
+     0.5,
+     0.3,
+     0.8
+    ],
+    "rects": [
+     [
+      10,
+      0,
+      12,
+      7
+     ]
+    ]
+   },
+   "studs": {
+    "form": "mineral",
+    "loop": "none",
+    "layer": "surface",
+    "place": [
+     "body",
+     -12,
+     -7
+    ],
+    "rows_added_on_top": 0,
+    "palette_day": [
+     "#a7b4c8",
+     "#e3e9f2",
+     "#6f7d92"
+    ],
+    "palette_night": [
+     "#a9b6ca",
+     "#e5ebf4",
+     "#717f94"
+    ],
+    "night_dL": 0.64,
+    "size": [
+     12,
+     6
+    ],
+    "n_colours": 3,
+    "anchor": "head_top",
+    "offset": {
+     "curly": [
+      4.68,
+      16.01
+     ],
+     "dollop": [
+      6.43,
+      7.09
+     ],
+     "mixed": [
+      5.55,
+      11.66
+     ]
+    },
+    "trait": "mineral",
+    "region": [
+     0.1,
+     0.5,
+     0.2,
+     0.8
+    ],
+    "rects": [
+     [
+      23,
+      0,
+      12,
+      6
+     ]
+    ]
+   },
+   "sprinkles": {
+    "form": "sweet",
+    "loop": "none",
+    "layer": "surface",
+    "place": [
+     "body",
+     -12,
+     -7
+    ],
+    "rows_added_on_top": 0,
+    "palette_day": [
+     "#ff6fae",
+     "#ffd25a",
+     "#7fd1ff",
+     "#b49bff",
+     "#7fe39a"
+    ],
+    "palette_night": [
+     "#f96aa9",
+     "#f9cd55",
+     "#7accfa",
+     "#af96fa",
+     "#7ade95"
+    ],
+    "night_dL": -1.85,
+    "size": [
+     12,
+     6
+    ],
+    "n_colours": 5,
+    "anchor": "head_top",
+    "offset": {
+     "curly": [
+      -11.47,
+      13.81
+     ],
+     "dollop": [
+      -11.68,
+      6.02
+     ],
+     "mixed": [
+      -12.33,
+      9.82
+     ]
+    },
+    "trait": "sweet",
+    "region": [
+     0.1,
+     0.55,
+     0.35,
+     0.85
+    ],
+    "rects": [
+     [
+      36,
+      0,
+      12,
+      6
+     ]
+    ]
+   },
+   "rivets": {
+    "form": "mineral+sweet",
+    "loop": "none",
+    "layer": "surface",
+    "place": [
+     "body",
+     -12,
+     -7
+    ],
+    "rows_added_on_top": 0,
+    "palette_day": [
+     "#a7b4c8",
+     "step:shadow"
+    ],
+    "palette_night": [
+     "#a6b3c7",
+     "step:shadow"
+    ],
+    "night_dL": -0.19,
+    "size": [
+     21,
+     21
+    ],
+    "n_colours": 2,
+    "anchor": "head_top",
+    "offset": {
+     "curly": [
+      5.18,
+      16.46
+     ],
+     "dollop": [
+      4.45,
+      9.07
+     ],
+     "mixed": [
+      5.2,
+      12.68
+     ]
+    },
+    "trait": "mineral",
+    "region": [
+     0.0,
+     1.0,
+     0.0,
+     1.0
+    ],
+    "margin": true,
+    "spacing": 4,
+    "for_forms": [
+     "mineral+sweet"
+    ],
+    "rects": [
+     [
+      49,
+      0,
+      21,
+      21
+     ]
+    ]
+   }
+  }
+ },
+ "volt_hair": "kit.json hair: the pilot's hand stamp (3 kinked bolts, 2 frames)",
+ "index": "per sprite: 0 clear, n = its palette entry n-1",
+ "checks": {
+  "props": 32,
+  "prop_frames": 64,
+  "acc": 5,
+  "extra": {
+   "prop_variant_frames": 2,
+   "acc_variants": 1,
+   "note": "blind-read fix: the Toffee helmet at 10 px for the Curly and Mixed (2 frames), and Toffee's own studs (Iron keeps the round-1 studs, frozen)"
+  },
+  "max_colours": 6
+ }
+}
