@@ -134,7 +134,7 @@ body.at-ranch .egg-hint { display: none !important; }
 
 /* jelly counter */
 .jelly { pointer-events: none; justify-self: center; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 2px; padding-top: 2px; min-width: 0; }
-.jelly-count { display: flex; align-items: center; gap: 6px; font-family: var(--display); font-weight: 700; font-size: clamp(28px, 4.2vw, 44px); line-height: 1; letter-spacing: -.01em; font-variant-numeric: tabular-nums; white-space: nowrap; text-shadow: 0 2px 0 var(--panel-strong), 0 6px 22px var(--shade); }
+.jelly-count { display: flex; align-items: center; gap: 6px; font-family: var(--body); font-weight: 800; font-size: clamp(28px, 4.2vw, 44px); line-height: 1; letter-spacing: -.01em; font-variant-numeric: tabular-nums; white-space: nowrap; text-shadow: 0 2px 0 var(--panel-strong), 0 6px 22px var(--shade); }
 .jelly-count svg { width: .8em; height: .8em; fill: var(--gel); flex: none; filter: drop-shadow(0 2px 0 var(--panel-strong)); }
 .jps { font-weight: 800; font-size: 13px; color: var(--ink-2); text-shadow: 0 1px 0 var(--panel-strong); }
 .giggle { margin-top: 6px; width: 190px; display: grid; gap: 3px; transition: opacity .3s; }
@@ -216,8 +216,12 @@ body.at-ranch .egg-hint { display: none !important; }
 .helper img { filter: drop-shadow(0 0 5px var(--icon-glow)); }
 .outfit .on { font-weight: 800; font-size: 13px; }
 .outfit .ob { font-size: 11.5px; color: var(--ink-2); line-height: 1.35; flex: 1; }
-.outfit .wear { font-weight: 800; font-size: 12.5px; padding: 4px 12px; border-radius: 99px; background: var(--chip); color: var(--ink); }
-.outfit .wear.on { background: var(--berry); color: #fff; }
+.outfit .wear { display: inline-flex; align-items: center; gap: 4px; font-weight: 800; font-size: 12.5px; padding: 4px 12px; border-radius: 99px; background: var(--chip); color: var(--ink); }
+.outfit .wear.on { background: var(--berry); color: #fff; } .outfit .wear .gi { width: 12px; height: 12px; }
+.outfit .cost.buy { font-weight: 700; font-size: 12.5px; } .outfit .cost.buy b { font-weight: 800; }
+.outfit .needs { font-weight: 800; font-size: 12.5px; padding: 4px 6px; color: var(--ink-2); white-space: nowrap; }
+.outfit.poor .buy, .outfit:not(.poor) .needs { display: none; }
+.outfit.poor { cursor: default; }
 .outfit.worn { border-color: color-mix(in srgb, var(--berry) 55%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--berry) 15%, transparent); }
 .outfit:not(.owned) img { opacity: .75; }
 .outfit .fav-dot { position: absolute; top: 8px; right: 9px; width: 13px; height: 12px; background: var(--berry); clip-path: path('M6.5 12 C 0 7, 0 2.2, 3.2 1.1 C 5 .4 6 1.4 6.5 2.4 C 7 1.4 8 .4 9.8 1.1 C 13 2.2, 13 7, 6.5 12 Z'); }

@@ -55,6 +55,10 @@ export function migrateResident(x) {
 
 // ---------- what skills and loves do (also used by core/ranch.js) ----------
 export const stars = (x, id) => clampStars(x?.skills?.[id]);
+// The star places a skill's row shows (the resident page, the Train picker, a finished lesson's toast and card): 5, or
+// its talent's cap (6 for grade A, 7 for S) once a lesson has shown the talent there; never fewer than the stars it has.
+// Each place shown is one it has or can still learn: lessonFor stops at the same starCap.
+export const starSlots = (x, id) => Math.max(stars(x, id), (Array.isArray(x?.talentsSeen) && x.talentsSeen.includes(id)) ? starCap(x, id) : L.maxStars);
 // Sum over the five skills of stars x that skill's per-star effect `key` (RANCH_LIFE.skills[].fx).
 const skillFx = (x, key) => L.skills.reduce((t, s) => t + stars(x, s.id) * (s.fx[key] || 0), 0);
 // Personality "loves": the sign id of the strongest lean (movingDaySign), and its RANCH_LIFE.loves entry.

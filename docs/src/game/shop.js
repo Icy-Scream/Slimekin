@@ -44,6 +44,22 @@ export class ShopPart {
     this.wearOutfit(id);
   }
 
+  // Dress up's Buy & wear (ui/contests.js): the family buys it with the Outfits page's rule and price, and the ranch
+  // resident wears it (the slime at home keeps what it wears). Returns Sim.buyAndDress's result.
+  buyOutfitFor(residentId, id) {
+    this.sfx.unlock();
+    const r = this.sim.buyAndDress(residentId, id);
+    if (!r.ok) { this.sfx.error(); return r; }
+    if (r.bought) {
+      this.sfx.buy();
+      const x = this.state.ranch.residents.find(s => s.id === residentId);
+      this.remember(id, `${x.name} got a new outfit: ${r.def.name}.`, 'outfit-' + id);
+      this.hud.outfitKey = '';
+    }
+    this.markDirty(true);
+    return r;
+  }
+
   wearOutfit(id) {
     const r = this.sim.wear(id);
     if (!r) return;
