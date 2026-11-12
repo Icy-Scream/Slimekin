@@ -208,8 +208,8 @@ ok(!seedBad.length, 'the seed picks only looks: another seed, the same positions
 console.log('\n# margins in words, the photo finish, the quiet loss');
 {
   const w = [0, 1, 2, 4, 5, 9, 10, 19, 20, 29, 30, 47].map(g => `${g}:${R.marginOf(g).words}`);
-  ok(JSON.stringify(w) === JSON.stringify(['0:by a wobble', '1:by a wobble', '2:by a hop', '4:by a hop', '5:by two hops', '9:by two hops', '10:by a slime-length', '19:by a slime-length', '20:by 2 slime-lengths', '29:by 2 slime-lengths', '30:by 3 slime-lengths', '47:by 4 slime-lengths']),
-    'margins: 0-1 a wobble, 2-4 a hop, 5-9 two hops, 10-19 a slime-length, 20+ N slime-lengths', w.join(' '));
+  ok(JSON.stringify(w) === JSON.stringify(['0:by a wobble', '1:by a wobble', '2:by a hop', '4:by a hop', '5:by two hops', '9:by two hops', '10:by a slime-length', '19:by a slime-length', '20:by two slime-lengths', '29:by two slime-lengths', '30:by three slime-lengths', '47:by four slime-lengths']),
+    'margins: 0-1 a wobble, 2-4 a hop, 5-9 two hops, 10-19 a slime-length, 20+ N slime-lengths (N in words: no numbers on screen)', w.join(' '));
   const x = graded('speed', 'C', { skills: skills({ speed: 1, sturdy: 0, smarts: 0 }), happiness: 0 });
   const wo = world([x]); x.contests.trophies.sprint = 3;
   const big = R.raceOf(wo, x.id, 'sprint', { cup: 4 });
@@ -254,9 +254,12 @@ console.log('\n# the scale, the seed, gaits');
   ok(s > 0 && s < RC.scale.pxPerPoint, `a runaway win (Little Cup, 7 Speed stars) shrinks the scale so the widest gap fits (${s.toFixed(3)} px a point)`);
   const r = R.raceOf(w, x.id, 'sprint', { cup: 1, cheers: 'perfect', scale: s });
   ok(Math.max(...r.behind.flat()) <= fit, 'and with every Perfect cheer it still fits');
-  const y = graded('speed', 'A', { skills: skills({ speed: 5, sturdy: 3, smarts: 2 }), happiness: 80 });
+  const y = graded('speed', 'C', { skills: skills({ speed: 4, sturdy: 4, smarts: 4 }), happiness: 80 });
   const w2 = world([y]); y.contests.trophies.sprint = 2;
-  ok(R.raceScale(w2, y.id, 'sprint', 3) === RC.scale.pxPerPoint, `a close Grand Cup keeps ${RC.scale.pxPerPoint} px a point (10 points = one slime-length)`);
+  ok(R.raceScale(w2, y.id, 'sprint', 3) === RC.scale.pxPerPoint, `a close Grand Cup (76 before cheers against 60 / 72 / 85) keeps ${RC.scale.pxPerPoint} px a point (10 points = one slime-length)`);
+  const j = graded('speed', 'A', { skills: skills({ speed: 5, sturdy: 3, smarts: 2 }), happiness: 80 });
+  const w3 = world([j]); j.contests.trophies.sprint = 2;
+  ok(Math.abs(R.raceScale(w3, j.id, 'sprint', 3) - 90 / 31) < 1e-12, "Juniper's Grand Cup: the widest gap it can have is 31 points (every Perfect cheer and the pat), so 90 / 31 px a point", String(R.raceScale(w3, j.id, 'sprint', 3)));
   ok(R.raceOf(w2, y.id, 'sprint', { cup: 9 }).ok === false && R.raceOf(w2, 'nobody', 'sprint', {}).ok === false, 'a race that cannot run says why (canEnter)');
 }
 
