@@ -594,9 +594,8 @@ names, cup `short` names, rivals, `cheer` and `show` timing). Screenshots: `node
     4", the coach's line from the rules' preview), "Dress up · Style x of 20" (Beauty Show only), "Shows are free and
     always open. ...", Start the show (primary) / Not now.
   - Dress up: "Dress up Pebble", the Style meter `.cs-meter` (x of 20, "counts in the Beauty Show"), Head / Face / Neck
-    with every outfit `.cs-outfit` (its rendered icon, "+N Style", `.cs-chip` "✓ Wearing" purple / "Wear"; not owned:
-    faded, "In Outfits", a touch only shakes it; what it wears is always "✓ Wearing", owned or not: see "Outfits and stars
-    fixes" below), Done. The resident comes up on the stand and its 3D look changes as you tap.
+    with every outfit `.cs-outfit` (its rendered icon, the name over "+N Style", `.cs-chip` "✓ Wearing" purple / "Wear" /
+    green "<price> Buy & wear" / "Needs N jelly": see "Dress up: wear and buy from the card" below), Done. The resident comes up on the stand and its 3D look changes as you tap.
     Opened from the entry card or the loss card, Done goes back to the entry card.
   - Results (`.cs-res`): a loss: "Good try!", "2nd place in the Grand Cup", four `.cs-line` rows (the slime's row
     `.me` highlighted; a tie lists it first), the parts line with Cheers, the coach's tip `.cs-tip` (whistle) and
@@ -640,3 +639,23 @@ names, cup `short` names, rivals, `cheer` and `show` timing). Screenshots: `node
   (★☆☆☆☆☆ for a skill graded A once its talent is shown; before, always 5 places).
 - HUD jelly counter (`.jelly-count`): the number in M PLUS Rounded 1c 800 (was DynaPuff 700, whose B reads as 6 or 8:
   "1.2B" looked like "1.26"; design/STYLE.md §4). The drop icon and the "per second" line are unchanged.
+
+## Dress up: wear and buy from the card (the captain, 11 Nov: "I should be able to wear items from my outfits and select wear too")
+
+Every outfit is choosable in Dress up, the way it is on the Outfits page. One rule names a row on both pages
+(`Sim.outfitChoice(id, worn)` in core/sim.js), so they always say the same thing.
+- Dress up (`#modalCard .cs-outfit`): the name over "+N Style" (`.cs-on`, so a price fits on a 390 px phone), then:
+  - worn: `.cs-chip.on` "✓ Wearing" (purple, `aria-pressed="true"`): a touch takes it off, as before;
+  - owned, not worn: `.cs-chip` "Wear": a touch puts it on, in place of what that spot held;
+  - not owned (`button.cs-outfit.cs-shop[data-cs="buy"]`): green `.cs-chip.cs-buy` "(drop) 100B Buy & wear": a touch
+    buys it for the family at the Outfits page's price (`Sim.buyOutfit`, through `Sim.buyAndDress` and
+    `Game.buyOutfitFor`: the buy sound, a Journal line "Mochi got a new outfit: Tiny Crown.") and puts it on this
+    resident; Pebble at home keeps what she wears. No confirm, the same as the Outfits page;
+  - not owned and not enough jelly (`.poor`, `aria-disabled="true"`): faded, `.cs-chip.cs-needs` "Needs 100B jelly" in
+    grey; a touch does nothing (replaces the faded "In Outfits" row that shook).
+  Both labels of a not-owned row are drawn and the jelly picks one: the open card checks every 0.4 s, so a row turns
+  into "Buy & wear" once the jelly is there. The intro now says "Outfits belong to the whole family."
+- Outfits page (`#body-outfits .outfit`): the same labels: `.wear.on` "✓ Wearing" (the drawn check, was the word only),
+  `.wear` "Wear", `.cost.buy` "(drop) 100B Buy & wear" (was the price only), `.needs` "Needs 100B jelly" on a `.poor`
+  tile (`aria-disabled="true"`; was a grey price, and a touch beeped with a "Not enough jelly" toast; now it does
+  nothing).
