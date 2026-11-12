@@ -8,7 +8,9 @@ import { CONTESTS, CONTEST_BY_ID, CONTEST_IDS, OUTFITS, SKILL_BY_ID } from '../d
 import { scoreShow, canEnter, nextCup, trophiesOf, trophyCount, championsOf, styleOf, dressUp, shelfList, SLOTS } from '../core/contests.js';
 import { gradeOf } from '../core/talents.js';
 import { busy } from '../core/ranch-life.js';
+import { fmtShort } from '../core/format.js';
 import { ICON, cupIcon, blobIcon, memIcon } from './icons.js';
+import { DROP } from './dom.js';
 import { esc } from './esc.js';
 
 const C = CONTESTS;
@@ -81,10 +83,16 @@ const CSS = `
   .cs-outfit.on { background: var(--cs-soft); border: 1.6px solid var(--cs-p); }
   .cs-outfit .cs-oic { width: 30px; height: 30px; flex: none; display: grid; place-items: center; }
   .cs-outfit .cs-oic img { width: 30px; height: 30px; }
-  .cs-outfit b { font-size: 14px; white-space: nowrap; } .cs-outfit .sub { flex: 1; white-space: nowrap; }
-  .cs-outfit.not .cs-oic, .cs-outfit.not b { opacity: .45; } .cs-outfit.not b { opacity: .7; color: var(--ink-2); }
-  .cs-chip { flex: none; border-radius: 12px; padding: 3px 12px; font-weight: 800; font-size: 12px; background: var(--chip); border: 1px solid var(--edge); display: inline-flex; align-items: center; gap: 4px; }
+  .cs-outfit .cs-on { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+  .cs-outfit b { font-size: 14px; white-space: nowrap; } .cs-outfit .sub { white-space: nowrap; font-size: 12px; }
+  button.cs-outfit.poor { cursor: default; }
+  .cs-outfit.poor .cs-oic { opacity: .45; } .cs-outfit.poor b { opacity: .7; color: var(--ink-2); }
+  .cs-chip { flex: none; border-radius: 12px; padding: 3px 12px; font-weight: 800; font-size: 12px; background: var(--chip); border: 1px solid var(--edge); display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
   .cs-chip.on { background: var(--cs-p); color: #fff; border-color: transparent; } .cs-chip .gi { width: 12px; height: 12px; }
+  .cs-chip.cs-buy { background: var(--gel); color: var(--on-gel); border-color: transparent; padding: 3px 10px; font-weight: 700; }
+  .cs-chip.cs-buy svg { width: 11px; height: 11px; fill: currentColor; flex: none; } .cs-chip.cs-buy b { font-size: 12px; font-weight: 800; }
+  .cs-chip.cs-needs { background: none; border-color: transparent; color: var(--ink-2); padding: 3px 2px 3px 8px; }
+  .cs-outfit.poor .cs-buy, .cs-outfit:not(.poor) .cs-needs { display: none; }
   .cs-res { align-items: stretch; }
   .cs-res h2.cs-big { font-family: var(--display); font-weight: 700; font-size: 30px; text-align: center; }
   .cs-res .cs-sub { text-align: center; font-weight: 800; font-size: 15px; color: var(--ink-2); margin: -6px 0 0; }
@@ -336,6 +344,9 @@ export class ContestsUI {
   }
 
   // ---------- Dress up ----------
+  // Every outfit, with the Outfits page's labels (Sim.outfitChoice): "✓ Wearing" (a touch takes it off), "Wear" (the
+  // family owns it), "<price> Buy & wear" (bought with the Outfits page's rule and price, then worn: Game.buyOutfitFor)
+  // or "Needs N jelly" (a touch does nothing). Outfits belong to the family; what one slime wears is its own.
   // back: what Done (or closing) goes back to (the entry card it came from), or nothing
   openDress(id, { back = null } = {}) {
     const g = this.g, x = this.resident(id);
@@ -343,38 +354,63 @@ export class ContestsUI {
     if (busy(x) === 'away') return false;
     // the slime being dressed comes up on the stand, so you see its outfits change
     if (g.barnRanch && g.barnRanch.active && g.barnRanch.curId !== id) g.barnRanch.show(id);
-    const owned = new Set(this.state.outfits.owned || []), worn = x.worn || {};
+    const worn = x.worn || {};
     const style = styleOf(worn), cap = C.score.styleCap, name = esc(x.name);
-    const rank = o => (worn[o.slot] === o.id ? 0 : owned.has(o.id) ? 1 : 2);
+    const kind = o => g.sim.outfitChoice(o.id, worn);
+    // what it wears first, then the family's, then the rest (each in the content's order)
+    const rank = o => ({ wearing: 0, wear: 1 })[kind(o)] ?? 2;
     const slots = [...SLOT_ORDER.filter(s => SLOTS.includes(s)), ...SLOTS.filter(s => !SLOT_ORDER.includes(s))];
     const groups = slots.map(slot => {
       const list = OUTFITS.filter(o => o.slot === slot).map((o, i) => ({ o, i })).sort((a, b) => rank(a.o) - rank(b.o) || a.i - b.i).map(({ o }) => {
-        const on = worn[slot] === o.id, have = owned.has(o.id), st = `+${C.style[o.id] || 0} Style`;
+        const k = kind(o), on = k === 'wearing';
         const icon = `<span class="cs-oic">${g.hud.icon(o.id, o.name).replace('<span style="font-size:30px;line-height:1"', '<span style="font-size:22px;line-height:1"')}</span>`;
-        // one the family does not own: faded, "In Outfits" (where to get it); a touch shakes it. What the slime wears is
-        // always shown as worn (and a touch takes it off), owned or not: the card shows what the stand draws
-        if (!have && !on) return `<button class="cs-outfit not" data-cs="notOwned" data-outfit="${o.id}" aria-disabled="true">${icon}<b>${esc(o.name)}</b><span class="sub">${st}</span><span class="sub" style="flex:none">In Outfits</span></button>`;
-        return `<button class="cs-outfit${on ? ' on' : ''}" data-cs="wear" data-slot="${slot}" data-outfit="${o.id}" aria-pressed="${on}">${icon}<b>${esc(o.name)}</b><span class="sub">${st}</span><span class="cs-chip${on ? ' on' : ''}">${on ? `${ICON.check}Wearing` : 'Wear'}</span></button>`;
+        const label = `<span class="cs-on"><b>${esc(o.name)}</b><span class="sub">+${C.style[o.id] || 0} Style</span></span>`;
+        // one the family does not own: both labels are drawn and the jelly picks one (the card follows it while open)
+        if (k === 'buy' || k === 'needs') {
+          const price = fmtShort(o.cost);
+          return `<button class="cs-outfit cs-shop${k === 'needs' ? ' poor' : ''}" data-cs="buy" data-slot="${slot}" data-outfit="${o.id}" aria-pressed="false"${k === 'needs' ? ' aria-disabled="true"' : ''}>${icon}${label}<span class="cs-chip cs-buy">${DROP}<span><b>${price}</b> Buy &amp; wear</span></span><span class="cs-chip cs-needs">Needs ${price} jelly</span></button>`;
+        }
+        return `<button class="cs-outfit${on ? ' on' : ''}" data-cs="wear" data-slot="${slot}" data-outfit="${o.id}" aria-pressed="${on}">${icon}${label}<span class="cs-chip${on ? ' on' : ''}">${on ? `${ICON.check}Wearing` : 'Wear'}</span></button>`;
       }).join('');
       return `<div class="cs-group">${SLOT_NAME[slot] || slot}</div>${list}`;
     }).join('');
-    const html = `<h2 class="cs-h">Dress up ${name}</h2><p class="cs-p">Outfits your family owns. ${name} wears them on the ranch and in shows. One per spot.</p>
+    const html = `<h2 class="cs-h">Dress up ${name}</h2><p class="cs-p">Outfits belong to the whole family. ${name} wears them on the ranch and in shows. One per spot.</p>
       <div class="cs-meter"><div class="cs-head"><b>Style ${Math.min(style, cap)} of ${cap}</b><span class="sub">counts in the Beauty Show</span></div><div class="cs-bar"><i style="width:${(Math.min(style, cap) / cap * 100).toFixed(0)}%"></i></div></div>
       ${groups}<button class="btn primary" data-cs="done">Done</button>`;
+    const again = () => {
+      const keep = g.hud.onModalClose; g.hud.onModalClose = null;
+      this.openDress(id, { back });
+      g.hud.onModalClose = keep;
+    };
     this.open(html, 'dress', card => {
       for (const b of card.querySelectorAll('[data-cs]')) b.addEventListener('click', () => {
         if (b.dataset.cs === 'done') { g.hud.closeModal(); return; }
-        if (b.dataset.cs === 'notOwned') { g.sfx.error && g.sfx.error(); b.classList.remove('shake'); void b.offsetWidth; b.classList.add('shake'); return; }
-        const slot = b.dataset.slot, oid = b.dataset.outfit, on = (x.worn || {})[slot] === oid;
-        const r = dressUp(this.state, id, slot, on ? null : oid);
-        if (!r.ok) { g.sfx.error && g.sfx.error(); return; }
-        g.sfx.plip && g.sfx.plip();
+        const slot = b.dataset.slot, oid = b.dataset.outfit;
+        if (b.dataset.cs === 'buy') {
+          // what the row shows decides: "Needs N jelly" does nothing
+          if (b.classList.contains('poor')) return;
+          if (!g.buyOutfitFor(id, oid).ok) { again(); return; }
+        } else {
+          const on = (x.worn || {})[slot] === oid;
+          const r = dressUp(this.state, id, slot, on ? null : oid);
+          if (!r.ok) { g.sfx.error && g.sfx.error(); return; }
+          g.sfx.plip && g.sfx.plip();
+        }
         this.applyLook(id);
         g.markDirty(true); g.saveNow();
-        const keep = g.hud.onModalClose; g.hud.onModalClose = null;
-        this.openDress(id, { back });
-        g.hud.onModalClose = keep;
+        again();
       });
+      // while the card is open, a row the family can't afford turns into "Buy & wear" once the jelly is there
+      const mark = card.querySelector('[data-cs-card="dress"]'), modal = document.getElementById('modal');
+      const timer = setInterval(() => {
+        if (!mark || !mark.isConnected || modal.hidden) { clearInterval(timer); return; }
+        for (const b of card.querySelectorAll('.cs-shop')) {
+          const poor = g.sim.outfitChoice(b.dataset.outfit, x.worn || {}) === 'needs';
+          if (poor === b.classList.contains('poor')) continue;
+          b.classList.toggle('poor', poor);
+          if (poor) b.setAttribute('aria-disabled', 'true'); else b.removeAttribute('aria-disabled');
+        }
+      }, 400);
     });
     g.hud.onModalClose = back ? () => back() : null;
     return true;

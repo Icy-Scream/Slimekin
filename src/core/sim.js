@@ -7,14 +7,14 @@ import {
   MEDALS, MEDAL_BY_ID, HEIRLOOM_BY_ID,
 } from '../data/content.js';
 import { createRanch, migrateRanch, Ranch, residentJpsFor, dayNumber } from './ranch.js';
-import { emptySkills, RanchLife } from './ranch-life.js';
+import { emptySkills, RanchLife, busy } from './ranch-life.js';
 import { emptyLineage, applyEgg, resolveForm, eggFromLineage, eggLabel, eggPotential } from './breeding.js';
 import { rollPotential, validPotential, migrateTalents } from './talents.js';
 import { medalFor, medalRank } from './medals.js';
 import { createHeirlooms, migrateHeirlooms, heirloomMult, heirloomFlag, startHelpers, forSale, ownsHeirloom } from './heirlooms.js';
 import { rollPlainEgg, oldBody, cleanBody } from './recipe.js';
 import { SAVE_VERSION, num, numOrNull, nums, count } from './save-check.js';
-import { createResidentContests, cleanWorn } from './contests.js';
+import { createResidentContests, cleanWorn, dressUp } from './contests.js';
 
 export { SAVE_VERSION };
 
@@ -790,5 +790,31 @@ export class Sim {
     let discovered = false;
     if (on && id === o.favorite && !o.knownFavorite) { o.knownFavorite = true; discovered = true; }
     return { def, on, favorite: on && id === o.favorite, discovered };
+  }
+  // The row an outfit gets on the Outfits page and in Dress up, for a slime wearing `worn` (the slime at home when none
+  // is given): 'wearing' (a touch takes it off), 'wear' (the family owns it), 'buy' (enough jelly: Buy & wear) or
+  // 'needs' (not enough: "Needs N jelly", a touch does nothing). null for an outfit that does not exist.
+  outfitChoice(id, worn = this.s.outfits.worn) {
+    const def = OUTFIT_BY_ID[id];
+    if (!def) return null;
+    if (worn && worn[def.slot] === id) return 'wearing';
+    if (this.s.outfits.owned.includes(id)) return 'wear';
+    return this.canAfford(def.cost) ? 'buy' : 'needs';
+  }
+  // Dress up's Buy & wear: the family buys the outfit with the Outfits page's rule and price (buyOutfit) and a ranch
+  // resident puts it on (dressUp). One the family owns already just goes on. Nothing is spent unless it can go on: not
+  // for a slime on a trip, nor one that is not on the ranch. Returns dressUp's { ok, reason?, worn } plus bought, def.
+  buyAndDress(residentId, outfitId) {
+    const def = OUTFIT_BY_ID[outfitId];
+    if (!def) return { ok: false, reason: 'outfit' };
+    const x = this.s.ranch.residents.find(r => r.id === residentId);
+    if (!x) return { ok: false, reason: 'missing' };
+    if (busy(x) === 'away') return { ok: false, reason: 'away' };
+    let bought = false;
+    if (!this.s.outfits.owned.includes(outfitId)) {
+      if (!this.buyOutfit(outfitId)) return { ok: false, reason: 'poor' };
+      bought = true;
+    }
+    return { ...dressUp(this.s, residentId, def.slot, outfitId), bought, def };
   }
 }
