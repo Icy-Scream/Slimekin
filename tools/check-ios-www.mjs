@@ -35,6 +35,9 @@ const LOCAL_READS = [
   { file: 'src/view/barn.js', folder: 'src/assets/barn', n: 1,
     base: /^const BASE = new URL\('\.\.\/assets\/barn\/', import\.meta\.url\);$/m, call: /\bfetch\(new URL\(name, BASE\)\)/g,
     why: "the Barn ranch's own files (barn.json, barn.bin), bundled in the app" },
+  { file: 'src/view/race-kit.js', folder: 'src/assets/race', n: 1,
+    base: /^const BASE = new URL\('\.\.\/assets\/race\/', import\.meta\.url\);$/m, call: /\bfetch\(new URL\(name, BASE\)\)/g,
+    why: "the race's pixel kit (usopp/race-kit: sheets, tiles, anchors), bundled in the app" },
 ];
 const BINARY = new Set(['.woff2', '.woff', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico', '.bin']);
 

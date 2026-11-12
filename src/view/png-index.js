@@ -35,11 +35,10 @@ export function unfilter(raw, w, h, ch) {
   }
   return out;
 }
-// in the browser: fetch + DecompressionStream('deflate') (zlib)
-export async function fetchPng(url) {
-  const r = await fetch(url);
-  if (!r.ok) throw new Error(`${url}: ${r.status}`);
-  const { w, h, ch, z } = pngChunks(new Uint8Array(await r.arrayBuffer()));
+// in the browser: a PNG file's bytes (an ArrayBuffer) -> its rows, through DecompressionStream('deflate') (zlib;
+// Safari 16.4+). The bytes come from race-kit.js's one read of its own files.
+export async function pngOfBytes(buf) {
+  const { w, h, ch, z } = pngChunks(new Uint8Array(buf));
   const raw = new Uint8Array(await new Response(new Blob([z]).stream().pipeThrough(new DecompressionStream('deflate'))).arrayBuffer());
   return { w, h, ch, data: unfilter(raw, w, h, ch) };
 }

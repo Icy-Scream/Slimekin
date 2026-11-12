@@ -659,3 +659,41 @@ Every outfit is choosable in Dress up, the way it is on the Outfits page. One ru
   `.wear` "Wear", `.cost.buy` "(drop) 100B Buy & wear" (was the price only), `.needs` "Needs 100B jelly" on a `.poor`
   tile (`aria-disabled="true"`; was a grey price, and a touch beeped with a "Not enough jelly" toast; now it does
   nothing).
+
+## Race view RV2: Slime Sprint, by day (the Pixel Derby)
+
+The Slime Sprint is now a pixel race (design `slimekin-notes/design/contests-race-view.md` v2 + the captain's ruling and
+picks). Beauty Show and Bounce-Off keep the stand show above until RV3/RV4. Every piece below is in ONE module,
+`src/view/race-skin.js` (CSS in `<style id="raceSkinCss">`), in today's look (glass panels, chips, cup icons, DynaPuff
+and M PLUS Rounded), at the design's places (§8, 390 x 844) with the design's words. The scrapbook art (UI art P1,
+design §6.1) replaces them there; the missing pieces are listed in `slimekin-notes/reports/race-rv2.md` "Skin gaps".
+No rival score shows anywhere in the race (card, race, results).
+
+- Entry card, Slime Sprint tab (`ui/contests.js` `openRaceCard`): the same title, tabs and cup ladder, then the cup's
+  name and four runner rows `.rv-rows > .rv-row` (yours first, `.me`): a 32 x 28 pixel face (canvas, white border),
+  `.rv-rt` the name over one line: yours "Can win this with good cheers." (the chances: "Ready for this one.", "Can win
+  this with good cheers.", "Close: needs great cheers.", "Not yet: <tip>."), a rival "Starlight's slime" over "Speed
+  ★★★★★ · finishes strong" (main skill stars + its race style); `.rv-grade` a grade stamp (A / S) where there is one.
+  Buttons `.rv-two`: "Not now" / "Race!" (Sprint cup icon).
+- The race layer `#raceLayer` (over the barn; the HUD hides, `body.rv-on`):
+  - the way in: `#raceBridge` (the barn's frame pixelating, then the course slides in: `.bridge`, `.slide`);
+  - `#raceCanvas` the pixel course (1 art px = 2 pt, bottom on the screen's bottom), `#raceRings` the cheer rings
+    (white target 78 pt, Sprint blue closing ring);
+  - `.rv-skip` "Skip" (top right, 112 x 44);
+  - `.rv-tote` the tote strip: `#rvFaces` the running order (four faces, "1st" to "4th", yours outlined) and `#rvTrack`
+    the course line with a pin per runner;
+  - `.rv-caller` the caller's line ("They're at the gate!", "Juniper, a natural!", "Photo finish!", ...);
+  - `.rv-name` the name card: the name over the leg tag ("Slime Sprint · Grand Cup" at the gate, then "The dash · Speed
+    ★★★★★", "The hill · Sturdy ★★★", "The hoops · Smarts ★★");
+  - `.rv-acts` the act strip: Dash / Hill / Hoops chips (the current one outlined, a cheered one filled);
+  - `.rv-go` "Go, Juniper!" by the rings, `.rv-hint` "Tap when the rings meet" and `.rv-pat` "Give Juniper a pat for
+    luck" (until the slime's first Sprint cup), `.rv-pop` the cheer word ("Perfect!", "Good!", "Nice try!"),
+    `.rv-stamp` the grade stamp as the main leg starts ("A · a natural", S with the sparkle icon);
+  - `.rv-photo` the photo finish: `.rv-mount` around the frozen frame, "fig. 1 · photo finish · 12 Nov", the margin
+    words ("by a wobble") and "1st · Juniper".
+- Results (`.cs-modal`, `[data-cs-card="result"]`): a win: the cup with sparkles, "Sprint Grand Cup!", "Juniper won by a
+  wobble", `.rv-how` "How Juniper ran: led from the gate, held on at the line.", the prizes (as before, but the next
+  cup's line says "Faster rivals wait there" instead of "Rivals up to <score>"), "Yay!". A loss: "Good try!", "2nd, by a
+  wobble" (or "2nd place" when 10 or more behind), `.rv-how` "Starlight caught Juniper in the hoops." (or "The hill was
+  the hard part."), the coach's tip ("... Tap right when the blue ring meets the white one."), Try again / Dress up /
+  Train, Okay. No score rows.

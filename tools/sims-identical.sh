@@ -1,12 +1,14 @@
 #!/bin/bash
 # Sims byte-identical check (the race view's RV1 gate): economy-sim, pearl-sim and contest-sim run on this tree and on
-# a reference tree (default: main @ 76602fd, extracted to the scratch dir), and the full outputs are compared with cmp.
+# a reference tree (a copy of main), and the full outputs are compared with cmp.
 # contest-sim's title line holds its run time in seconds; that one number is masked on both sides before cmp.
-#   tools/sims-identical.sh [REF_DIR]
+#   mkdir -p tools/out/main-ref && git archive main | tar -x -C tools/out/main-ref
+#   tools/sims-identical.sh [REF_DIR]          (default tools/out/main-ref; outputs in $SIMS_OUT or tools/out/sims-cmp)
 set -u
 HERE=$(cd "$(dirname "$0")/.." && pwd)
-REF=${1:-/root/.hermes/profiles/franky/cache/scratch/main-76602fd}
-OUT=${SIMS_OUT:-/root/.hermes/profiles/franky/cache/scratch/sims-cmp}
+REF=${1:-$HERE/tools/out/main-ref}
+OUT=${SIMS_OUT:-$HERE/tools/out/sims-cmp}
+[ -d "$REF/tools" ] || { echo "no reference tree at $REF (see the top of this file)"; exit 2; }
 mkdir -p "$OUT"
 RUNS=(
   "economy-sim.mjs 12 quiet"

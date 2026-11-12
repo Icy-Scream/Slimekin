@@ -10,9 +10,11 @@ import { prepareKit, composeRunner, rampRule, KIT_OUTFIT, CAN } from './race-com
 import { runnerColours } from './race-colour.js';
 import { FORM_LOOKS } from './forms.js';
 import { FRAMES, kitFrameOf, exprOf } from './race-plan.js';
-import { fetchPng } from './png-index.js';
+import { pngOfBytes } from './png-index.js';
 
 const BASE = new URL('../assets/race/', import.meta.url);
+// the kit's own files, bundled in the app: its one read (tools/check-ios-www.mjs LOCAL_READS)
+const read = name => fetch(new URL(name, BASE)).then(r => { if (!r.ok) throw new Error(name + ': ' + r.status); return r; });
 const SHEETS = { curly: 'body_curly.png', dollop: 'body_dollop.png', mixed: 'body_mixed.png', props: 'overlay_props.png', acc: 'overlay_acc.png',
   fx: 'overlay_fx.png', crowd: 'overlay_crowd.png', course: 'course_sprint.png' };
 const TILES = ['aurora', 'candy', 'circuit', 'cracks', 'drizzle', 'emberRise', 'firelight', 'flames', 'honeycomb', 'plates', 'speckle', 'spots', 'stars',
@@ -26,8 +28,8 @@ export const kitNow = () => KIT;
 export function loadKit() {
   if (KIT) return Promise.resolve(KIT);
   if (LOADING) return LOADING;
-  const J = f => fetch(new URL(f, BASE)).then(r => { if (!r.ok) throw new Error(f + ': ' + r.status); return r.json(); });
-  const P = f => fetchPng(new URL(f, BASE));
+  const J = f => read(f).then(r => r.json());
+  const P = f => read(f).then(r => r.arrayBuffer()).then(pngOfBytes);
   LOADING = (async () => {
     const [j, fc, forms, pj, fxj, course, palette] = await Promise.all(['kit.json', 'forms_colours.json', 'forms.json', 'props.json', 'fx.json', 'course.json', 'palette_day.json'].map(J));
     const names = Object.keys(SHEETS);
@@ -61,6 +63,8 @@ export function castOfRival(place, color) {
 
 // ---------- a runner's strip ----------
 const CACHE = new Map();   // finished strips by cast key (the rivals are the same every race)
+// (the perf probe: build the strips again from nothing)
+export function forgetStrips() { CACHE.clear(); }
 export class RunnerArt {
   constructor(kit, cast) {
     this.kit = kit; this.cast = cast;

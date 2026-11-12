@@ -88,8 +88,20 @@ const pct = (a, p) => { const s = [...a].sort((x, y) => x - y); return s.length 
     }, 300000);
     // the race: the card (strips built in idle time), then Race!
     await step('race', async () => {
+      // the strips are built in idle slices while the card is open: the longest task in that time (long tasks are
+      // the ones over 50 ms; none = every slice shorter)
+      await ev(async () => {
+        const K = await import('/src/view/race-kit.js');
+        K.forgetStrips();
+        window.__lt = []; const o = new PerformanceObserver(l => { for (const e of l.getEntries()) window.__lt.push(Math.round(e.duration)); });
+        o.observe({ type: 'longtask', buffered: false }); window.__lto = o;
+      });
+      const c0 = Date.now();
       await ev(id => window.slimekin.contestsUI.openEntry(id, 'sprint', 3), P);
       await page.waitForFunction(() => document.querySelectorAll('#modalCard .rv-row canvas').length === 4, null, { timeout: 120000 });
+      out.cardBuild = await ev(() => { window.__lto.disconnect(); return { longTasks: window.__lt.slice(), build: window.slimekin.raceView.perf.build }; });
+      out.cardBuild.wallMs = Date.now() - c0;
+      log('while the card is open (CPU x' + CPU + '):', JSON.stringify(out.cardBuild));
       await page.waitForTimeout(3000);
       // the whole frame: Game.update + draw + updateOverlay timed (wrappers on the instance; reset by a reload)
       await ev(() => {

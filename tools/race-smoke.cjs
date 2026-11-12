@@ -242,8 +242,7 @@ const P = 'rbarnpeach';
       check(mid.reduced && mid.grades[0] === 'good' && mid.grades[1] === 'good', 'every cheer an automatic Good', JSON.stringify(mid.grades));
       const { info: L } = await toResult();
       const R = await rules(3, [[], [], []], true);
-      check(L.reduced && L.cheers === 6 && R.score === L.score && !L.words.photo === !L.words.photo, 'the result == scoreShow (Reduced motion: three Good)', JSON.stringify({ L: L.score, R }));
-      check(!(await ev(() => window.slimekin.raceView.info().last.perf.maxMs > 0)) || true, '(Reduced motion ran)');
+      check(L.reduced && L.cheers === 6 && R.score === L.score && R.place === L.place, 'the result == scoreShow (Reduced motion: three Good)', JSON.stringify({ L: { score: L.score, place: L.place }, R }));
       await ev(() => { const g = window.slimekin; g.hud.closeModal(); g.state.settings.reducedMotion = false; g.applySettings(); });
     }, 600000);
 
