@@ -7,7 +7,8 @@
 // The result is worked out by scoreShow and written by applyShow ONCE, when the show ends; nothing is saved during the
 // show, so reopening the game mid-show simply cancels it (nothing paid). Reduced motion: no closing ring, every cheer is
 // an automatic Good (the rules' Reduced motion), the slime still does small moves.
-// Numbers: CONTESTS.show and CONTESTS.cheer (content.js). The cards before and after: ui/contests.js.
+// Numbers: CONTESTS.show and CONTESTS.cheer (content.js). The cards before and after: ui/contests.js. Slime Sprint is a
+// race now (race-view.js, RV2); this show is for the Beauty Show and the Bounce-Off (until RV3 / RV4).
 import * as THREE from 'three';
 import { CONTESTS, CONTEST_BY_ID, SKILL_BY_ID } from './data/content.js';
 import { scoreShow, applyShow, canEnter, cheerGrade } from './core/contests.js';
@@ -77,7 +78,7 @@ export class ContestShow {
     this._w = new THREE.Vector3();
     this.place = { x: -1, y: -1, rx: 0, ry: 0 };
   }
-  get on() { return !!this.s; }
+  get on() { return !!this.s || !!(this.g.raceView && this.g.raceView.on); }   // [race] the Sprint race counts as a show
 
   // ---------- the 2D layer (made the first time a show starts) ----------
   build() {
@@ -118,9 +119,12 @@ export class ContestShow {
 
   // ---------- start, skip, cancel, finish ----------
   // From the entry card's "Start the show": the slime comes up on the stand (if it is not on it), then the show.
-  start(id, contest, cup) {
+  // [race] Slime Sprint runs as the pixel race (race-view.js); { stand: true }: the stand show (the race's files
+  // could not load). Beauty and Bounce-Off stay here until RV3 / RV4.
+  start(id, contest, cup, { stand = false } = {}) {
     const g = this.g, b = g.barnRanch;
     if (this.s) return false;
+    if (contest === 'sprint' && !stand && g.raceView) return g.raceView.start(id, cup);
     const e = canEnter(g.state, id, contest, cup);
     if (!e.ok || !b || !b.active) { g.sfx.error && g.sfx.error(); return false; }
     this.build();
@@ -160,6 +164,7 @@ export class ContestShow {
   }
   // The show stops without a result (left the ranch, the slime is gone): nothing is paid, nothing is saved.
   cancel() {
+    if (this.g.raceView) this.g.raceView.cancel();   // [race]
     if (!this.s) return;
     this.stopRing();
     this.end();

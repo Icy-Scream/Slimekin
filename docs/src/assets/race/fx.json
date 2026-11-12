@@ -1,0 +1,697 @@
+{
+ "sheet": "overlay_fx.png",
+ "index": "0 clear, n = palette entry n-1",
+ "palette": {
+  "keys": [
+   "white",
+   "steam_under",
+   "smoke",
+   "smoke_under",
+   "glint",
+   "spark_y",
+   "spark_c",
+   "ember",
+   "ember_hot",
+   "pollen",
+   "rb_p",
+   "rb_y",
+   "rb_m",
+   "rb_b",
+   "rb_l",
+   "fizz_rim",
+   "fw_tail",
+   "fw_white",
+   "cream",
+   "shade",
+   "gold",
+   "heart",
+   "heart_light",
+   "heart_shade",
+   "heart_line"
+  ],
+  "day": {
+   "white": "#ffffff",
+   "steam_under": "#dcebf0",
+   "smoke": "#c9c2c2",
+   "smoke_under": "#a9a1a1",
+   "glint": "#ffe08a",
+   "spark_y": "#fff3a0",
+   "spark_c": "#ffe45c",
+   "ember": "#ff9a3d",
+   "ember_hot": "#ffd75a",
+   "pollen": "#ffe27a",
+   "rb_p": "#ff8fb8",
+   "rb_y": "#ffd36b",
+   "rb_m": "#9cf2a8",
+   "rb_b": "#8fd8ff",
+   "rb_l": "#c7a8ff",
+   "fizz_rim": "#9fd8ff",
+   "fw_tail": "#ffd75a",
+   "fw_white": "#fff3b0",
+   "cream": "#f3ead6",
+   "shade": "#d9c9a8",
+   "gold": "#f2c14e",
+   "heart": "#ff6f9f",
+   "heart_light": "#ff91bf",
+   "heart_shade": "#e62b7b",
+   "heart_line": "#cb0058"
+  },
+  "night": {
+   "white": "#9ba1ab",
+   "steam_under": "#8695a4",
+   "smoke": "#7c7e89",
+   "smoke_under": "#6a6b76",
+   "glint": "#ffe08a",
+   "spark_y": "#fff3a0",
+   "spark_c": "#ffe45c",
+   "ember": "#ff9a3d",
+   "ember_hot": "#ffd75a",
+   "pollen": "#ffe27a",
+   "rb_p": "#ff8fb8",
+   "rb_y": "#ffd36b",
+   "rb_m": "#9cf2a8",
+   "rb_b": "#8fd8ff",
+   "rb_l": "#c7a8ff",
+   "fizz_rim": "#618aaf",
+   "fw_tail": "#ffd75a",
+   "fw_white": "#fff3b0",
+   "cream": "#9e9296",
+   "shade": "#957d7d",
+   "gold": "#f2c14e",
+   "heart": "#ff6f9f",
+   "heart_light": "#ff91bf",
+   "heart_shade": "#e62b7b",
+   "heart_line": "#cb0058"
+  },
+  "night_swap": [
+   "cream",
+   "fizz_rim",
+   "shade",
+   "smoke",
+   "smoke_under",
+   "steam_under",
+   "white"
+  ]
+ },
+ "effects": {
+  "steam": {
+   "group": "small",
+   "rects": [
+    [
+     0,
+     0,
+     7,
+     9
+    ],
+    [
+     8,
+     0,
+     7,
+     9
+    ],
+    [
+     16,
+     0,
+     7,
+     9
+    ],
+    [
+     24,
+     0,
+     7,
+     9
+    ]
+   ],
+   "anchor": [
+    3,
+    8
+   ],
+   "colours": [
+    "steam_under",
+    "white"
+   ],
+   "n_colours": 2,
+   "recolour": null,
+   "night": "swap",
+   "note": "Hearth, S'more: a puff that rises, grows and thins (fx.js steam: grows 2.2x, alpha 0.7)"
+  },
+  "smoke": {
+   "group": "small",
+   "rects": [
+    [
+     0,
+     10,
+     7,
+     8
+    ],
+    [
+     8,
+     10,
+     7,
+     8
+    ],
+    [
+     16,
+     10,
+     7,
+     8
+    ],
+    [
+     24,
+     10,
+     7,
+     8
+    ]
+   ],
+   "anchor": [
+    3,
+    7
+   ],
+   "colours": [
+    "smoke",
+    "smoke_under"
+   ],
+   "n_colours": 2,
+   "recolour": null,
+   "night": "swap",
+   "note": "Furnace: steam's puff, smaller, in the game's smoke grey #c9c2c2"
+  },
+  "glints": {
+   "group": "small",
+   "rects": [
+    [
+     0,
+     19,
+     5,
+     5
+    ],
+    [
+     6,
+     19,
+     5,
+     5
+    ],
+    [
+     12,
+     19,
+     5,
+     5
+    ],
+    [
+     18,
+     19,
+     5,
+     5
+    ]
+   ],
+   "anchor": [
+    2,
+    2
+   ],
+   "colours": [
+    "glint",
+    "white"
+   ],
+   "n_colours": 2,
+   "recolour": {
+    "glint": "form fx.color"
+   },
+   "night": "swap",
+   "note": "a twinkle beside the body; index glint takes the form's fx colour (default #ffe08a)"
+  },
+  "sparks": {
+   "group": "small",
+   "rects": [
+    [
+     0,
+     25,
+     5,
+     5
+    ],
+    [
+     6,
+     25,
+     5,
+     5
+    ],
+    [
+     12,
+     25,
+     5,
+     5
+    ],
+    [
+     18,
+     25,
+     5,
+     5
+    ]
+   ],
+   "anchor": [
+    2,
+    2
+   ],
+   "colours": [
+    "spark_c",
+    "spark_y"
+   ],
+   "n_colours": 2,
+   "recolour": null,
+   "night": "keep",
+   "note": "Volt: the pilot's spark (kit.json sparks), unchanged"
+  },
+  "embers": {
+   "group": "small",
+   "rects": [
+    [
+     0,
+     31,
+     5,
+     8
+    ],
+    [
+     6,
+     31,
+     5,
+     8
+    ],
+    [
+     12,
+     31,
+     5,
+     8
+    ],
+    [
+     18,
+     31,
+     5,
+     8
+    ]
+   ],
+   "anchor": [
+    2,
+    7
+   ],
+   "colours": [
+    "ember",
+    "ember_hot"
+   ],
+   "n_colours": 2,
+   "recolour": null,
+   "night": "keep",
+   "note": "Flame Crown, Campfire: a coal rising and dying (growth.js: sparks #ff9a3d, gravity -1.5)"
+  },
+  "pollen": {
+   "group": "small",
+   "rects": [
+    [
+     0,
+     40,
+     5,
+     5
+    ],
+    [
+     6,
+     40,
+     5,
+     5
+    ],
+    [
+     12,
+     40,
+     5,
+     5
+    ],
+    [
+     18,
+     40,
+     5,
+     5
+    ]
+   ],
+   "anchor": [
+    2,
+    2
+   ],
+   "colours": [
+    "pollen",
+    "white"
+   ],
+   "n_colours": 2,
+   "recolour": {
+    "pollen": "form fx.color"
+   },
+   "night": "swap",
+   "note": "Nectar, Sunbloom, Moss: a grain drifting (a sway loop); index pollen takes the form's fx colour"
+  },
+  "prism": {
+   "group": "small",
+   "rects": [
+    [
+     0,
+     46,
+     5,
+     5
+    ],
+    [
+     6,
+     46,
+     5,
+     5
+    ],
+    [
+     12,
+     46,
+     5,
+     5
+    ],
+    [
+     18,
+     46,
+     5,
+     5
+    ]
+   ],
+   "anchor": [
+    2,
+    2
+   ],
+   "colours": [
+    "rb_b",
+    "rb_l",
+    "rb_p",
+    "rb_y",
+    "white"
+   ],
+   "n_colours": 5,
+   "recolour": null,
+   "night": "swap",
+   "note": "Crystal, Aurora: a twinkle through the rainbow stops"
+  },
+  "fizz": {
+   "group": "small",
+   "rects": [
+    [
+     0,
+     52,
+     5,
+     11
+    ],
+    [
+     6,
+     52,
+     5,
+     11
+    ],
+    [
+     12,
+     52,
+     5,
+     11
+    ],
+    [
+     18,
+     52,
+     5,
+     11
+    ]
+   ],
+   "anchor": [
+    2,
+    10
+   ],
+   "colours": [
+    "fizz_rim",
+    "white"
+   ],
+   "n_colours": 2,
+   "recolour": null,
+   "night": "swap",
+   "note": "Fizzy: a bubble rising and popping (white, a pale blue lower rim so it reads on pale bodies)"
+  },
+  "firework": {
+   "group": "small",
+   "rects": [
+    [
+     0,
+     64,
+     11,
+     11
+    ],
+    [
+     12,
+     64,
+     11,
+     11
+    ],
+    [
+     24,
+     64,
+     11,
+     11
+    ],
+    [
+     36,
+     64,
+     11,
+     11
+    ]
+   ],
+   "anchor": [
+    5,
+    10
+   ],
+   "colours": [
+    "fw_tail",
+    "fw_white",
+    "rb_b",
+    "rb_l",
+    "rb_m",
+    "rb_p"
+   ],
+   "n_colours": 6,
+   "recolour": null,
+   "night": "keep",
+   "note": "Festival: a fuse spark climbs, then a rainbow burst spreads and falls (6 colours)"
+  },
+  "dust": {
+   "group": "race",
+   "rects": [
+    [
+     0,
+     76,
+     16,
+     7
+    ],
+    [
+     17,
+     76,
+     16,
+     7
+    ],
+    [
+     34,
+     76,
+     16,
+     7
+    ],
+    [
+     51,
+     76,
+     16,
+     7
+    ]
+   ],
+   "anchor": [
+    15,
+    6
+   ],
+   "colours": [
+    "cream",
+    "shade"
+   ],
+   "n_colours": 2,
+   "recolour": null,
+   "night": "swap",
+   "note": "dust behind a hopping or bounding runner: frame A's lumps, growing then thinning"
+  },
+  "sparkle": {
+   "group": "race",
+   "rects": [
+    [
+     0,
+     84,
+     9,
+     7
+    ],
+    [
+     10,
+     84,
+     9,
+     7
+    ],
+    [
+     20,
+     84,
+     9,
+     7
+    ],
+    [
+     30,
+     84,
+     9,
+     7
+    ]
+   ],
+   "anchor": [
+    4,
+    3
+   ],
+   "colours": [
+    "fw_white",
+    "gold",
+    "white"
+   ],
+   "n_colours": 3,
+   "recolour": null,
+   "night": "swap",
+   "note": "the cheer surge's sparkle (fx.js sparkles #fff3b0): a twinkle, a star, three, fading"
+  },
+  "heart": {
+   "group": "race",
+   "rects": [
+    [
+     0,
+     92,
+     7,
+     6
+    ],
+    [
+     8,
+     92,
+     7,
+     6
+    ]
+   ],
+   "anchor": [
+    3,
+    5
+   ],
+   "colours": [
+    "heart",
+    "heart_light",
+    "heart_shade",
+    "white"
+   ],
+   "n_colours": 4,
+   "recolour": null,
+   "night": "swap",
+   "note": "mood hearts at the gate (fx.js hearts #ff6f9f): a beat, big then small; fill, light, one shade, no outline (small part)"
+  },
+  "surge_streaks": {
+   "group": "race",
+   "rects": [
+    [
+     0,
+     99,
+     13,
+     5
+    ],
+    [
+     14,
+     99,
+     13,
+     5
+    ],
+    [
+     28,
+     99,
+     13,
+     5
+    ]
+   ],
+   "anchor": [
+    12,
+    2
+   ],
+   "colours": [
+    "cream",
+    "white"
+   ],
+   "n_colours": 2,
+   "recolour": null,
+   "night": "swap",
+   "note": "speed lines behind a surging runner: long, shorter, thinning (white heads, cream tails)"
+  }
+ },
+ "crowd": {
+  "sheet": "overlay_crowd.png",
+  "index": {
+   "1": "window",
+   "2": "body (the place colour, RIVAL_COLOR)",
+   "3": "ink"
+  },
+  "sprites": {
+   "wee_juniper_rest": {
+    "rect": [
+     0,
+     1,
+     8,
+     7
+    ],
+    "anchor": [
+     4,
+     6
+    ],
+    "note": "stands behind the fence, foot on y 165"
+   },
+   "wee_juniper_bounce": {
+    "rect": [
+     9,
+     0,
+     7,
+     8
+    ],
+    "anchor": [
+     3,
+     7
+    ],
+    "note": "raise 4-5 px in code on the bounce frame (frame A)"
+   },
+   "wee_glimmer_rest": {
+    "rect": [
+     17,
+     2,
+     9,
+     6
+    ],
+    "anchor": [
+     4,
+     5
+    ],
+    "note": "stands behind the fence, foot on y 165"
+   },
+   "wee_glimmer_bounce": {
+    "rect": [
+     27,
+     1,
+     8,
+     7
+    ],
+    "anchor": [
+     4,
+     6
+    ],
+    "note": "raise 4-5 px in code on the bounce frame (frame A)"
+   }
+  }
+ },
+ "checks": {
+  "small": 36,
+  "race": 13,
+  "crowd": 4,
+  "palette": 25,
+  "no_000000": true,
+  "max_colours": 6
+ }
+}

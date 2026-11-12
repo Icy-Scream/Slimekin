@@ -799,6 +799,115 @@ export const CONTESTS = {
   perks: { beauty: { offers: 0.05 }, sprint: { tripTime: 0.05 }, bounce: { pearls: 0.03 } },
   // the title when a slime is Champion in more than one contest
   titles: { 2: 'Double Champion', 3: 'Triple Champion' },
+  // The race view (design/contests-race-view.md v2, RV1-RV2): every show is a race that SHOWS scoreShow's result and
+  // never feeds back into it. Display data only (no rule reads it): core/race.js turns a show into legs, positions,
+  // margins and words; race-view.js draws it with the pixel kit (src/assets/race/). Slime Sprint first (RV2).
+  race: {
+    // the legs in race order (act ids), one cheer each; Beauty (the parade) and Bounce-Off come in RV3/RV4
+    legs: { sprint: ['dash', 'hill', 'hoops'], bounce: ['runUp', 'bigBounce', 'landing'], beauty: ['pose', 'style', 'trick'] },
+    // seconds: the gate (the pat), each leg, after the line (everyone home, the happy hop); the ring of each leg's cheer
+    // appears this long into its leg (the straight, the foot of the hill, the last hoop); 32 s in all
+    time: { gate: 3, leg: 8.5, finish: 3.5, cheerAt: [2.0, 0.6, 4.6] },
+    // the photo finish (top two within `within` points): the last `slow` s before the line at `speed`x, then the frozen
+    // frame in a photo mount for `hold` s (a tap goes on)
+    photo: { within: 3, slow: 0.6, speed: 0.35, hold: 2.6 },
+    // a rival's fixed score split into its legs by its race style (percent of the score in the main, support and
+    // tricks legs); a non-main leg is capped at `legCap` (the act cap 20 + a Perfect cheer); overflow and rounding go to
+    // the main leg. In each cup the lowest rival is steady, the middle a fast starter, the top a strong finisher.
+    styles: { steady: [60, 20, 20], fast: [70, 15, 15], strong: [52, 20, 28] },
+    styleByRank: ['steady', 'fast', 'strong'],
+    styleWords: { steady: 'steady', fast: 'fast starter', strong: 'finishes strong' },
+    legCap: 23,
+    // shown stars: round(leg / per star), at most `max`; a grade stamp lifts the cap (A 6, S 7). Rivals carry stamps in
+    // the Champion Cup only (lowest, middle, top)
+    stars: { max: 5, stampMax: { A: 6, S: 7 } },
+    stamps: { champion: ['A', 'A', 'S'] },
+    // gait from the stars in that leg: 0-1 scoot, 2-3 hop, 4-5 bound, 6-7 bound with a mint trail
+    gait: [[1, 'scoot'], [3, 'hop'], [5, 'bound'], [7, 'trail']],
+    // positions: runners sit behind the leader by (points gap) x s art px at each leg's end; s = pxPerPoint (10 points =
+    // one slime-length), less when the widest gap the race can have would not fit in `fitLengths` slime-lengths.
+    // A tie at the line goes to your slime, by `tiePx`.
+    scale: { lengthPx: 30, pxPerPoint: 3, fitLengths: 3, tiePx: 2 },
+    // margins in words (points, at most): a wobble, a hop, two hops, a slime-length, N slime-lengths (N = gap / 10)
+    margins: [[1, 'wobble'], [4, 'hop'], [9, 'twoHops'], [19, 'length'], [Infinity, 'lengths']],
+    marginWords: { wobble: 'by a wobble', hop: 'by a hop', twoHops: 'by two hops', length: 'by a slime-length', lengths: 'by {n} slime-lengths' },
+    // lose by this much or more (to the winner): the results give only the place and the leg
+    quietLoss: 10,
+    // the results' next-cup line after a first win (the stand show says "Rivals up to <score>"; scores are hidden here)
+    nextCup: 'Faster rivals wait there',
+    // "your chances" on the race card (scoreShow with no cheers, three Good, three Perfect)
+    chances: { ready: 'Ready for this one.', good: 'Can win this with good cheers.', great: 'Close: needs great cheers.', notYet: 'Not yet: {tip}.' },
+    // "How <name> ran" (results), and the loss line
+    how: {
+      ledHeld: 'led from the gate, held on at the line.',
+      ledClear: 'led from the gate and never looked back.',
+      cameBack: 'came from behind and took the lead in {leg}.',
+      caught: '{who} caught {name} in {leg}.',
+      quicker: '{who} was quicker in {leg}.',
+      quiet: '{leg} was the hard part.',   // a quiet loss (10 or more behind): the place and the leg only
+    },
+    // the caller (a robin on the finish post in RV5; until then the lines show without a face). Variants are picked by
+    // the race's seed. {name}, {other}: runners' short names.
+    caller: {
+      gate: ["They're at the gate!", 'Here they are at the gate!'],
+      off: ["They're off!", "And they're off!"],
+      natural: ['{name}, a natural!'],
+      hill: ['Up the hill!', 'Here comes the hill!'],
+      hoops: ['Into the hoops!', 'Through the hoops!'],
+      lead: ['{name} takes the lead!', '{name} goes to the front!'],
+      clear: ['{name} is away clear!'],
+      neck: ['Neck and neck!'],
+      line: ['Here comes the line!'],
+      photo: ['Photo finish!'],
+      win: ['{name} wins it!'],
+      home: ["Everyone's home!"],
+    },
+    words: { go: 'Go, {name}!', goShort: 'Go, go, go!', ring: 'Tap when the rings meet', pat: 'Give {name} a pat for luck',
+      perfect: 'Perfect!', good: 'Good!', nice: 'Nice try!' },
+    // the race screen (RV2: the Pixel Derby by day; view/race-plan.js, view/race-draw.js). Art px (1 art px = 2 pt).
+    view: {
+      x0: 3,               // the runners' body centres at the gate (behind the ribbon; the stall's top-left at x 1)
+      leg: 340,            // course per leg (40 art px a second: frame A's Juniper is at x 88, 2.2 s after the off)
+      legReduced: 100,     // Reduced motion: one still wide shot per leg; the runners glide across it
+      gapReduced: 0.5,     // ... with the gaps between them at half size, so all four stay in the shot
+      shotReduced: 70,     // ... the leader's screen x as each leg starts
+      youX: 88,            // the camera keeps your slime here (frame A: x 176 pt) ...
+      edge: 17,            // ... unless a runner would be cut by the left edge (half a body + 2)
+      settle: 0.9,         // after the line the leader slows to a stop over about this long (s) ...
+      gather: 1.6,         // ... and everyone else closes up beside it over this long (s)
+      surge: 1.2,          // a cheer's surge (s): the surge frames, and your slime eases to its new place
+      hill: 0.30,          // the hill's foot, as a share of the hill leg (the cheer rings at its foot)
+      hoops: [0.25, 0.48, 0.72],   // the three hoops, as shares of the hoops leg (the last cheer at the last hoop)
+      flags: 60,           // a lane flag every 60 art px (frame A)
+      fps: 12,             // sprite frames step at 12 fps; motion at the screen's rate
+      idleFps: 4,
+      think: 0.35,         // runners that hop or scoot through the hoops stop to think this long before each hoop
+      lift: { hop_launch: 1, hop_air1: 3, hop_air2: 3, bound_lean: 5, bound_flat: 6, joy_stretch: 4, surge_long: 2 },
+      lanes: { 4: 216, 3: 246, 2: 276, 1: 306 },   // each lane's front line (course.json lanes); a runner stands 1 px up
+      top: 422,            // the course's art height (frame A), its bottom on the screen's bottom
+      hearts: 4,           // mood hearts at the gate: one per mood point, at most this many
+      crowd: [6, 22, 40, 76, 94, 110, 128, 146, 163, 182],   // the wee slimes behind the fence (frame A), every 195 px
+      crowdBounce: [1, 6], // which two bounce
+      confetti: 40,        // pixel confetti at a win (Low: half)
+      // the way in: the barn's frame pixelates to the 2 pt grid over `ms`, your slime starting `youLag` of the way in;
+      // then the course slides in over `slide` s (Reduced motion: none, a 150 ms crossfade)
+      bridge: { ms: 600, youLag: 0.4, slide: 0.35, youR: 64 },
+    },
+    // the rivals: one recipe per buyer place (design 4.5: breed, variant, form, one outfit; the body is RIVAL_COLOR; the
+    // form is what the place wants in BUYERS). short: the name the race calls it ("Starlight's slime").
+    rivals: {
+      school: { short: 'Sprouts', breed: 'curly', variant: 'plain', form: 'mochi', outfit: 'bow' },
+      garden: { short: 'Willowbend', breed: 'dollop', variant: 'plain', form: 'nature', outfit: 'scarf' },
+      cafe: { short: 'Puddle', breed: 'mixed', variant: 'plain', form: 'sweet', outfit: 'bowtie' },
+      bakery: { short: 'Sugarvale', breed: 'curly', variant: 'plain', form: 'heat+sweet', outfit: 'glasses' },
+      springs: { short: 'Mistwater', breed: 'dollop', variant: 'plain', form: 'heat+nature', outfit: 'bowtie' },
+      windmill: { short: 'Breezy', breed: 'mixed', variant: 'plain', form: 'spark', outfit: 'scarf' },
+      mine: { short: 'Pebblepeak', breed: 'mixed', variant: 'plain', form: 'mineral', outfit: 'glasses' },
+      museum: { short: 'Glimmer', breed: 'dollop', variant: 'ears', form: 'mineral+prism', outfit: 'crown' },
+      observe: { short: 'Starlight', breed: 'dollop', variant: 'topknot', form: 'prism+spark', outfit: 'shades' },
+      festival: { short: 'Summer', breed: 'curly', variant: 'plain', form: 'heat+spark', outfit: 'shades' },
+    },
+  },
 };
 export const CONTEST_BY_ID = Object.fromEntries(CONTESTS.contests.map(c => [c.id, c]));
 export const CONTEST_IDS = CONTESTS.contests.map(c => c.id);

@@ -45,6 +45,7 @@ import { Home } from './greenhouse-home.js';
 import { BarnRanch } from './barn-ranch.js';
 import { ContestsUI } from './ui/contests.js';
 import { ContestShow } from './contest-show.js';
+import { RaceView } from './race-view.js';
 import { SendOff } from './send-off.js';
 import { SLIME_Y, DEBUG } from './game/shared.js';
 import { EggPart } from './game/egg.js';
@@ -84,6 +85,7 @@ export class Game {
     this.contests = DEBUG ? this.contestsDebug() : null;   // contests (#debug): the rules straight, no show (core/contests.js)
     this.contestsUI = new ContestsUI(this);   // [contests] the entry card, Dress up, results, the Trophy Shelf (ui/contests.js)
     this.contestShow = new ContestShow(this);   // [contests] the show on the barn's stand (contest-show.js)
+    this.raceView = new RaceView(this);   // [race] Slime Sprint as a pixel race (race-view.js)
     this.sfx = new Sfx();
     this.sfx.sound = this.state.settings.sound;
     this.sfx.music = this.state.settings.music;
@@ -391,8 +393,10 @@ export class Game {
     // (off screen while visiting the ranch, so it can rest)
     if (this.slime.visible && !this.barnRanch.active) this.slime.update(dt);   // [barn] (not drawn in the barn)
     this.updateFood(dt);
+    // [race] while the Sprint race covers the screen the 3D world rests (its pictures only: the rules go on)
+    const raced = this.raceView.covers;
     const center = this.slime.centerWorld(new THREE.Vector3());
-    this.helpers3d.update(dt, {
+    if (!raced) this.helpers3d.update(dt, {
       slimeCenter: center, slimeSize: this.slime.size, fxOn: !this.reduced, slimeColor: this.slimeHex(),
       canTickle: st.phase === 'play' && !this.busy(),
       onTickle: (pos, f) => {
@@ -407,12 +411,15 @@ export class Game {
     this.nurseryT -= dt;
     if (this.nurseryT <= 0) { this.nurseryT = 1; this.syncNursery(); }
     // [greenhouse] what home shows (the room, the meadow or the classic nursery; the ranch hill) and the camera's target
-    this.home.update(dt);
-    this.barnRanch.update(dt);   // [barn] the ranch screen (the barn), when it shows
+    if (!raced) this.home.update(dt);
+    if (!raced) this.barnRanch.update(dt);   // [barn] the ranch screen (the barn), when it shows
     this.contestShow.update(dt);   // [contests] a show on the barn's stand, when one runs
-    this.ranch.update(dt);
-    this.scenery.update(dt);
-    this.fx.update(dt);
+    this.raceView.update(dt);   // [race] the Sprint race, when one runs
+    if (!raced) {
+      this.ranch.update(dt);
+      this.scenery.update(dt);
+      this.fx.update(dt);
+    }
   }
 
   draw(dt) {
@@ -422,13 +429,16 @@ export class Game {
       this.stage.camera.setViewOffset(innerWidth, innerHeight, this.viewOff.x, this.viewOff.y, innerWidth, innerHeight);
       this.stage.camera.updateProjectionMatrix();
     }
-    this.stage.update(dt, this.slime.size, this.parallax, this.reduced);
-    const drawn = !this.noRender && !this.glLost;   // (no picture to draw into while the phone has taken it away)
+    if (!this.raceView.covers) this.stage.update(dt, this.slime.size, this.parallax, this.reduced);
+    // (no picture to draw into while the phone has taken it away; [race] the 3D stops while the race covers it)
+    const drawn = !this.noRender && !this.glLost && !this.raceView.covers;
     if (drawn) this.stage.render();
+    if (drawn) this.raceView.afterRender(this.stage.renderer.domElement);   // [race] the bridge copies this frame
     this.home.afterRender(drawn);   // [r3b] the loading screen's wait, the room's cross-fade
   }
 
   updateOverlay(dt) {
+    if (this.raceView.covers) return;   // [race] the HUD is hidden under the race
     const st = this.state;
     if (st.phase === 'play' || st.phase === 'naming') {
       if (st.phase === 'play') this.hud.update(dt);
