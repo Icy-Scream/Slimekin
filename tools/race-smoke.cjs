@@ -14,7 +14,7 @@
 //   beauty   the Beauty Show still runs on the stand (until RV4)
 // Screenshots (390 x 844): tools/out/race/ (card, gate, cheer, photo, results, loss, reduced). Every number "server,
 // slow-env" when run on the server.
-//   node tools/race-smoke.cjs [--only=card,race,...] [--shots]
+//   node tools/race-smoke.cjs [--only=card,race,...] [--night]
 const path = require('path');
 const fs = require('fs');
 const { setup, watchdog, log } = require('./browser-kit.cjs');
@@ -25,6 +25,9 @@ fs.mkdirSync(OUT, { recursive: true });
 const ONLY = (process.argv.find(a => a.startsWith('--only=')) || '').slice(7).split(',').filter(Boolean);
 const want = k => !ONLY.length || ONLY.includes(k);
 const P = 'rbarnpeach';
+// --night: the game's night theme (data-theme="dark"); the course stays the day course (night is RV3). Screenshots get
+// a -night suffix.
+const NIGHT = process.argv.includes('--night');
 
 (async () => {
   const errors = [];
@@ -36,6 +39,10 @@ const P = 'rbarnpeach';
     const { page, step, ev } = kit;
     const pageErrors = [];
     page.on('pageerror', e => pageErrors.push(String(e && e.message || e)));
+    if (NIGHT) await kit.context.addInitScript(() => {
+      const theme = () => document.documentElement && document.documentElement.setAttribute('data-theme', 'dark');
+      if (document.documentElement) theme(); else document.addEventListener('DOMContentLoaded', theme);
+    });
     await kit.context.addInitScript(save => {
       if (sessionStorage.getItem('seeded')) return;
       sessionStorage.setItem('seeded', '1');
@@ -62,7 +69,7 @@ const P = 'rbarnpeach';
       await page.waitForTimeout(250);
       await touch(b.x, b.y);
     };
-    const shot = async name => { await page.screenshot({ path: path.join(OUT, name + '.png') }); log('screenshot', name); };
+    const shot = async name => { name += NIGHT ? '-night' : ''; await page.screenshot({ path: path.join(OUT, name + '.png') }); log('screenshot', name); };
     const modalIs = (kind, ms = 60000) => page.waitForFunction(k => !!document.querySelector(`#modalCard [data-cs-card="${k}"]`) && !document.getElementById('modal').hidden, kind, { timeout: ms });
     const modalText = () => ev(() => document.getElementById('modalCard').innerText.replace(/\s+/g, ' ').trim());
     const info = () => ev(() => window.slimekin.raceView.info());

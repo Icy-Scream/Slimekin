@@ -20,7 +20,8 @@ const RING = { target: '#ffffff', close: '#3fa2ff', edge: 'rgba(44, 33, 66, 0.4)
 
 const CSS = `
   #raceLayer { position: fixed; inset: 0; z-index: 8; overflow: hidden; background: #bfe0ef; touch-action: none; user-select: none; -webkit-user-select: none;
-    opacity: 0; transition: opacity .3s ease; --rv-top: max(env(safe-area-inset-top, 0px), 12px); }
+    opacity: 0; transition: opacity .3s ease; --rv-top: max(env(safe-area-inset-top, 0px), 12px);
+    --rv-ink: #2c2142; --rv-ink-2: #6a5c80; }   /* words on the course: the day ink in both themes (the course is day until RV3) */
   #raceLayer.on { opacity: 1; }
   #raceLayer.rm { transition-duration: .15s; }
   #raceLayer[hidden] { display: none; }
@@ -59,10 +60,10 @@ const CSS = `
   .rv-acts > div.done { background: var(--cs-soft, #f2edff); border-color: var(--cs-softline, #c7baf4); color: var(--ink); }
   .rv-go, .rv-pop, .rv-hint, .rv-pat { position: absolute; left: 0; top: 0; white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity .2s; }
   .rv-go.on, .rv-pop.on, .rv-hint.on, .rv-pat.on { opacity: 1; }
-  .rv-go { font: 800 20px var(--body); color: var(--ink); line-height: 1;
+  .rv-go { font: 800 20px var(--body); color: var(--rv-ink); line-height: 1;
     text-shadow: 3px 0 #fff, -3px 0 #fff, 0 3px #fff, 0 -3px #fff, 2px 2px #fff, -2px 2px #fff, 2px -2px #fff, -2px -2px #fff; }
   .rv-go.small { font-size: 16px; }
-  .rv-hint { font: 700 14px var(--body); color: var(--ink-2); line-height: 1;
+  .rv-hint { font: 700 14px var(--body); color: var(--rv-ink-2); line-height: 1;
     text-shadow: 2px 0 #fff, -2px 0 #fff, 0 2px #fff, 0 -2px #fff, 1.5px 1.5px #fff, -1.5px 1.5px #fff, 1.5px -1.5px #fff, -1.5px -1.5px #fff; }
   .rv-pop { font-family: var(--display); font-weight: 700; font-size: 26px; color: #fff; line-height: 1; transform: scale(.7); transition: opacity .2s, transform .35s cubic-bezier(.3, 1.6, .6, 1);
     text-shadow: 2px 0 #3fa2ff, -2px 0 #3fa2ff, 0 2px #3fa2ff, 0 -2px #3fa2ff, 1.5px 1.5px #3fa2ff, -1.5px 1.5px #3fa2ff, 1.5px -1.5px #3fa2ff, -1.5px -1.5px #3fa2ff; }
