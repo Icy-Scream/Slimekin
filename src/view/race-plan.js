@@ -129,7 +129,8 @@ export class RacePlan {
     let minX = 1e9;
     for (let i = 0; i < this.n; i++) { const x = this.x(i, t); if (x < minX) minX = x; }
     const o = Math.max(0, want - (minX - V.edge));
-    if (this.camT < 0 || dt <= 0) this.camO = o;
+    if (dt <= 0 && this.camT >= 0) return want - Math.max(o, this.camO);   // a look without moving the camera on
+    if (this.camT < 0) this.camO = o;
     else this.camO = Math.max(o, this.camO + (o - this.camO) * (1 - Math.exp(-dt * 4)));   // never cuts anyone; eases back
     this.camT = t;
     return want - this.camO;

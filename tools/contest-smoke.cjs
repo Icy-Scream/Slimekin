@@ -273,10 +273,11 @@ function touchKit() {
         const rv = await ev(() => [...document.querySelectorAll('#modalCard .cs-rival span')].map(e => e.textContent));
         check(rv.length === 3 && rv.every(n => /^.+'s slime$/.test(n)), 'rivals are "<Place>\'s slime"', rv.join(', '));
         await touchEl('#modalCard [data-cs="tab"][data-contest="sprint"]');
-        await page.waitForFunction(() => /Little Cup rivals/.test(document.getElementById('modalCard').innerText), null, { timeout: 20000 });
+        // [race] the Sprint tab is the race card now (F1: the runners described, no scores; tools/race-smoke.cjs)
+        await page.waitForFunction(() => document.querySelectorAll('#modalCard .rv-row').length === 4 && /Little Cup/.test(document.getElementById('modalCard').innerText) && !/To win: beat/.test(document.getElementById('modalCard').innerText), null, { timeout: 20000 });
         await touchEl('#modalCard [data-cs="tab"][data-contest="beauty"]');
         await page.waitForFunction(() => /Grand Cup rivals/.test(document.getElementById('modalCard').innerText), null, { timeout: 20000 });
-        check(true, 'entry card: the contest tabs switch (Sprint shows the Little Cup, Beauty the Grand Cup)');
+        check(true, 'entry card: the contest tabs switch (Sprint shows the Little Cup race card, Beauty the Grand Cup)');
       }, 300000);
       await step('screens: the show, three real taps on the ring', async () => {
         const before = await ev(() => ({ pearls: window.slimekin.state.ranch.pearls, shows: window.slimekin.state.ranch.contests.shows }));
@@ -403,7 +404,7 @@ function touchKit() {
     if (want('low')) {
       await step('Low graphics and Skip', async () => {
         await ev(() => { const g = window.slimekin; g.state.settings.quality = 'low'; g.applySettings(); });
-        await ev(id => window.slimekin.contestsUI.openEntry(id, 'sprint'), P);
+        await ev(id => window.slimekin.contestsUI.openEntry(id, 'bounce'), P);   // (the Sprint is a race now: race-smoke --only=low)
         await modalIs('entry');
         await startFromCard();
         await toRing(0);

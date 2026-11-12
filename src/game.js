@@ -45,6 +45,7 @@ import { Home } from './greenhouse-home.js';
 import { BarnRanch } from './barn-ranch.js';
 import { ContestsUI } from './ui/contests.js';
 import { ContestShow } from './contest-show.js';
+import { RaceView } from './race-view.js';
 import { SendOff } from './send-off.js';
 import { SLIME_Y, DEBUG } from './game/shared.js';
 import { EggPart } from './game/egg.js';
@@ -84,6 +85,7 @@ export class Game {
     this.contests = DEBUG ? this.contestsDebug() : null;   // contests (#debug): the rules straight, no show (core/contests.js)
     this.contestsUI = new ContestsUI(this);   // [contests] the entry card, Dress up, results, the Trophy Shelf (ui/contests.js)
     this.contestShow = new ContestShow(this);   // [contests] the show on the barn's stand (contest-show.js)
+    this.raceView = new RaceView(this);   // [race] Slime Sprint as a pixel race (race-view.js)
     this.sfx = new Sfx();
     this.sfx.sound = this.state.settings.sound;
     this.sfx.music = this.state.settings.music;
@@ -410,6 +412,7 @@ export class Game {
     this.home.update(dt);
     this.barnRanch.update(dt);   // [barn] the ranch screen (the barn), when it shows
     this.contestShow.update(dt);   // [contests] a show on the barn's stand, when one runs
+    this.raceView.update(dt);   // [race] the Sprint race, when one runs
     this.ranch.update(dt);
     this.scenery.update(dt);
     this.fx.update(dt);
@@ -423,7 +426,8 @@ export class Game {
       this.stage.camera.updateProjectionMatrix();
     }
     this.stage.update(dt, this.slime.size, this.parallax, this.reduced);
-    const drawn = !this.noRender && !this.glLost;   // (no picture to draw into while the phone has taken it away)
+    // (no picture to draw into while the phone has taken it away; [race] the 3D stops while the race covers it)
+    const drawn = !this.noRender && !this.glLost && !this.raceView.covers;
     if (drawn) this.stage.render();
     this.home.afterRender(drawn);   // [r3b] the loading screen's wait, the room's cross-fade
   }

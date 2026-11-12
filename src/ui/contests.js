@@ -12,6 +12,8 @@ import { fmtShort } from '../core/format.js';
 import { ICON, cupIcon, blobIcon, memIcon } from './icons.js';
 import { DROP } from './dom.js';
 import { esc } from './esc.js';
+import { chancesOf } from '../core/race.js';
+import * as RS from '../view/race-skin.js';
 
 const C = CONTESTS;
 const SLOT_NAME = { head: 'Head', face: 'Face', neck: 'Neck' };
@@ -202,6 +204,7 @@ export class ContestsUI {
       const st = isWon ? `<span class="cs-st won">${ICON.check}Won</span>` : n === next ? '<span class="cs-st next">Next</span>' : `<span class="cs-st locked">${n === C.cups.length ? 'Naturals only' : 'Not yet'}</span>`;
       return `<button class="cs-cup" data-cs="cup" data-cup="${n}" aria-pressed="${n === cup}" ${open ? '' : 'disabled'} aria-label="${esc(cd.name)}${isWon ? ', won' : n === next ? ', next' : ', not open yet'}"><span class="cs-cupart">${cupOf(contest, n, { ghost: !isWon && n !== next })}</span><b>${esc(cd.short)}</b>${st}</button>`;
     }).join('');
+    if (contest === 'sprint' && g.raceView) return this.openRaceCard(id, x, cup, tabs, cups);   // [race] F1: hidden scores
     const rivals = [...cupDef.rivals].sort((a, b) => a.score - b.score);
     const top = rivals[rivals.length - 1].score;
     const pv = scoreShow(this.state, id, contest, { cup, cheers: 'none', reducedMotion: !!g.reduced });
@@ -231,6 +234,39 @@ export class ContestsUI {
       });
     });
     this.entry = { id, contest, cup };
+    return true;
+  }
+  // [race] The Sprint's race card (design/contests-race-view.md F1): the cup ladder, then the four runners with no
+  // numbers: your slime and its chances in words (core/race.js chancesOf), each rival's main stars and race style, any
+  // grade stamp; "Not now" / "Race!". The four runners' faces fill in once their sprites are made (the race's art is
+  // built while the card is open, so the race starts at once).
+  openRaceCard(id, x, cup, tabs, cups) {
+    const g = this.g, name = esc(x.name), cupDef = C.cups[cup - 1];
+    const race = g.raceView.preview(id, cup);
+    const ch = chancesOf(this.state, id, 'sprint', cup, { reducedMotion: !!g.reduced });
+    const mainK = race.legs.findIndex(l => l.role === 'main'), skill = race.legs[mainK].skill;
+    const rows = race.runners.map(r => (r.you
+      ? { you: true, name: x.name, lineHtml: esc(ch.text), grade: r.stamp, color: this.colorOf(id) }
+      : { you: false, name: `${r.short}'s slime`, lineHtml: RS.rivalLineHtml({ skill, stars: r.stars[mainK], styleWord: C.race.styleWords[r.style] }), grade: r.stamp, color: r.color }));
+    const html = `<h2 class="cs-h">Enter a contest</h2><p class="cs-p">${name} races three rivals down the course. You cheer three times.</p>
+      <div class="cs-tabs" role="tablist" aria-label="Contests">${tabs}</div>
+      <div class="cs-cups">${cups}</div>
+      <div class="cs-head"><b>${esc(cupDef.name)}</b></div>
+      ${RS.cardRowsHtml(rows)}
+      <p class="cs-p cs-free">Shows are free and always open. Pearls come with a first win; repeats are for fun.</p>
+      ${RS.raceButtons()}`;
+    this.open(html, 'entry', card => {
+      for (const b of card.querySelectorAll('[data-cs]')) b.addEventListener('click', () => {
+        if (b.disabled) return;
+        const k = b.dataset.cs;
+        if (k === 'tab') { g.sfx.plip && g.sfx.plip(); this.openEntry(id, b.dataset.contest); }
+        else if (k === 'cup') { g.sfx.plip && g.sfx.plip(); this.openEntry(id, 'sprint', +b.dataset.cup); }
+        else if (k === 'start') { g.hud.closeModal(); g.contestShow.start(id, 'sprint', cup); }
+        else if (k === 'close') g.hud.closeModal();
+      });
+      g.raceView.prepare(id, cup, arts => { if (card.isConnected) RS.fillFaces(card, arts); }).catch(() => { /* the race falls back to the stand show */ });
+    });
+    this.entry = { id, contest: 'sprint', cup };
     return true;
   }
   // the parts of a score: "Pose 50 · Natural +6 · Style 0 · Tricks 12 · Mood 4" (natural: flair on its own, as on the
@@ -278,9 +314,11 @@ export class ContestsUI {
 
   // ---------- results ----------
   // res: scoreShow's result (applied once by the show); given: what applyShow brought (pearls, trophy, shelf, ...)
-  showResult(res, given, { onClose } = {}) {
+  // race: the Sprint's race (core/race.js raceOf): the results in words, no score rows ([race] F8)
+  showResult(res, given, { onClose, race = null } = {}) {
     const g = this.g, x = this.resident(res.id) || { id: res.id, name: res.name };
-    const html = res.won ? this.winHtml(res, given, x) : this.lossHtml(res, x);
+    const html = race ? RS.resultHtml(res, race, x, { prizes: this.prizesHtml(res, given, x, { hidden: true }), tip: this.tipText(res.tip || {}, x), act: this.tipAction(res, x), cupArt: this.winArt(res) })
+      : res.won ? this.winHtml(res, given, x) : this.lossHtml(res, x);
     this.open(html, 'result', card => {
       for (const b of card.querySelectorAll('[data-cs]')) b.addEventListener('click', () => {
         const k = b.dataset.cs;
@@ -301,11 +339,15 @@ export class ContestsUI {
     // a tie goes to your slime: it is listed above a rival with the same score
     return [me, ...rv].sort((a, b) => b.score - a.score || (b.me ? 1 : 0) - (a.me ? 1 : 0));
   }
-  lossHtml(res, x) {
+  tipAction(res, x) {
     const tip = res.tip || {};
-    const act = tip.kind === 'style' ? '<button class="btn primary" data-cs="tipDress">Dress up</button>'
+    return tip.kind === 'style' ? '<button class="btn primary" data-cs="tipDress">Dress up</button>'
       : tip.kind === 'skill' && !busy(x) ? '<button class="btn primary" data-cs="tipTrain">Train</button>'
       : tip.kind === 'cheers' ? '<button class="btn primary" data-cs="again">Try again</button>' : '';
+  }
+  lossHtml(res, x) {
+    const tip = res.tip || {};
+    const act = this.tipAction(res, x);
     return `<h2 class="cs-big">Good try!</h2><p class="cs-sub">${ORD(res.place)} place in the ${esc(res.cupName)}</p>
       ${this.boardHtml(res, this.rowsOf(res))}
       <p class="cs-parts">${esc(this.partsLine(res, { cheers: true }))}</p>
@@ -313,10 +355,25 @@ export class ContestsUI {
       <div class="cs-two${act ? '' : ' one'}">${act}<button class="btn" data-cs="ok">Okay</button></div>`;
   }
   winHtml(res, given, x) {
-    const name = esc(res.name), cupN = res.cup, last = cupN === C.cups.length;
+    const name = esc(res.name);
     const rows = this.rowsOf(res).slice(0, 2);
+    return `<div class="cs-win-art">${this.winArt(res)}</div>
+      <h2 class="cs-big">${esc(res.cupName)}!</h2><p class="cs-sub">${name} won the ${esc(res.contestName)}${given && given.trophy ? '' : ' again'}</p>
+      ${this.boardHtml(res, rows)}
+      <p class="cs-parts">${esc(this.partsLine(res, { cheers: true }))}</p>
+      <div class="cs-prizes">${this.prizesHtml(res, given, x)}</div>
+      <button class="btn primary" data-cs="ok">Yay!</button>`;
+  }
+  // the win card's cup with its sparkles
+  winArt(res) {
     const sp = [[16, 18, '#ffd14d', 10], [78, 10, '#ff8fbf', 12], [8, 64, '#8fd7ff', 8], [86, 66, '#b6e36a', 9], [30, 80, '#ff8fbf', 7], [70, 86, '#ffd14d', 8]]
       .map(([l, t, c, s]) => `<i class="sp" style="left:${l}%;top:${t}%;width:${s * 1.4}px;height:${s * 1.4}px;color:${c}"><svg class="gi" viewBox="0 0 24 24"><path d="M12 1.8c.7 4.6 2.2 6.4 6.6 7.4.4.1.4.7 0 .8-4.4 1-5.9 2.8-6.6 7.4-.1.5-.7.5-.8 0-.7-4.6-2.2-6.4-6.6-7.4-.4-.1-.4-.7 0-.8 4.4-1 5.9-2.8 6.6-7.4.1-.5.7-.5.8 0z" fill="currentColor"/></svg></i>`).join('');
+    return `${sp}${cupOf(res.contest, res.cup)}`;
+  }
+  // what a win brought (pearls, the trophy, the shelf, the next cup or the title), as rows; hidden: no rival scores
+  // (the race's results, [race])
+  prizesHtml(res, given, x, { hidden = false } = {}) {
+    const name = esc(res.name), cupN = res.cup, last = cupN === C.cups.length;
     const prizes = [];
     const ic = h => `<span class="ic">${h}</span>`;
     if (given && given.trophy) {
@@ -329,18 +386,13 @@ export class ContestsUI {
         prizes.push(`<div class="cs-prize">${ic(cupOf(res.contest, cupN))}<span><b>${esc(title)}!</b><small>${esc(this.perkText(res.contest, res.name))}</small></span></div>`);
       } else {
         const nx = C.cups[cupN], main = mainAct(res.contest).skill;
-        const sub = cupN + 1 === C.cups.length ? (['A', 'S'].includes(gradeOf(x, main)) ? `${res.name} is a natural at ${skillName(main)}` : `It takes a natural at ${skillName(main)}`) : `Rivals up to ${Math.max(...nx.rivals.map(r => r.score))}`;
+        const sub = cupN + 1 === C.cups.length ? (['A', 'S'].includes(gradeOf(x, main)) ? `${res.name} is a natural at ${skillName(main)}` : `It takes a natural at ${skillName(main)}`) : hidden ? C.race.nextCup : `Rivals up to ${Math.max(...nx.rivals.map(r => r.score))}`;
         prizes.push(`<div class="cs-prize">${ic(cupOf(res.contest, cupN + 1))}<span><b>${esc(nx.name)} is open</b><small>${esc(sub)}</small></span></div>`);
       }
     } else {
       prizes.push(`<div class="cs-prize">${ic(cupOf(res.contest, cupN))}<span><b>Won again!</b><small>${name} already has this cup: repeats are for fun.</small></span></div>`);
     }
-    return `<div class="cs-win-art">${sp}${cupOf(res.contest, cupN)}</div>
-      <h2 class="cs-big">${esc(res.cupName)}!</h2><p class="cs-sub">${name} won the ${esc(res.contestName)}${given && given.trophy ? '' : ' again'}</p>
-      ${this.boardHtml(res, rows)}
-      <p class="cs-parts">${esc(this.partsLine(res, { cheers: true }))}</p>
-      <div class="cs-prizes">${prizes.join('')}</div>
-      <button class="btn primary" data-cs="ok">Yay!</button>`;
+    return prizes.join('');
   }
 
   // ---------- Dress up ----------

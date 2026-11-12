@@ -833,6 +833,8 @@ export const CONTESTS = {
     marginWords: { wobble: 'by a wobble', hop: 'by a hop', twoHops: 'by two hops', length: 'by a slime-length', lengths: 'by {n} slime-lengths' },
     // lose by this much or more (to the winner): the results give only the place and the leg
     quietLoss: 10,
+    // the results' next-cup line after a first win (the stand show says "Rivals up to <score>"; scores are hidden here)
+    nextCup: 'Faster rivals wait there',
     // "your chances" on the race card (scoreShow with no cheers, three Good, three Perfect)
     chances: { ready: 'Ready for this one.', good: 'Can win this with good cheers.', great: 'Close: needs great cheers.', notYet: 'Not yet: {tip}.' },
     // "How <name> ran" (results), and the loss line
