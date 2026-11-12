@@ -215,6 +215,7 @@ console.log('\n# margins in words, the photo finish, the quiet loss');
   const big = R.raceOf(wo, x.id, 'sprint', { cup: 4 });
   ok(big.finish.place === 4 && big.finish.quiet && !big.finish.photo, 'losing by 10 or more: a quiet loss (only the place and the leg)', `place ${big.finish.place} quiet ${big.finish.quiet}`);
   ok(typeof big.lostLeg === 'number' && big.lostLeg >= 0 && big.lostLeg < 3, 'the leg where your slime lost the most ground is named', String(big.lostLeg));
+  ok(big.how.id === 'quiet' && /^The (dash|hill|hoops) was the hard part\.$/.test(big.how.text) && !big.how.text.includes(big.runners[big.finish.winner].short), 'a quiet loss names only the leg, not who beat it', big.how.text);
 }
 
 // ---------- 5. your chances (design §2.8) ----------

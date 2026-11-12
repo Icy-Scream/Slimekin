@@ -842,6 +842,7 @@ export const CONTESTS = {
       cameBack: 'came from behind and took the lead in {leg}.',
       caught: '{who} caught {name} in {leg}.',
       quicker: '{who} was quicker in {leg}.',
+      quiet: '{leg} was the hard part.',   // a quiet loss (10 or more behind): the place and the leg only
     },
     // the caller (a robin on the finish post in RV5; until then the lines show without a face). Variants are picked by
     // the race's seed. {name}, {other}: runners' short names.
@@ -861,6 +862,32 @@ export const CONTESTS = {
     },
     words: { go: 'Go, {name}!', goShort: 'Go, go, go!', ring: 'Tap when the rings meet', pat: 'Give {name} a pat for luck',
       perfect: 'Perfect!', good: 'Good!', nice: 'Nice try!' },
+    // the race screen (RV2: the Pixel Derby by day; view/race-plan.js, view/race-draw.js). Art px (1 art px = 2 pt).
+    view: {
+      x0: 3,               // the runners' body centres at the gate (behind the ribbon; the stall's top-left at x 1)
+      leg: 340,            // course per leg (40 art px a second: frame A's Juniper is at x 88, 2.2 s after the off)
+      legReduced: 100,     // Reduced motion: one still wide shot per leg; the runners glide across it
+      gapReduced: 0.5,     // ... with the gaps between them at half size, so all four stay in the shot
+      shotReduced: 70,     // ... the leader's screen x as each leg starts
+      youX: 88,            // the camera keeps your slime here (frame A: x 176 pt) ...
+      edge: 17,            // ... unless a runner would be cut by the left edge (half a body + 2)
+      settle: 0.9,         // after the line the leader slows to a stop over about this long (s) ...
+      gather: 1.6,         // ... and everyone else closes up beside it over this long (s)
+      surge: 1.2,          // a cheer's surge (s): the surge frames, and your slime eases to its new place
+      hill: 0.30,          // the hill's foot, as a share of the hill leg (the cheer rings at its foot)
+      hoops: [0.25, 0.48, 0.72],   // the three hoops, as shares of the hoops leg (the last cheer at the last hoop)
+      flags: 60,           // a lane flag every 60 art px (frame A)
+      fps: 12,             // sprite frames step at 12 fps; motion at the screen's rate
+      idleFps: 4,
+      think: 0.35,         // runners that hop or scoot through the hoops stop to think this long before each hoop
+      lift: { hop_launch: 1, hop_air1: 3, hop_air2: 3, bound_lean: 5, bound_flat: 6, joy_stretch: 4, surge_long: 2 },
+      lanes: { 4: 216, 3: 246, 2: 276, 1: 306 },   // each lane's front line (course.json lanes); a runner stands 1 px up
+      top: 422,            // the course's art height (frame A), its bottom on the screen's bottom
+      hearts: 4,           // mood hearts at the gate: one per mood point, at most this many
+      crowd: [6, 22, 40, 76, 94, 110, 128, 146, 163, 182],   // the wee slimes behind the fence (frame A), every 195 px
+      crowdBounce: [1, 6], // which two bounce
+      confetti: 40,        // pixel confetti at a win (Low: half)
+    },
     // the rivals: one recipe per buyer place (design 4.5: breed, variant, form, one outfit; the body is RIVAL_COLOR; the
     // form is what the place wants in BUYERS). short: the name the race calls it ("Starlight's slime").
     rivals: {

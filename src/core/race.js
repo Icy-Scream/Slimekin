@@ -194,7 +194,7 @@ export function raceOf(state, id, contest, { cup = null, cheers = 'none', reduce
 }
 
 // "How <name> ran" after a win (the words after "How Juniper ran: "), or the loss line ("Starlight caught Juniper in
-// the hoops."). Returns { id, text }.
+// the hoops."; after a quiet loss only the leg: "The hill was the hard part."). Returns { id, text }.
 export function howRan(race) {
   const H = RC().how, r = race.runners, you = 0, L = race.leader, f = race.finish;
   const leads = [1, 2, 3].map(k => L[k] === you);
@@ -205,6 +205,7 @@ export function howRan(race) {
     return { id: 'cameBack', text: fill(H.cameBack, { leg: race.legs[k].words }) };
   }
   const w = f.winner;
+  if (f.quiet) { const leg = race.legs[race.lostLeg ?? 0].words; return { id: 'quiet', text: fill(H.quiet, { leg: leg[0].toUpperCase() + leg.slice(1) }) }; }
   // the leg where the winner got ahead of your slime for good, after your slime was level or ahead of it
   const ahead = [1, 2, 3].map(k => r[w].cum[k - 1] > r[you].cum[k - 1]);
   let k = 2;
