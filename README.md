@@ -169,6 +169,21 @@ src/ui/barn-card.js   the Barn ranch's name card and ‹ › buttons, and the "O
 tools/barn-test.mjs   Barn ranch check in plain node (the barn's files, the swap curve, the order, the card, the spots)
 tools/barn-smoke.cjs  headless Barn ranch test with real touches (swipes, petting, the card, Ranch life, pearls, Nursery, Low, slow and failed loads)
 tools/barn-start-probe.cjs the game's start measured with the barn loading ahead of time (and an older copy with --before)
+src/race-view.js      the Slime Sprint as a pixel race (RV2): the card's art, the bridge, the clock, cheers, the pat, Skip, the result
+src/core/race.js      the race from a show's result (pure): legs, rival splits, checkpoints, margins in words, caller lines, chances
+src/view/race-compose.js the pixel runner composer (an exact port of the race kit's own; byte-identical, race-compose-test)
+src/view/race-colour.js  your slime's pixel colours moved to its own body colour (design 4.2)
+src/view/race-plan.js the race on screen as numbers (pure): places, camera, frames, the hill, rings, caller timing
+src/view/race-kit.js  loads the kit (src/assets/race/) once; builds each runner's frame strip and face in idle slices
+src/view/race-draw.js the pixel course and runners on one canvas (1 art px = 2 pt), with a fixed pool of effects
+src/view/race-bridge.js the way in: the barn's frame pixelates to the race's grid, then the course slides in
+src/view/race-skin.js ALL the race's on-screen UI (today's look; the scrapbook art drops in here)
+src/view/png-index.js PNG index rows without a canvas (the kit's palette indexes stay exact)
+src/assets/race/      the race kit, copied unchanged from usopp/race-kit @ 48c0f45 (SOURCE.txt); never edit by hand
+tools/race-test.mjs   race rules (RV1) in plain node: finish order == scoreShow's places, legs, caps, margins
+tools/race-smoke.cjs  headless Slime Sprint with real touches at 390 x 844 (card, race, loss, Skip, reload, Reduced, Low)
+tools/race-perf.cjs   the race's perf gates and the per-frame allocation check (also perf-probe.cjs --race)
+tools/sims-identical.sh economy, pearl and contest sims compared byte for byte with a copy of main
 src/send-off.js       the goodbye's travel bubble (moving out, a baby's new home): wave, bubble, float or pop
 src/view/travel-bubble.js the soap bubble itself, drawn in code (thin-film rim, glints, wobble; one pass on Low)
 src/view/bubble-math.js the bubble's plain math: its size, the float path, what the camera sees of it, the pop rule

@@ -1,0 +1,834 @@
+{
+ "sheet": "overlay_breed.png",
+ "index": "the runner's ramp step (kit.json steps), 0 clear",
+ "sprites": {
+  "ears_normal": {
+   "pose": "normal",
+   "parts": {
+    "back": {
+     "rect": [
+      0,
+      0,
+      4,
+      4
+     ],
+     "foot_dx_from_crown": -3,
+     "foot": "the part's centre column (width // 2) stands at crown x + foot_dx; its bottom row is drawn ON the dome's top row at that column"
+    },
+    "front": {
+     "rect": [
+      5,
+      0,
+      4,
+      4
+     ],
+     "foot_dx_from_crown": 3,
+     "foot": "the part's centre column (width // 2) stands at crown x + foot_dx; its bottom row is drawn ON the dome's top row at that column"
+    }
+   }
+  },
+  "ears_squash": {
+   "pose": "squash",
+   "parts": {
+    "back": {
+     "rect": [
+      10,
+      0,
+      4,
+      3
+     ],
+     "foot_dx_from_crown": -3,
+     "foot": "the part's centre column (width // 2) stands at crown x + foot_dx; its bottom row is drawn ON the dome's top row at that column"
+    },
+    "front": {
+     "rect": [
+      15,
+      0,
+      4,
+      3
+     ],
+     "foot_dx_from_crown": 3,
+     "foot": "the part's centre column (width // 2) stands at crown x + foot_dx; its bottom row is drawn ON the dome's top row at that column"
+    }
+   }
+  },
+  "ears_stretch": {
+   "pose": "stretch",
+   "parts": {
+    "back": {
+     "rect": [
+      20,
+      0,
+      4,
+      4
+     ],
+     "foot_dx_from_crown": -3,
+     "foot": "the part's centre column (width // 2) stands at crown x + foot_dx; its bottom row is drawn ON the dome's top row at that column"
+    },
+    "front": {
+     "rect": [
+      25,
+      0,
+      4,
+      4
+     ],
+     "foot_dx_from_crown": 3,
+     "foot": "the part's centre column (width // 2) stands at crown x + foot_dx; its bottom row is drawn ON the dome's top row at that column"
+    }
+   }
+  },
+  "topknot_normal": {
+   "pose": "normal",
+   "parts": {
+    "bun": {
+     "rect": [
+      30,
+      0,
+      5,
+      6
+     ],
+     "foot": "drawn with its top-left at topknot_at.<family>.<frame>.at; its lower 2 rows sit in the dome's top rows; then the extra_px of that frame on top (ramp steps)"
+    }
+   }
+  },
+  "topknot_squash": {
+   "pose": "squash",
+   "parts": {
+    "bun": {
+     "rect": [
+      36,
+      0,
+      6,
+      5
+     ],
+     "foot": "drawn with its top-left at topknot_at.<family>.<frame>.at; its lower 2 rows sit in the dome's top rows; then the extra_px of that frame on top (ramp steps)"
+    }
+   }
+  },
+  "topknot_stretch": {
+   "pose": "stretch",
+   "parts": {
+    "bun": {
+     "rect": [
+      43,
+      0,
+      5,
+      7
+     ],
+     "foot": "drawn with its top-left at topknot_at.<family>.<frame>.at; its lower 2 rows sit in the dome's top rows; then the extra_px of that frame on top (ramp steps)"
+    }
+   }
+  }
+ },
+ "topknot_at": {
+  "dollop": {
+   "idle_0": {
+    "at": [
+     19,
+     29
+    ],
+    "behind_crown_px": 3,
+    "extra_px": [
+     [
+      23,
+      33,
+      2,
+      "crease"
+     ]
+    ],
+    "overhang_px": 0
+   },
+   "idle_1": {
+    "at": [
+     19,
+     29
+    ],
+    "behind_crown_px": 3,
+    "extra_px": [
+     [
+      23,
+      33,
+      2,
+      "crease"
+     ]
+    ],
+    "overhang_px": 0
+   },
+   "idle_2": {
+    "at": [
+     19,
+     30
+    ],
+    "behind_crown_px": 3,
+    "extra_px": [
+     [
+      23,
+      34,
+      2,
+      "crease"
+     ]
+    ],
+    "overhang_px": 0
+   },
+   "idle_3": {
+    "at": [
+     19,
+     30
+    ],
+    "behind_crown_px": 3,
+    "extra_px": [
+     [
+      23,
+      34,
+      2,
+      "crease"
+     ]
+    ],
+    "overhang_px": 0
+   },
+   "scoot_0": {
+    "at": [
+     20,
+     30
+    ],
+    "behind_crown_px": 2,
+    "extra_px": [
+     [
+      25,
+      33,
+      2,
+      "crease"
+     ]
+    ],
+    "overhang_px": 0
+   },
+   "scoot_1": {
+    "at": [
+     19,
+     32
+    ],
+    "behind_crown_px": 4,
+    "extra_px": [
+     [
+      24,
+      35,
+      2,
+      "crease"
+     ]
+    ],
+    "overhang_px": 0
+   },
+   "scoot_2": {
+    "at": [
+     19,
+     31
+    ],
+    "behind_crown_px": 3,
+    "extra_px": [
+     [
+      24,
+      34,
+      2,
+      "crease"
+     ]
+    ],
+    "overhang_px": 0
+   },
+   "scoot_3": {
+    "at": [
+     18,
+     30
+    ],
+    "behind_crown_px": 5,
+    "extra_px": [
+     [
+      22,
+      34,
+      2,
+      "crease"
+     ]
+    ],
+    "overhang_px": 0
+   },
+   "hop_crouch": {
+    "at": [
+     19,
+     31
+    ],
+    "behind_crown_px": 3,
+    "extra_px": [
+     [
+      24,
+      34,
+      2,
+      "crease"
+     ],
+     [
+      19,
+      34,
+      1,
+      "seat fill"
+     ],
+     [
+      19,
+      35,
+      1,
+      "seat fill"
+     ]
+    ],
+    "overhang_px": 0
+   },
+   "hop_launch": {
+    "at": [
+     22,
+     24
+    ],
+    "behind_crown_px": 3,
+    "extra_px": [
+     [
+      26,
+      29,
+      2,
+      "crease"
+     ]
+    ],
+    "overhang_px": 0
+   },
+   "hop_air1": {
+    "at": [
+     21,
+     22
+    ],
+    "behind_crown_px": 4,
+    "extra_px": [
+     [
+      25,
+      27,
+      2,
+      "crease"
+     ]
+    ],
+    "overhang_px": 0
+   },
+   "hop_air2": {
+    "at": [
+     19,
+     24
+    ],
+    "behind_crown_px": 4,
+    "extra_px": [
+     [
+      23,
+      28,
+      2,
+      "crease"
+     ],
+     [
+      19,
+      28,
+      1,
+      "seat fill"
+     ],
+     [
+      19,
+      29,
+      1,
+      "seat fill"
+     ]
+    ],
+    "overhang_px": 0
+   },
+   "hop_land": {
+    "at": [
+     17,
+     31
+    ],
+    "behind_crown_px": 3,
+    "extra_px": [
+     [
+      22,
+      34,
+      2,
+      "crease"
+     ],
+     [
+      17,
+      34,
+      1,
+      "seat fill"
+     ],
+     [
+      17,
+      35,
+      1,
+      "seat fill"
+     ]
+    ],
+    "overhang_px": 0
+   },
+   "hop_recover": {
+    "at": [
+     18,
+     29
+    ],
+    "behind_crown_px": 4,
+    "extra_px": [
+     [
+      22,
+      33,
+      2,
+      "crease"
+     ],
+     [
+      18,
+      33,
+      1,
+      "seat fill"
+     ],
+     [
+      18,
+      34,
+      1,
+      "seat fill"
+     ]
+    ],
+    "overhang_px": 0
+   },
+   "bound_lean": {
+    "at": [
+     22,
+     23
+    ],
+    "behind_crown_px": 5,
+    "extra_px": [
+     [
+      26,
+      28,
+      2,
+      "crease"
+     ]
+    ],
+    "overhang_px": 0
+   },
+   "bound_flat": {
+    "at": [
+     21,
+     27
+    ],
+    "behind_crown_px": 4,
+    "extra_px": [
+     [
+      26,
+      30,
+      2,
+      "crease"
+     ]
+    ],
+    "overhang_px": 0
+   },
+   "surge_long": {
+    "at": [
+     23,
+     22
+    ],
+    "behind_crown_px": 4,
+    "extra_px": [
+     [
+      27,
+      27,
+      2,
+      "crease"
+     ]
+    ],
+    "overhang_px": 0
+   },
+   "surge_spark": {
+    "at": [
+     23,
+     23
+    ],
+    "behind_crown_px": 3,
+    "extra_px": [
+     [
+      27,
+      28,
+      2,
+      "crease"
+     ]
+    ],
+    "overhang_px": 0
+   },
+   "surge_back": {
+    "at": [
+     23,
+     26
+    ],
+    "behind_crown_px": 2,
+    "extra_px": [
+     [
+      27,
+      30,
+      2,
+      "crease"
+     ]
+    ],
+    "overhang_px": 0
+   },
+   "joy_stretch": {
+    "at": [
+     20,
+     21
+    ],
+    "behind_crown_px": 3,
+    "extra_px": [
+     [
+      24,
+      26,
+      2,
+      "crease"
+     ],
+     [
+      20,
+      26,
+      1,
+      "seat fill"
+     ],
+     [
+      20,
+      27,
+      1,
+      "seat fill"
+     ]
+    ],
+    "overhang_px": 0
+   }
+  },
+  "mixed": {
+   "idle_0": {
+    "at": [
+     20,
+     28
+    ],
+    "behind_crown_px": 5,
+    "extra_px": [
+     [
+      24,
+      32,
+      2,
+      "crease"
+     ]
+    ],
+    "overhang_px": 0
+   },
+   "idle_1": {
+    "at": [
+     20,
+     28
+    ],
+    "behind_crown_px": 5,
+    "extra_px": [
+     [
+      24,
+      32,
+      2,
+      "crease"
+     ]
+    ],
+    "overhang_px": 0
+   },
+   "idle_2": {
+    "at": [
+     20,
+     29
+    ],
+    "behind_crown_px": 5,
+    "extra_px": [
+     [
+      24,
+      33,
+      2,
+      "crease"
+     ]
+    ],
+    "overhang_px": 0
+   },
+   "idle_3": {
+    "at": [
+     20,
+     29
+    ],
+    "behind_crown_px": 5,
+    "extra_px": [
+     [
+      24,
+      33,
+      2,
+      "crease"
+     ]
+    ],
+    "overhang_px": 0
+   },
+   "scoot_0": {
+    "at": [
+     20,
+     30
+    ],
+    "behind_crown_px": 5,
+    "extra_px": [
+     [
+      25,
+      33,
+      2,
+      "crease"
+     ]
+    ],
+    "overhang_px": 0
+   },
+   "scoot_1": {
+    "at": [
+     21,
+     31
+    ],
+    "behind_crown_px": 5,
+    "extra_px": [
+     [
+      26,
+      34,
+      2,
+      "crease"
+     ]
+    ],
+    "overhang_px": 0
+   },
+   "scoot_2": {
+    "at": [
+     20,
+     30
+    ],
+    "behind_crown_px": 5,
+    "extra_px": [
+     [
+      25,
+      33,
+      2,
+      "crease"
+     ]
+    ],
+    "overhang_px": 0
+   },
+   "scoot_3": {
+    "at": [
+     21,
+     28
+    ],
+    "behind_crown_px": 5,
+    "extra_px": [
+     [
+      25,
+      32,
+      2,
+      "crease"
+     ]
+    ],
+    "overhang_px": 0
+   },
+   "hop_crouch": {
+    "at": [
+     20,
+     31
+    ],
+    "behind_crown_px": 5,
+    "extra_px": [
+     [
+      25,
+      34,
+      2,
+      "crease"
+     ]
+    ],
+    "overhang_px": 0
+   },
+   "hop_launch": {
+    "at": [
+     22,
+     23
+    ],
+    "behind_crown_px": 5,
+    "extra_px": [
+     [
+      26,
+      28,
+      2,
+      "crease"
+     ]
+    ],
+    "overhang_px": 0
+   },
+   "hop_air1": {
+    "at": [
+     21,
+     21
+    ],
+    "behind_crown_px": 5,
+    "extra_px": [
+     [
+      25,
+      26,
+      2,
+      "crease"
+     ]
+    ],
+    "overhang_px": 0
+   },
+   "hop_air2": {
+    "at": [
+     20,
+     22
+    ],
+    "behind_crown_px": 5,
+    "extra_px": [
+     [
+      24,
+      26,
+      2,
+      "crease"
+     ]
+    ],
+    "overhang_px": 0
+   },
+   "hop_land": {
+    "at": [
+     19,
+     31
+    ],
+    "behind_crown_px": 5,
+    "extra_px": [
+     [
+      24,
+      34,
+      2,
+      "crease"
+     ]
+    ],
+    "overhang_px": 0
+   },
+   "hop_recover": {
+    "at": [
+     20,
+     26
+    ],
+    "behind_crown_px": 5,
+    "extra_px": [
+     [
+      24,
+      30,
+      2,
+      "crease"
+     ]
+    ],
+    "overhang_px": 0
+   },
+   "bound_lean": {
+    "at": [
+     24,
+     21
+    ],
+    "behind_crown_px": 5,
+    "extra_px": [
+     [
+      28,
+      26,
+      2,
+      "crease"
+     ]
+    ],
+    "overhang_px": 0
+   },
+   "bound_flat": {
+    "at": [
+     23,
+     25
+    ],
+    "behind_crown_px": 5,
+    "extra_px": [
+     [
+      28,
+      28,
+      2,
+      "crease"
+     ]
+    ],
+    "overhang_px": 0
+   },
+   "surge_long": {
+    "at": [
+     24,
+     21
+    ],
+    "behind_crown_px": 5,
+    "extra_px": [
+     [
+      28,
+      26,
+      2,
+      "crease"
+     ]
+    ],
+    "overhang_px": 0
+   },
+   "surge_spark": {
+    "at": [
+     23,
+     23
+    ],
+    "behind_crown_px": 5,
+    "extra_px": [
+     [
+      27,
+      28,
+      2,
+      "crease"
+     ]
+    ],
+    "overhang_px": 0
+   },
+   "surge_back": {
+    "at": [
+     22,
+     27
+    ],
+    "behind_crown_px": 5,
+    "extra_px": [
+     [
+      26,
+      31,
+      2,
+      "crease"
+     ]
+    ],
+    "overhang_px": 0
+   },
+   "joy_stretch": {
+    "at": [
+     21,
+     20
+    ],
+    "behind_crown_px": 5,
+    "extra_px": [
+     [
+      25,
+      25,
+      2,
+      "crease"
+     ]
+    ],
+    "overhang_px": 0
+   }
+  }
+ },
+ "topknot_note": "extra_px = [x, y, ramp step, why]: pixels that differ from the plain stamp (seat edge, crease, seat fill); positions are canvas px of the 56 x 56 cell",
+ "pose": "picked by the frame's pose tag (kit.json frames.<id>.tag: normal, squash, stretch)",
+ "crown": "kit.json frames.<id>.dome.xP",
+ "keep_out": "never over the face, the outfits or the glint",
+ "count": 6
+}

@@ -1,0 +1,1312 @@
+{
+ "sheet": "overlay_outfits.png",
+ "index": "per sprite: 0 clear, n = its palette entry n-1",
+ "sprites": {
+  "beret_normal": {
+   "rect": [
+    0,
+    0,
+    8,
+    4
+   ],
+   "palette_day": [
+    "#e2506d",
+    "#b33a55",
+    "#8c2a40"
+   ],
+   "palette_night": {
+    "curly": [
+     "#e2506d",
+     "#b33a55",
+     "#8c2a40"
+    ],
+    "dollop": [
+     "#e3516e",
+     "#b43b56",
+     "#8d2b41"
+    ],
+    "mixed": [
+     "#e3516e",
+     "#b43b56",
+     "#8d2b41"
+    ]
+   },
+   "n_colours": 3,
+   "slot": "head",
+   "pose": "normal",
+   "place": "stands on the dome top at the head-wear anchor x + -1"
+  },
+  "beret_squash": {
+   "rect": [
+    9,
+    0,
+    9,
+    4
+   ],
+   "palette_day": [
+    "#e2506d",
+    "#b33a55",
+    "#8c2a40"
+   ],
+   "palette_night": {
+    "curly": [
+     "#e2506d",
+     "#b33a55",
+     "#8c2a40"
+    ],
+    "dollop": [
+     "#e3516e",
+     "#b43b56",
+     "#8d2b41"
+    ],
+    "mixed": [
+     "#e3516e",
+     "#b43b56",
+     "#8d2b41"
+    ]
+   },
+   "n_colours": 3,
+   "slot": "head",
+   "pose": "squash",
+   "place": "stands on the dome top at the head-wear anchor x + -1"
+  },
+  "beret_stretch": {
+   "rect": [
+    19,
+    0,
+    6,
+    5
+   ],
+   "palette_day": [
+    "#e2506d",
+    "#b33a55",
+    "#8c2a40"
+   ],
+   "palette_night": {
+    "curly": [
+     "#e2506d",
+     "#b33a55",
+     "#8c2a40"
+    ],
+    "dollop": [
+     "#e3516e",
+     "#b43b56",
+     "#8d2b41"
+    ],
+    "mixed": [
+     "#e3516e",
+     "#b43b56",
+     "#8d2b41"
+    ]
+   },
+   "n_colours": 3,
+   "slot": "head",
+   "pose": "stretch",
+   "place": "stands on the dome top at the head-wear anchor x + -1"
+  },
+  "party_normal": {
+   "rect": [
+    26,
+    0,
+    5,
+    7
+   ],
+   "palette_day": [
+    "#8fd0ff",
+    "#5fa8e0",
+    "#ffe680",
+    "#ff6fa3"
+   ],
+   "palette_night": {
+    "curly": [
+     "#8fd0ff",
+     "#5fa8e0",
+     "#ffe680",
+     "#ff6fa3"
+    ],
+    "dollop": [
+     "#90d1ff",
+     "#60a9e1",
+     "#ffe781",
+     "#ff70a4"
+    ],
+    "mixed": [
+     "#90d1ff",
+     "#60a9e1",
+     "#ffe781",
+     "#ff70a4"
+    ]
+   },
+   "n_colours": 4,
+   "slot": "head",
+   "pose": "normal",
+   "place": "stands on the dome top at the head-wear anchor x + 0"
+  },
+  "party_squash": {
+   "rect": [
+    32,
+    0,
+    5,
+    5
+   ],
+   "palette_day": [
+    "#8fd0ff",
+    "#5fa8e0",
+    "#ffe680",
+    "#ff6fa3"
+   ],
+   "palette_night": {
+    "curly": [
+     "#8fd0ff",
+     "#5fa8e0",
+     "#ffe680",
+     "#ff6fa3"
+    ],
+    "dollop": [
+     "#90d1ff",
+     "#60a9e1",
+     "#ffe781",
+     "#ff70a4"
+    ],
+    "mixed": [
+     "#90d1ff",
+     "#60a9e1",
+     "#ffe781",
+     "#ff70a4"
+    ]
+   },
+   "n_colours": 4,
+   "slot": "head",
+   "pose": "squash",
+   "place": "stands on the dome top at the head-wear anchor x + 0"
+  },
+  "party_stretch": {
+   "rect": [
+    38,
+    0,
+    4,
+    8
+   ],
+   "palette_day": [
+    "#8fd0ff",
+    "#5fa8e0",
+    "#ffe680",
+    "#ff6fa3"
+   ],
+   "palette_night": {
+    "curly": [
+     "#8fd0ff",
+     "#5fa8e0",
+     "#ffe680",
+     "#ff6fa3"
+    ],
+    "dollop": [
+     "#90d1ff",
+     "#60a9e1",
+     "#ffe781",
+     "#ff70a4"
+    ],
+    "mixed": [
+     "#90d1ff",
+     "#60a9e1",
+     "#ffe781",
+     "#ff70a4"
+    ]
+   },
+   "n_colours": 4,
+   "slot": "head",
+   "pose": "stretch",
+   "place": "stands on the dome top at the head-wear anchor x + 0"
+  },
+  "crown_normal": {
+   "rect": [
+    43,
+    0,
+    7,
+    4
+   ],
+   "palette_day": [
+    "#ffcf4a",
+    "#c99a2a",
+    "#ff6fa3",
+    "#8fd0ff",
+    "#ffffff"
+   ],
+   "palette_night": {
+    "curly": [
+     "#ffcf4a",
+     "#c99a2a",
+     "#ff6fa3",
+     "#8fd0ff",
+     "#ffffff"
+    ],
+    "dollop": [
+     "#ffd04b",
+     "#ca9b2b",
+     "#ff70a4",
+     "#90d1ff",
+     "#ffffff"
+    ],
+    "mixed": [
+     "#ffd04b",
+     "#ca9b2b",
+     "#ff70a4",
+     "#90d1ff",
+     "#ffffff"
+    ]
+   },
+   "n_colours": 5,
+   "slot": "head",
+   "pose": "normal",
+   "place": "stands on the dome top at the head-wear anchor x + 0"
+  },
+  "crown_squash": {
+   "rect": [
+    51,
+    0,
+    8,
+    3
+   ],
+   "palette_day": [
+    "#ffcf4a",
+    "#c99a2a",
+    "#ff6fa3",
+    "#8fd0ff",
+    "#ffffff"
+   ],
+   "palette_night": {
+    "curly": [
+     "#ffcf4a",
+     "#c99a2a",
+     "#ff6fa3",
+     "#8fd0ff",
+     "#ffffff"
+    ],
+    "dollop": [
+     "#ffd04b",
+     "#ca9b2b",
+     "#ff70a4",
+     "#90d1ff",
+     "#ffffff"
+    ],
+    "mixed": [
+     "#ffd04b",
+     "#ca9b2b",
+     "#ff70a4",
+     "#90d1ff",
+     "#ffffff"
+    ]
+   },
+   "n_colours": 5,
+   "slot": "head",
+   "pose": "squash",
+   "place": "stands on the dome top at the head-wear anchor x + 0"
+  },
+  "crown_stretch": {
+   "rect": [
+    60,
+    0,
+    7,
+    5
+   ],
+   "palette_day": [
+    "#ffcf4a",
+    "#c99a2a",
+    "#ff6fa3",
+    "#8fd0ff",
+    "#ffffff"
+   ],
+   "palette_night": {
+    "curly": [
+     "#ffcf4a",
+     "#c99a2a",
+     "#ff6fa3",
+     "#8fd0ff",
+     "#ffffff"
+    ],
+    "dollop": [
+     "#ffd04b",
+     "#ca9b2b",
+     "#ff70a4",
+     "#90d1ff",
+     "#ffffff"
+    ],
+    "mixed": [
+     "#ffd04b",
+     "#ca9b2b",
+     "#ff70a4",
+     "#90d1ff",
+     "#ffffff"
+    ]
+   },
+   "n_colours": 5,
+   "slot": "head",
+   "pose": "stretch",
+   "place": "stands on the dome top at the head-wear anchor x + 0"
+  },
+  "flowers_normal": {
+   "rect": [
+    68,
+    0,
+    12,
+    4
+   ],
+   "palette_day": [
+    "#6fbf55",
+    "#4f9a3d",
+    "#ff9fc6",
+    "#fff1a8",
+    "#c9b3ff",
+    "#ffffff"
+   ],
+   "palette_night": {
+    "curly": [
+     "#6fbf55",
+     "#4f9a3d",
+     "#ff9fc6",
+     "#fff1a8",
+     "#c9b3ff",
+     "#ffffff"
+    ],
+    "dollop": [
+     "#70c056",
+     "#509b3e",
+     "#ffa0c7",
+     "#fff2a9",
+     "#cab4ff",
+     "#ffffff"
+    ],
+    "mixed": [
+     "#70c056",
+     "#509b3e",
+     "#ffa0c7",
+     "#fff2a9",
+     "#cab4ff",
+     "#ffffff"
+    ]
+   },
+   "n_colours": 6,
+   "slot": "head",
+   "pose": "normal",
+   "place": "stands on the dome top at the head-wear anchor x + 0"
+  },
+  "flowers_squash": {
+   "rect": [
+    81,
+    0,
+    14,
+    3
+   ],
+   "palette_day": [
+    "#6fbf55",
+    "#4f9a3d",
+    "#ff9fc6",
+    "#fff1a8",
+    "#c9b3ff",
+    "#ffffff"
+   ],
+   "palette_night": {
+    "curly": [
+     "#6fbf55",
+     "#4f9a3d",
+     "#ff9fc6",
+     "#fff1a8",
+     "#c9b3ff",
+     "#ffffff"
+    ],
+    "dollop": [
+     "#70c056",
+     "#509b3e",
+     "#ffa0c7",
+     "#fff2a9",
+     "#cab4ff",
+     "#ffffff"
+    ],
+    "mixed": [
+     "#70c056",
+     "#509b3e",
+     "#ffa0c7",
+     "#fff2a9",
+     "#cab4ff",
+     "#ffffff"
+    ]
+   },
+   "n_colours": 6,
+   "slot": "head",
+   "pose": "squash",
+   "place": "stands on the dome top at the head-wear anchor x + 0"
+  },
+  "flowers_stretch": {
+   "rect": [
+    96,
+    0,
+    8,
+    5
+   ],
+   "palette_day": [
+    "#6fbf55",
+    "#4f9a3d",
+    "#ff9fc6",
+    "#fff1a8",
+    "#c9b3ff",
+    "#ffffff"
+   ],
+   "palette_night": {
+    "curly": [
+     "#6fbf55",
+     "#4f9a3d",
+     "#ff9fc6",
+     "#fff1a8",
+     "#c9b3ff",
+     "#ffffff"
+    ],
+    "dollop": [
+     "#70c056",
+     "#509b3e",
+     "#ffa0c7",
+     "#fff2a9",
+     "#cab4ff",
+     "#ffffff"
+    ],
+    "mixed": [
+     "#70c056",
+     "#509b3e",
+     "#ffa0c7",
+     "#fff2a9",
+     "#cab4ff",
+     "#ffffff"
+    ]
+   },
+   "n_colours": 6,
+   "slot": "head",
+   "pose": "stretch",
+   "place": "stands on the dome top at the head-wear anchor x + 0"
+  },
+  "glasses_curly_set": {
+   "rect": [
+    105,
+    0,
+    13,
+    7
+   ],
+   "palette_day": [
+    "#3a2f52"
+   ],
+   "palette_night": {
+    "curly": [
+     "#3a2f52"
+    ],
+    "dollop": [
+     "#3b3053"
+    ],
+    "mixed": [
+     "#3b3053"
+    ]
+   },
+   "n_colours": 1,
+   "slot": "face",
+   "set": "curly",
+   "offset_from_left_eye": [
+    -2,
+    -1
+   ],
+   "note": "the eyes show through"
+  },
+  "shades_curly_set": {
+   "rect": [
+    119,
+    0,
+    13,
+    7
+   ],
+   "palette_day": [
+    "#2a1f3d",
+    "#ffcf4a"
+   ],
+   "palette_night": {
+    "curly": [
+     "#2a1f3d",
+     "#ffcf4a"
+    ],
+    "dollop": [
+     "#2b203e",
+     "#ffd04b"
+    ],
+    "mixed": [
+     "#2b203e",
+     "#ffd04b"
+    ]
+   },
+   "n_colours": 2,
+   "slot": "face",
+   "set": "curly",
+   "offset_from_left_eye": [
+    -2,
+    -1
+   ],
+   "note": "covers the eyes"
+  },
+  "glasses_dollop_set": {
+   "rect": [
+    133,
+    0,
+    11,
+    6
+   ],
+   "palette_day": [
+    "#3a2f52"
+   ],
+   "palette_night": {
+    "curly": [
+     "#3a2f52"
+    ],
+    "dollop": [
+     "#3b3053"
+    ],
+    "mixed": [
+     "#3b3053"
+    ]
+   },
+   "n_colours": 1,
+   "slot": "face",
+   "set": "dollop",
+   "offset_from_left_eye": [
+    -2,
+    -1
+   ],
+   "note": "the eyes show through"
+  },
+  "shades_dollop_set": {
+   "rect": [
+    145,
+    0,
+    11,
+    6
+   ],
+   "palette_day": [
+    "#2a1f3d",
+    "#ffcf4a"
+   ],
+   "palette_night": {
+    "curly": [
+     "#2a1f3d",
+     "#ffcf4a"
+    ],
+    "dollop": [
+     "#2b203e",
+     "#ffd04b"
+    ],
+    "mixed": [
+     "#2b203e",
+     "#ffd04b"
+    ]
+   },
+   "n_colours": 2,
+   "slot": "face",
+   "set": "dollop",
+   "offset_from_left_eye": [
+    -2,
+    -1
+   ],
+   "note": "covers the eyes"
+  },
+  "scarf_curly_normal": {
+   "rect": [
+    157,
+    0,
+    36,
+    8
+   ],
+   "palette_day": [
+    "#ffb48e",
+    "#ff8a5c",
+    "#d9663f",
+    "#a8442c",
+    "#fff1d6"
+   ],
+   "palette_night": {
+    "curly": [
+     "#ffb48e",
+     "#ff8a5c",
+     "#d9663f",
+     "#a8442c",
+     "#fff1d6"
+    ],
+    "dollop": [
+     "#ffb58f",
+     "#ff8b5d",
+     "#da6740",
+     "#a9452d",
+     "#fff2d7"
+    ],
+    "mixed": [
+     "#ffb58f",
+     "#ff8b5d",
+     "#da6740",
+     "#a9452d",
+     "#fff2d7"
+    ]
+   },
+   "n_colours": 5,
+   "slot": "neck",
+   "family": "curly",
+   "pose": "normal",
+   "frame": "idle_0",
+   "style": "pixel",
+   "at": [
+    6,
+    42
+   ],
+   "band_top": 44,
+   "band_lowest_above_base": 4,
+   "knot": [
+    14,
+    44
+   ],
+   "tails": {
+    "long": {
+     "slope": [
+      2,
+      1
+     ],
+     "deg": 63,
+     "steps": 6
+    },
+    "short": {
+     "slope": [
+      1,
+      2
+     ],
+     "deg": 27,
+     "steps": 4
+    }
+   },
+   "contact_shade": {
+    "step": "",
+    "px": []
+   }
+  },
+  "scarf_curly_squash": {
+   "rect": [
+    194,
+    0,
+    40,
+    7
+   ],
+   "palette_day": [
+    "#ffb48e",
+    "#ff8a5c",
+    "#d9663f",
+    "#a8442c",
+    "#fff1d6"
+   ],
+   "palette_night": {
+    "curly": [
+     "#ffb48e",
+     "#ff8a5c",
+     "#d9663f",
+     "#a8442c",
+     "#fff1d6"
+    ],
+    "dollop": [
+     "#ffb58f",
+     "#ff8b5d",
+     "#da6740",
+     "#a9452d",
+     "#fff2d7"
+    ],
+    "mixed": [
+     "#ffb58f",
+     "#ff8b5d",
+     "#da6740",
+     "#a9452d",
+     "#fff2d7"
+    ]
+   },
+   "n_colours": 5,
+   "slot": "neck",
+   "family": "curly",
+   "pose": "squash",
+   "frame": "hop_crouch",
+   "style": "pixel",
+   "at": [
+    5,
+    44
+   ],
+   "band_top": 46,
+   "band_lowest_above_base": 2,
+   "knot": [
+    13,
+    46
+   ],
+   "tails": {
+    "long": {
+     "slope": [
+      2,
+      1
+     ],
+     "deg": 63,
+     "steps": 6
+    },
+    "short": {
+     "slope": [
+      3,
+      1
+     ],
+     "deg": 72,
+     "steps": 3
+    }
+   },
+   "contact_shade": {
+    "step": "",
+    "px": []
+   }
+  },
+  "scarf_curly_stretch": {
+   "rect": [
+    235,
+    0,
+    34,
+    8
+   ],
+   "palette_day": [
+    "#ffb48e",
+    "#ff8a5c",
+    "#d9663f",
+    "#a8442c",
+    "#fff1d6"
+   ],
+   "palette_night": {
+    "curly": [
+     "#ffb48e",
+     "#ff8a5c",
+     "#d9663f",
+     "#a8442c",
+     "#fff1d6"
+    ],
+    "dollop": [
+     "#ffb58f",
+     "#ff8b5d",
+     "#da6740",
+     "#a9452d",
+     "#fff2d7"
+    ],
+    "mixed": [
+     "#ffb58f",
+     "#ff8b5d",
+     "#da6740",
+     "#a9452d",
+     "#fff2d7"
+    ]
+   },
+   "n_colours": 5,
+   "slot": "neck",
+   "family": "curly",
+   "pose": "stretch",
+   "frame": "hop_launch",
+   "style": "pixel",
+   "at": [
+    7,
+    39
+   ],
+   "band_top": 41,
+   "band_lowest_above_base": 6,
+   "knot": [
+    16,
+    41
+   ],
+   "tails": {
+    "long": {
+     "slope": [
+      6,
+      1
+     ],
+     "deg": 81,
+     "steps": 7
+    },
+    "short": {
+     "slope": [
+      3,
+      1
+     ],
+     "deg": 72,
+     "steps": 5
+    }
+   },
+   "contact_shade": {
+    "step": "",
+    "px": []
+   }
+  },
+  "scarf_dollop_normal": {
+   "rect": [
+    270,
+    0,
+    36,
+    8
+   ],
+   "palette_day": [
+    "#ffb48e",
+    "#ff8a5c",
+    "#d9663f",
+    "#a8442c",
+    "#fff1d6"
+   ],
+   "palette_night": {
+    "curly": [
+     "#ffb48e",
+     "#ff8a5c",
+     "#d9663f",
+     "#a8442c",
+     "#fff1d6"
+    ],
+    "dollop": [
+     "#ffb58f",
+     "#ff8b5d",
+     "#da6740",
+     "#a9452d",
+     "#fff2d7"
+    ],
+    "mixed": [
+     "#ffb58f",
+     "#ff8b5d",
+     "#da6740",
+     "#a9452d",
+     "#fff2d7"
+    ]
+   },
+   "n_colours": 5,
+   "slot": "neck",
+   "family": "dollop",
+   "pose": "normal",
+   "frame": "idle_0",
+   "style": "pixel",
+   "at": [
+    6,
+    42
+   ],
+   "band_top": 44,
+   "band_lowest_above_base": 4,
+   "knot": [
+    14,
+    44
+   ],
+   "tails": {
+    "long": {
+     "slope": [
+      2,
+      1
+     ],
+     "deg": 63,
+     "steps": 6
+    },
+    "short": {
+     "slope": [
+      1,
+      2
+     ],
+     "deg": 27,
+     "steps": 4
+    }
+   },
+   "contact_shade": {
+    "step": "",
+    "px": []
+   }
+  },
+  "scarf_dollop_squash": {
+   "rect": [
+    307,
+    0,
+    36,
+    7
+   ],
+   "palette_day": [
+    "#ffb48e",
+    "#ff8a5c",
+    "#d9663f",
+    "#a8442c",
+    "#fff1d6"
+   ],
+   "palette_night": {
+    "curly": [
+     "#ffb48e",
+     "#ff8a5c",
+     "#d9663f",
+     "#a8442c",
+     "#fff1d6"
+    ],
+    "dollop": [
+     "#ffb58f",
+     "#ff8b5d",
+     "#da6740",
+     "#a9452d",
+     "#fff2d7"
+    ],
+    "mixed": [
+     "#ffb58f",
+     "#ff8b5d",
+     "#da6740",
+     "#a9452d",
+     "#fff2d7"
+    ]
+   },
+   "n_colours": 5,
+   "slot": "neck",
+   "family": "dollop",
+   "pose": "squash",
+   "frame": "hop_crouch",
+   "style": "pixel",
+   "at": [
+    7,
+    42
+   ],
+   "band_top": 44,
+   "band_lowest_above_base": 4,
+   "knot": [
+    15,
+    44
+   ],
+   "tails": {
+    "long": {
+     "slope": [
+      2,
+      1
+     ],
+     "deg": 63,
+     "steps": 6
+    },
+    "short": {
+     "slope": [
+      1,
+      1
+     ],
+     "deg": 45,
+     "steps": 3
+    }
+   },
+   "contact_shade": {
+    "step": "",
+    "px": []
+   }
+  },
+  "scarf_dollop_stretch": {
+   "rect": [
+    344,
+    0,
+    30,
+    8
+   ],
+   "palette_day": [
+    "#ffb48e",
+    "#ff8a5c",
+    "#d9663f",
+    "#a8442c",
+    "#fff1d6"
+   ],
+   "palette_night": {
+    "curly": [
+     "#ffb48e",
+     "#ff8a5c",
+     "#d9663f",
+     "#a8442c",
+     "#fff1d6"
+    ],
+    "dollop": [
+     "#ffb58f",
+     "#ff8b5d",
+     "#da6740",
+     "#a9452d",
+     "#fff2d7"
+    ],
+    "mixed": [
+     "#ffb58f",
+     "#ff8b5d",
+     "#da6740",
+     "#a9452d",
+     "#fff2d7"
+    ]
+   },
+   "n_colours": 5,
+   "slot": "neck",
+   "family": "dollop",
+   "pose": "stretch",
+   "frame": "hop_launch",
+   "style": "pixel",
+   "at": [
+    9,
+    39
+   ],
+   "band_top": 41,
+   "band_lowest_above_base": 7,
+   "knot": [
+    18,
+    41
+   ],
+   "tails": {
+    "long": {
+     "slope": [
+      6,
+      1
+     ],
+     "deg": 81,
+     "steps": 7
+    },
+    "short": {
+     "slope": [
+      3,
+      1
+     ],
+     "deg": 72,
+     "steps": 5
+    }
+   },
+   "contact_shade": {
+    "step": "",
+    "px": []
+   }
+  },
+  "scarf_mixed_normal": {
+   "rect": [
+    375,
+    0,
+    36,
+    8
+   ],
+   "palette_day": [
+    "#ffb48e",
+    "#ff8a5c",
+    "#d9663f",
+    "#a8442c",
+    "#fff1d6"
+   ],
+   "palette_night": {
+    "curly": [
+     "#ffb48e",
+     "#ff8a5c",
+     "#d9663f",
+     "#a8442c",
+     "#fff1d6"
+    ],
+    "dollop": [
+     "#ffb58f",
+     "#ff8b5d",
+     "#da6740",
+     "#a9452d",
+     "#fff2d7"
+    ],
+    "mixed": [
+     "#ffb58f",
+     "#ff8b5d",
+     "#da6740",
+     "#a9452d",
+     "#fff2d7"
+    ]
+   },
+   "n_colours": 5,
+   "slot": "neck",
+   "family": "mixed",
+   "pose": "normal",
+   "frame": "idle_0",
+   "style": "pixel",
+   "at": [
+    6,
+    41
+   ],
+   "band_top": 43,
+   "band_lowest_above_base": 5,
+   "knot": [
+    14,
+    43
+   ],
+   "tails": {
+    "long": {
+     "slope": [
+      2,
+      1
+     ],
+     "deg": 63,
+     "steps": 6
+    },
+    "short": {
+     "slope": [
+      1,
+      2
+     ],
+     "deg": 27,
+     "steps": 4
+    }
+   },
+   "contact_shade": {
+    "step": "",
+    "px": []
+   }
+  },
+  "scarf_mixed_squash": {
+   "rect": [
+    412,
+    0,
+    38,
+    7
+   ],
+   "palette_day": [
+    "#ffb48e",
+    "#ff8a5c",
+    "#d9663f",
+    "#a8442c",
+    "#fff1d6"
+   ],
+   "palette_night": {
+    "curly": [
+     "#ffb48e",
+     "#ff8a5c",
+     "#d9663f",
+     "#a8442c",
+     "#fff1d6"
+    ],
+    "dollop": [
+     "#ffb58f",
+     "#ff8b5d",
+     "#da6740",
+     "#a9452d",
+     "#fff2d7"
+    ],
+    "mixed": [
+     "#ffb58f",
+     "#ff8b5d",
+     "#da6740",
+     "#a9452d",
+     "#fff2d7"
+    ]
+   },
+   "n_colours": 5,
+   "slot": "neck",
+   "family": "mixed",
+   "pose": "squash",
+   "frame": "hop_crouch",
+   "style": "pixel",
+   "at": [
+    6,
+    42
+   ],
+   "band_top": 44,
+   "band_lowest_above_base": 4,
+   "knot": [
+    14,
+    44
+   ],
+   "tails": {
+    "long": {
+     "slope": [
+      2,
+      1
+     ],
+     "deg": 63,
+     "steps": 6
+    },
+    "short": {
+     "slope": [
+      1,
+      1
+     ],
+     "deg": 45,
+     "steps": 3
+    }
+   },
+   "contact_shade": {
+    "step": "",
+    "px": []
+   }
+  },
+  "scarf_mixed_stretch": {
+   "rect": [
+    451,
+    0,
+    33,
+    8
+   ],
+   "palette_day": [
+    "#ffb48e",
+    "#ff8a5c",
+    "#d9663f",
+    "#a8442c",
+    "#fff1d6"
+   ],
+   "palette_night": {
+    "curly": [
+     "#ffb48e",
+     "#ff8a5c",
+     "#d9663f",
+     "#a8442c",
+     "#fff1d6"
+    ],
+    "dollop": [
+     "#ffb58f",
+     "#ff8b5d",
+     "#da6740",
+     "#a9452d",
+     "#fff2d7"
+    ],
+    "mixed": [
+     "#ffb58f",
+     "#ff8b5d",
+     "#da6740",
+     "#a9452d",
+     "#fff2d7"
+    ]
+   },
+   "n_colours": 5,
+   "slot": "neck",
+   "family": "mixed",
+   "pose": "stretch",
+   "frame": "hop_launch",
+   "style": "pixel",
+   "at": [
+    8,
+    38
+   ],
+   "band_top": 40,
+   "band_lowest_above_base": 7,
+   "knot": [
+    17,
+    40
+   ],
+   "tails": {
+    "long": {
+     "slope": [
+      6,
+      1
+     ],
+     "deg": 81,
+     "steps": 7
+    },
+    "short": {
+     "slope": [
+      3,
+      1
+     ],
+     "deg": 72,
+     "steps": 5
+    }
+   },
+   "contact_shade": {
+    "step": "",
+    "px": []
+   }
+  }
+ },
+ "pilot": {
+  "ribbon_bow": "kit.json ribbon_bow (3 poses)",
+  "bow_tie": "kit.json bow_tie (the Curly face set); bow_tie_dollop (the Dollop face set: Dollop and Mixed)"
+ },
+ "night": "each colour moved by the family's measured outfit night shift (the Ribbon Bow's base, day to night: pixel_kit.outfit_night_shift)",
+ "scarf_ruling": "a PIXEL scarf (Nami, re-test ruling; spec 4.5): a 3 px rolled band 1 px past the outline at both ends, a 3 x 3 knot at its back end, two fringed tails streaming back outside the silhouette, angled by pose; drawn by rule per frame from the face (compose_kit / outfits_stamps.scarf_worn), these 9 sprites are the rest / squash / stretch references. The knit (the U1 icon) is kept behind RACEKIT_SCARF=knit",
+ "scarf_style": "pixel",
+ "count": {
+  "head": 15,
+  "face": 4,
+  "bow_tie": 1,
+  "scarf": 9,
+  "total": 29
+ }
+}

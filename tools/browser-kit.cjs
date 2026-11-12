@@ -136,7 +136,9 @@ async function launch() {
   const browser = await chromium.launch({
     // software WebGL so it runs on machines without a GPU (slow, a few frames a second)
     args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist',
-      '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1'],
+      '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1',
+      // SLIMEKIN_JS_FLAGS: V8 flags for a probe (tools/race-perf.cjs --why: --allow-natives-syntax)
+      ...(process.env.SLIMEKIN_JS_FLAGS ? ['--js-flags=' + process.env.SLIMEKIN_JS_FLAGS] : [])],
     logger: { isEnabled: name => name === 'browser', log: (name, sev, msg) => { browserLog.push(String(msg)); if (browserLog.length > 60) browserLog.shift(); } },
   });
   return { browser, browserLog };

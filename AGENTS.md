@@ -116,6 +116,20 @@ it up the next time it is opened online (sometimes it takes two opens). Never ed
   never lower), medals `core/medals.js`, heirlooms `core/heirlooms.js` (+ `Sim.buyHeirloom`), Moving Day math
   `core/movingday.js` and its signs `src/moving-day.js`; all numbers in `MEDALS`, `HEIRLOOMS`, `MOVING_DAY` in `content.js`.
 
+- The Slime Sprint is a pixel race (RV2, design `slimekin-notes/design/contests-race-view.md`); Beauty and Bounce-Off
+  still run on the barn's stand (`contest-show.js`) until RV3/RV4. The rules never change for the race: `scoreShow`
+  decides, `core/race.js` (pure) turns the result into legs, gaps and words, and the screen only shows that. Rival scores
+  are hidden on every race screen (card, race, results). Nothing is saved before the race ends (`applyShow` once).
+  Files: `src/race-view.js` (RaceView), `src/view/race-*.js` (compose = an exact port of the kit's composer, colour, plan,
+  kit, draw, bridge, skin), `src/assets/race/` (the kit, copied unchanged from usopp/race-kit @ 48c0f45: never edit; a new
+  kit is a new copy plus `node tools/race-compose-ref.py ...` and race-compose-test). ALL the race's on-screen UI is in
+  `src/view/race-skin.js` (the scrapbook art drops in there). Its words and numbers: `CONTESTS.race` in content.js.
+- The race loop must not make objects: effects come from RaceDraw's fixed pool, per-frame positions from
+  `RacePlan.tick()` (Float64Arrays), and no closure may be written inside `RaceView.frame()` (V8 then makes the
+  function's context every call). Check with `node tools/race-perf.cjs` after touching the loop.
+- A new file read in the game code must be listed in `tools/check-ios-www.mjs` LOCAL_READS (the race kit is
+  `src/view/race-kit.js`'s one `fetch(new URL(name, BASE))`).
+
 ## Testing
 
 - `node tools/smoke-test.cjs` plays through hatch → Settled → ranch → move out in a headless
@@ -161,6 +175,13 @@ it up the next time it is opened online (sometimes it takes two opens). Never ed
   from `tools/fixtures/`), and `node tools/breeding-smoke.cjs` (headless play-through from an old save,
   screenshots in `tools/out/breeding/`). `g.debug('pearls')` adds 100 pearls.
 
+- Race view (Slime Sprint): `node tools/race-test.mjs` (RV1 rules: finish order == scoreShow's places over 264,384
+  races, legs, caps, margins, the same inputs the same race), `race-compose-test.mjs` (every composite byte-identical to
+  the kit's own composer, `tools/fixtures/race/compose-ref.json`), `race-colour-test.mjs`, `race-plan-test.mjs`;
+  `node tools/race-smoke.cjs [--only=card,race,loss,skip,reload,reduced,low,beauty,blocked]` (390 x 844, real touches:
+  the shown result == scoreShow with the same taps; screenshots in `tools/out/race/`), `node tools/race-perf.cjs [--cpu 4]
+  [--dpr 3] [--why]` (or `perf-probe.cjs --race`: frame JS, drawImage calls, memory, the per-frame allocation check).
+  `tools/sims-identical.sh` compares the economy, pearl and contest sims with a copy of main (cmp).
 - Outfits: `node tools/outfit-test.mjs` (plain node: every slot and every pair at home and in Dress up, an outfit worn but
   not owned, `worn` cleaned on load, every old save, Dress up's Buy & wear) and `node tools/outfit-smoke.cjs [--quick]
   [--only=dress,home,pairs,swap,reload,unowned,counter]` (headless: the save, the 3D slime with every outfit object still attached to it, and the page
