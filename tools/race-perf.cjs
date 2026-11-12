@@ -93,13 +93,17 @@ const pct = (a, p) => { const s = [...a].sort((x, y) => x - y); return s.length 
       await ev(async () => {
         const K = await import('/src/view/race-kit.js');
         K.forgetStrips();
+        window.slimekin.raceView.perf.build = null;
         window.__lt = []; const o = new PerformanceObserver(l => { for (const e of l.getEntries()) window.__lt.push(Math.round(e.duration)); });
         o.observe({ type: 'longtask', buffered: false }); window.__lto = o;
       });
       const c0 = Date.now();
       await ev(id => window.slimekin.contestsUI.openEntry(id, 'sprint', 3), P);
       await page.waitForFunction(() => document.querySelectorAll('#modalCard .rv-row canvas').length === 4, null, { timeout: 120000 });
+      const facesMs = Date.now() - c0;
+      await page.waitForFunction(() => window.slimekin.raceView.perf.build, null, { timeout: 120000, polling: 20 });
       out.cardBuild = await ev(() => { window.__lto.disconnect(); return { longTasks: window.__lt.slice(), build: window.slimekin.raceView.perf.build }; });
+      out.cardBuild.facesMs = facesMs;
       out.cardBuild.wallMs = Date.now() - c0;
       log('while the card is open (CPU x' + CPU + '):', JSON.stringify(out.cardBuild));
       await page.waitForTimeout(3000);

@@ -60,7 +60,9 @@ export class RaceView {
     const t0 = performance.now();
     const arts = this.castsOf(race, x).map(c => RunnerArt.of(kit, c));
     const fresh = arts.filter(a => !a.done).length;
-    for (const a of arts) if (!a.next) a.step(0);
+    // one frame at a time between the page's own frames (the card shows first; then each runner's first frame, its face)
+    await yieldNow();
+    for (const a of arts) if (!a.next) { a.step(0); await yieldNow(); }
     if (onFaces) onFaces(arts);
     while (!arts.every(a => a.done)) {
       for (const a of arts) if (!a.done) { a.step(6); break; }
