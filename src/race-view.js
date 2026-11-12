@@ -18,6 +18,8 @@ import { RaceDraw } from './view/race-draw.js';
 import { loadKit, kitNow, RunnerArt, castOfResident, castOfRival } from './view/race-kit.js';
 import { FORM_LOOKS } from './view/forms.js';
 import * as S from './view/race-skin.js';
+import { RaceBridge } from './view/race-bridge.js';
+import * as THREE from 'three';
 
 const C = CONTESTS;
 const yieldNow = () => new Promise(r => setTimeout(r, 0));
@@ -31,7 +33,14 @@ export class RaceView {
     this.order = new Int32Array(4);
     this.prog = new Float64Array(4);
     this.perf = { frames: 0, ms: 0, max: 0, draws: 0, maxDraws: 0, maxFills: 0, build: null };
+    this.samples = new Float64Array(16384);   // each race frame's ms (the perf probe's median and p90)
+    this.sn = 0;
     this._ys = { x: 0, y: 0 };
+    // (made once: a closure written inside frame() would make V8 allocate frame()'s context on every call)
+    this.hideStampLater = () => this.ui && S.hideStamp(this.ui);
+    this.slideDone = () => { if (this.ui) this.ui.el.classList.remove('slide'); if (this.bridge && !(this.s && this.s.phase === 'bridge')) this.bridge.clear(); };
+    this.snapWanted = false;
+    this.bridge = null;
     this._ya = { x: 0, top: 0 };
   }
   get on() { return !!this.s; }
@@ -111,17 +120,52 @@ export class RaceView {
     S.hidePhoto(ui); S.hidePop(ui); S.hideGo(ui); S.hideStamp(ui);
     S.clearRings(ui);
     ui.el.classList.toggle('rm', s.reduced);
+    ui.el.style.setProperty('--rv-slide', C.race.view.bridge.slide + 's');
+    // the way in: the next frame the barn draws is copied (afterRender) and pixelates; Reduced motion: a crossfade
+    if (!s.reduced && !g.noRender && !g.glLost) { s.phase = 'bridgeWait'; s.wait = 0; this.snapWanted = true; return; }
+    this.go(false);
+  }
+  // the barn's frame was just drawn: copy it and start the bridge (game.js draw(), right after the render)
+  afterRender(canvas) {
+    if (!this.snapWanted) return;
+    this.snapWanted = false;
+    const s = this.s, ui = this.ui;
+    if (!s || s.phase !== 'bridgeWait') return;
+    this.bridge.take(canvas, this.youOnBarn());
+    ui.el.classList.add('bridge', 'on');
     ui.el.hidden = false;
-    requestAnimationFrame(() => ui.el && ui.el.classList.add('on'));
+    document.body.classList.add('rv-on');
+    s.shown = true; s.phase = 'bridge';
+  }
+  // your slime on the barn's stand, on the screen (CSS px), for the bridge
+  youOnBarn() {
+    const g = this.g;
+    try {
+      const av = g.barnRanch.view.av, v = av.centerWorld(new THREE.Vector3()).project(g.stage.camera);
+      if (!Number.isFinite(v.x) || Math.abs(v.x) > 1.2 || Math.abs(v.y) > 1.2) return null;
+      return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight, r: C.race.view.bridge.youR };
+    } catch (e) { return null; }
+  }
+  // the race proper: the course (slid in after the bridge, or faded in), the clock at the gate
+  go(bridged) {
+    const g = this.g, s = this.s, ui = this.ui;
+    ui.el.hidden = false;
+    if (bridged) {
+      ui.el.classList.remove('bridge');
+      ui.el.classList.add('on', 'slide');
+      g.after(C.race.view.bridge.slide + 0.1, this.slideDone);
+    } else requestAnimationFrame(() => ui.el && ui.el.classList.add('on'));
     document.body.classList.add('rv-on');
     s.shown = true; s.phase = 'gate'; s.t = 0;
     s.wall0 = performance.now();
     this.perf.frames = 0; this.perf.ms = 0; this.perf.max = 0; this.perf.maxDraws = 0; this.perf.maxFills = 0;
+    this.sn = 0;
     g.sfx.whee ? g.sfx.whee() : g.sfx.sparkle && g.sfx.sparkle();
     this.frame(0);
   }
   buildUi() {
     const ui = S.buildLayer();
+    this.bridge = new RaceBridge(ui.bridge);
     ui.canvas.addEventListener('pointerdown', e => { e.preventDefault(); this.tap(e); });
     ui.photo.addEventListener('pointerdown', e => { e.preventDefault(); this.tap(e); });
     ui.skip.addEventListener('click', e => { e.stopPropagation(); this.skip(); });
@@ -180,7 +224,9 @@ export class RaceView {
     const g = this.g, ui = this.ui;
     if (this.s && this.s.draw) this.s.draw.clearFx();
     this.s = null;
-    if (ui) { ui.el.classList.remove('on'); ui.el.hidden = true; S.clearRings(ui); }
+    this.snapWanted = false;
+    if (this.bridge) this.bridge.clear();
+    if (ui) { ui.el.classList.remove('on', 'bridge', 'slide'); ui.el.hidden = true; S.clearRings(ui); }
     document.body.classList.remove('cs-show', 'rv-on');
     if (g.barnRanch) g.barnRanch.renderCard();
     g.layoutChanged();
@@ -191,11 +237,15 @@ export class RaceView {
     const s = this.s, g = this.g;
     if (!s) return;
     if (g.view !== 'ranch' || !g.barnRanch.active || !g.sim.ranch.resident(s.id)) { this.cancel(); return; }
+    // the way in: waiting for the barn's next frame (half a second at most), then the bridge
+    if (s.phase === 'bridgeWait') { if ((s.wait += dt) > 0.5) { this.snapWanted = false; this.go(false); } return; }
+    if (s.phase === 'bridge') { if (this.bridge.update(dt)) this.go(true); return; }
     if (!s.shown || s.phase === 'done' || g.hud.modalOpen) return;
     const t0 = performance.now();
     this.frame(Math.min(dt, 0.1));
     const ms = performance.now() - t0, P = this.perf;
     P.frames++; P.ms += ms; if (ms > P.max) P.max = ms;
+    if (this.sn < 16384) this.samples[this.sn++] = ms;
   }
   frame(dt) {
     const s = this.s, g = this.g, ui = this.ui, plan = s.plan, Wd = C.race.words;
@@ -217,7 +267,7 @@ export class RaceView {
         if (s.race.legs[leg].role === 'main' && s.race.runners[0].stamp && !s.reduced) {
           const y = this.youScreen(t);
           S.showStamp(ui, s.race.runners[0].stamp, y.x, y.y);
-          g.after(1.2, () => this.ui && S.hideStamp(this.ui));
+          g.after(1.2, this.hideStampLater);
         }
       }
     }
@@ -252,7 +302,7 @@ export class RaceView {
     // the tote strip: the running order (moves only when it changes) and the pins
     const o = this.order, p = this.prog, span = plan.lineX - plan.x0;
     let changed = false;
-    for (let i = 0; i < 4; i++) { const v = (plan.x(i, t) - plan.x0) / span; p[i] = v < 0 ? 0 : v > 1 ? 1 : v; }
+    for (let i = 0; i < 4; i++) { const v = (plan.xs[i] - plan.x0) / span; p[i] = v < 0 ? 0 : v > 1 ? 1 : v; }
     for (let a = 1; a < 4; a++) {
       const v = o[a];
       let b = a - 1;
@@ -273,12 +323,16 @@ export class RaceView {
   }
   // your slime's body centre in art px (x, the top of its body) and on the screen (pt); one object each, reused
   youArt(t) {
-    const s = this.s, plan = s.plan, i = plan.youI, x = plan.x(i, t), gy = plan.ground(i, x), o = this._ya;
+    const s = this.s, plan = s.plan, i = plan.youI;
+    plan.tick(t);
+    const x = plan.xs[i], gy = plan.ground(i, x), o = this._ya;
     o.x = x; o.top = gy - 40;
     return o;
   }
   youScreen(t) {
-    const s = this.s, plan = s.plan, i = plan.youI, x = plan.x(i, t), gy = plan.ground(i, x), o = this._ys;
+    const s = this.s, plan = s.plan, i = plan.youI;
+    plan.tick(t);
+    const x = plan.xs[i], gy = plan.ground(i, x), o = this._ys;
     o.x = S.screenX(Math.round(x) - Math.round(s.cam) + 0.5); o.y = S.screenY(gy - 50 + s.youCy + s.draw.oy, s.H);
     return o;
   }

@@ -889,6 +889,9 @@ export const CONTESTS = {
       crowd: [6, 22, 40, 76, 94, 110, 128, 146, 163, 182],   // the wee slimes behind the fence (frame A), every 195 px
       crowdBounce: [1, 6], // which two bounce
       confetti: 40,        // pixel confetti at a win (Low: half)
+      // the way in: the barn's frame pixelates to the 2 pt grid over `ms`, your slime starting `youLag` of the way in;
+      // then the course slides in over `slide` s (Reduced motion: none, a 150 ms crossfade)
+      bridge: { ms: 600, youLag: 0.4, slide: 0.35, youR: 64 },
     },
     // the rivals: one recipe per buyer place (design 4.5: breed, variant, form, one outfit; the body is RIVAL_COLOR; the
     // form is what the place wants in BUYERS). short: the name the race calls it ("Starlight's slime").

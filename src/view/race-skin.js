@@ -25,6 +25,14 @@ const CSS = `
   #raceLayer.rm { transition-duration: .15s; }
   #raceLayer[hidden] { display: none; }
   #raceCanvas { position: absolute; left: 0; image-rendering: pixelated; image-rendering: crisp-edges; }
+  #raceBridge { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: none; image-rendering: pixelated; }
+  #raceLayer.bridge, #raceLayer.slide { background: transparent; transition: none; }
+  #raceLayer.bridge #raceBridge, #raceLayer.slide #raceBridge { display: block; }
+  #raceLayer.bridge > :not(#raceBridge) { visibility: hidden; }
+  #raceLayer.slide #raceCanvas { animation: rv-slide var(--rv-slide, .35s) cubic-bezier(.2, .7, .3, 1) both; }
+  #raceLayer.slide > :not(#raceBridge):not(#raceCanvas):not(#raceRings) { animation: rv-in var(--rv-slide, .35s) ease both; }
+  @keyframes rv-slide { from { transform: translateX(100%); } to { transform: none; } }
+  @keyframes rv-in { from { opacity: 0; } to { opacity: 1; } }
   #raceRings { position: absolute; left: 0; top: 0; pointer-events: none; }
   .rv-skip { position: absolute; right: 16px; top: calc(var(--rv-top) + 4px); width: 112px; min-height: 44px; border-radius: 16px; color: var(--ink);
     font: 800 15px var(--body); cursor: pointer; z-index: 2; }
@@ -90,16 +98,19 @@ const CSS = `
   .cs-modal .rv-two { display: grid; grid-template-columns: 1fr 1.3fr; gap: 8px; }`;
 
 // ---------- the layer ----------
+// the skin's styles (once; the race card needs them before any race ran)
+export function ensureCss() {
+  if (typeof document === 'undefined' || document.getElementById('raceSkinCss')) return;
+  const css = document.createElement('style');
+  css.id = 'raceSkinCss'; css.textContent = CSS;
+  document.head.appendChild(css);
+}
 export function buildLayer() {
-  if (!document.getElementById('raceSkinCss')) {
-    const css = document.createElement('style');
-    css.id = 'raceSkinCss'; css.textContent = CSS;
-    document.head.appendChild(css);
-  }
+  ensureCss();
   const el = document.createElement('div');
   el.id = 'raceLayer';
   el.hidden = true;
-  el.innerHTML = `<canvas id="raceCanvas" aria-label="The race"></canvas><canvas id="raceRings"></canvas>
+  el.innerHTML = `<canvas id="raceBridge"></canvas><canvas id="raceCanvas" aria-label="The race"></canvas><canvas id="raceRings"></canvas>
     <div class="rv-tote glass"><div class="rv-faces" id="rvFaces"></div><canvas class="rv-track" id="rvTrack"></canvas></div>
     <div class="rv-caller glass" id="rvCaller" aria-live="polite"></div>
     <div class="rv-name glass" id="rvName"><b></b><span></span></div>
@@ -110,7 +121,7 @@ export function buildLayer() {
     <button class="rv-skip glass" id="rvSkip" type="button">Skip</button>`;
   document.body.appendChild(el);
   const $ = id => el.querySelector('#' + id);
-  return { el, canvas: $('raceCanvas'), rings: $('raceRings'), faces: $('rvFaces'), track: $('rvTrack'), caller: $('rvCaller'), name: $('rvName'), acts: $('rvActs'),
+  return { el, bridge: $('raceBridge'), canvas: $('raceCanvas'), rings: $('raceRings'), faces: $('rvFaces'), track: $('rvTrack'), caller: $('rvCaller'), name: $('rvName'), acts: $('rvActs'),
     go: $('rvGo'), hint: $('rvHint'), pop: $('rvPop'), stamp: $('rvStamp'), pat: $('rvPat'), photo: $('rvPhoto'), snap: $('rvSnap'), fig: $('rvFig'), by: $('rvBy'), won: $('rvWon'), skip: $('rvSkip') };
 }
 // size the canvases for the screen: the art canvas W x H art px at 2 pt, its bottom on the screen's bottom
@@ -205,7 +216,10 @@ export function showGo(ui, name, cx, cy, hint) {
   place(ui.hint, cx + 60, cy + 19 - 13);
   ui.hint.classList.toggle('on', !!hint);
 }
-export function hideGo(ui) { ui.go.classList.remove('on'); ui.hint.classList.remove('on'); }
+// (at once: the cheer's word takes the same spot)
+export function hideGo(ui) {
+  for (const el of [ui.go, ui.hint]) { el.style.transition = 'none'; el.classList.remove('on'); void el.offsetWidth; el.style.transition = ''; }
+}
 export function showPop(ui, grade, cx, cy) {
   const p = ui.pop;
   p.className = 'rv-pop ' + grade;
@@ -258,6 +272,7 @@ export function hidePhoto(ui) { ui.photo.classList.remove('on'); }
 // ---------- the race card (F1): hidden scores ----------
 // rows: [{ you, name, line, grade, color }] (yours first); the faces go in after (fillFaces)
 export function cardRowsHtml(rows) {
+  ensureCss();
   return `<div class="rv-rows">${rows.map((r, i) => `<div class="rv-row${r.you ? ' me' : ''}"><span class="rv-noface" data-face="${i}" style="background:${esc(r.color || '#eef6e6')}"></span>
     <div class="rv-rt"><b>${esc(r.name)}</b><small>${r.lineHtml}</small></div>${r.grade ? `<span class="rv-grade">${esc(r.grade)}</span>` : ''}</div>`).join('')}</div>`;
 }
@@ -275,6 +290,8 @@ export function fillFaces(root, arts) {
     el.replaceWith(c);
   }
 }
+// the coach's cheer tip says the race's rings (the stand show's say pink and gold)
+export const RING_WORDS = 'the blue ring meets the white one';
 export const raceButtons = () => `<div class="rv-two"><button class="btn" data-cs="close">Not now</button><button class="btn primary" data-cs="start" id="csStart">${cupIcon(CONTEST_BY_ID.sprint.color)}Race!</button></div>`;
 
 // ---------- results (F8): no numbers ----------

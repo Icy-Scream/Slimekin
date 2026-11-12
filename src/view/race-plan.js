@@ -66,11 +66,16 @@ export class RacePlan {
     this.surgeAt = -1e9;
     this.camO = 0;
     this.camT = -1;
+    // this frame's places and frames (tick): read by the picture, the camera and the tote strip
+    this.xs = new Float64Array(this.n);
+    this.fr = new Int32Array(this.n);
+    this.tickT = NaN;
     this.race = null;
     this.set(race, 0, true);
   }
   // A new race (after a cheer or the pat), at race time t: every runner eases from where it shows now.
   set(race, t, first = false) {
+    this.tickT = NaN;
     const was = first ? null : Float64Array.from({ length: this.n }, (_, i) => this.behind(i, t));
     this.race = race;
     this.seed = race.seed >>> 0;
@@ -87,7 +92,7 @@ export class RacePlan {
       this.offAt = t;
     }
   }
-  surge(t) { this.surgeAt = t; }
+  surge(t) { this.surgeAt = t; this.tickT = NaN; }
 
   // ---------- where ----------
   front(t) {
@@ -108,6 +113,14 @@ export class RacePlan {
     return b;
   }
   x(i, t) { return this.front(t) - this.behind(i, t); }
+  // every runner's place (xs) and frame (fr) at race time t, once per frame
+  tick(t) {
+    if (t === this.tickT) return;
+    this.tickT = t;
+    const f = this.front(t);
+    for (let i = 0; i < this.n; i++) this.xs[i] = f - this.behind(i, t);
+    for (let i = 0; i < this.n; i++) this.fr[i] = this.frame(i, t);   // (frame() reads xs)
+  }
   hillAt(x) {
     const c = Math.floor(x - this.hillX);
     return c >= 0 && c < this.hill.length ? this.hill[c] : 0;
@@ -125,9 +138,10 @@ export class RacePlan {
       const at = k === 3 ? this.tLine : this.gate + k * this.legT;
       return this.front(at) - V.shotReduced;
     }
-    const want = this.x(this.youI, t) - V.youX;
+    this.tick(t);
+    const want = this.xs[this.youI] - V.youX;
     let minX = 1e9;
-    for (let i = 0; i < this.n; i++) { const x = this.x(i, t); if (x < minX) minX = x; }
+    for (let i = 0; i < this.n; i++) if (this.xs[i] < minX) minX = this.xs[i];
     const o = Math.max(0, want - (minX - V.edge));
     if (dt <= 0 && this.camT >= 0) return want - Math.max(o, this.camO);   // a look without moving the camera on
     if (this.camT < 0) this.camO = o;
@@ -149,7 +163,7 @@ export class RacePlan {
     if (t >= this.tLine + V.gather) return CYC.joy[Math.floor((t + ph) * V.fps * 0.8) % 6];
     const k = Math.max(0, this.legOf(t)), g = this.gait[i][Math.min(k, 2)];
     if (k === 2 && (g === 'scoot' || g === 'hop') && t < this.tLine) {
-      const x = this.x(i, t);
+      const x = t === this.tickT ? this.xs[i] : this.x(i, t);
       for (let h = 0; h < 3; h++) {
         const d = this.hoopX[h] - 20 - x;
         if (d >= 0 && d < V.think * this.v) return CYC.think[Math.floor((t + ph) * V.idleFps) % 4];

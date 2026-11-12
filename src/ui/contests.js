@@ -302,10 +302,10 @@ export class ContestsUI {
     return tip.text;
   }
   // The coach's tip card after a loss: the rules' tip (core/contests.js coachTip) said the mock-ups' way.
-  tipText(tip, x) {
+  tipText(tip, x, rings = 'the pink ring meets the gold one') {
     const name = x.name;
     if (!tip) return '';
-    if (tip.kind === 'cheers') return `${tip.text} Tap right when the pink ring meets the gold one.`;
+    if (tip.kind === 'cheers') return `${tip.text} Tap right when ${rings}.`;
     if (tip.kind === 'style') return `Dress ${name} up! Outfits add Style, and ${tip.gap} more Style would have won it.`;
     if (tip.kind === 'skill') return tip.partial ? `${tip.text}: ${name} can learn more ${skillName(tip.skill)} at the Training Center.` : `${tip.text} would have won it. ${name} can learn them at the Training Center.`;
     if (tip.kind === 'talent') return `${tip.text}. Every slime can win the Grand Cups; a Champion Cup takes a natural.`;
@@ -317,7 +317,7 @@ export class ContestsUI {
   // race: the Sprint's race (core/race.js raceOf): the results in words, no score rows ([race] F8)
   showResult(res, given, { onClose, race = null } = {}) {
     const g = this.g, x = this.resident(res.id) || { id: res.id, name: res.name };
-    const html = race ? RS.resultHtml(res, race, x, { prizes: this.prizesHtml(res, given, x, { hidden: true }), tip: this.tipText(res.tip || {}, x), act: this.tipAction(res, x), cupArt: this.winArt(res) })
+    const html = race ? RS.resultHtml(res, race, x, { prizes: this.prizesHtml(res, given, x, { hidden: true }), tip: this.tipText(res.tip || {}, x, RS.RING_WORDS), act: this.tipAction(res, x), cupArt: this.winArt(res) })
       : res.won ? this.winHtml(res, given, x) : this.lossHtml(res, x);
     this.open(html, 'result', card => {
       for (const b of card.querySelectorAll('[data-cs]')) b.addEventListener('click', () => {

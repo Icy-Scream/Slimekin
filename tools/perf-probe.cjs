@@ -17,6 +17,9 @@
 // each frame (cpu + gpu + the wait; the slow upper bound); thru = ms per frame of N frames back to back (what a steady
 // stream of frames costs). Medians and 90th percentiles. Prints a table; writes the numbers to --out.
 // SLIMEKIN_ROOT=<folder> measures another copy of the game (tools/browser-kit.cjs), e.g. the code before a change.
+// --race: the race view's gates instead (Slime Sprint, RV2): tools/race-perf.cjs (frame JS, drawImage calls, memory, the
+// per-frame allocation check); the other options are passed on (--dpr, --cpu, --out).
+if (process.argv.includes('--race')) { require('./race-perf.cjs'); return; }
 const path = require('path');
 const fs = require('fs');
 const { setup, watchdog, log } = require('./browser-kit.cjs');

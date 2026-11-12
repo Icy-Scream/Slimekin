@@ -74,7 +74,7 @@ const P = 'rbarnpeach';
       await ev(() => window.slimekin.hud.closeModal());
     };
     // Juniper (design §7), on the stand; trophies: how many Sprint cups won
-    const juniper = (trophies = 2, happy = 70) => ev(([id, tr, h]) => {
+    const juniper = (trophies = 2, happy = 72) => ev(([id, tr, h]) => {
       const g = window.slimekin, x = g.state.ranch.residents.find(y => y.id === id);
       x.name = 'Juniper'; x.form = { id: 'spark', name: 'Volt Slime', blurb: '' }; x.breed = 'curly'; x.variant = 'plain'; x.mix = 0;
       x.traits = { sweet: 0, heat: 0, mineral: 0, nature: 0, spark: 34, prism: 0 };
@@ -93,9 +93,16 @@ const P = 'rbarnpeach';
       await modalIs('entry');
       await page.waitForFunction(() => document.querySelectorAll('#modalCard .rv-row canvas').length === 4, null, { timeout: 120000 });
     };
-    const startRace = async () => {
+    // Race!: the bridge (the barn's frame pixelates, the course slides in; Reduced motion: a crossfade), then the gate
+    const startRace = async (film = null) => {
       await touchSel('#modalCard [data-cs="start"]');
-      await page.waitForFunction(() => window.slimekin.raceView.covers, null, { timeout: 120000 });
+      if (film) {
+        await page.waitForFunction(() => { const s = window.slimekin.raceView.s; return s && (s.phase === 'bridge' || s.phase === 'gate'); }, null, { timeout: 120000, polling: 20 });
+        film.phase = await ev(() => window.slimekin.raceView.s.phase);
+        await page.waitForTimeout(250);
+        await shot(film.name);
+      }
+      await page.waitForFunction(() => { const r = window.slimekin.raceView; return r.covers && r.s && r.s.phase !== 'bridge'; }, null, { timeout: 120000 });
     };
     // wait for ring k, then one real tap `at` seconds after it appeared (null: no tap); answers its grade
     const cheer = async (k, at) => {
@@ -134,7 +141,9 @@ const P = 'rbarnpeach';
     if (want('race')) await step('race: the Grand Cup with real taps', async () => {
       const before = await ranchNow();
       if (!(await ev(() => !document.getElementById('modal').hidden))) await openCard();
-      await startRace();
+      const film = { name: '1b-bridge' };
+      await startRace(film);
+      check(film.phase === 'bridge', 'the way in: the barn\'s frame pixelates (the bridge), then the course slides in', film.phase);
       const i0 = await info();
       check(i0.shown && i0.phase === 'gate' && i0.t < 3, 'the race starts at the gate', JSON.stringify({ t: i0.t, phase: i0.phase }));
       const rendered = await ev(() => { const g = window.slimekin; return { covers: g.raceView.covers, ui: getComputedStyle(document.getElementById('ui')).visibility }; });
@@ -174,10 +183,12 @@ const P = 'rbarnpeach';
       await ev(() => window.slimekin.hud.closeModal());
     }, 600000);
 
-    if (want('loss')) await step('loss: no tap on the straight', async () => {
+    if (want('loss')) await step('loss: the pat, then no tap on the straight', async () => {
       await juniper(3);
       await openCard(3);
       await startRace();
+      const y = (await info()).you;
+      await touch(y.x, y.y);
       await cheer(0, null); await cheer(1, 1.7); await cheer(2, 1.72);
       const { info: L, text } = await toResult();
       log('results:', text);
@@ -185,8 +196,8 @@ const P = 'rbarnpeach';
       await shot('6-loss');
       const R = await rules(3, L.taps);
       check(!L.won && L.place === 2 && R.place === 2 && R.score === L.score && L.shown.place === 2, 'the result == scoreShow (2nd, 84 against 85)', JSON.stringify({ L: { place: L.place, score: L.score, shown: L.shown }, R }));
-      check(/Good try!/.test(text) && /2nd, by a wobble/.test(text) && /Starlight caught Juniper in the hoops\./.test(text) && /Coach's tip/.test(text) && !/\b(84|85)\b/.test(text),
-        'F8b: "Good try!", "2nd, by a wobble", "Starlight caught Juniper in the hoops.", the coach\'s tip, no scores', text);
+      check(/Good try!/.test(text) && /2nd, by a wobble/.test(text) && /Starlight caught Juniper in the hoops\./.test(text) && /Tap right when the blue ring meets the white one\./.test(text) && !/\b(84|85)\b/.test(text),
+        'F8b: "Good try!", "2nd, by a wobble", "Starlight caught Juniper in the hoops.", the coach\'s tip (this race\'s rings), no scores', text);
       await ev(() => window.slimekin.hud.closeModal());
     }, 600000);
 

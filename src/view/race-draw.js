@@ -136,6 +136,23 @@ export class RaceDraw {
     this.cx = runners.map(a => Math.round(kit.j.families[a.cast.fam].frames.idle_0.anchors.centre[0]));
   }
 
+  // the pixels this race keeps (bytes): the course strips and pieces, the effect sprites, the runners' strips
+  bytes() {
+    const seen = new Set();
+    const add = c => { if (c && c.width && !seen.has(c)) seen.add(c); };
+    for (const b of [this.sky, this.hills, this.verge, this.lanes, this.flags]) add(b.c);
+    this.tree.c.forEach(add); this.fence.c.forEach(add);
+    for (const p of Object.values(this.pieces)) add(p.c);
+    add(this.hillB);
+    for (const f of Object.values(this.fx)) add(f.c);
+    for (const f of this.small) if (f) add(f.c);
+    for (const a of this.art) { add(a.canvas); add(a.face); }
+    add(this.canvas);
+    let n = 0;
+    for (const c of seen) n += c.width * c.height * 4;
+    return n;
+  }
+
   // ---------- the pool ----------
   spawn(k, x, y, vx, vy, life, front, r = 0, col = '') {
     if (this.reduced) return null;
@@ -157,6 +174,7 @@ export class RaceDraw {
   // ---------- each frame ----------
   // plan: RacePlan; t: race time; cam: camera x (world); dt: seconds since the last frame (effects)
   draw(plan, t, cam, dt) {
+    plan.tick(t);
     const ctx = this.ctx, W = this.W, oy = this.oy, cr = Math.round(cam);
     let n = 0;
     // the backdrop
@@ -185,7 +203,7 @@ export class RaceDraw {
       // the finish tape: taut, pressed, snapped, parted as this lane's runner reaches it
       let tape = P.finish_tape_taut;
       for (let i = 0; i < plan.n; i++) if (plan.lane[i] === lane) {
-        const d = plan.x(i, t) - plan.lineX;
+        const d = plan.xs[i] - plan.lineX;
         tape = d < -16 ? P.finish_tape_taut : d < -12 ? P.finish_tape_pressed : d < -6 ? P.finish_tape_snap : P.finish_tape_parted;
       }
       n += this.piece(tape, plan.lineX, y1 - 1, cr);
@@ -213,7 +231,7 @@ export class RaceDraw {
     return 1;
   }
   runner(plan, i, t, cr, dt) {
-    const f = plan.frame(i, t), x = plan.x(i, t), gy = plan.ground(i, x), sx = Math.round(x) - cr - this.cx[i];
+    const f = plan.fr[i], x = plan.xs[i], gy = plan.ground(i, x), sx = Math.round(x) - cr - this.cx[i];
     const y = gy - 50 - plan.lift(f) + this.oy;
     if (sx + CAN <= 0 || sx >= this.W) { this.last[i] = f; return 0; }
     // effects that come from the stride: dust on landing (hop and bound), the mint trail at 6-7 stars
@@ -265,7 +283,7 @@ export class RaceDraw {
     if (this.reduced || t - plan.surgeAt > CONTESTS.race.view.surge || t < plan.surgeAt) return;
     if ((this.streakT += dt) < 0.14) return;
     this.streakT = 0;
-    const i = plan.youI, x = plan.x(i, t);
+    const i = plan.youI, x = plan.xs[i];
     this.spawn(K.streak, x - 18, plan.ground(i, x) - 10 - (Math.floor(t * 20) % 2) * 6, -20, 0, 0.26, false);
   }
 }
