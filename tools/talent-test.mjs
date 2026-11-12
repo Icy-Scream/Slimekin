@@ -252,6 +252,39 @@ console.log('\n# old saves');
   ok(r && r.star === 5 && peaches.skills.charm === 5 && r.at === was.doneAt && peaches.lesson === null, 'it finishes on time with its 5th Charm star, as it would have before talents');
   const caps = SKILL_IDS.map(k => [k, TL.starCap(mochi, k), sim.life.lessonFor(mochi, k)]);
   ok(caps.every(([, cap, l]) => (cap > 5 ? l && l.star === 6 && l.pearls === 80 : l === null)), 'the fully trained one: a 6th star only where its talent is A or S', caps.map(([k, cap, l]) => `${k} cap ${cap}${l ? ' next ' + l.star : ''}`).join(', '));
+  // this save is the :8822 test copy's "Load the test ranch" (the captain's playtest of 11 Nov): "Mochi has 6 stars under
+  // Smarts but one of the stars is not filled nor can she train it". The rule side: is that 6th place hers to fill?
+  {
+    const t = migrate(clone(save)), ts = new Sim(t), mo = t.ranch.residents.find(x => x.name === 'Mochi'), parts = TL.talentParts(mo);
+    const slots = typeof RL.starSlots === 'function' ? RL.starSlots : null;
+    ok(TL.gradeOf(mo, 'smarts') === 'A' && parts.diet.smarts === 3 && parts.nature.smarts === 0 && parts.form.smarts === 2 && parts.potential.smarts === 3 && TL.starCap(mo, 'smarts') === 6,
+      'the test ranch: Mochi\'s Smarts is grade A (diet 3 + form 2 + Potential 3 = 8 points): room for a 6th star', SKILL_IDS.map(k => `${k} ${TL.gradeOf(mo, k)} ${parts.total[k].toFixed(1)}`).join(', '));
+    ok(!!slots && slots(mo, 'smarts') === 6 && SKILL_IDS.filter(k => k !== 'smarts').every(k => slots(mo, k) === 5), 'the screens show her 6 Smarts places and 5 for the rest (RL.starSlots, the one rule every star row uses)',
+      slots ? SKILL_IDS.map(k => `${k} ${slots(mo, k)}`).join(', ') : 'no RL.starSlots');
+    const c = ts.life.canTrain(mo.id, 'smarts');
+    ok(!c.ok && c.reason === 'lanes' && c.star === 6 && c.pearls === 80, 'with Peaches and Plum in lessons both lanes are busy: her star-6 lesson waits for a lane (it is not "all stars")', JSON.stringify({ reason: c.reason, star: c.star, lanes: t.ranch.life.lanes }));
+    for (const x of t.ranch.residents) if (x.lesson) ts.life.finishLesson(x);
+    const c2 = ts.life.canTrain(mo.id, 'smarts');
+    ok(c2.ok && c2.star === 6 && ts.life.train(mo.id, 'smarts', NOW) && mo.lesson.star === 6, 'once a lane is free she learns star 6 (80 pearls): the rule was right, the 6th place is hers');
+    ts.life.finishLesson(mo);
+    ok(mo.skills.smarts === 6 && !!slots && slots(mo, 'smarts') === 6 && ts.life.canTrain(mo.id, 'smarts').reason === 'max', 'then 6 of 6, and that is all for Smarts');
+  }
+  // no star row anywhere shows a place its slime can never fill: once a skill's talent is shown the row has its cap's
+  // places, before that 5 (or more when it already has more stars), never more than the stars it has or can learn
+  {
+    const slots = typeof RL.starSlots === 'function' ? RL.starSlots : null, bad = [];
+    let n = 0;
+    for (const f of files) {
+      const m = migrate(clone(JSON.parse(fs.readFileSync(path.join(HERE, 'fixtures', f), 'utf8')).save));
+      for (const x of m.ranch.residents) for (const k of SKILL_IDS) {
+        n++;
+        const have = RL.stars(x, k), cap = TL.starCap(x, k), s = slots ? slots(x, k) : NaN;
+        const want = Math.max(have, x.talentsSeen.includes(k) ? cap : L.maxStars);
+        if (!(s === want && s <= Math.max(have, cap))) bad.push(`${f} ${x.name} ${k}: ${s} places, ${have} stars, cap ${cap}`);
+      }
+    }
+    ok(!!slots && !bad.length, `every star row of every resident in every old save (${n}) shows only places it has or can still learn`, bad.slice(0, 3).join('; ') || (slots ? '' : 'no RL.starSlots'));
+  }
   // a broken Potential is repaired
   const bad = clone(save);
   bad.ranch.residents[0].potential = { bounce: 'x', speed: 9 };

@@ -88,8 +88,18 @@ export function bestDress(owned) {
 }
 
 // ---------- Dress up (rules only) ----------
-// Put an outfit the family owns on a resident in its slot (outfitId null: take that slot's outfit off). A slime on a
-// trip is not here to dress. Returns { ok, reason?, worn }.
+// What a slime wears ({ head, face, neck }), as the game can draw it and the pages can show it: each slot holds an
+// outfit of that slot or null. An unknown outfit, one in another slot's place, or anything that is not an outfit's id
+// becomes null; a missing slot is added (null), any other key goes; the slots keep their order. Used on load for the
+// slime at home and every resident, and by Dress up. An outfit the family does not own stays on (only a hand-made save
+// has one): the pages show it as worn, and it can be taken off.
+export function cleanWorn(worn) {
+  const w = isObj(worn) ? worn : {};
+  const slots = [...Object.keys(w).filter(s => SLOTS.includes(s)), ...SLOTS.filter(s => !(s in w))];
+  return Object.fromEntries(slots.map(s => [s, typeof w[s] === 'string' && Object.hasOwn(OUTFIT_BY_ID, w[s]) && OUTFIT_BY_ID[w[s]].slot === s ? w[s] : null]));
+}
+// Put an outfit the family owns on a resident in its slot (outfitId null: take that slot's outfit off, whatever it is).
+// A slime on a trip is not here to dress. Returns { ok, reason?, worn }.
 export function dressUp(state, id, slot, outfitId = null) {
   const x = state?.ranch?.residents?.find(r => r.id === id);
   if (!x) return { ok: false, reason: 'missing' };
@@ -101,7 +111,7 @@ export function dressUp(state, id, slot, outfitId = null) {
     if (def.slot !== slot) return { ok: false, reason: 'slot' };
     if (!(state.outfits?.owned || []).includes(outfitId)) return { ok: false, reason: 'owned' };
   }
-  x.worn = { ...Object.fromEntries(SLOTS.map(s => [s, null])), ...(isObj(x.worn) ? x.worn : {}), [slot]: outfitId };
+  x.worn = { ...cleanWorn(x.worn), [slot]: outfitId };
   return { ok: true, worn: { ...x.worn } };
 }
 

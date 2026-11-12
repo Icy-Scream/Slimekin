@@ -313,9 +313,10 @@ function touchKit() {
         await modalIs('dress');
         for (const o of ['flowers', 'glasses', 'bowtie']) { await touchEl(`#modalCard [data-outfit="${o}"]`); await page.waitForFunction(id => !!document.querySelector(`#modalCard [data-outfit="${id}"][aria-pressed="true"]`), o, { timeout: 20000 }); }
         const t = await modalText();
-        const r = await ev(id => { const g = window.slimekin, x = g.state.ranch.residents.find(y => y.id === id), av = g.barnRanch.view.av; return { worn: x.worn, stand: ['head', 'face', 'neck'].map(s => av.outfit[s] && av.outfit[s].id), cur: g.barnRanch.curId, faded: document.querySelectorAll('#modalCard .cs-outfit.not').length }; }, P);
+        const r = await ev(id => { const g = window.slimekin, x = g.state.ranch.residents.find(y => y.id === id), av = g.barnRanch.view.av; return { worn: x.worn, stand: ['head', 'face', 'neck'].map(s => av.outfit[s] && av.outfit[s].id), cur: g.barnRanch.curId, shop: document.querySelectorAll('#modalCard .cs-outfit.cs-shop').length, jelly: g.state.jelly }; }, P);
         log('dress:', t, JSON.stringify(r));
-        check(/Style 16 of 20/.test(t) && /Flower Crown \+6 Style Wearing/.test(t) && /Party Hat \+8 Style In Outfits/.test(t) && r.faded === 4, 'Dress up: Style 16 of 20, Wearing chips, the outfits the family does not own faded with "In Outfits"', t);
+        const party = `Party Hat +8 Style ${r.jelly + 1e-9 >= 5e9 ? '5B Buy & wear' : 'Needs 5B jelly'}`;
+        check(/Style 16 of 20/.test(t) && /Flower Crown \+6 Style Wearing/.test(t) && t.includes(party) && r.shop === 4, `Dress up: Style 16 of 20, Wearing chips, the four outfits the family does not own with their price ("${party}")`, t);
         check(r.worn.head === 'flowers' && r.worn.face === 'glasses' && r.worn.neck === 'bowtie' && r.cur === P && r.stand.join() === 'flowers,glasses,bowtie', 'Dress up: the save and the 3D slime on the stand wear them', JSON.stringify(r));
         await touchEl('#modalCard [data-cs="done"]');
         await modalIs('entry');

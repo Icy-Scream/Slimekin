@@ -4,14 +4,12 @@
 // Rules live in core/ranch-life.js; numbers and words in RANCH_LIFE (content.js).
 import { RANCH_LIFE, SKILL_BY_ID, PLACE_BY_ID } from '../data/content.js';
 import { fmt, fmtDuration } from '../core/format.js';
-import { stars, lovesDef, busy, SOUVENIR_TOTAL } from '../core/ranch-life.js';
-import { starCap } from '../core/talents.js';
+import { stars, starSlots, lovesDef, busy, SOUVENIR_TOTAL } from '../core/ranch-life.js';
 
 const L = RANCH_LIFE;
 import { esc } from './esc.js';
 import { memIcon } from './icons.js';
-// a skill's star row: 5 places, or (talents, core/talents.js) 6 or 7 once its first lesson has shown the talent
-const starSlots = (x, id) => Math.max(stars(x, id), (x.talentsSeen || []).includes(id) ? starCap(x, id) : L.maxStars);
+// a skill's star row: its places (core/ranch-life.js starSlots: 5, or 6 or 7 once a lesson has shown its talent)
 const starText = (n, slots = L.maxStars) => '★'.repeat(n) + '☆'.repeat(Math.max(0, slots - n));
 const STAR_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven'];
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
@@ -148,14 +146,18 @@ export class RanchLifeUI {
     if (!x) return;
     const R = g.state.ranch, name = esc(x.name);
     const free = this.rl.lanesFree();
+    const laneAt = free <= 0 && this.rl.learners().length ? Math.min(...this.rl.learners().map(y => y.lesson.doneAt)) : null;   // the first lesson to end
     const items = L.skills.map(s => {
       const c = this.rl.canTrain(id, s.id);
       const n = stars(x, s.id);
       const per = Object.entries(s.fx).map(([k, v]) => ({ pearls: `+${Math.round(v * 100)}% ranch pearls`, tripTime: `trips ${Math.round(v * 100)}% shorter`, fade: `happiness fades ${Math.round(v * 100)}% slower`, lessonTime: `lessons ${Math.round(v * 100)}% shorter`, tripPearls: `trips bring ${Math.round(v * 100)}% more pearls`, offers: `offers +${Math.round(v * 100)}%` }[k])).join(', ');
       const extra = s.id === 'sturdy' ? `; opens the farther trips` : '';
       const line = c.reason === 'max' ? `All ${STAR_WORDS[n] || n} stars!` : `Star ${c.star}: ${fmtDuration(c.seconds)} · <i class="pearl"></i> ${c.pearls}`;
+      // a greyed card with a star still to learn says why on the card (every lane busy, or short of pearls)
+      const why = c.reason === 'lanes' ? `<b>Waits for a free lane.</b>${laneAt ? ` One frees up at ${esc(this.clock(laneAt))}.` : ''}`
+        : c.reason === 'pearls' ? `<b>Needs ${fmt(c.pearls)} pearls.</b> You have ${fmt(R.pearls)}.` : '';
       return `<button class="card choice rl-pick" data-skill="${s.id}" ${c.ok ? '' : 'disabled'}><span class="rl-ic" aria-hidden="true">${s.icon}</span>
-        <span><b>${esc(s.name)} <span class="rl-stars">${starText(n, starSlots(x, s.id))}</span></b><span class="sub">${line}</span><span class="sub">Each star: ${esc(per + extra)}.</span></span></button>`;
+        <span><b>${esc(s.name)} <span class="rl-stars">${starText(n, starSlots(x, s.id))}</span></b><span class="sub">${line}</span>${why ? `<span class="sub rl-why">${why}</span>` : ''}<span class="sub">Each star: ${esc(per + extra)}.</span></span></button>`;
     }).join('');
     const note = free <= 0 ? `<p class="sub"><b>The Training Center is full</b> (${plural(R.life.lanes, 'lane')}). ${this.rl.laneCost() !== null ? 'Another lane is on the Ranch tab.' : ''}</p>`
       : `<p class="sub">You have <i class="pearl"></i> ${fmt(R.pearls)} pearls.</p>`;
@@ -290,7 +292,7 @@ export class RanchLifeUI {
         const s = SKILL_BY_ID[r.skill];
         g.remember('🎓', `${r.name} earned ${plural(r.star, 'star')} in ${s.name} at the Training Center.`);
         if (live) {
-          g.hud.toast(`<b>${esc(r.name)} earned ${plural(r.star, 'star')} in ${esc(s.name)}!</b>${starText(r.star)} · a happy slime after a good lesson.`, 'love', 3400);
+          g.hud.toast(`<b>${esc(r.name)} earned ${plural(r.star, 'star')} in ${esc(s.name)}!</b>${starText(r.star, this.slotsOf(r))} · a happy slime after a good lesson.`, 'love', 3400);
           g.sfx.levelUp ? g.sfx.levelUp() : g.sfx.sparkle();
           const v = g.ranch.resident(r.id); if (v) { v.av.hop(5); v.happyT = 2; }
         } else this.pending.push(r);
@@ -317,6 +319,8 @@ export class RanchLifeUI {
     g.hud.renderRanch(true);
     g.markDirty(true);
   }
+  // A finished lesson's star places: the ones its resident's page shows (5 when it has left the ranch since).
+  slotsOf(r) { const x = this.rr.resident(r.id); return x ? starSlots(x, r.skill) : Math.max(r.star, L.maxStars); }
   // One card for everything waiting: trips (pearls, souvenir, treat, story) and lessons that ended while closed.
   showCard() {
     const g = this.g, list = this.pending.splice(0);
@@ -331,7 +335,7 @@ export class RanchLifeUI {
         ${r.early ? '<span class="sub">Home early: the souvenir and the treat wait for a full trip.</span>' : ''}
         ${r.friend ? `<span class="sub"><b>Friend of ${esc(p.name)}!</b> A thank-you postcard with ${r.gift} pearls. Its buyer offers ${Math.round(L.friend.offers * 100)}% more for your slimes now.</span>` : ''}</div>`;
     }).join('');
-    const lessonHtml = lessons.map(r => `<div class="card"><div class="row-between"><b>${memIcon('🎓', '')} ${esc(r.name)} · ${esc(SKILL_BY_ID[r.skill].name)}</b><span class="rl-stars">${starText(r.star)}</span></div><span class="sub">${esc(r.name)} earned ${plural(r.star, 'star')} in ${esc(SKILL_BY_ID[r.skill].name)}.</span></div>`).join('');
+    const lessonHtml = lessons.map(r => `<div class="card"><div class="row-between"><b>${memIcon('🎓', '')} ${esc(r.name)} · ${esc(SKILL_BY_ID[r.skill].name)}</b><span class="rl-stars">${starText(r.star, this.slotsOf(r))}</span></div><span class="sub">${esc(r.name)} earned ${plural(r.star, 'star')} in ${esc(SKILL_BY_ID[r.skill].name)}.</span></div>`).join('');
     const title = list.length > 1 ? 'While you were away' : trips.length ? `${esc(trips[0].name)} is home!` : 'Lesson done!';
     this.shown = list;
     g.hud.openModal(`<h2 data-rl-card>${title}</h2>${tripHtml}${lessonHtml}<div class="actions"><button class="btn primary" id="rlOk">Yay!</button></div>`, {

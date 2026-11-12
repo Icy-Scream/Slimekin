@@ -369,7 +369,8 @@ emoji in `content.js` (`RANCH_LIFE`), shown as text; stars are the ★/☆ glyph
 
 - **Train picker** ("Train Pip"): intro + loves line, pearls on hand (or "The Training Center is full"), a list
   `.egg-choice` of `button.card.choice.rl-pick[data-skill]` (icon `.rl-ic`, name + `.rl-stars`, "Star N: time ·
-  pearls", what each star does; `disabled` when it can't start), "Not now" `#rlNo`. Tapping a skill starts it.
+  pearls", why it can't start now in `.sub.rl-why` (see "Outfits and stars fixes"), what each star does; `disabled`
+  when it can't start), "Not now" `#rlNo`. Tapping a skill starts it.
 - **Trip picker** ("Send Pip on a trip"): the six places as `button.card.choice.rl-pick[data-place]` ("1h · about
   (pearl) 5 · souvenirs 0/3", or "Opens at Sturdy ★★ (Pip has 0)" and `disabled`; "You are a Friend of this place."),
   "Every wagon is out" when none is free, "Not now".
@@ -593,8 +594,8 @@ names, cup `short` names, rivals, `cheer` and `show` timing). Screenshots: `node
     4", the coach's line from the rules' preview), "Dress up · Style x of 20" (Beauty Show only), "Shows are free and
     always open. ...", Start the show (primary) / Not now.
   - Dress up: "Dress up Pebble", the Style meter `.cs-meter` (x of 20, "counts in the Beauty Show"), Head / Face / Neck
-    with every outfit `.cs-outfit` (its rendered icon, "+N Style", `.cs-chip` "✓ Wearing" purple / "Wear"; not owned:
-    faded, "In Outfits", not a button), Done. The resident comes up on the stand and its 3D look changes as you tap.
+    with every outfit `.cs-outfit` (its rendered icon, the name over "+N Style", `.cs-chip` "✓ Wearing" purple / "Wear" /
+    green "<price> Buy & wear" / "Needs N jelly": see "Dress up: wear and buy from the card" below), Done. The resident comes up on the stand and its 3D look changes as you tap.
     Opened from the entry card or the loss card, Done goes back to the entry card.
   - Results (`.cs-res`): a loss: "Good try!", "2nd place in the Grand Cup", four `.cs-line` rows (the slime's row
     `.me` highlighted; a tie lists it first), the parts line with Cheers, the coach's tip `.cs-tip` (whistle) and
@@ -619,3 +620,42 @@ names, cup `short` names, rivals, `cheer` and `show` timing). Screenshots: `node
   "Beauty Champion"; two or three contests: "Double Champion" / "Triple Champion" in the Beauty pink).
 - Debug only: `g.contestShow.info()` (phase, act, the ring's start, grades, taps; `last` = the last result),
   `g.contestShow.debugCheer(grade)` (the picture tool), `g.contestsUI.openEntry(id, contest, cup)`.
+
+## Outfits and stars fixes (the captain's playtest of the :8822 test copy, 11 Nov)
+
+- Outfits page (`#body-outfits .outfit`): the outfit the slime wears always reads "Wearing" (`.worn`, `.wear.on`,
+  `aria-pressed="true"`) and a touch takes it off, also one the family does not own (only a hand-made save has one;
+  before, it showed its price and a touch tried to buy it). Not worn and not owned: the price, as before.
+- Dress up (`#modalCard .cs-outfit`): what the resident wears is always the "✓ Wearing" button, first in its group, and
+  a touch takes it off, owned or not (before, the test ranch's Mochi showed her Artist Beret as a faded "In Outfits" row,
+  so the card said she wore nothing on her head while the stand drew the beret). Not owned and not worn: still faded
+  with "In Outfits", now `button.cs-outfit.not[data-cs="notOwned"][aria-disabled="true"]`: a touch shakes it (`.shake`)
+  with the error sound and changes nothing (before, nothing at all happened). Once off, an outfit the family does not
+  own can't go back on.
+- Train picker: a greyed card that still has a star to learn says why on the card, in `.sub.rl-why` under "Star N:
+  ...": "**Waits for a free lane.** One frees up at 8:41 pm." (every lane busy; the time is the first lesson to end) or
+  "**Needs 80 pearls.** You have 50.". The line at the top ("The Training Center is full ...") stays.
+- A finished lesson's toast and the "Lesson done!" card: the stars have the places the resident's page shows
+  (★☆☆☆☆☆ for a skill graded A once its talent is shown; before, always 5 places).
+- HUD jelly counter (`.jelly-count`): the number in M PLUS Rounded 1c 800 (was DynaPuff 700, whose B reads as 6 or 8:
+  "1.2B" looked like "1.26"; design/STYLE.md §4). The drop icon and the "per second" line are unchanged.
+
+## Dress up: wear and buy from the card (the captain, 11 Nov: "I should be able to wear items from my outfits and select wear too")
+
+Every outfit is choosable in Dress up, the way it is on the Outfits page. One rule names a row on both pages
+(`Sim.outfitChoice(id, worn)` in core/sim.js), so they always say the same thing.
+- Dress up (`#modalCard .cs-outfit`): the name over "+N Style" (`.cs-on`, so a price fits on a 390 px phone), then:
+  - worn: `.cs-chip.on` "✓ Wearing" (purple, `aria-pressed="true"`): a touch takes it off, as before;
+  - owned, not worn: `.cs-chip` "Wear": a touch puts it on, in place of what that spot held;
+  - not owned (`button.cs-outfit.cs-shop[data-cs="buy"]`): green `.cs-chip.cs-buy` "(drop) 100B Buy & wear": a touch
+    buys it for the family at the Outfits page's price (`Sim.buyOutfit`, through `Sim.buyAndDress` and
+    `Game.buyOutfitFor`: the buy sound, a Journal line "Mochi got a new outfit: Tiny Crown.") and puts it on this
+    resident; Pebble at home keeps what she wears. No confirm, the same as the Outfits page;
+  - not owned and not enough jelly (`.poor`, `aria-disabled="true"`): faded, `.cs-chip.cs-needs` "Needs 100B jelly" in
+    grey; a touch does nothing (replaces the faded "In Outfits" row that shook).
+  Both labels of a not-owned row are drawn and the jelly picks one: the open card checks every 0.4 s, so a row turns
+  into "Buy & wear" once the jelly is there. The intro now says "Outfits belong to the whole family."
+- Outfits page (`#body-outfits .outfit`): the same labels: `.wear.on` "✓ Wearing" (the drawn check, was the word only),
+  `.wear` "Wear", `.cost.buy` "(drop) 100B Buy & wear" (was the price only), `.needs` "Needs 100B jelly" on a `.poor`
+  tile (`aria-disabled="true"`; was a grey price, and a touch beeped with a "Not enough jelly" toast; now it does
+  nothing).
